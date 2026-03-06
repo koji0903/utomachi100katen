@@ -8,6 +8,33 @@ import { db } from "@/lib/firebase";
 export interface RetailStore {
     id: string;
     name: string;
+    zipCode?: string;
+    address?: string;
+    tel?: string;
+    email?: string;
+    pic?: string; // Person in Charge
+    memo?: string;
+    commissionRate?: number; // In percentage (e.g., 15)
+}
+
+export interface Sale {
+    id: string;
+    storeId: string;
+    type: 'daily' | 'monthly';
+    period: string; // YYYY-MM-DD or YYYY-MM
+    items: {
+        productId: string;
+        quantity: number;
+        priceAtSale: number;
+        subtotal: number;
+        commission: number;
+        netProfit: number;
+    }[];
+    totalQuantity: number;
+    totalAmount: number;
+    totalCommission: number;
+    totalNetProfit: number;
+    updatedAt?: string | any;
 }
 
 export interface Purchase {
@@ -70,8 +97,9 @@ export function useStore() {
     const { data: products = [], mutate: mutateProducts, isLoading: loadingProducts } = useSWR<Product[]>("products", () => fetcher<Product>("products"), swrConfig);
     const { data: retailStores = [], mutate: mutateRetailStores, isLoading: loadingRetailStores } = useSWR<RetailStore[]>("retailStores", () => fetcher<RetailStore>("retailStores"), swrConfig);
     const { data: purchases = [], mutate: mutatePurchases, isLoading: loadingPurchases } = useSWR<Purchase[]>("purchases", () => fetcher<Purchase>("purchases"), swrConfig);
+    const { data: sales = [], mutate: mutateSales, isLoading: loadingSales } = useSWR<Sale[]>("sales", () => fetcher<Sale>("sales"), swrConfig);
 
-    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases;
+    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales;
 
     // --- Brand Actions ---
     const addBrand = async (name: string) => {
@@ -157,18 +185,18 @@ export function useStore() {
     };
 
     // --- RetailStore Actions ---
-    const addRetailStore = async (name: string) => {
+    const addRetailStore = async (storeData: Omit<RetailStore, "id">) => {
         const newRef = doc(collection(db, "retailStores"));
-        const newStore = { id: newRef.id, name };
+        const newStore = { id: newRef.id, ...storeData };
         mutateRetailStores([...retailStores, newStore], false);
-        await setDoc(newRef, { name });
+        await setDoc(newRef, storeData);
         mutateRetailStores();
     };
 
-    const updateRetailStore = async (id: string, name: string) => {
-        mutateRetailStores(retailStores.map((s) => (s.id === id ? { ...s, name } : s)), false);
+    const updateRetailStore = async (id: string, storeUpdate: Partial<Omit<RetailStore, "id">>) => {
+        mutateRetailStores(retailStores.map((s) => (s.id === id ? { ...s, ...storeUpdate } : s)), false);
         const docRef = doc(db, "retailStores", id);
-        await updateDoc(docRef, { name });
+        await updateDoc(docRef, storeUpdate);
         mutateRetailStores();
     };
 
@@ -231,6 +259,29 @@ export function useStore() {
         mutatePurchases();
     };
 
+    // --- Sale Actions ---
+    const addSale = async (saleData: Omit<Sale, "id" | "updatedAt">) => {
+        const newRef = doc(collection(db, "sales"));
+        const newSale = {
+            id: newRef.id,
+            ...saleData,
+            updatedAt: new Date().toISOString(),
+        };
+        mutateSales([newSale as Sale, ...sales], false);
+        await setDoc(newRef, {
+            ...saleData,
+            updatedAt: serverTimestamp(),
+        });
+        mutateSales();
+    };
+
+    const deleteSale = async (id: string) => {
+        mutateSales(sales.filter((s) => s.id !== id), false);
+        const docRef = doc(db, "sales", id);
+        await deleteDoc(docRef);
+        mutateSales();
+    };
+
     return {
         isLoaded,
         brands,
@@ -253,5 +304,8 @@ export function useStore() {
         addPurchase,
         updatePurchase,
         deletePurchase,
+        sales,
+        addSale,
+        deleteSale,
     };
 }

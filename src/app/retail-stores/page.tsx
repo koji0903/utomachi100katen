@@ -13,9 +13,10 @@ export default function RetailStoresPage() {
 
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
-    const filteredStores = retailStores.filter((store) =>
-        store.name.includes(searchQuery)
-    );
+    const filteredStores = retailStores.filter((store) => {
+        const searchTarget = `${store.name} ${store.pic || ""} ${store.address || ""} ${store.tel || ""}`.toLowerCase();
+        return searchTarget.includes(searchQuery.toLowerCase());
+    });
 
     const handleEdit = (store: RetailStore) => {
         setEditingStore(store);
@@ -72,7 +73,9 @@ export default function RetailStoresPage() {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b border-slate-200 text-slate-500 text-sm bg-white">
-                                <th className="p-5 font-semibold">店舗名</th>
+                                <th className="p-5 font-semibold">店舗名 / 担当者</th>
+                                <th className="p-5 font-semibold">住所 / 連絡先</th>
+                                <th className="p-5 font-semibold text-right">手数料率</th>
                                 <th className="p-5 font-semibold text-right">操作</th>
                             </tr>
                         </thead>
@@ -81,6 +84,14 @@ export default function RetailStoresPage() {
                                 <tr key={store.id} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors group">
                                     <td className="p-5">
                                         <div className="font-medium text-slate-900 group-hover:text-pink-600 transition-colors">{store.name}</div>
+                                        {store.pic && <div className="text-xs text-slate-500 mt-0.5">担当: {store.pic}</div>}
+                                    </td>
+                                    <td className="p-5">
+                                        <div className="text-sm text-slate-700 truncate max-w-xs">{store.address || "住所未登録"}</div>
+                                        {store.tel && <div className="text-xs text-slate-500 mt-0.5">{store.tel}</div>}
+                                    </td>
+                                    <td className="p-5 text-right font-medium text-slate-900">
+                                        {store.commissionRate || 0}%
                                     </td>
                                     <td className="p-5 text-right">
                                         <div className="flex items-center justify-end gap-2">
@@ -104,7 +115,7 @@ export default function RetailStoresPage() {
                             ))}
                             {filteredStores.length === 0 && (
                                 <tr>
-                                    <td colSpan={2} className="p-12 text-center text-slate-500">
+                                    <td colSpan={4} className="p-12 text-center text-slate-500">
                                         <div className="flex flex-col items-center gap-3">
                                             <Search className="w-8 h-8 text-slate-300" />
                                             <p>販売店舗が見つかりませんでした。</p>

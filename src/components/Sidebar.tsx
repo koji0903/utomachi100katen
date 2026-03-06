@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck } from "lucide-react";
+import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 
@@ -16,6 +16,7 @@ export function Sidebar() {
     { name: "販売店舗管理", href: "/retail-stores", icon: Store },
     { name: "仕入先管理", href: "/suppliers", icon: Users },
     { name: "仕入れ管理", href: "/purchases", icon: Truck },
+    { name: "売上入力", href: "/sales", icon: BarChart3 },
     { name: "注文管理", href: "/orders", icon: ShoppingCart },
     { name: "設定", href: "/settings", icon: Settings },
   ];
