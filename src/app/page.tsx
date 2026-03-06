@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 
@@ -15,14 +15,12 @@ export default function ProductsPage() {
   if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
   const filteredProducts = products.filter((product) => {
-    // Get the supplier name to search against
+    // Get the supplier and brand names for searching
     const supplier = suppliers.find(s => s.id === product.supplierId);
-    const supplierName = supplier ? supplier.name : "";
+    const brand = brands.find(b => b.id === product.brandId);
+    const searchTarget = `${product.name} ${supplier?.name || ""} ${brand?.name || ""}`.toLowerCase();
 
-    // Check search query against name and supplier name
-    const matchesSearch = product.name.includes(searchQuery) || supplierName.includes(searchQuery);
-
-    // Check brand filter
+    const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
     const matchesBrand = selectedBrandId === "all" || product.brandId === selectedBrandId;
 
     return matchesSearch && matchesBrand;
@@ -131,8 +129,16 @@ export default function ProductsPage() {
                       </span>
                     </td>
                     <td className="p-5 text-slate-600">{supplier ? supplier.name : "不明"}</td>
-                    <td className="p-5 text-right font-semibold text-slate-900">
-                      ¥{product.sellingPrice.toLocaleString()}
+                    <td className="p-5 text-right flex flex-col items-end gap-1">
+                      <div className="font-semibold text-slate-900">
+                        ¥{product.sellingPrice.toLocaleString()}
+                      </div>
+                      {product.storePrices && product.storePrices.some(sp => sp.price > 0) && (
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-pink-600 bg-pink-50 px-1.5 py-0.5 rounded border border-pink-100">
+                          <Store className="w-2.5 h-2.5" />
+                          店舗別価格あり
+                        </div>
+                      )}
                     </td>
                     <td className="p-5 text-right">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium ${product.stock < 50 ? 'bg-red-50 text-red-700 border border-red-100' : 'text-slate-700'}`}>

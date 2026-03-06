@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles } from "lucide-react";
+import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
 
@@ -12,7 +12,7 @@ interface ProductModalProps {
 }
 
 export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps) {
-    const { brands, suppliers, addProduct, updateProduct } = useStore();
+    const { brands, suppliers, retailStores, addProduct, updateProduct } = useStore();
 
     const defaultFormData = {
         name: "",
@@ -20,6 +20,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         supplierId: "",
         costPrice: 0,
         sellingPrice: 0,
+        storePrices: [] as { storeId: string; price: number }[],
         stock: 0,
         story: "",
         imageUrl: "",
@@ -42,6 +43,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     supplierId: initialData.supplierId,
                     costPrice: initialData.costPrice,
                     sellingPrice: initialData.sellingPrice,
+                    storePrices: initialData.storePrices || [],
                     stock: initialData.stock,
                     story: initialData.story || "",
                     imageUrl: initialData.imageUrl || "",
@@ -52,6 +54,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     ...defaultFormData,
                     brandId: brands.length > 0 ? brands[0].id : "",
                     supplierId: suppliers.length > 0 ? suppliers[0].id : "",
+                    storePrices: [],
                 });
                 setImagePreview(null);
             }
@@ -130,6 +133,21 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         } finally {
             setIsGeneratingStory(false);
         }
+    };
+
+    const handleStorePriceChange = (storeId: string, price: number) => {
+        setFormData(prev => {
+            const existing = prev.storePrices.find(sp => sp.storeId === storeId);
+            let newStorePrices;
+            if (existing) {
+                newStorePrices = prev.storePrices.map(sp =>
+                    sp.storeId === storeId ? { ...sp, price } : sp
+                );
+            } else {
+                newStorePrices = [...prev.storePrices, { storeId, price }];
+            }
+            return { ...prev, storePrices: newStorePrices };
+        });
     };
 
     return (
@@ -272,6 +290,39 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                                     placeholder="0"
                                 />
                             </div>
+                        </div>
+
+                        {/* Store Specific Prices */}
+                        <div className="space-y-4 border-t border-slate-100 pt-6">
+                            <h3 className="text-md font-bold text-slate-800 flex items-center gap-2">
+                                <Store className="w-4 h-4 text-pink-500" />
+                                販売店舗別価格設定
+                            </h3>
+                            {retailStores.length === 0 ? (
+                                <p className="text-sm text-slate-500 italic">「販売店舗管理」で店舗を登録すると、ここで個別の価格を設定できます。</p>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {retailStores.map(store => {
+                                        const storePrice = formData.storePrices.find(sp => sp.storeId === store.id)?.price || 0;
+                                        return (
+                                            <div key={store.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                                <label className="text-sm font-medium text-slate-600 mb-2 block">{store.name}</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={storePrice || ""}
+                                                        onChange={(e) => handleStorePriceChange(store.id, Number(e.target.value))}
+                                                        className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all text-right text-sm"
+                                                        placeholder="店舗別価格"
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-2">
