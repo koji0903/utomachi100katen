@@ -20,6 +20,7 @@ import {
     ChevronDown
 } from "lucide-react";
 import { useStore, BusinessChallenge } from "@/lib/store";
+import { showNotification } from "@/lib/notifications";
 
 const CATEGORIES = {
     system: { label: "システム課題", icon: Smartphone, color: "text-blue-600", bg: "bg-blue-50" },
@@ -84,31 +85,41 @@ export default function TodoPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (editingChallenge) {
-            await updateChallenge(editingChallenge.id, formData);
-        } else {
-            await addChallenge(formData);
+        try {
+            if (editingChallenge) {
+                await updateChallenge(editingChallenge.id, formData);
+                showNotification("課題を更新しました。");
+            } else {
+                await addChallenge(formData);
+                showNotification("課題を登録しました。");
+            }
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error("Failed to save challenge:", error);
+            showNotification("保存に失敗しました。", "error");
         }
-        setIsModalOpen(false);
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDelete = (id: string) => {
         if (window.confirm("この課題を削除してもよろしいですか？")) {
-            await deleteChallenge(id);
+            deleteChallenge(id);
+            showNotification("課題を削除しました。");
         }
     };
 
-    const filteredChallenges = challenges
-        .filter(c =>
+    const filteredChallenges = (challenges || [])
+        .filter((c: BusinessChallenge) =>
             (filterCategory === "all" || c.category === filterCategory) &&
             (filterStatus === "all" || c.status === filterStatus) &&
             (c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 c.description.toLowerCase().includes(searchQuery.toLowerCase()))
         )
-        .sort((a, b) => {
+        .sort((a: BusinessChallenge, b: BusinessChallenge) => {
             // Sort by priority then status
-            const pMap = { high: 0, medium: 1, low: 2 };
-            if (pMap[a.priority] !== pMap[b.priority]) return pMap[a.priority] - pMap[b.priority];
+            const pMap: Record<string, number> = { high: 0, medium: 1, low: 2 };
+            const aPrio = pMap[a.priority] ?? 1;
+            const bPrio = pMap[b.priority] ?? 1;
+            if (aPrio !== bPrio) return aPrio - bPrio;
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
 
@@ -178,10 +189,10 @@ export default function TodoPage() {
             {/* List */}
             <div className="grid grid-cols-1 gap-4">
                 {filteredChallenges.length > 0 ? (
-                    filteredChallenges.map(challenge => {
-                        const cat = CATEGORIES[challenge.category] || CATEGORIES.other;
-                        const prio = PRIORITIES[challenge.priority] || PRIORITIES.medium;
-                        const stat = STATUSES[challenge.status] || STATUSES.todo;
+                    filteredChallenges.map((challenge: BusinessChallenge) => {
+                        const cat = (CATEGORIES as any)[challenge.category] || CATEGORIES.other;
+                        const prio = (PRIORITIES as any)[challenge.priority] || PRIORITIES.medium;
+                        const stat = (STATUSES as any)[challenge.status] || STATUSES.todo;
 
                         return (
                             <div
@@ -317,8 +328,8 @@ export default function TodoPage() {
                                                 type="button"
                                                 onClick={() => setFormData({ ...formData, status: key as any })}
                                                 className={`py-3 rounded-2xl text-xs font-black transition-all border ${formData.status === key
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-600/20'
-                                                        : 'bg-slate-50 text-slate-500 border-transparent hover:bg-slate-100'
+                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-600/20'
+                                                    : 'bg-slate-50 text-slate-500 border-transparent hover:bg-slate-100'
                                                     }`}
                                             >
                                                 {val.label}

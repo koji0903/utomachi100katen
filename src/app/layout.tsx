@@ -3,6 +3,7 @@ import { Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/authContext";
 import AppLayout from "@/components/AppLayout";
+import { NotificationContainer } from "@/components/NotificationContainer";
 
 const notoSansJP = Noto_Sans_JP({ subsets: ["latin"], weight: ["400", "500", "700"] });
 
@@ -20,6 +21,7 @@ export default function RootLayout({
     <html lang="ja">
       <body className={`${notoSansJP.className} bg-slate-50 text-slate-800 antialiased`}>
         <AuthProvider>
+          <NotificationContainer />
           <AppLayout>
             {children}
           </AppLayout>

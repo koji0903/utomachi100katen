@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
+import { showNotification } from "@/lib/notifications";
 
 interface ProductModalProps {
     isOpen: boolean;
@@ -99,14 +100,16 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
 
             if (initialData && initialData.id) {
                 updateProduct(initialData.id, finalData);
+                showNotification("商品を更新しました。");
             } else {
                 addProduct(finalData);
+                showNotification("商品を登録しました。");
             }
 
             onClose();
         } catch (error) {
             console.error("Failed to save product:", error);
-            alert("画像のアップロードまたは商品の保存に失敗しました。");
+            showNotification("保存に失敗しました。", "error");
         } finally {
             setIsUploading(false);
         }

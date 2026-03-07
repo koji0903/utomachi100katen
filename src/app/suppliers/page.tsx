@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Edit2, Trash2, Search, Users, Building2, Wheat } from "lucide-react";
 import { useStore, Supplier } from "@/lib/store";
 import { SupplierModal } from "@/components/SupplierModal";
+import { showNotification } from "@/lib/notifications";
 
 export default function SuppliersPage() {
     const { isLoaded, suppliers, deleteSupplier } = useStore();
@@ -33,6 +34,7 @@ export default function SuppliersPage() {
     const handleDelete = (id: string) => {
         if (window.confirm("この仕入先を削除してもよろしいですか？")) {
             deleteSupplier(id);
+            showNotification("仕入先を削除しました。");
         }
     };
 

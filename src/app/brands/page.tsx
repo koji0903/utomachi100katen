@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { useStore, Brand } from "@/lib/store";
 import { BrandModal } from "@/components/BrandModal";
+import { showNotification } from "@/lib/notifications";
 
 export default function BrandsPage() {
     const { isLoaded, brands, deleteBrand } = useStore();
@@ -25,6 +26,7 @@ export default function BrandsPage() {
     const handleDelete = (id: string) => {
         if (window.confirm("このブランドを削除してもよろしいですか？")) {
             deleteBrand(id);
+            showNotification("ブランドを削除しました。");
         }
     };
 

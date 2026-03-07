@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Save, Users, Building2, Wheat, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { useStore, Supplier } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
+import { showNotification } from "@/lib/notifications";
 
 interface SupplierModalProps {
     isOpen: boolean;
@@ -99,8 +100,10 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
         };
         if (initialData) {
             updateSupplier(initialData.id, supplierData);
+            showNotification("仕入先を更新しました。");
         } else {
             addSupplier(supplierData);
+            showNotification("仕入先を登録しました。");
         }
         onClose();
     };

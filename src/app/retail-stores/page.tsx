@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { RetailStoreModal } from "@/components/RetailStoreModal";
+import { showNotification } from "@/lib/notifications";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -221,7 +222,10 @@ export default function RetailStoresPage() {
     const handleEdit = (store: RetailStore) => { setEditingStore(store); setIsModalOpen(true); };
     const handleCreate = () => { setEditingStore(null); setIsModalOpen(true); };
     const handleDelete = (id: string) => {
-        if (window.confirm("この店舗を削除しますか？")) deleteRetailStore(id);
+        if (window.confirm("この店舗を削除してもよろしいですか？")) {
+            deleteRetailStore(id);
+            showNotification("店舗を削除しました。");
+        }
     };
 
     return (

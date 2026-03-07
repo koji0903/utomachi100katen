@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { X, Save, Tag, Image as ImageIcon, UploadCloud } from "lucide-react";
 import { useStore, Brand } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
+import { showNotification } from "@/lib/notifications";
 
 interface BrandModalProps {
     isOpen: boolean;
@@ -63,13 +64,15 @@ export function BrandModal({ isOpen, onClose, initialData }: BrandModalProps) {
 
             if (initialData) {
                 await updateBrand(initialData.id, data);
+                showNotification("ブランドを更新しました。");
             } else {
                 await addBrand(data);
+                showNotification("ブランドを登録しました。");
             }
             onClose();
         } catch (error) {
             console.error("Failed to save brand:", error);
-            alert("保存に失敗しました。");
+            showNotification("保存に失敗しました。", "error");
         } finally {
             setIsUploading(false);
         }

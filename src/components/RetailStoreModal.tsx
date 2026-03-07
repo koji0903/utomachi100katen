@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
+import { showNotification } from "@/lib/notifications";
 
 interface RetailStoreModalProps {
     isOpen: boolean;
@@ -97,10 +98,15 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         try {
             if (initialData) {
                 await updateRetailStore(initialData.id, formData);
+                showNotification("店舗情報を更新しました。");
             } else {
                 await addRetailStore(formData);
+                showNotification("店舗を登録しました。");
             }
             onClose();
+        } catch (error) {
+            console.error("Failed to save store:", error);
+            showNotification("保存に失敗しました。", "error");
         } finally {
             setIsSaving(false);
         }

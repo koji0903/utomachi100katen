@@ -5,6 +5,7 @@ import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, He
 import { useStore, Product } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
+import { showNotification } from "@/lib/notifications";
 
 export default function ProductsPage() {
   const { isLoaded, products, brands, suppliers, deleteProduct } = useStore();
@@ -49,8 +50,9 @@ export default function ProductsPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm("この商品を削除してもよろしいですか？")) {
+    if (confirm("商品の削除をしてもよろしいですか？関連するバリエーションも削除されます。")) {
       deleteProduct(id);
+      showNotification("商品を削除しました。");
     }
   };
 
