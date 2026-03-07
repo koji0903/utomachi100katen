@@ -10,8 +10,10 @@ import {
     BarChart3,
     CloudSun, Cloud, CloudRain, CloudSnow,
     Thermometer, Wind, Package, ChevronDown,
+    Sparkles,
 } from "lucide-react";
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
+import { SalesAnalysisTab } from "@/components/SalesAnalysisTab";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -447,13 +449,14 @@ function DailyLogTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SalesPage() {
-    const [activeTab, setActiveTab] = useState<'input' | 'log'>('input');
+    const [activeTab, setActiveTab] = useState<'input' | 'log' | 'analysis'>('input');
     const { sales } = useStore();
 
     // Show success toast from input tab — handled inside SalesInputTab
     const tabs = [
         { id: 'input', label: '売上入力', icon: Save },
         { id: 'log', label: '日別実績', icon: BarChart3 },
+        { id: 'analysis', label: '販売分析', icon: Sparkles },
     ] as const;
 
     return (
@@ -488,6 +491,7 @@ export default function SalesPage() {
             {/* Tab content */}
             {activeTab === 'input' && <SalesInputTab />}
             {activeTab === 'log' && <DailyLogTab />}
+            {activeTab === 'analysis' && <SalesAnalysisTab />}
         </div>
     );
 }
