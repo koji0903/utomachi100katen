@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag } from "lucide-react";
+import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
 
@@ -29,6 +29,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         servingSuggestion: "",
         imageUrl: "",
         taxRate: 'standard' as 'standard' | 'reduced',
+        alertThreshold: 20,
     };
 
     const [formData, setFormData] = useState(defaultFormData);
@@ -57,6 +58,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     servingSuggestion: initialData.servingSuggestion || "",
                     imageUrl: initialData.imageUrl || "",
                     taxRate: initialData.taxRate || 'standard',
+                    alertThreshold: initialData.alertThreshold ?? 20,
                 });
 
                 setImagePreview(initialData.imageUrl || null);
@@ -358,9 +360,25 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                                     min="0"
                                     value={formData.stock || ""}
                                     onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
-                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right"
+                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right font-bold"
                                     placeholder="0"
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-slate-700 block text-amber-700 underline decoration-amber-200 decoration-2 underline-offset-4 flex items-center gap-1.5">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    在庫アラートしきい値
+                                </label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="0"
+                                    value={formData.alertThreshold}
+                                    onChange={(e) => setFormData({ ...formData, alertThreshold: e.target.value === "" ? 0 : Number(e.target.value) })}
+                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-amber-50/30 focus:bg-white text-right font-medium text-amber-900"
+                                    placeholder="20"
+                                />
+                                <p className="text-[10px] text-slate-400">この数値を下回るとダッシュボードに警告が表示されます。</p>
                             </div>
                         </div>
 

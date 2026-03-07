@@ -218,6 +218,7 @@ export interface Product {
     storyImageUrl?: string; // ストーリー用写真URL
     imageUrl?: string;
     taxRate?: 'standard' | 'reduced'; // 標準税率(10%) or 軽減税率(8%)
+    alertThreshold?: number; // 在庫アラートのしきい値
     createdAt?: string | any;
 }
 

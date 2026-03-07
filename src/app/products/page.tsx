@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
@@ -183,9 +183,15 @@ export default function ProductsPage() {
                       )}
                     </td>
                     <td className="p-5 text-right">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium ${product.stock < 50 ? 'bg-red-50 text-red-700 border border-red-100' : 'text-slate-700'}`}>
-                        {product.stock}個
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-sm font-bold ${product.stock <= (product.alertThreshold ?? 20) ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'text-slate-700'}`}>
+                          {product.stock}個
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                          <AlertTriangle className="w-2.5 h-2.5" />
+                          {product.alertThreshold ?? 20}
+                        </span>
+                      </div>
                     </td>
                     <td className="p-5 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -266,9 +272,15 @@ export default function ProductsPage() {
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <div className="font-bold text-slate-900">¥{product.sellingPrice.toLocaleString()}</div>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${product.stock < 50 ? 'bg-red-50 text-red-700' : 'text-slate-600'}`}>
-                      在庫 {product.stock}個
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${product.stock <= (product.alertThreshold ?? 20) ? 'bg-amber-50 text-amber-700' : 'text-slate-600'}`}>
+                        在庫 {product.stock}個
+                      </span>
+                      <span className="text-[9px] text-slate-400 flex items-center gap-1">
+                        <AlertTriangle className="w-2 h-2" />
+                        アラート: {product.alertThreshold ?? 20}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

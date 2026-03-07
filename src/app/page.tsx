@@ -28,10 +28,9 @@ export default function DashboardPage() {
     const totalBrands = brands.length;
     const totalStores = retailStores.length;
 
-    // Low Stock Items (threshold: 20)
-    const lowStockThreshold = 20;
+    // Low Stock Items (threshold: per-product or 20)
     const lowStockItems = products
-        .filter(p => p.stock < lowStockThreshold)
+        .filter(p => p.stock <= (p.alertThreshold ?? 20))
         .sort((a, b) => a.stock - b.stock)
         .slice(0, 5);
 
@@ -120,9 +119,9 @@ export default function DashboardPage() {
                         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
                             <h2 className="font-bold text-slate-900 flex items-center gap-2">
                                 <AlertTriangle className="w-5 h-5 text-amber-500" />
-                                在庫アラート（{lowStockThreshold}個以下）
+                                在庫アラート
                             </h2>
-                            <Link href="/" className="text-xs font-bold text-[#1e3a8a] hover:underline">
+                            <Link href="/products" className="text-xs font-bold text-[#1e3a8a] hover:underline">
                                 商品一覧へ
                             </Link>
                         </div>
@@ -144,10 +143,13 @@ export default function DashboardPage() {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <div className={`text-sm font-bold ${product.stock < 10 ? "text-red-600" : "text-amber-600"}`}>
+                                            <div className={`text-sm font-bold ${product.stock < (product.alertThreshold ?? 20) / 2 ? "text-red-600" : "text-amber-600"}`}>
                                                 在庫 {product.stock}個
                                             </div>
-                                            <Link href="/" className="text-[10px] text-blue-600 font-bold hover:underline">
+                                            <div className="text-[9px] text-slate-400 font-medium">
+                                                (しきい値: {product.alertThreshold ?? 20}個)
+                                            </div>
+                                            <Link href="/products" className="text-[10px] text-blue-600 font-bold hover:underline">
                                                 管理画面を開く
                                             </Link>
                                         </div>
