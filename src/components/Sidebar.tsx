@@ -18,7 +18,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     { name: "ダッシュボード", href: "/", icon: LayoutDashboard },
     { name: "商品管理", href: "/products", icon: Package },
     { name: "ブランド管理", href: "/brands", icon: Tag },
-    { name: "店舗展示管理", href: "/retail-stores", icon: Store },
+    { name: "店舗管理", href: "/retail-stores", icon: Store },
     { name: "仕入先管理", href: "/suppliers", icon: Users },
     { name: "仕入れ管理", href: "/purchases", icon: Truck },
     { name: "支払い管理", href: "/payments", icon: CreditCard },

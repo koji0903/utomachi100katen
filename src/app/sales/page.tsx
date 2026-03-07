@@ -10,7 +10,7 @@ import {
     BarChart3,
     CloudSun, Cloud, CloudRain, CloudSnow,
     Thermometer, Wind, Package, ChevronDown,
-    Sparkles,
+    Sparkles, Edit2,
 } from "lucide-react";
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
 import { SalesAnalysisTab } from "@/components/SalesAnalysisTab";
@@ -29,8 +29,8 @@ function WeatherIcon({ main, size = 4 }: { main?: string; size?: number }) {
 }
 
 // ─── Sales Input Tab ──────────────────────────────────────────────────────────
-function SalesInputTab() {
-    const { isLoaded, products, retailStores, addSale } = useStore();
+function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null; onClearEdit: () => void }) {
+    const { isLoaded, products, retailStores, addSale, updateSale } = useStore();
 
     const [selectedStoreId, setSelectedStoreId] = useState<string>("");
     const [inputMode, setInputMode] = useState<'daily' | 'monthly'>('daily');
@@ -41,9 +41,24 @@ function SalesInputTab() {
     const [saveSuccess, setSaveSuccess] = useState(false);
 
     useEffect(() => {
-        setSalesData({});
+        if (editingSale) {
+            setSelectedStoreId(editingSale.storeId);
+            setInputMode(editingSale.type || 'daily');
+            if (editingSale.type === 'monthly') {
+                setTargetMonth(editingSale.period);
+            } else {
+                setTargetDate(editingSale.period);
+            }
+            const data: Record<string, number> = {};
+            editingSale.items.forEach(item => {
+                data[item.productId] = item.quantity;
+            });
+            setSalesData(data);
+        } else {
+            setSalesData({});
+        }
         setSaveSuccess(false);
-    }, [selectedStoreId, targetDate, targetMonth, inputMode]);
+    }, [selectedStoreId, targetDate, targetMonth, inputMode, editingSale]);
 
     const selectedStore = useMemo(() =>
         retailStores.find(s => s.id === selectedStoreId), [retailStores, selectedStoreId]
@@ -86,13 +101,27 @@ function SalesInputTab() {
                 const details = calculateRowDetails(p, qty);
                 return { productId: p.id, quantity: qty, priceAtSale: details.price, subtotal: details.subtotal, commission: details.commission, netProfit: details.netProfit };
             });
-            await addSale({
-                storeId: selectedStoreId, type: inputMode,
+
+            const saleData = {
+                storeId: selectedStoreId,
+                type: inputMode,
                 period: inputMode === 'daily' ? targetDate : targetMonth,
-                items: saleItems, totalQuantity: totals.totalQty, totalAmount: totals.totalAmt,
-                totalCommission: totals.totalComm, totalNetProfit: totals.totalNet
-            });
-            setSaveSuccess(true); setSalesData({});
+                items: saleItems,
+                totalQuantity: totals.totalQty,
+                totalAmount: totals.totalAmt,
+                totalCommission: totals.totalComm,
+                totalNetProfit: totals.totalNet
+            };
+
+            if (editingSale) {
+                await updateSale(editingSale.id, saleData);
+                onClearEdit();
+            } else {
+                await addSale(saleData);
+            }
+
+            setSaveSuccess(true);
+            if (!editingSale) setSalesData({});
             setTimeout(() => setSaveSuccess(false), 3000);
         } catch (error) {
             console.error("Save error:", error);
@@ -164,10 +193,15 @@ function SalesInputTab() {
                         </div>
                     </div>
                     <button onClick={handleSave} disabled={!selectedStoreId || totals.totalQty === 0 || isSaving}
-                        className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-white text-blue-600 rounded-xl font-bold shadow-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all relative z-10">
-                        {isSaving ? <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /> : <Save className="w-5 h-5" />}
-                        {isSaving ? "保存中..." : "データを保存する"}
+                        className={`w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-xl font-bold shadow-md transition-all relative z-10 ${editingSale ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' : 'bg-white text-blue-600 hover:bg-blue-50'}`}>
+                        {isSaving ? <div className={`w-5 h-5 border-2 border-t-transparent rounded-full animate-spin ${editingSale ? 'border-amber-700' : 'border-blue-600'}`} /> : (editingSale ? <Edit2 className="w-5 h-5" /> : <Save className="w-5 h-5" />)}
+                        {isSaving ? "保存中..." : (editingSale ? "データを更新する" : "データを保存する")}
                     </button>
+                    {editingSale && (
+                        <button onClick={onClearEdit} className="w-full mt-2 py-2 text-xs font-bold text-blue-100 hover:text-white transition-colors underline decoration-blue-400">
+                            編集をキャンセルして新規入力に戻る
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -234,12 +268,14 @@ function SalesInputTab() {
 }
 
 // ─── Daily Log Tab ────────────────────────────────────────────────────────────
-function DailyLogTab() {
+function DailyLogTab({ onEdit }: { onEdit: (sale: Sale) => void }) {
     const { sales, products, retailStores, dailyReports } = useStore();
 
     // Filter controls
+    const [logType, setLogType] = useState<'daily' | 'monthly'>('daily');
     const [filterStoreId, setFilterStoreId] = useState<string>("");
     const [filterMonth, setFilterMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+    const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
 
     // Build product name map
     const productMap = useMemo(() => {
@@ -254,14 +290,20 @@ function DailyLogTab() {
         return m;
     }, [retailStores]);
 
-    // Filter sales to daily type + selected filters
+    // Filter sales to selected logType + selected filters
     const filteredSales = useMemo(() => {
         return sales
-            .filter(s => s.type === 'daily' || !s.type)
+            .filter(s => s.type === logType || (!s.type && logType === 'daily'))
             .filter(s => !filterStoreId || s.storeId === filterStoreId)
-            .filter(s => s.period.startsWith(filterMonth))
+            .filter(s => {
+                if (logType === 'daily') {
+                    return s.period.startsWith(filterMonth);
+                } else {
+                    return s.period.startsWith(filterYear);
+                }
+            })
             .sort((a, b) => b.period.localeCompare(a.period));
-    }, [sales, filterStoreId, filterMonth]);
+    }, [sales, logType, filterStoreId, filterMonth, filterYear]);
 
     // Build weather lookup: key = "YYYY-MM-DD|storeId"
     const weatherMap = useMemo(() => {
@@ -288,8 +330,8 @@ function DailyLogTab() {
                 <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-4" style={{ backgroundColor: BRAND_LIGHT }}>
                     <BarChart3 className="w-10 h-10" style={{ color: BRAND }} />
                 </div>
-                <h3 className="text-base font-bold text-slate-700 mb-2">日別実績データがありません</h3>
-                <p className="text-sm text-slate-400 max-w-sm">「売上入力」タブから日次データを登録してください。</p>
+                <h3 className="text-base font-bold text-slate-700 mb-2">実績データがありません</h3>
+                <p className="text-sm text-slate-400 max-w-sm">「売上入力」タブからデータを登録してください。</p>
             </div>
         );
     }
@@ -297,7 +339,18 @@ function DailyLogTab() {
     return (
         <div className="space-y-5">
             {/* Filter bar */}
-            <div className="flex flex-wrap gap-3 bg-white rounded-2xl border border-slate-200 p-4">
+            <div className="flex flex-wrap gap-4 bg-white rounded-2xl border border-slate-200 p-4">
+                <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl">
+                    {(['daily', 'monthly'] as const).map(type => (
+                        <button key={type} onClick={() => setLogType(type)}
+                            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${logType === type ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            {type === 'daily' ? '日次実績' : '月次実績'}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="h-8 w-px bg-slate-200 self-center hidden sm:block" />
+
                 <div className="flex items-center gap-2">
                     <StoreIcon className="w-4 h-4 text-slate-400" />
                     <select value={filterStoreId} onChange={e => setFilterStoreId(e.target.value)}
@@ -308,8 +361,17 @@ function DailyLogTab() {
                 </div>
                 <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-slate-400" />
-                    <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
-                        className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 font-medium text-slate-700" />
+                    {logType === 'daily' ? (
+                        <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
+                            className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 font-medium text-slate-700" />
+                    ) : (
+                        <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+                            className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 font-medium text-slate-700">
+                            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                <option key={y} value={y.toString()}>{y}年</option>
+                            ))}
+                        </select>
+                    )}
                 </div>
                 <div className="ml-auto flex items-center text-xs text-slate-400 font-medium self-center">
                     {filteredSales.length}件 / {usedProductIds.length}商品
@@ -328,9 +390,11 @@ function DailyLogTab() {
                             <thead>
                                 {/* Row 1: date / store / weather + product group header */}
                                 <tr className="bg-slate-50 border-b border-slate-200">
-                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-28">日付</th>
+                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-28">
+                                        {logType === 'daily' ? '日付' : '対象月'}
+                                    </th>
                                     <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">店舗</th>
-                                    <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-40">天気</th>
+                                    {logType === 'daily' && <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-40">天気</th>}
                                     {usedProductIds.map(pid => (
                                         <th key={pid} className="px-3 py-3 text-center text-xs font-bold text-slate-600 whitespace-nowrap min-w-[90px]">
                                             {productMap[pid] ?? pid.slice(0, 8)}
@@ -339,6 +403,7 @@ function DailyLogTab() {
                                     <th className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">合計個数</th>
                                     <th className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">売上額</th>
                                     <th className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">入金額</th>
+                                    <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-20">操作</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -359,26 +424,28 @@ function DailyLogTab() {
                                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs font-medium">
                                                 {storeMap[sale.storeId] ?? sale.storeId}
                                             </td>
-                                            {/* Weather */}
-                                            <td className="px-4 py-3">
-                                                {w ? (
-                                                    <div className="flex items-center gap-1.5 justify-center">
-                                                        <WeatherIcon main={w.weatherMain} size={4} />
-                                                        <div className="text-center">
-                                                            <div className="font-bold text-slate-800 text-xs leading-none">{w.temp}°C</div>
-                                                            <div className="text-[10px] text-slate-400 mt-0.5">{w.weather}</div>
-                                                        </div>
-                                                        {w.humidity !== undefined && (
-                                                            <div className="hidden sm:flex flex-col items-center ml-1">
-                                                                <span className="text-[9px] text-slate-400 flex items-center gap-0.5"><Thermometer className="w-2.5 h-2.5" />{w.humidity}%</span>
-                                                                <span className="text-[9px] text-slate-400 flex items-center gap-0.5"><Wind className="w-2.5 h-2.5" />{w.windSpeed}m/s</span>
+                                            {/* Weather (Only for daily) */}
+                                            {logType === 'daily' && (
+                                                <td className="px-4 py-3">
+                                                    {w ? (
+                                                        <div className="flex items-center gap-1.5 justify-center">
+                                                            <WeatherIcon main={w.weatherMain} size={4} />
+                                                            <div className="text-center">
+                                                                <div className="font-bold text-slate-800 text-xs leading-none">{w.temp}°C</div>
+                                                                <div className="text-[10px] text-slate-400 mt-0.5">{w.weather}</div>
                                                             </div>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-center text-[10px] text-slate-300">日報なし</div>
-                                                )}
-                                            </td>
+                                                            {w.humidity !== undefined && (
+                                                                <div className="hidden sm:flex flex-col items-center ml-1">
+                                                                    <span className="text-[9px] text-slate-400 flex items-center gap-0.5"><Thermometer className="w-2.5 h-2.5" />{w.humidity}%</span>
+                                                                    <span className="text-[9px] text-slate-400 flex items-center gap-0.5"><Wind className="w-2.5 h-2.5" />{w.windSpeed}m/s</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center text-[10px] text-slate-300">日報なし</div>
+                                                    )}
+                                                </td>
+                                            )}
                                             {/* Product columns */}
                                             {usedProductIds.map(pid => {
                                                 const qty = itemQtyMap[pid] ?? 0;
@@ -405,6 +472,15 @@ function DailyLogTab() {
                                             <td className="px-4 py-3 text-right font-black whitespace-nowrap" style={{ color: BRAND }}>
                                                 ¥{sale.totalNetProfit.toLocaleString()}
                                             </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <button
+                                                    onClick={() => onEdit(sale)}
+                                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    title="編集"
+                                                >
+                                                    <Edit2 className="w-4 h-4" />
+                                                </button>
+                                            </td>
                                         </tr>
                                     );
                                 })}
@@ -412,8 +488,8 @@ function DailyLogTab() {
                             {/* Footer totals row */}
                             <tfoot>
                                 <tr className="border-t-2 border-slate-200 bg-slate-50">
-                                    <td colSpan={3} className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                        合計 ({filteredSales.length}日分)
+                                    <td colSpan={logType === 'daily' ? 3 : 2} className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        合計 ({filteredSales.length}{logType === 'daily' ? '日' : 'ヶ月'}分)
                                     </td>
                                     {usedProductIds.map(pid => {
                                         const total = filteredSales.reduce((sum, s) => {
@@ -437,6 +513,7 @@ function DailyLogTab() {
                                     <td className="px-4 py-3 text-right font-black" style={{ color: BRAND }}>
                                         ¥{filteredSales.reduce((s, r) => s + r.totalNetProfit, 0).toLocaleString()}
                                     </td>
+                                    <td className="bg-slate-50"></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -450,12 +527,13 @@ function DailyLogTab() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SalesPage() {
     const [activeTab, setActiveTab] = useState<'input' | 'log' | 'analysis'>('input');
+    const [editingSale, setEditingSale] = useState<Sale | null>(null);
     const { sales } = useStore();
 
     // Show success toast from input tab — handled inside SalesInputTab
     const tabs = [
         { id: 'input', label: '売上入力', icon: Save },
-        { id: 'log', label: '日別実績', icon: BarChart3 },
+        { id: 'log', label: '実績ログ', icon: BarChart3 },
         { id: 'analysis', label: '販売分析', icon: Sparkles },
     ] as const;
 
@@ -489,8 +567,20 @@ export default function SalesPage() {
             </div>
 
             {/* Tab content */}
-            {activeTab === 'input' && <SalesInputTab />}
-            {activeTab === 'log' && <DailyLogTab />}
+            {activeTab === 'input' && (
+                <SalesInputTab
+                    editingSale={editingSale}
+                    onClearEdit={() => setEditingSale(null)}
+                />
+            )}
+            {activeTab === 'log' && (
+                <DailyLogTab
+                    onEdit={(sale) => {
+                        setEditingSale(sale);
+                        setActiveTab('input');
+                    }}
+                />
+            )}
             {activeTab === 'analysis' && <SalesAnalysisTab />}
         </div>
     );

@@ -63,8 +63,8 @@ export default function DashboardPage() {
             bg: "bg-indigo-50"
         },
         {
-            name: "店舗展示管理",
-            desc: "店舗ごとの陳列状況確認",
+            name: "店舗管理",
+            desc: "店舗情報・陳列状況の管理",
             href: "/retail-stores",
             icon: Store,
             color: "bg-pink-600",

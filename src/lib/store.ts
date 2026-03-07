@@ -429,6 +429,16 @@ export function useStore() {
         mutateSales();
     };
 
+    const updateSale = async (id: string, saleData: Partial<Sale>) => {
+        mutateSales(sales.map((s) => s.id === id ? { ...s, ...saleData } : s) as Sale[], false);
+        const docRef = doc(db, "sales", id);
+        await updateDoc(docRef, {
+            ...cleanObject(saleData),
+            updatedAt: serverTimestamp(),
+        });
+        mutateSales();
+    };
+
     const deleteSale = async (id: string) => {
         mutateSales(sales.filter((s) => s.id !== id), false);
         const docRef = doc(db, "sales", id);
@@ -605,6 +615,7 @@ export function useStore() {
         deletePurchase,
         sales,
         addSale,
+        updateSale,
         deleteSale,
         upsertPaymentRecord,
         dailyReports: dailyReports ?? [],
