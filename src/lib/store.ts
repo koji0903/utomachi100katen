@@ -89,8 +89,8 @@ export interface DailyReport {
     storeName?: string;
     restocking?: RestockingItem[];
     storeTopics?: string;
-    displayBeforeImageUrl?: string;
-    displayAfterImageUrl?: string;
+    displayBeforeImageUrls?: string[];
+    displayAfterImageUrls?: string[];
     createdAt?: string | any;
 }
 

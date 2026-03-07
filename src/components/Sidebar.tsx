@@ -15,8 +15,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   const navigation = [
-    { name: "ダッシュボード", href: "/dashboard", icon: LayoutDashboard },
-    { name: "商品管理", href: "/", icon: Package },
+    { name: "ダッシュボード", href: "/", icon: LayoutDashboard },
+    { name: "商品管理", href: "/products", icon: Package },
     { name: "ブランド管理", href: "/brands", icon: Tag },
     { name: "店舗展示管理", href: "/retail-stores", icon: Store },
     { name: "仕入先管理", href: "/suppliers", icon: Users },

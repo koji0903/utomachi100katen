@@ -86,15 +86,21 @@ function ReportForm({
     const [officeNote, setOfficeNote] = useState(editData?.officeNote ?? "");
     const [storeId, setStoreId] = useState(editData?.storeId ?? "");
     const [storeTopics, setStoreTopics] = useState(editData?.storeTopics ?? "");
-    const [displayBeforeImageUrl, setDisplayBeforeImageUrl] = useState(editData?.displayBeforeImageUrl ?? "");
-    const [displayAfterImageUrl, setDisplayAfterImageUrl] = useState(editData?.displayAfterImageUrl ?? "");
+    const [displayBeforeImageUrls, setDisplayBeforeImageUrls] = useState<string[]>(editData?.displayBeforeImageUrls ?? []);
+    const [displayAfterImageUrls, setDisplayAfterImageUrls] = useState<string[]>(editData?.displayAfterImageUrls ?? []);
     const [restocking, setRestocking] = useState<RestockingItem[]>(editData?.restocking ?? []);
 
-    // Image files for upload
-    const [beforeFile, setBeforeFile] = useState<File | null>(null);
-    const [afterFile, setAfterFile] = useState<File | null>(null);
-    const [beforePreview, setBeforePreview] = useState<string | null>(editData?.displayBeforeImageUrl ?? null);
-    const [afterPreview, setAfterPreview] = useState<string | null>(editData?.displayAfterImageUrl ?? null);
+    // Image files for upload (newly added files)
+    const [beforeFiles, setBeforeFiles] = useState<File[]>([]);
+    const [afterFiles, setAfterFiles] = useState<File[]>([]);
+
+    // Previews: combines existing URLs and newly selected file previews
+    const [beforePreviews, setBeforePreviews] = useState<{ url: string; fileIndex?: number; isExisting?: boolean }[]>(
+        (editData?.displayBeforeImageUrls ?? []).map(url => ({ url, isExisting: true }))
+    );
+    const [afterPreviews, setAfterPreviews] = useState<{ url: string; fileIndex?: number; isExisting?: boolean }[]>(
+        (editData?.displayAfterImageUrls ?? []).map(url => ({ url, isExisting: true }))
+    );
 
     const beforeInputRef = useRef<HTMLInputElement>(null);
     const afterInputRef = useRef<HTMLInputElement>(null);
@@ -127,17 +133,58 @@ function ReportForm({
     }, [storeId, selectedStore?.lat, selectedStore?.lng]);
 
     const handleBeforeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files?.[0]) {
-            setBeforeFile(e.target.files[0]);
-            setBeforePreview(URL.createObjectURL(e.target.files[0]));
-        }
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        const newFiles = [...beforeFiles, ...files];
+        setBeforeFiles(newFiles);
+
+        const newPreviews = files.map((file, i) => ({
+            url: URL.createObjectURL(file),
+            fileIndex: beforeFiles.length + i,
+            isExisting: false
+        }));
+        setBeforePreviews([...beforePreviews, ...newPreviews]);
+
+        // Reset input value to allow selecting same file again
+        if (beforeInputRef.current) beforeInputRef.current.value = "";
     };
 
     const handleAfterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files?.[0]) {
-            setAfterFile(e.target.files[0]);
-            setAfterPreview(URL.createObjectURL(e.target.files[0]));
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        const newFiles = [...afterFiles, ...files];
+        setAfterFiles(newFiles);
+
+        const newPreviews = files.map((file, i) => ({
+            url: URL.createObjectURL(file),
+            fileIndex: afterFiles.length + i,
+            isExisting: false
+        }));
+        setAfterPreviews([...afterPreviews, ...newPreviews]);
+
+        if (afterInputRef.current) afterInputRef.current.value = "";
+    };
+
+    const removeBeforeImage = (index: number) => {
+        const preview = beforePreviews[index];
+        const nextPreviews = [...beforePreviews];
+        nextPreviews.splice(index, 1);
+        setBeforePreviews(nextPreviews);
+
+        if (!preview.isExisting && preview.fileIndex !== undefined) {
+            // We don't necessarily need to remove from beforeFiles because we'll filter before submit
+            // but for cleanliness:
+            // Note: correctly managing indices in files array when removing is tricky
+            // Easier: just reconstruct files when submitting based on current previews
         }
+    };
+
+    const removeAfterImage = (index: number) => {
+        const nextPreviews = [...afterPreviews];
+        nextPreviews.splice(index, 1);
+        setAfterPreviews(nextPreviews);
     };
 
     const addRestockingItem = () => {
@@ -149,14 +196,26 @@ function ReportForm({
         if (!worker.trim()) return;
         setIsSaving(true);
         try {
-            let finalBeforeUrl = displayBeforeImageUrl;
-            let finalAfterUrl = displayAfterImageUrl;
-
-            if (beforeFile) {
-                finalBeforeUrl = await uploadImageWithCompression(beforeFile);
+            // 1. Upload new Before images
+            const beforeUrls: string[] = [];
+            for (const p of beforePreviews) {
+                if (p.isExisting) {
+                    beforeUrls.push(p.url);
+                } else if (p.fileIndex !== undefined) {
+                    const url = await uploadImageWithCompression(beforeFiles[p.fileIndex]);
+                    beforeUrls.push(url);
+                }
             }
-            if (afterFile) {
-                finalAfterUrl = await uploadImageWithCompression(afterFile);
+
+            // 2. Upload new After images
+            const afterUrls: string[] = [];
+            for (const p of afterPreviews) {
+                if (p.isExisting) {
+                    afterUrls.push(p.url);
+                } else if (p.fileIndex !== undefined) {
+                    const url = await uploadImageWithCompression(afterFiles[p.fileIndex]);
+                    afterUrls.push(url);
+                }
             }
 
             const payload: Omit<DailyReport, "id" | "createdAt"> = {
@@ -168,8 +227,8 @@ function ReportForm({
                         storeId, storeName: selectedStore?.name ?? editData?.storeName ?? "",
                         restocking: restocking.filter(r => r.productId),
                         storeTopics,
-                        displayBeforeImageUrl: finalBeforeUrl,
-                        displayAfterImageUrl: finalAfterUrl,
+                        displayBeforeImageUrls: beforeUrls,
+                        displayAfterImageUrls: afterUrls,
                     }),
             };
             if (isEdit && editData) {
@@ -335,57 +394,67 @@ function ReportForm({
                             {/* Display Photos Before/After */}
                             <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4">
                                 <label className="block text-xs font-semibold text-slate-500">📸 陳列写真（Before/After）</label>
-                                <div className="grid grid-cols-2 gap-4">
-                                    {/* Before */}
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] text-center font-bold text-slate-400 uppercase tracking-wider">Before</p>
-                                        <div
-                                            onClick={() => beforeInputRef.current?.click()}
-                                            className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-all overflow-hidden relative group"
-                                        >
-                                            {beforePreview ? (
-                                                <img src={beforePreview} alt="Before" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="flex flex-col items-center text-slate-400">
-                                                    <ImageIcon className="w-6 h-6 mb-1 opacity-40" />
-                                                    <span className="text-[10px] font-medium">追加</span>
+
+                                <div className="space-y-4">
+                                    {/* Before Section */}
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Before</p>
+                                        <div className="flex flex-wrap gap-3">
+                                            {beforePreviews.map((p, i) => (
+                                                <div key={i} className="w-20 h-20 rounded-xl border border-slate-200 overflow-hidden relative group">
+                                                    <img src={p.url} alt={`Before ${i}`} className="w-full h-full object-cover" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeBeforeImage(i)}
+                                                        className="absolute top-1 right-1 w-5 h-5 bg-black/50 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
                                                 </div>
-                                            )}
-                                            {beforePreview && (
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                                    <Plus className="w-6 h-6 text-white" />
-                                                </div>
-                                            )}
-                                            <input type="file" ref={beforeInputRef} onChange={handleBeforeChange} accept="image/*" className="hidden" />
+                                            ))}
+                                            <button
+                                                type="button"
+                                                onClick={() => beforeInputRef.current?.click()}
+                                                className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                                            >
+                                                <Plus className="w-5 h-5 mb-1" />
+                                                <span className="text-[10px] font-medium">追加</span>
+                                            </button>
                                         </div>
+                                        <input type="file" multiple ref={beforeInputRef} onChange={handleBeforeChange} accept="image/*" className="hidden" />
                                     </div>
 
-                                    {/* After */}
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] text-center font-bold text-slate-400 uppercase tracking-wider">After</p>
-                                        <div
-                                            onClick={() => afterInputRef.current?.click()}
-                                            className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-all overflow-hidden relative group"
-                                        >
-                                            {afterPreview ? (
-                                                <img src={afterPreview} alt="After" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="flex flex-col items-center text-slate-400">
-                                                    <ImageIcon className="w-6 h-6 mb-1 opacity-40" />
-                                                    <span className="text-[10px] font-medium">追加</span>
+                                    {/* After Section */}
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">After</p>
+                                        <div className="flex flex-wrap gap-3">
+                                            {afterPreviews.map((p, i) => (
+                                                <div key={i} className="w-20 h-20 rounded-xl border border-slate-200 overflow-hidden relative group">
+                                                    <img src={p.url} alt={`After ${i}`} className="w-full h-full object-cover" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeAfterImage(i)}
+                                                        className="absolute top-1 right-1 w-5 h-5 bg-black/50 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
                                                 </div>
-                                            )}
-                                            {afterPreview && (
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                                    <Plus className="w-6 h-6 text-white" />
-                                                </div>
-                                            )}
-                                            <input type="file" ref={afterInputRef} onChange={handleAfterChange} accept="image/*" className="hidden" />
+                                            ))}
+                                            <button
+                                                type="button"
+                                                onClick={() => afterInputRef.current?.click()}
+                                                className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                                            >
+                                                <Plus className="w-5 h-5 mb-1" />
+                                                <span className="text-[10px] font-medium">追加</span>
+                                            </button>
                                         </div>
+                                        <input type="file" multiple ref={afterInputRef} onChange={handleAfterChange} accept="image/*" className="hidden" />
                                     </div>
                                 </div>
+
                                 <p className="text-[10px] text-slate-400 leading-tight">
-                                    陳列のBefore/Afterを記録することで、改善効果を視覚的に振り返ることができます。
+                                    陳列のBefore/Afterを複数枚記録することで、改善効果をより多角的に振り返ることができます。
                                 </p>
                             </div>
 
@@ -522,34 +591,56 @@ function ReportCard({
                         </div>
                     )}
 
-                    {/* Display Comparison */}
-                    {(report.displayBeforeImageUrl || report.displayAfterImageUrl) && (
-                        <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-2">📸 商品陳列 Before / After</p>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <div className="aspect-[4/3] rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
-                                        {report.displayBeforeImageUrl ? (
-                                            <img src={report.displayBeforeImageUrl} alt="Before" className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-110" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px] font-bold">No Image</div>
-                                        )}
-                                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded text-[8px] font-bold text-white uppercase tracking-wider">Before</div>
+                    {/* Display Comparison (Multiple Photos) */}
+                    {((report.displayBeforeImageUrls && report.displayBeforeImageUrls.length > 0) ||
+                        (report.displayAfterImageUrls && report.displayAfterImageUrls.length > 0)) && (
+                            <div>
+                                <p className="text-xs font-semibold text-slate-400 mb-2">📸 商品陳列 Before / After</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {/* Before Column */}
+                                    <div className="space-y-2">
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">Before</div>
+                                        <div className="space-y-2">
+                                            {report.displayBeforeImageUrls && report.displayBeforeImageUrls.length > 0 ? (
+                                                report.displayBeforeImageUrls.map((url, i) => (
+                                                    <div key={i} className="aspect-[4/3] rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
+                                                        <img
+                                                            src={url}
+                                                            alt={`Before ${i}`}
+                                                            className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-105"
+                                                            onClick={() => window.open(url, '_blank')}
+                                                        />
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="aspect-[4/3] rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300 text-[10px] font-bold">No Image</div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <div className="aspect-[4/3] rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
-                                        {report.displayAfterImageUrl ? (
-                                            <img src={report.displayAfterImageUrl} alt="After" className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-110" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px] font-bold">No Image</div>
-                                        )}
-                                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-blue-600/80 backdrop-blur-sm rounded text-[8px] font-bold text-white uppercase tracking-wider">After</div>
+
+                                    {/* After Column */}
+                                    <div className="space-y-2">
+                                        <div className="text-[10px] font-bold text-blue-500 uppercase tracking-wider px-1">After</div>
+                                        <div className="space-y-2">
+                                            {report.displayAfterImageUrls && report.displayAfterImageUrls.length > 0 ? (
+                                                report.displayAfterImageUrls.map((url, i) => (
+                                                    <div key={i} className="aspect-[4/3] rounded-xl bg-slate-100 border border-blue-100 overflow-hidden relative group">
+                                                        <img
+                                                            src={url}
+                                                            alt={`After ${i}`}
+                                                            className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-105"
+                                                            onClick={() => window.open(url, '_blank')}
+                                                        />
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="aspect-[4/3] rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300 text-[10px] font-bold">No Image</div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
                     {/* Topics */}
                     {report.storeTopics && (
