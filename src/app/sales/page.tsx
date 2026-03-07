@@ -3,33 +3,41 @@
 import { useState, useMemo, useEffect } from "react";
 import {
     Calendar,
-    ChevronLeft,
-    ChevronRight,
     Save,
     Store as StoreIcon,
-    DollarSign,
-    Percent,
     TrendingUp,
-    AlertCircle,
-    CheckCircle2
+    CheckCircle2,
+    BarChart3,
+    CloudSun, Cloud, CloudRain, CloudSnow,
+    Thermometer, Wind, Package, ChevronDown,
 } from "lucide-react";
-import { useStore, Product, RetailStore } from "@/lib/store";
+import { useStore, Product, RetailStore, Sale } from "@/lib/store";
 
-export default function SalesPage() {
+const BRAND = "#b27f79";
+const BRAND_LIGHT = "#fdf5f5";
+
+// ─── Weather helpers ──────────────────────────────────────────────────────────
+function WeatherIcon({ main, size = 4 }: { main?: string; size?: number }) {
+    const cls = `w-${size} h-${size}`;
+    if (!main) return <CloudSun className={`${cls} text-slate-300`} />;
+    if (main.includes("Rain") || main.includes("Drizzle")) return <CloudRain className={`${cls} text-blue-400`} />;
+    if (main.includes("Snow")) return <CloudSnow className={`${cls} text-sky-300`} />;
+    if (main.includes("Cloud")) return <Cloud className={`${cls} text-slate-400`} />;
+    return <CloudSun className={`${cls} text-amber-400`} />;
+}
+
+// ─── Sales Input Tab ──────────────────────────────────────────────────────────
+function SalesInputTab() {
     const { isLoaded, products, retailStores, addSale } = useStore();
 
-    // Selection state
     const [selectedStoreId, setSelectedStoreId] = useState<string>("");
     const [inputMode, setInputMode] = useState<'daily' | 'monthly'>('daily');
     const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [targetMonth, setTargetMonth] = useState<string>(new Date().toISOString().slice(0, 7));
-
-    // Sales data state: Record<{ productId: string, quantity: number }>
     const [salesData, setSalesData] = useState<Record<string, number>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
-    // Reset sales data when store or period changes
     useEffect(() => {
         setSalesData({});
         setSaveSuccess(false);
@@ -41,280 +49,445 @@ export default function SalesPage() {
 
     const handleQuantityChange = (productId: string, value: string) => {
         const qty = parseInt(value) || 0;
-        setSalesData(prev => ({
-            ...prev,
-            [productId]: Math.max(0, qty) // No negative numbers
-        }));
+        setSalesData(prev => ({ ...prev, [productId]: Math.max(0, qty) }));
     };
 
     const calculateRowDetails = (product: Product, quantity: number) => {
-        // Get store-specific price if exists, otherwise use base selling price
         const storePriceObj = product.storePrices?.find(sp => sp.storeId === selectedStoreId);
         const price = (storePriceObj && storePriceObj.price > 0) ? storePriceObj.price : product.sellingPrice;
-
         const subtotal = price * quantity;
         const commissionRate = selectedStore?.commissionRate ?? 15;
         const commission = Math.floor(subtotal * (commissionRate / 100));
         const netProfit = subtotal - commission;
-
         return { price, subtotal, commission, netProfit };
     };
 
     const totals = useMemo(() => {
-        let totalQty = 0;
-        let totalAmt = 0;
-        let totalComm = 0;
-        let totalNet = 0;
-
+        let totalQty = 0, totalAmt = 0, totalComm = 0, totalNet = 0;
         products.forEach(product => {
             const qty = salesData[product.id] || 0;
             if (qty > 0) {
                 const { subtotal, commission, netProfit } = calculateRowDetails(product, qty);
-                totalQty += qty;
-                totalAmt += subtotal;
-                totalComm += commission;
-                totalNet += netProfit;
+                totalQty += qty; totalAmt += subtotal; totalComm += commission; totalNet += netProfit;
             }
         });
-
         return { totalQty, totalAmt, totalComm, totalNet };
     }, [products, salesData, selectedStoreId, selectedStore]);
 
     const handleSave = async () => {
         if (!selectedStoreId) return;
-        if (totals.totalQty === 0) {
-            alert("売上個数を入力してください。");
-            return;
-        }
-
+        if (totals.totalQty === 0) { alert("売上個数を入力してください。"); return; }
         setIsSaving(true);
         try {
-            const saleItems = products
-                .filter(p => (salesData[p.id] || 0) > 0)
-                .map(p => {
-                    const qty = salesData[p.id];
-                    const details = calculateRowDetails(p, qty);
-                    return {
-                        productId: p.id,
-                        quantity: qty,
-                        priceAtSale: details.price,
-                        subtotal: details.subtotal,
-                        commission: details.commission,
-                        netProfit: details.netProfit
-                    };
-                });
-
-            await addSale({
-                storeId: selectedStoreId,
-                type: inputMode,
-                period: inputMode === 'daily' ? targetDate : targetMonth,
-                items: saleItems,
-                totalQuantity: totals.totalQty,
-                totalAmount: totals.totalAmt,
-                totalCommission: totals.totalComm,
-                totalNetProfit: totals.totalNet
+            const saleItems = products.filter(p => (salesData[p.id] || 0) > 0).map(p => {
+                const qty = salesData[p.id];
+                const details = calculateRowDetails(p, qty);
+                return { productId: p.id, quantity: qty, priceAtSale: details.price, subtotal: details.subtotal, commission: details.commission, netProfit: details.netProfit };
             });
-
-            setSaveSuccess(true);
-            setSalesData({});
+            await addSale({
+                storeId: selectedStoreId, type: inputMode,
+                period: inputMode === 'daily' ? targetDate : targetMonth,
+                items: saleItems, totalQuantity: totals.totalQty, totalAmount: totals.totalAmt,
+                totalCommission: totals.totalComm, totalNetProfit: totals.totalNet
+            });
+            setSaveSuccess(true); setSalesData({});
             setTimeout(() => setSaveSuccess(false), 3000);
         } catch (error) {
             console.error("Save error:", error);
             alert("保存に失敗しました。");
-        } finally {
-            setIsSaving(false);
-        }
+        } finally { setIsSaving(false); }
     };
 
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
     return (
-        <div className="p-4 sm:p-8 max-w-6xl mx-auto">
-            <div className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">売上入力</h1>
-                    <p className="text-slate-500 mt-1 text-sm">店舗ごとの売上実績を手打ちで一括登録します。</p>
-                </div>
-                {saveSuccess && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg border border-green-100 animate-in fade-in slide-in-from-top-2">
-                        <CheckCircle2 className="w-5 h-5" />
-                        <span className="font-medium text-sm">売上データを保存しました</span>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Sidebar */}
+            <div className="lg:col-span-1 space-y-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">販売店舗</label>
+                        <select value={selectedStoreId} onChange={e => setSelectedStoreId(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 font-medium">
+                            <option value="">店舗を選択してください</option>
+                            {retailStores.map(store => <option key={store.id} value={store.id}>{store.name}</option>)}
+                        </select>
                     </div>
-                )}
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">入力モード</label>
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                            {(['daily', 'monthly'] as const).map(mode => (
+                                <button key={mode} onClick={() => setInputMode(mode)}
+                                    className={`py-2 text-xs font-bold rounded-lg transition-all ${inputMode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    {mode === 'daily' ? '日次' : '月次'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">{inputMode === 'daily' ? '対象日' : '対象月'}</label>
+                        <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                            <input type={inputMode === 'daily' ? 'date' : 'month'}
+                                value={inputMode === 'daily' ? targetDate : targetMonth}
+                                onChange={e => inputMode === 'daily' ? setTargetDate(e.target.value) : setTargetMonth(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-900" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Totals card */}
+                <div className="bg-blue-600 rounded-2xl shadow-lg p-6 text-white space-y-6 overflow-hidden relative">
+                    <TrendingUp className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10 pointer-events-none" />
+                    <div className="relative z-10">
+                        <div className="text-xs font-bold text-blue-100 uppercase tracking-wider mb-4">入力合計</div>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-baseline">
+                                <span className="text-blue-200 text-sm">売上個数</span>
+                                <span className="text-xl font-bold">{totals.totalQty}<small className="ml-1 text-xs">個</small></span>
+                            </div>
+                            <div className="flex justify-between items-baseline">
+                                <span className="text-blue-200 text-sm">売上総額</span>
+                                <span className="text-xl font-bold">¥{totals.totalAmt.toLocaleString()}</span>
+                            </div>
+                            <div className="h-px bg-blue-500/50 my-2" />
+                            <div className="flex justify-between items-baseline">
+                                <span className="text-blue-200 text-sm">店舗手数料 ({selectedStore?.commissionRate ?? 15}%)</span>
+                                <span className="text-lg font-semibold text-blue-100">-¥{totals.totalComm.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-baseline pt-2">
+                                <span className="text-white text-sm font-bold">入金見込額</span>
+                                <span className="text-2xl font-black">¥{totals.totalNet.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onClick={handleSave} disabled={!selectedStoreId || totals.totalQty === 0 || isSaving}
+                        className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-white text-blue-600 rounded-xl font-bold shadow-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all relative z-10">
+                        {isSaving ? <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /> : <Save className="w-5 h-5" />}
+                        {isSaving ? "保存中..." : "データを保存する"}
+                    </button>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Sidebar: Selection & Info */}
-                <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">販売店舗</label>
-                            <select
-                                value={selectedStoreId}
-                                onChange={(e) => setSelectedStoreId(e.target.value)}
-                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 font-medium"
-                            >
-                                <option value="">店舗を選択してください</option>
-                                {retailStores.map(store => (
-                                    <option key={store.id} value={store.id}>{store.name}</option>
-                                ))}
-                            </select>
+            {/* Input table */}
+            <div className="lg:col-span-3">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[500px] flex flex-col">
+                    {!selectedStoreId ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-12 text-slate-400 space-y-4">
+                            <div className="p-4 bg-slate-50 rounded-full"><StoreIcon className="w-12 h-12 text-slate-200" /></div>
+                            <p className="font-medium">まずは販売店舗を選択してください</p>
                         </div>
-
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">入力モード</label>
-                            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
-                                <button
-                                    onClick={() => setInputMode('daily')}
-                                    className={`py-2 text-xs font-bold rounded-lg transition-all ${inputMode === 'daily' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    日次
-                                </button>
-                                <button
-                                    onClick={() => setInputMode('monthly')}
-                                    className={`py-2 text-xs font-bold rounded-lg transition-all ${inputMode === 'monthly' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    月次
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                {inputMode === 'daily' ? '対象日' : '対象月'}
-                            </label>
-                            <div className="relative">
-                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                <input
-                                    type={inputMode === 'daily' ? 'date' : 'month'}
-                                    value={inputMode === 'daily' ? targetDate : targetMonth}
-                                    onChange={(e) => inputMode === 'daily' ? setTargetDate(e.target.value) : setTargetMonth(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-900"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Totals Summary Card */}
-                    <div className="bg-blue-600 rounded-2xl shadow-lg p-6 text-white space-y-6 overflow-hidden relative">
-                        <TrendingUp className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10 pointer-events-none" />
-                        <div className="relative z-10">
-                            <div className="text-xs font-bold text-blue-100 uppercase tracking-wider mb-4">入力合計</div>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-baseline">
-                                    <span className="text-blue-200 text-sm">売上個数</span>
-                                    <span className="text-xl font-bold">{totals.totalQty}<small className="ml-1 text-xs">個</small></span>
-                                </div>
-                                <div className="flex justify-between items-baseline">
-                                    <span className="text-blue-200 text-sm">売上総額</span>
-                                    <span className="text-xl font-bold">¥{totals.totalAmt.toLocaleString()}</span>
-                                </div>
-                                <div className="h-px bg-blue-500/50 my-2" />
-                                <div className="flex justify-between items-baseline">
-                                    <span className="text-blue-200 text-sm">店舗手数料 ({selectedStore?.commissionRate ?? 15}%)</span>
-                                    <span className="text-lg font-semibold text-blue-100">-¥{totals.totalComm.toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between items-baseline pt-2">
-                                    <span className="text-white text-sm font-bold">入金見込額</span>
-                                    <span className="text-2xl font-black">¥{totals.totalNet.toLocaleString()}</span>
+                    ) : (
+                        <>
+                            <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-200">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                        <StoreIcon className="w-5 h-5 text-blue-500" />{selectedStore?.name}
+                                    </h3>
+                                    <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200">{products.length} 商品が登録されています</div>
                                 </div>
                             </div>
-                        </div>
-
-                        <button
-                            onClick={handleSave}
-                            disabled={!selectedStoreId || totals.totalQty === 0 || isSaving}
-                            className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-white text-blue-600 rounded-xl font-bold shadow-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all relative z-10"
-                        >
-                            {isSaving ? (
-                                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                                <Save className="w-5 h-5" />
-                            )}
-                            {isSaving ? "保存中..." : "データを保存する"}
-                        </button>
-                    </div>
+                            <div className="overflow-x-auto flex-1">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-white text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                            <th className="px-6 py-4">商品名</th>
+                                            <th className="px-6 py-4 text-right">単価 (税込)</th>
+                                            <th className="px-6 py-4 text-center w-32">売上個数</th>
+                                            <th className="px-6 py-4 text-right">小計</th>
+                                            <th className="px-6 py-4 text-right">入金額 (純利)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {products.map(product => {
+                                            const qty = salesData[product.id] || 0;
+                                            const { price, subtotal, netProfit } = calculateRowDetails(product, qty);
+                                            return (
+                                                <tr key={product.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{product.name}</div>
+                                                        <div className="text-[10px] text-slate-400 mt-0.5">{product.id.slice(0, 8)}...</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right"><div className="text-sm font-medium text-slate-600">¥{price.toLocaleString()}</div></td>
+                                                    <td className="px-6 py-4">
+                                                        <input type="number" min="0" value={salesData[product.id] ?? ""}
+                                                            onChange={e => handleQuantityChange(product.id, e.target.value)}
+                                                            className={`w-full px-3 py-2 text-center font-black rounded-lg border transition-all ${qty > 0 ? 'bg-blue-50 border-blue-200 text-blue-600 ring-2 ring-blue-500/10' : 'bg-white border-slate-200 text-slate-400 focus:border-blue-400 focus:text-slate-900'} focus:outline-none`}
+                                                            placeholder="0" />
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right"><div className={`text-sm font-bold ${qty > 0 ? 'text-slate-900' : 'text-slate-300'}`}>¥{subtotal.toLocaleString()}</div></td>
+                                                    <td className="px-6 py-4 text-right"><div className={`text-sm font-black ${qty > 0 ? 'text-blue-600' : 'text-slate-200'}`}>¥{netProfit.toLocaleString()}</div></td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
                 </div>
+            </div>
+        </div>
+    );
+}
 
-                {/* Main: Input Grid */}
-                <div className="lg:col-span-3">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[500px] flex flex-col">
-                        {!selectedStoreId ? (
-                            <div className="flex-1 flex flex-col items-center justify-center p-12 text-slate-400 space-y-4">
-                                <div className="p-4 bg-slate-50 rounded-full">
-                                    <StoreIcon className="w-12 h-12 text-slate-200" />
-                                </div>
-                                <p className="font-medium">まずは販売店舗を選択してください</p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-200">
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                                            <StoreIcon className="w-5 h-5 text-blue-500" />
-                                            {selectedStore?.name}
-                                        </h3>
-                                        <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                                            {products.length} 商品が登録されています
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="overflow-x-auto flex-1">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-white text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                                <th className="px-6 py-4">商品名</th>
-                                                <th className="px-6 py-4 text-right">単価 (税込)</th>
-                                                <th className="px-6 py-4 text-center w-32">売上個数</th>
-                                                <th className="px-6 py-4 text-right">小計</th>
-                                                <th className="px-6 py-4 text-right">入金額 (純利)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {products.map(product => {
-                                                const qty = salesData[product.id] || 0;
-                                                const { price, subtotal, netProfit } = calculateRowDetails(product, qty);
+// ─── Daily Log Tab ────────────────────────────────────────────────────────────
+function DailyLogTab() {
+    const { sales, products, retailStores, dailyReports } = useStore();
 
+    // Filter controls
+    const [filterStoreId, setFilterStoreId] = useState<string>("");
+    const [filterMonth, setFilterMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+
+    // Build product name map
+    const productMap = useMemo(() => {
+        const m: Record<string, string> = {};
+        products.forEach(p => { m[p.id] = p.variantName ? `${p.name} (${p.variantName})` : p.name; });
+        return m;
+    }, [products]);
+
+    const storeMap = useMemo(() => {
+        const m: Record<string, string> = {};
+        retailStores.forEach(s => { m[s.id] = s.name; });
+        return m;
+    }, [retailStores]);
+
+    // Filter sales to daily type + selected filters
+    const filteredSales = useMemo(() => {
+        return sales
+            .filter(s => s.type === 'daily' || !s.type)
+            .filter(s => !filterStoreId || s.storeId === filterStoreId)
+            .filter(s => s.period.startsWith(filterMonth))
+            .sort((a, b) => b.period.localeCompare(a.period));
+    }, [sales, filterStoreId, filterMonth]);
+
+    // Build weather lookup: key = "YYYY-MM-DD|storeId"
+    const weatherMap = useMemo(() => {
+        const m: Record<string, { temp?: number; weather?: string; weatherMain?: string; humidity?: number; windSpeed?: number }> = {};
+        dailyReports.filter(r => r.type === 'store' && r.storeId && r.date).forEach(r => {
+            const key = `${r.date}|${r.storeId}`;
+            if (!m[key] && r.temperature !== undefined) {
+                m[key] = { temp: r.temperature, weather: r.weather, weatherMain: r.weatherMain, humidity: r.humidity, windSpeed: r.windSpeed };
+            }
+        });
+        return m;
+    }, [dailyReports]);
+
+    // All product IDs that appear in filtered sales (for column headers)
+    const usedProductIds = useMemo(() => {
+        const ids = new Set<string>();
+        filteredSales.forEach(s => s.items.forEach(item => ids.add(item.productId)));
+        return [...ids].sort((a, b) => (productMap[a] ?? a).localeCompare(productMap[b] ?? b));
+    }, [filteredSales, productMap]);
+
+    if (filteredSales.length === 0 && sales.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-4" style={{ backgroundColor: BRAND_LIGHT }}>
+                    <BarChart3 className="w-10 h-10" style={{ color: BRAND }} />
+                </div>
+                <h3 className="text-base font-bold text-slate-700 mb-2">日別実績データがありません</h3>
+                <p className="text-sm text-slate-400 max-w-sm">「売上入力」タブから日次データを登録してください。</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-5">
+            {/* Filter bar */}
+            <div className="flex flex-wrap gap-3 bg-white rounded-2xl border border-slate-200 p-4">
+                <div className="flex items-center gap-2">
+                    <StoreIcon className="w-4 h-4 text-slate-400" />
+                    <select value={filterStoreId} onChange={e => setFilterStoreId(e.target.value)}
+                        className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 font-medium text-slate-700">
+                        <option value="">すべての店舗</option>
+                        {retailStores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-slate-400" />
+                    <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
+                        className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 font-medium text-slate-700" />
+                </div>
+                <div className="ml-auto flex items-center text-xs text-slate-400 font-medium self-center">
+                    {filteredSales.length}件 / {usedProductIds.length}商品
+                </div>
+            </div>
+
+            {filteredSales.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-2xl border border-slate-200">
+                    <Package className="w-10 h-10 text-slate-200 mb-3" />
+                    <p className="text-sm text-slate-400">選択した条件に一致するデータがありません</p>
+                </div>
+            ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm border-collapse min-w-[700px]">
+                            <thead>
+                                {/* Row 1: date / store / weather + product group header */}
+                                <tr className="bg-slate-50 border-b border-slate-200">
+                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-28">日付</th>
+                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">店舗</th>
+                                    <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-40">天気</th>
+                                    {usedProductIds.map(pid => (
+                                        <th key={pid} className="px-3 py-3 text-center text-xs font-bold text-slate-600 whitespace-nowrap min-w-[90px]">
+                                            {productMap[pid] ?? pid.slice(0, 8)}
+                                        </th>
+                                    ))}
+                                    <th className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">合計個数</th>
+                                    <th className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">売上額</th>
+                                    <th className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">入金額</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredSales.map((sale, idx) => {
+                                    const weatherKey = `${sale.period}|${sale.storeId}`;
+                                    const w = weatherMap[weatherKey];
+                                    // Build item map for this sale
+                                    const itemQtyMap: Record<string, number> = {};
+                                    sale.items.forEach(it => { itemQtyMap[it.productId] = it.quantity; });
+
+                                    return (
+                                        <tr key={sale.id} className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-50/30'}`}>
+                                            {/* Date */}
+                                            <td className="px-4 py-3 font-bold text-slate-800 whitespace-nowrap">
+                                                {sale.period.replace(/-/g, "/")}
+                                            </td>
+                                            {/* Store */}
+                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs font-medium">
+                                                {storeMap[sale.storeId] ?? sale.storeId}
+                                            </td>
+                                            {/* Weather */}
+                                            <td className="px-4 py-3">
+                                                {w ? (
+                                                    <div className="flex items-center gap-1.5 justify-center">
+                                                        <WeatherIcon main={w.weatherMain} size={4} />
+                                                        <div className="text-center">
+                                                            <div className="font-bold text-slate-800 text-xs leading-none">{w.temp}°C</div>
+                                                            <div className="text-[10px] text-slate-400 mt-0.5">{w.weather}</div>
+                                                        </div>
+                                                        {w.humidity !== undefined && (
+                                                            <div className="hidden sm:flex flex-col items-center ml-1">
+                                                                <span className="text-[9px] text-slate-400 flex items-center gap-0.5"><Thermometer className="w-2.5 h-2.5" />{w.humidity}%</span>
+                                                                <span className="text-[9px] text-slate-400 flex items-center gap-0.5"><Wind className="w-2.5 h-2.5" />{w.windSpeed}m/s</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center text-[10px] text-slate-300">日報なし</div>
+                                                )}
+                                            </td>
+                                            {/* Product columns */}
+                                            {usedProductIds.map(pid => {
+                                                const qty = itemQtyMap[pid] ?? 0;
                                                 return (
-                                                    <tr key={product.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
-                                                        <td className="px-6 py-4">
-                                                            <div className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{product.name}</div>
-                                                            <div className="text-[10px] text-slate-400 mt-0.5">{product.id.slice(0, 8)}...</div>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-right">
-                                                            <div className="text-sm font-medium text-slate-600">¥{price.toLocaleString()}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                value={salesData[product.id] ?? ""}
-                                                                onChange={(e) => handleQuantityChange(product.id, e.target.value)}
-                                                                className={`w-full px-3 py-2 text-center font-black rounded-lg border transition-all ${qty > 0 ? 'bg-blue-50 border-blue-200 text-blue-600 ring-2 ring-blue-500/10' : 'bg-white border-slate-200 text-slate-400 focus:border-blue-400 focus:text-slate-900'} focus:outline-none`}
-                                                                placeholder="0"
-                                                            />
-                                                        </td>
-                                                        <td className="px-6 py-4 text-right">
-                                                            <div className={`text-sm font-bold ${qty > 0 ? 'text-slate-900' : 'text-slate-300'}`}>
-                                                                ¥{subtotal.toLocaleString()}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-right">
-                                                            <div className={`text-sm font-black ${qty > 0 ? 'text-blue-600' : 'text-slate-200'}`}>
-                                                                ¥{netProfit.toLocaleString()}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
+                                                    <td key={pid} className="px-3 py-3 text-center">
+                                                        {qty > 0 ? (
+                                                            <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-lg font-black text-sm"
+                                                                style={{ backgroundColor: BRAND_LIGHT, color: BRAND }}>
+                                                                {qty}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-200 text-xs">—</span>
+                                                        )}
+                                                    </td>
                                                 );
                                             })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </>
-                        )}
+                                            {/* Totals */}
+                                            <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
+                                                {sale.totalQuantity}<span className="text-xs text-slate-400 ml-0.5">個</span>
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">
+                                                ¥{sale.totalAmount.toLocaleString()}
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-black whitespace-nowrap" style={{ color: BRAND }}>
+                                                ¥{sale.totalNetProfit.toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                            {/* Footer totals row */}
+                            <tfoot>
+                                <tr className="border-t-2 border-slate-200 bg-slate-50">
+                                    <td colSpan={3} className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        合計 ({filteredSales.length}日分)
+                                    </td>
+                                    {usedProductIds.map(pid => {
+                                        const total = filteredSales.reduce((sum, s) => {
+                                            const item = s.items.find(it => it.productId === pid);
+                                            return sum + (item?.quantity ?? 0);
+                                        }, 0);
+                                        return (
+                                            <td key={pid} className="px-3 py-3 text-center">
+                                                {total > 0 ? (
+                                                    <span className="text-sm font-black text-slate-700">{total}</span>
+                                                ) : <span className="text-slate-200 text-xs">—</span>}
+                                            </td>
+                                        );
+                                    })}
+                                    <td className="px-4 py-3 text-right font-black text-slate-800">
+                                        {filteredSales.reduce((s, r) => s + r.totalQuantity, 0)}<span className="text-xs text-slate-400 ml-0.5">個</span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-bold text-slate-700">
+                                        ¥{filteredSales.reduce((s, r) => s + r.totalAmount, 0).toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-black" style={{ color: BRAND }}>
+                                        ¥{filteredSales.reduce((s, r) => s + r.totalNetProfit, 0).toLocaleString()}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
                     </div>
                 </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+export default function SalesPage() {
+    const [activeTab, setActiveTab] = useState<'input' | 'log'>('input');
+    const { sales } = useStore();
+
+    // Show success toast from input tab — handled inside SalesInputTab
+    const tabs = [
+        { id: 'input', label: '売上入力', icon: Save },
+        { id: 'log', label: '日別実績', icon: BarChart3 },
+    ] as const;
+
+    return (
+        <div className="p-4 sm:p-8 max-w-6xl mx-auto">
+            {/* Header */}
+            <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">売上管理</h1>
+                    <p className="text-slate-500 mt-1 text-sm">売上の入力と日別実績・天気の確認</p>
+                </div>
             </div>
+
+            {/* Tab bar */}
+            <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl mb-6 w-fit">
+                {tabs.map(tab => {
+                    const Icon = tab.icon;
+                    return (
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
+                            <Icon className="w-4 h-4" />
+                            {tab.label}
+                            {tab.id === 'log' && sales.filter(s => s.type === 'daily').length > 0 && (
+                                <span className="ml-0.5 text-[10px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND }}>
+                                    {sales.filter(s => s.type === 'daily').length}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Tab content */}
+            {activeTab === 'input' && <SalesInputTab />}
+            {activeTab === 'log' && <DailyLogTab />}
         </div>
     );
 }
