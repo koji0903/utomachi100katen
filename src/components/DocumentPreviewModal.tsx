@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { useStore } from "@/lib/store";
+import { useStore, IssuedDocument } from "@/lib/store";
 import { summarizeTaxByRate, TAX_RATE_LABELS } from "@/lib/taxUtils";
 import { generatePdfFromElement } from "@/lib/pdfGenerator";
 import { X, Download, Loader2, Sparkles, FileText, Receipt } from "lucide-react";
@@ -24,6 +24,9 @@ interface DocumentPreviewModalProps {
     month?: string;    // YYYY-MM
     docNumber?: string; // Optional override
     recipientName?: string; // Optional override
+    customDetails?: IssuedDocument['details'];
+    customAdjustments?: IssuedDocument['adjustments'];
+    customTaxRate?: IssuedDocument['taxRate'];
     onClose: () => void;
 }
 
@@ -43,6 +46,9 @@ export function DocumentPreviewModal({
     month,
     docNumber: propDocNumber,
     recipientName: propRecipientName,
+    customDetails,
+    customAdjustments,
+    customTaxRate,
     onClose,
 }: DocumentPreviewModalProps) {
     const { companySettings, sales, products, retailStores, purchases, suppliers, isLoaded, spotRecipients } = useStore();
@@ -64,6 +70,16 @@ export function DocumentPreviewModal({
     type LineItem = { name: string; qty: number; unitPrice: number; subtotal: number; taxRate: "standard" | "reduced" };
 
     const lineItems: LineItem[] = (() => {
+        if (customDetails && customDetails.length > 0) {
+            return customDetails.map((d: any) => ({
+                name: d.label,
+                qty: d.quantity,
+                unitPrice: d.unitPrice,
+                subtotal: d.subtotal,
+                taxRate: 'standard'
+            }));
+        }
+
         if (!isDeliveryNote && !isInvoice) return [];
         if (!storeId && !isInvoice) return []; // Require storeId for registered documents
 
@@ -127,8 +143,17 @@ export function DocumentPreviewModal({
 
     // ─ Tax summary ──────────────────────────────────────────────────────
     const taxSummary = (isDeliveryNote || isInvoice)
-        ? summarizeTaxByRate(lineItems.map(i => ({ amount: i.subtotal, rateType: i.taxRate })), rounding)
+        ? summarizeTaxByRate(lineItems.map(i => ({
+            amount: i.subtotal,
+            rateType: customTaxRate ? (customTaxRate === 8 ? 'reduced' : 'standard') : i.taxRate
+        })), rounding)
         : summarizeTaxByRate(purchaseLines.map(i => ({ amount: i.total, rateType: i.taxRate })), rounding);
+
+    // Apply adjustments if any
+    if (customAdjustments && customAdjustments.length > 0) {
+        const adjTotal = customAdjustments.reduce((sum: number, a: any) => sum + a.amount, 0);
+        taxSummary.grandTotal += adjTotal;
+    }
 
     // ─ Names ──────────────────────────────────────────────────────────
     const store = retailStores.find(s => s.id === storeId);
@@ -405,6 +430,14 @@ export function DocumentPreviewModal({
                                             {fmtMoney(taxSummary.grandTotal)}
                                         </td>
                                     </tr>
+
+                                    {/* Adjustments row in preview if exists */}
+                                    {customAdjustments && customAdjustments.map((adj: any) => (
+                                        <tr key={adj.id}>
+                                            <td style={{ ...summaryLabelStyle, color: BRAND_DARK, fontSize: '11px' }}>調整：{adj.label}</td>
+                                            <td style={{ ...summaryValueStyle, color: BRAND_DARK, fontSize: '11px' }}>{adj.amount > 0 ? "+" : ""}{fmtMoney(adj.amount)}</td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>

@@ -137,6 +137,21 @@ export interface Brand {
     imageUrl?: string;
 }
 
+export interface InvoiceItem {
+    id: string;
+    productId?: string;
+    label: string;
+    quantity: number;
+    unitPrice: number;
+    subtotal: number;
+}
+
+export interface InvoiceAdjustment {
+    id: string;
+    label: string;
+    amount: number;
+}
+
 // ─── 発行済み帳票レコード ───────────────────────────────────────────────
 export interface IssuedDocument {
     id: string;
@@ -151,6 +166,9 @@ export interface IssuedDocument {
     spotRecipientId?: string;
     recipientName: string;      // 非正規化表示名
     totalAmount: number;
+    taxRate?: 8 | 10;
+    details?: InvoiceItem[];
+    adjustments?: InvoiceAdjustment[];
     memo?: string;
     createdAt?: string | any;
 }

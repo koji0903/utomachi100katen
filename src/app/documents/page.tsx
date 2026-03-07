@@ -1,15 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
     FileText, Receipt, Search, Filter, Copy, Eye,
     Pencil, Trash2, CheckCircle2, Clock, ChevronDown,
     ChevronUp, Store, Users, UserCircle, Plus, X,
     Download,
 } from "lucide-react";
-import { useStore, IssuedDocument, SpotRecipient } from "@/lib/store";
+import { useStore, IssuedDocument, SpotRecipient, InvoiceItem, InvoiceAdjustment } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
 import { SpotRecipientInput } from "@/components/SpotRecipientInput";
+import { InvoiceEditor } from "@/components/InvoiceEditor";
+import { summarizeTaxByRate } from "@/lib/taxUtils";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -68,12 +70,54 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
     const [isSaving, setIsSaving] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
 
-
     const recipientName = useMemo(() => {
         if (recipientType === "store") return retailStores.find(s => s.id === storeId)?.name ?? "";
         if (recipientType === "supplier") return suppliers.find(s => s.id === supplierId)?.name ?? "";
         return spotRecipient?.name ?? "";
     }, [recipientType, storeId, supplierId, spotRecipient, retailStores, suppliers]);
+
+    // Edit states for Invoice
+    const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
+    const [invoiceAdjustments, setInvoiceAdjustments] = useState<InvoiceAdjustment[]>([]);
+    const [taxRate, setTaxRate] = useState<8 | 10>(10);
+    const [totalAmountState, setTotalAmountState] = useState(0);
+
+    // Effect to initialize items for Invoice
+    const { sales, products } = useStore();
+    useEffect(() => {
+        if (docType === "invoice" && recipientName && period) {
+            // Logic to fetch initial items (aggregate from sales similar to preview)
+            const filtered = (sales || []).filter(s => {
+                const matchStore = recipientType === "store" ? s.storeId === storeId : true;
+                const matchPeriod = period ? s.period.startsWith(period) : true;
+                return matchStore && matchPeriod;
+            });
+
+            const map = new Map<string, InvoiceItem>();
+            for (const sale of filtered) {
+                for (const item of sale.items) {
+                    const product = products.find(p => p.id === item.productId);
+                    if (!product) continue;
+                    const key = item.productId;
+                    if (map.has(key)) {
+                        const existing = map.get(key)!;
+                        existing.quantity += item.quantity;
+                        existing.subtotal += item.subtotal;
+                    } else {
+                        map.set(key, {
+                            id: crypto.randomUUID(),
+                            productId: product.id,
+                            label: product.name + (product.variantName ? ` (${product.variantName})` : ""),
+                            quantity: item.quantity,
+                            unitPrice: item.priceAtSale,
+                            subtotal: item.subtotal,
+                        });
+                    }
+                }
+            }
+            setInvoiceItems(Array.from(map.values()));
+        }
+    }, [docType, recipientName, period, sales, products]);
 
     const canPreview = recipientName && period;
 
@@ -82,7 +126,7 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
         setIsSaving(true);
         try {
             const docNumber = generateDocNumber(docType, year);
-            const totalAmount = 0; // Assuming initial totalAmount is 0
+            const totalAmount = docType === "invoice" ? totalAmountState : 0;
             await saveIssuedDocument({
                 type: docType,
                 docNumber,
@@ -95,6 +139,9 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
                 spotRecipientId: recipientType === "spot" ? spotRecipient?.id : undefined,
                 recipientName,
                 totalAmount,
+                taxRate: docType === "invoice" ? taxRate : undefined,
+                details: docType === "invoice" ? invoiceItems : undefined,
+                adjustments: docType === "invoice" ? invoiceAdjustments : undefined,
                 memo: "",
             });
             onClose(); // Automatically close after save
@@ -108,7 +155,7 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className={`bg-white rounded-2xl shadow-2xl w-full translate-y-0 opacity-100 transition-all duration-300 ${docType === 'invoice' ? 'max-w-4xl' : 'max-w-lg'}`}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                     <div className="flex items-center gap-2">
                         <div className="p-2 rounded-lg" style={{ backgroundColor: BRAND_LIGHT }}>
@@ -183,6 +230,23 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
                                 className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 font-medium text-slate-900" />
                         </div>
                     </div>
+
+                    {/* Invoice Editor */}
+                    {docType === "invoice" && recipientName && period && (
+                        <div className="pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <InvoiceEditor
+                                items={invoiceItems}
+                                adjustments={invoiceAdjustments}
+                                taxRate={taxRate}
+                                onChange={(data) => {
+                                    setInvoiceItems(data.items);
+                                    setInvoiceAdjustments(data.adjustments);
+                                    setTaxRate(data.taxRate);
+                                    setTotalAmountState(data.totalAmount);
+                                }}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex gap-2 justify-end">
@@ -207,6 +271,9 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
                     supplierId={recipientType === "supplier" ? supplierId : undefined}
                     period={(docType === "delivery_note" || docType === "invoice") ? period : undefined}
                     month={docType === "payment_summary" ? period : undefined}
+                    customDetails={docType === "invoice" ? invoiceItems : undefined}
+                    customAdjustments={docType === "invoice" ? invoiceAdjustments : undefined}
+                    customTaxRate={docType === "invoice" ? taxRate : undefined}
                     onClose={() => setShowPreview(false)}
                 />
             )}
@@ -455,6 +522,9 @@ export default function DocumentsPage() {
                     month={previewDoc.period}
                     docNumber={previewDoc.docNumber}
                     recipientName={previewDoc.recipientName}
+                    customDetails={previewDoc.details}
+                    customAdjustments={previewDoc.adjustments}
+                    customTaxRate={previewDoc.taxRate}
                     onClose={() => setPreviewDoc(null)}
                 />
             )}
