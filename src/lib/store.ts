@@ -121,6 +121,36 @@ export interface Brand {
     name: string;
 }
 
+// ─── 発行済み帳票レコード ───────────────────────────────────────────────
+export interface IssuedDocument {
+    id: string;
+    type: 'delivery_note' | 'payment_summary' | 'invoice';
+    docNumber: string;          // "DN-2026-001", "INV-2026-001" or branch variants
+    status: 'draft' | 'issued';
+    issuedDate: string;         // YYYY-MM-DD
+    period: string;             // YYYY-MM or YYYY-MM-DD
+    recipientType: 'store' | 'supplier' | 'spot';
+    storeId?: string;
+    supplierId?: string;
+    spotRecipientId?: string;
+    recipientName: string;      // 非正規化表示名
+    totalAmount: number;
+    memo?: string;
+    createdAt?: string | any;
+}
+
+// ─── スポット（非登録）宛先マスター ───────────────────────────────────
+export interface SpotRecipient {
+    id: string;
+    name: string;
+    zipCode?: string;
+    address?: string;
+    tel?: string;
+    memo?: string;
+    lastUsedAt?: string;        // ISO date — 最終使用日（名寄せ優先順位用）
+    createdAt?: string | any;
+}
+
 export interface Supplier {
     id: string;
     name: string;
@@ -197,6 +227,8 @@ export function useStore() {
     const { data: sales = [], mutate: mutateSales, isLoading: loadingSales } = useSWR<Sale[]>("sales", () => fetcher<Sale>("sales"), swrConfig);
     const { data: paymentRecords = [], mutate: mutatePaymentRecords, isLoading: loadingPayments } = useSWR<PaymentRecord[]>("payment_records", () => fetcher<PaymentRecord>("payment_records"), swrConfig);
     const { data: dailyReports = [], mutate: mutateDailyReports, isLoading: loadingReports } = useSWR<DailyReport[]>("daily_reports", () => fetcher<DailyReport>("daily_reports"), swrConfig);
+    const { data: issuedDocuments = [], mutate: mutateIssuedDocuments } = useSWR<IssuedDocument[]>("issued_documents", () => fetcher<IssuedDocument>("issued_documents"), swrConfig);
+    const { data: spotRecipients = [], mutate: mutateSpotRecipients } = useSWR<SpotRecipient[]>("spot_recipients", () => fetcher<SpotRecipient>("spot_recipients"), swrConfig);
 
     // Company Settings — fetched once from Firestore doc (not a collection)
     const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings } = useSWR<CompanySettings>(
@@ -447,6 +479,93 @@ export function useStore() {
         mutateDailyReports();
     };
 
+    // --- Issued Document Actions ---
+
+    /** 帳票番号の採番: 同じ prefix の既存番号を参照して次の連番を返す */
+    const generateDocNumber = (type: 'delivery_note' | 'payment_summary' | 'invoice', year: string): string => {
+        const prefix = type === 'delivery_note' ? 'DN' : type === 'payment_summary' ? 'PM' : 'INV';
+        const base = `${prefix}-${year}-`;
+        const existing = issuedDocuments
+            .filter(d => d.docNumber.startsWith(base) && !d.docNumber.includes('-', base.length + 2))
+            .map(d => parseInt(d.docNumber.replace(base, '')) || 0);
+        const next = existing.length > 0 ? Math.max(...existing) + 1 : 1;
+        return `${base}${String(next).padStart(3, '0')}`;
+    };
+
+    const saveIssuedDocument = async (data: Omit<IssuedDocument, 'id' | 'createdAt'>): Promise<IssuedDocument> => {
+        const newRef = doc(collection(db, 'issued_documents'));
+        const newDoc: IssuedDocument = { id: newRef.id, ...data, createdAt: new Date().toISOString() };
+        mutateIssuedDocuments([newDoc, ...issuedDocuments], false);
+        await setDoc(newRef, { ...data, createdAt: serverTimestamp() });
+        mutateIssuedDocuments();
+        return newDoc;
+    };
+
+    const duplicateDocument = async (id: string): Promise<IssuedDocument | null> => {
+        const original = issuedDocuments.find(d => d.id === id);
+        if (!original) return null;
+        // Strip existing branch suffix to get the base number
+        const baseNumber = original.docNumber.replace(/-\d{2}$/, '');
+        // Find existing branches for this base
+        const branches = issuedDocuments
+            .filter(d => d.docNumber.startsWith(baseNumber + '-') && /^\d{2}$/.test(d.docNumber.slice(baseNumber.length + 1)))
+            .map(d => parseInt(d.docNumber.slice(baseNumber.length + 1)) || 0);
+        // If the original itself has no branch and no branches exist yet, start at -01
+        const nextBranch = branches.length > 0 ? Math.max(...branches) + 1 : 1;
+        const newDocNumber = `${baseNumber}-${String(nextBranch).padStart(2, '0')}`;
+        return saveIssuedDocument(({
+            type: original.type,
+            docNumber: newDocNumber,
+            status: 'draft' as const,
+            issuedDate: new Date().toISOString().split('T')[0],
+            period: original.period,
+            recipientType: original.recipientType,
+            storeId: original.storeId,
+            supplierId: original.supplierId,
+            spotRecipientId: original.spotRecipientId,
+            recipientName: original.recipientName,
+            totalAmount: original.totalAmount,
+            memo: original.memo,
+        }));
+    };
+
+    const updateIssuedDocument = async (id: string, data: Partial<Omit<IssuedDocument, 'id' | 'createdAt'>>) => {
+        mutateIssuedDocuments(issuedDocuments.map(d => d.id === id ? { ...d, ...data } : d), false);
+        await updateDoc(doc(db, 'issued_documents', id), data);
+        mutateIssuedDocuments();
+    };
+
+    const deleteIssuedDocument = async (id: string) => {
+        mutateIssuedDocuments(issuedDocuments.filter(d => d.id !== id), false);
+        await deleteDoc(doc(db, 'issued_documents', id));
+        mutateIssuedDocuments();
+    };
+
+    // --- Spot Recipient Actions ---
+    const addSpotRecipient = async (data: Omit<SpotRecipient, 'id' | 'createdAt'>): Promise<SpotRecipient> => {
+        // 名寄せ: 同名が既に存在する場合は lastUsedAt を更新して返す
+        const existing = spotRecipients.find(r => r.name.trim() === data.name.trim());
+        if (existing) {
+            const updated = { ...existing, lastUsedAt: new Date().toISOString() };
+            mutateSpotRecipients(spotRecipients.map(r => r.id === existing.id ? updated : r), false);
+            await updateDoc(doc(db, 'spot_recipients', existing.id), { lastUsedAt: serverTimestamp() });
+            mutateSpotRecipients();
+            return updated;
+        }
+        const newRef = doc(collection(db, 'spot_recipients'));
+        const newRecipient: SpotRecipient = { id: newRef.id, ...data, lastUsedAt: new Date().toISOString(), createdAt: new Date().toISOString() };
+        mutateSpotRecipients([newRecipient, ...spotRecipients], false);
+        await setDoc(newRef, { ...data, lastUsedAt: serverTimestamp(), createdAt: serverTimestamp() });
+        mutateSpotRecipients();
+        return newRecipient;
+    };
+
+    const deleteSpotRecipient = async (id: string) => {
+        mutateSpotRecipients(spotRecipients.filter(r => r.id !== id), false);
+        await deleteDoc(doc(db, 'spot_recipients', id));
+        mutateSpotRecipients();
+    };
+
     return {
         isLoaded,
         companySettings,
@@ -480,5 +599,16 @@ export function useStore() {
         addDailyReport,
         updateDailyReport,
         deleteDailyReport,
+        // Issued Documents
+        issuedDocuments,
+        generateDocNumber,
+        saveIssuedDocument,
+        duplicateDocument,
+        updateIssuedDocument,
+        deleteIssuedDocument,
+        // Spot Recipients
+        spotRecipients,
+        addSpotRecipient,
+        deleteSpotRecipient,
     };
 }

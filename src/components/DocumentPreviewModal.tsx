@@ -12,11 +12,11 @@ const BRAND_LIGHT = "#f5eeee";
 const BRAND_DARK = "#8b5c57";
 
 // ─── Props ───────────────────────────────────────────────────────────────
-export type DocumentType = "delivery_note" | "payment_summary";
+export type DocumentType = "delivery_note" | "payment_summary" | "invoice";
 
 interface DocumentPreviewModalProps {
     type: DocumentType;
-    // For delivery_note: storeId + period
+    // For delivery_note & invoice: storeId + period
     storeId?: string;
     period?: string;   // YYYY-MM or YYYY-MM-DD
     // For payment_summary: supplierId + month
@@ -51,12 +51,14 @@ export function DocumentPreviewModal({
 
     // ─ Compute document data ────────────────────────────────────────────
     const isDeliveryNote = type === "delivery_note";
+    const isInvoice = type === "invoice";
+    const isPaymentSummary = type === "payment_summary";
 
-    // --- Delivery Note: aggregate sales items for store+period ---
+    // --- Line Items (Delivery Note & Invoice): aggregate sales items for store+period ---
     type LineItem = { name: string; qty: number; unitPrice: number; subtotal: number; taxRate: "standard" | "reduced" };
 
     const lineItems: LineItem[] = (() => {
-        if (!isDeliveryNote) return [];
+        if (!isDeliveryNote && !isInvoice) return [];
         const filtered = sales.filter(s => {
             const matchStore = storeId ? s.storeId === storeId : true;
             const matchPeriod = period ? s.period.startsWith(period) : true;
@@ -87,11 +89,11 @@ export function DocumentPreviewModal({
         return Array.from(map.values());
     })();
 
-    // --- Payment Summary: aggregate purchases for supplier+month ---
+    // --- Purchase Lines (Payment Summary): aggregate purchases for supplier+month ---
     type PurchaseLine = { name: string; qty: number; unitCost: number; total: number; date: string; taxRate: "standard" | "reduced" };
 
     const purchaseLines: PurchaseLine[] = (() => {
-        if (isDeliveryNote) return [];
+        if (!isPaymentSummary) return [];
         return purchases
             .filter(p => {
                 const matchSupplier = supplierId ? p.supplierId === supplierId : true;
@@ -113,7 +115,7 @@ export function DocumentPreviewModal({
     })();
 
     // ─ Tax summary ──────────────────────────────────────────────────────
-    const taxSummary = isDeliveryNote
+    const taxSummary = (isDeliveryNote || isInvoice)
         ? summarizeTaxByRate(lineItems.map(i => ({ amount: i.subtotal, rateType: i.taxRate })), rounding)
         : summarizeTaxByRate(purchaseLines.map(i => ({ amount: i.total, rateType: i.taxRate })), rounding);
 
@@ -121,15 +123,15 @@ export function DocumentPreviewModal({
     const store = retailStores.find(s => s.id === storeId);
     const supplier = suppliers.find(s => s.id === supplierId);
 
-    const recipientName = isDeliveryNote ? (store?.name ?? "（店舗名）") : (supplier?.name ?? "（仕入先名）");
-    const docTitle = isDeliveryNote ? "納　品　書" : "支 払 明 細 書";
-    const docNumber = `${isDeliveryNote ? "DN" : "PM"}-${Date.now().toString().slice(-8)}`;
+    const recipientName = (isDeliveryNote || isInvoice) ? (store?.name ?? "（店舗名）") : (supplier?.name ?? "（仕入先名）");
+    const docTitle = isDeliveryNote ? "納　品　書" : isInvoice ? "請　求　書" : "支 払 明 細 書";
+    const docNumber = `${isDeliveryNote ? "DN" : isInvoice ? "INV" : "PM"}-${Date.now().toString().slice(-8)}`;
     const periodLabel = (() => {
-        if (isDeliveryNote && period) {
+        if ((isDeliveryNote || isInvoice) && period) {
             if (period.length === 7) return `${period.slice(0, 4)}年${parseInt(period.slice(5))}月分`;
             return period;
         }
-        if (!isDeliveryNote && month) return `${month.slice(0, 4)}年${parseInt(month.slice(5))}月分`;
+        if (isPaymentSummary && month) return `${month.slice(0, 4)}年${parseInt(month.slice(5))}月分`;
         return "";
     })();
 
@@ -175,10 +177,10 @@ export function DocumentPreviewModal({
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
                     <div className="flex items-center gap-2.5">
                         <div className="p-2 rounded-lg" style={{ backgroundColor: BRAND_LIGHT }}>
-                            {isDeliveryNote ? <Receipt className="w-5 h-5" style={{ color: BRAND }} /> : <FileText className="w-5 h-5" style={{ color: BRAND }} />}
+                            {isPaymentSummary ? <FileText className="w-5 h-5" style={{ color: BRAND }} /> : <Receipt className="w-5 h-5" style={{ color: BRAND }} />}
                         </div>
                         <div>
-                            <div className="font-bold text-slate-900">{isDeliveryNote ? "納品書" : "支払明細書"} プレビュー</div>
+                            <div className="font-bold text-slate-900">{isDeliveryNote ? "納品書" : isInvoice ? "請求書" : "支払明細書"} プレビュー</div>
                             <div className="text-xs text-slate-400">{periodLabel}{recipientName && ` ／ ${recipientName}`}</div>
                         </div>
                     </div>
@@ -292,7 +294,9 @@ export function DocumentPreviewModal({
                             いつも格別のお引き立てを賜り、厚く御礼申し上げます。<br />
                             {isDeliveryNote
                                 ? "下記の通り納品いたしますので、ご確認の上ご査収くださいますようお願い申し上げます。"
-                                : "下記の通り、仕入れ代金のご請求（お支払い明細）をご確認くださいますようお願い申し上げます。"
+                                : isInvoice
+                                    ? "下記の通りご請求申し上げます。内容をご確認の上、期日までにお支払いくださいますようお願い申し上げます。"
+                                    : "下記の通り、仕入れ代金のご請求（お支払い明細）をご確認くださいますようお願い申し上げます。"
                             }
                         </div>
 
@@ -301,18 +305,18 @@ export function DocumentPreviewModal({
                             <thead>
                                 <tr style={{ backgroundColor: BRAND }}>
                                     <th style={{ ...thStyle, width: "40%", textAlign: "left" }}>
-                                        {isDeliveryNote ? "商品名" : "商品名 / 入荷日"}
+                                        {isDeliveryNote || isInvoice ? "商品名" : "商品名 / 入荷日"}
                                     </th>
                                     <th style={{ ...thStyle, width: "8%", textAlign: "center" }}>税率</th>
                                     <th style={{ ...thStyle, width: "12%", textAlign: "right" }}>数量</th>
                                     <th style={{ ...thStyle, width: "18%", textAlign: "right" }}>
-                                        {isDeliveryNote ? "単価" : "仕入単価"}
+                                        {isDeliveryNote || isInvoice ? "単価" : "仕入単価"}
                                     </th>
                                     <th style={{ ...thStyle, width: "22%", textAlign: "right" }}>小計（税抜）</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {isDeliveryNote
+                                {(isDeliveryNote || isInvoice)
                                     ? lineItems.length > 0
                                         ? lineItems.map((item, i) => (
                                             <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#fff" : BRAND_LIGHT }}>
@@ -382,8 +386,8 @@ export function DocumentPreviewModal({
                             </table>
                         </div>
 
-                        {/* ── Bank info (for payment summaries) ── */}
-                        {!isDeliveryNote && (companySettings?.bankName || companySettings?.bankAccountNumber) && (
+                        {/* ── Bank info (for payments & invoices) ── */}
+                        {(isPaymentSummary || isInvoice) && (companySettings?.bankName || companySettings?.bankAccountNumber) && (
                             <div style={{
                                 marginTop: "20px", padding: "12px 16px", border: `1px solid ${BRAND}`,
                                 borderRadius: "6px", backgroundColor: BRAND_LIGHT, fontSize: "11px", lineHeight: "1.8"
