@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useStore, CompanySettings } from "@/lib/store";
+import { useZipCode } from "@/lib/useZipCode";
 import {
     Building2, Phone, MapPin, Hash, Calculator,
-    Save, CheckCircle2, ChevronDown, Info, FileText
+    Save, CheckCircle2, ChevronDown, Info, FileText, Loader2, CheckCircle, AlertCircle
 } from "lucide-react";
 
 const ROUNDING_OPTIONS = [
@@ -15,6 +16,7 @@ const ROUNDING_OPTIONS = [
 
 export default function SettingsPage() {
     const { companySettings, saveCompanySettings } = useStore();
+    const { zipStatus, lookupZip } = useZipCode();
 
     const [form, setForm] = useState<CompanySettings>({
         companyName: "",
@@ -37,6 +39,16 @@ export default function SettingsPage() {
     const handleChange = (field: keyof CompanySettings, value: string) => {
         setSaved(false);
         setForm(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleZipChange = (raw: string) => {
+        const digits = raw.replace(/\D/g, "").slice(0, 7);
+        const formatted = digits.length > 3 ? `${digits.slice(0, 3)}-${digits.slice(3)}` : digits;
+        setSaved(false);
+        setForm(prev => ({ ...prev, zipCode: formatted }));
+        lookupZip(digits, ({ full }) => {
+            setForm(prev => ({ ...prev, address: full }));
+        });
     };
 
     const handleSave = async () => {
@@ -92,15 +104,25 @@ export default function SettingsPage() {
                             <div>
                                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                                     <MapPin className="w-3 h-3 inline mr-1" />郵便番号
+                                    <span className="ml-1 text-[10px] font-normal text-slate-400">入力すると住所を自動補完</span>
                                 </label>
-                                <input
-                                    type="text"
-                                    value={form.zipCode}
-                                    onChange={e => handleChange("zipCode", e.target.value)}
-                                    placeholder="860-0001"
-                                    maxLength={8}
-                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors"
-                                />
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={form.zipCode}
+                                        onChange={e => handleZipChange(e.target.value)}
+                                        placeholder="860-0001"
+                                        maxLength={8}
+                                        inputMode="numeric"
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors pr-9"
+                                    />
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        {zipStatus === "loading" && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                                        {zipStatus === "ok" && <CheckCircle className="w-4 h-4 text-emerald-500" />}
+                                        {zipStatus === "notfound" && <AlertCircle className="w-4 h-4 text-amber-400" />}
+                                    </div>
+                                </div>
+                                {zipStatus === "notfound" && <p className="text-[11px] text-amber-500 mt-1">郵便番号が見つかりませんでした</p>}
                             </div>
                             <div className="sm:col-span-2">
                                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">住所</label>
@@ -108,7 +130,7 @@ export default function SettingsPage() {
                                     type="text"
                                     value={form.address}
                                     onChange={e => handleChange("address", e.target.value)}
-                                    placeholder="熊本県宇土市○○町○○番地"
+                                    placeholder="郵便番号を入力すると自動補完されます"
                                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors"
                                 />
                             </div>

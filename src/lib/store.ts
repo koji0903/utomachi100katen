@@ -49,6 +49,36 @@ export interface RetailStore {
     pic?: string; // Person in Charge
     memo?: string;
     commissionRate?: number; // In percentage (e.g., 15)
+    lat?: number;   // 緯度（OpenWeatherMap 連携用）
+    lng?: number;   // 経度
+}
+
+// 日報
+export interface RestockingItem {
+    productId: string;
+    productName: string;
+    qty: number;
+}
+
+export interface DailyReport {
+    id: string;
+    date: string;            // YYYY-MM-DD
+    worker: string;          // 作業者名
+    type: 'office' | 'store'; // 事務所作業 | 店舗メンテ
+    // 天気（自動取得）
+    weather?: string;        // e.g. "晴れ"
+    weatherMain?: string;    // e.g. "Clear"
+    temperature?: number;    // 気温（℃）
+    humidity?: number;       // 湿度（%）
+    windSpeed?: number;      // 風速 m/s
+    // 事務所作業
+    officeNote?: string;
+    // 店舗メンテナンス
+    storeId?: string;
+    storeName?: string;
+    restocking?: RestockingItem[];
+    storeTopics?: string;
+    createdAt?: string | any;
 }
 
 export interface Sale {
@@ -166,6 +196,7 @@ export function useStore() {
     const { data: purchases = [], mutate: mutatePurchases, isLoading: loadingPurchases } = useSWR<Purchase[]>("inbound_shipments", () => fetcher<Purchase>("inbound_shipments"), swrConfig);
     const { data: sales = [], mutate: mutateSales, isLoading: loadingSales } = useSWR<Sale[]>("sales", () => fetcher<Sale>("sales"), swrConfig);
     const { data: paymentRecords = [], mutate: mutatePaymentRecords, isLoading: loadingPayments } = useSWR<PaymentRecord[]>("payment_records", () => fetcher<PaymentRecord>("payment_records"), swrConfig);
+    const { data: dailyReports = [], mutate: mutateDailyReports, isLoading: loadingReports } = useSWR<DailyReport[]>("daily_reports", () => fetcher<DailyReport>("daily_reports"), swrConfig);
 
     // Company Settings — fetched once from Firestore doc (not a collection)
     const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings } = useSWR<CompanySettings>(
@@ -395,6 +426,27 @@ export function useStore() {
         mutateCompanySettings();
     };
 
+    // --- Daily Report Actions ---
+    const addDailyReport = async (reportData: Omit<DailyReport, "id" | "createdAt">) => {
+        const newRef = doc(collection(db, "daily_reports"));
+        const newReport: DailyReport = { id: newRef.id, ...reportData, createdAt: new Date().toISOString() };
+        mutateDailyReports([newReport, ...(dailyReports ?? [])], false);
+        await setDoc(newRef, { ...reportData, createdAt: serverTimestamp() });
+        mutateDailyReports();
+    };
+
+    const deleteDailyReport = async (id: string) => {
+        mutateDailyReports((dailyReports ?? []).filter(r => r.id !== id), false);
+        await deleteDoc(doc(db, "daily_reports", id));
+        mutateDailyReports();
+    };
+
+    const updateDailyReport = async (id: string, data: Partial<Omit<DailyReport, "id" | "createdAt">>) => {
+        mutateDailyReports((dailyReports ?? []).map(r => r.id === id ? { ...r, ...data } : r), false);
+        await updateDoc(doc(db, "daily_reports", id), { ...data, updatedAt: serverTimestamp() });
+        mutateDailyReports();
+    };
+
     return {
         isLoaded,
         companySettings,
@@ -424,5 +476,9 @@ export function useStore() {
         addSale,
         deleteSale,
         upsertPaymentRecord,
+        dailyReports: dailyReports ?? [],
+        addDailyReport,
+        updateDailyReport,
+        deleteDailyReport,
     };
 }

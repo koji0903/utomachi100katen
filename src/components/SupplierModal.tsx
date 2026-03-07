@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Save, Users, Building2, Wheat } from "lucide-react";
+import { X, Save, Users, Building2, Wheat, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { useStore, Supplier } from "@/lib/store";
+import { useZipCode } from "@/lib/useZipCode";
 
 interface SupplierModalProps {
     isOpen: boolean;
@@ -12,6 +13,7 @@ interface SupplierModalProps {
 
 export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalProps) {
     const { addSupplier, updateSupplier } = useStore();
+    const { zipStatus, lookupZip } = useZipCode();
 
     const defaultForm = {
         name: "",
@@ -61,6 +63,16 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
     }, [isOpen, initialData]);
 
     if (!isOpen) return null;
+
+    // Zip auto-fill handler
+    const handleZipChange = (raw: string) => {
+        const digits = raw.replace(/\D/g, "").slice(0, 7);
+        const formatted = digits.length > 3 ? `${digits.slice(0, 3)}-${digits.slice(3)}` : digits;
+        setFormData(prev => ({ ...prev, zipCode: formatted }));
+        lookupZip(digits, ({ full }) => {
+            setFormData(prev => ({ ...prev, address: full }));
+        });
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -159,13 +171,31 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
                                     <label className={labelClass}>メールアドレス</label>
                                     <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={inputClass} placeholder="example@mail.com" />
                                 </div>
+                                {/* ① 郵便番号 */}
                                 <div className="space-y-1.5">
-                                    <label className={labelClass}>郵便番号</label>
-                                    <input type="text" value={formData.zipCode} onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })} className={inputClass} placeholder="869-0401" />
+                                    <label className={labelClass}>
+                                        郵便番号
+                                        <span className="ml-1 text-[10px] font-normal text-slate-400 normal-case tracking-normal">入力すると住所を自動補完</span>
+                                    </label>
+                                    <div className="relative">
+                                        <input type="text" value={formData.zipCode}
+                                            onChange={e => handleZipChange(e.target.value)}
+                                            className={inputClass} placeholder="869-0401"
+                                            maxLength={8} inputMode="numeric" />
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            {zipStatus === "loading" && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                                            {zipStatus === "ok" && <CheckCircle className="w-4 h-4 text-emerald-500" />}
+                                            {zipStatus === "notfound" && <AlertCircle className="w-4 h-4 text-amber-400" />}
+                                        </div>
+                                    </div>
+                                    {zipStatus === "notfound" && <p className="text-[11px] text-amber-500">郵便番号が見つかりませんでした</p>}
                                 </div>
+                                {/* ② 住所（自動補完 or 手動） */}
                                 <div className="md:col-span-2 space-y-1.5">
                                     <label className={labelClass}>住所</label>
-                                    <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputClass} placeholder="熊本県宇土市..." />
+                                    <input type="text" value={formData.address}
+                                        onChange={e => setFormData({ ...formData, address: e.target.value })}
+                                        className={inputClass} placeholder="郵便番号を入力すると自動補完されます" />
                                 </div>
                             </div>
                         </div>
