@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen } from "lucide-react";
+import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen, AlertCircle } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 
@@ -27,6 +27,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     { name: "業務日報", href: "/reports", icon: FileText },
     { name: "帳票管理", href: "/documents", icon: Archive },
     { name: "注文管理", href: "/orders", icon: ShoppingCart },
+    { name: "課題・ToDo管理", href: "/todo", icon: AlertCircle },
     { name: "ご利用ガイド", href: "/guidelines", icon: BookOpen },
     { name: "設定", href: "/settings", icon: Settings },
   ];

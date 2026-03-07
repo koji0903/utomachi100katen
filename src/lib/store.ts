@@ -200,6 +200,17 @@ export interface PaymentRecord {
     createdAt?: string | any;
 }
 
+export interface BusinessChallenge {
+    id: string;
+    title: string;
+    description: string;
+    category: 'system' | 'product' | 'customer' | 'store' | 'strategy' | 'other';
+    priority: 'high' | 'medium' | 'low';
+    status: 'todo' | 'doing' | 'done';
+    createdAt: string | any;
+    updatedAt?: string | any;
+}
+
 export interface Product {
     id: string;
     name: string;
@@ -246,6 +257,7 @@ export function useStore() {
     const { data: dailyReports = [], mutate: mutateDailyReports, isLoading: loadingReports } = useSWR<DailyReport[]>("daily_reports", () => fetcher<DailyReport>("daily_reports"), swrConfig);
     const { data: issuedDocuments = [], mutate: mutateIssuedDocuments } = useSWR<IssuedDocument[]>("issued_documents", () => fetcher<IssuedDocument>("issued_documents"), swrConfig);
     const { data: spotRecipients = [], mutate: mutateSpotRecipients } = useSWR<SpotRecipient[]>("spot_recipients", () => fetcher<SpotRecipient>("spot_recipients"), swrConfig);
+    const { data: challenges = [], mutate: mutateChallenges } = useSWR<BusinessChallenge[]>("business_challenges", () => fetcher<BusinessChallenge>("business_challenges"), swrConfig);
 
     // Company Settings — fetched once from Firestore doc (not a collection)
     const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings } = useSWR<CompanySettings>(
@@ -588,6 +600,31 @@ export function useStore() {
         mutateSpotRecipients();
     };
 
+    // --- Business Challenge Actions ---
+    const addChallenge = async (data: Omit<BusinessChallenge, 'id' | 'createdAt'>) => {
+        const newRef = doc(collection(db, 'business_challenges'));
+        const newChallenge: BusinessChallenge = {
+            id: newRef.id,
+            ...data,
+            createdAt: new Date().toISOString()
+        };
+        mutateChallenges([newChallenge, ...challenges], false);
+        await setDoc(newRef, { ...data, createdAt: serverTimestamp() });
+        mutateChallenges();
+    };
+
+    const updateChallenge = async (id: string, data: Partial<Omit<BusinessChallenge, 'id' | 'createdAt'>>) => {
+        mutateChallenges(challenges.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c), false);
+        await updateDoc(doc(db, 'business_challenges', id), { ...cleanObject(data), updatedAt: serverTimestamp() });
+        mutateChallenges();
+    };
+
+    const deleteChallenge = async (id: string) => {
+        mutateChallenges(challenges.filter(c => c.id !== id), false);
+        await deleteDoc(doc(db, 'business_challenges', id));
+        mutateChallenges();
+    };
+
     return {
         isLoaded,
         companySettings,
@@ -633,5 +670,10 @@ export function useStore() {
         spotRecipients,
         addSpotRecipient,
         deleteSpotRecipient,
+        // Business Challenges
+        challenges,
+        addChallenge,
+        updateChallenge,
+        deleteChallenge,
     };
 }

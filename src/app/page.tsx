@@ -229,6 +229,10 @@ export default function DashboardPage() {
                                 <span className="text-slate-600 font-medium">仕入先登録</span>
                                 <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-blue-600 transition-colors" />
                             </Link>
+                            <Link href="/todo" className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-sm group">
+                                <span className="text-slate-600 font-medium font-bold text-blue-600">課題・ToDoの追加</span>
+                                <Plus className="w-4 h-4 text-blue-600" />
+                            </Link>
                         </div>
                     </div>
                 </div>
