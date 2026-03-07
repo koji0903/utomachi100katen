@@ -22,6 +22,8 @@ interface DocumentPreviewModalProps {
     // For payment_summary: supplierId + month
     supplierId?: string;
     month?: string;    // YYYY-MM
+    docNumber?: string; // Optional override
+    recipientName?: string; // Optional override
     onClose: () => void;
 }
 
@@ -39,13 +41,17 @@ export function DocumentPreviewModal({
     period,
     supplierId,
     month,
+    docNumber: propDocNumber,
+    recipientName: propRecipientName,
     onClose,
 }: DocumentPreviewModalProps) {
-    const { companySettings, sales, products, retailStores, purchases, suppliers } = useStore();
+    const { companySettings, sales, products, retailStores, purchases, suppliers, isLoaded, spotRecipients } = useStore();
     const previewRef = useRef<HTMLDivElement>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [memo, setMemo] = useState("");
     const [isGeneratingMemo, setIsGeneratingMemo] = useState(false);
+
+    if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
 
     const rounding = companySettings?.roundingMode ?? "floor";
 
@@ -59,9 +65,14 @@ export function DocumentPreviewModal({
 
     const lineItems: LineItem[] = (() => {
         if (!isDeliveryNote && !isInvoice) return [];
-        const filtered = sales.filter(s => {
+        if (!storeId && !isInvoice) return []; // Require storeId for registered documents
+
+        const filtered = (sales || []).filter(s => {
+            if (!s || !s.items) return false;
             const matchStore = storeId ? s.storeId === storeId : true;
-            const matchPeriod = period ? s.period.startsWith(period) : true;
+            // Defensive startswith
+            const sPeriod = s.period || "";
+            const matchPeriod = period ? sPeriod.startsWith(period) : true;
             return matchStore && matchPeriod;
         });
 
@@ -122,10 +133,18 @@ export function DocumentPreviewModal({
     // ─ Names ──────────────────────────────────────────────────────────
     const store = retailStores.find(s => s.id === storeId);
     const supplier = suppliers.find(s => s.id === supplierId);
+    // Fixed: handle spot recipient name
+    const recipient = propRecipientName || (
+        (isDeliveryNote || isInvoice)
+            ? (store?.name ?? "（客先名）")
+            : (supplier?.name ?? "（仕入先名）")
+    );
 
-    const recipientName = (isDeliveryNote || isInvoice) ? (store?.name ?? "（店舗名）") : (supplier?.name ?? "（仕入先名）");
     const docTitle = isDeliveryNote ? "納　品　書" : isInvoice ? "請　求　書" : "支 払 明 細 書";
-    const docNumber = `${isDeliveryNote ? "DN" : isInvoice ? "INV" : "PM"}-${Date.now().toString().slice(-8)}`;
+
+    // Fixed: use passed docNumber or fallback to temp
+    const docNumber = propDocNumber || `${isDeliveryNote ? "DN" : isInvoice ? "INV" : "PM"}-${Date.now().toString().slice(-8)}`;
+
     const periodLabel = (() => {
         if ((isDeliveryNote || isInvoice) && period) {
             if (period.length === 7) return `${period.slice(0, 4)}年${parseInt(period.slice(5))}月分`;
@@ -162,7 +181,11 @@ export function DocumentPreviewModal({
         if (!previewRef.current) return;
         setIsGenerating(true);
         try {
-            await generatePdfFromElement(previewRef.current, `${docTitle.replace(/\s/g, "")}_${periodLabel}.pdf`);
+            const cleanTitle = (docTitle || "document").replace(/\s/g, "");
+            const cleanPeriod = (periodLabel || today()).replace(/\//g, "-");
+            await generatePdfFromElement(previewRef.current, `${cleanTitle}_${cleanPeriod}.pdf`);
+        } catch (err) {
+            console.error("Download failed:", err);
         } finally {
             setIsGenerating(false);
         }
@@ -181,7 +204,7 @@ export function DocumentPreviewModal({
                         </div>
                         <div>
                             <div className="font-bold text-slate-900">{isDeliveryNote ? "納品書" : isInvoice ? "請求書" : "支払明細書"} プレビュー</div>
-                            <div className="text-xs text-slate-400">{periodLabel}{recipientName && ` ／ ${recipientName}`}</div>
+                            <div className="text-xs text-slate-400">{periodLabel}{recipient && ` ／ ${recipient}`}</div>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-500">
@@ -284,7 +307,7 @@ export function DocumentPreviewModal({
                         {/* ── Recipient ── */}
                         <div style={{ marginBottom: "28px" }}>
                             <span style={{ fontSize: "18px", fontWeight: "700", borderBottom: `2px solid #1a1a1a`, paddingBottom: "2px" }}>
-                                {recipientName}
+                                {recipient}
                             </span>
                             <span style={{ fontSize: "15px", marginLeft: "4px", color: "#333" }}>御中</span>
                         </div>

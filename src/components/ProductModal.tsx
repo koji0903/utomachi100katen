@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store } from "lucide-react";
+import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
 
@@ -118,15 +118,18 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
 
         setIsGeneratingStory(true);
         try {
-            const brand = brands.find(b => b.id === formData.brandId)?.name || "不明";
+            const brand = brands.find(b => b.id === formData.brandId);
+            const brandName = brand?.name || "不明";
+            const brandConcept = brand?.concept || "";
 
             const response = await fetch("/api/generate-story", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: formData.name,
-                    brand: brand,
-                    features: formData.story // Pass existing story as features if any
+                    brand: brandName,
+                    brandConcept: brandConcept,
+                    features: formData.story
                 }),
             });
 
@@ -140,9 +143,33 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
             }
         } catch (error) {
             console.error("Story generation error:", error);
-            alert("ストーリーの生成に失敗しました。時間をおいて再実行してください。");
+            alert("ストーリーの生成に失敗しました。");
         } finally {
             setIsGeneratingStory(false);
+        }
+    };
+
+    const handleApplyBrandBranding = () => {
+        const brand = brands.find(b => b.id === formData.brandId);
+
+        if (!brand) {
+            alert("ブランドが選択されていないか、データが見つかりません。");
+            return;
+        }
+
+        if (window.confirm("ブランドのコンセプトとストーリーをこの商品に反映させますか？（現在入力されている内容は上書きされます）")) {
+            const nextData = {
+                ...formData,
+                story: brand.story || formData.story,
+                producerStory: brand.concept || formData.producerStory,
+            };
+
+            if (brand.imageUrl && !formData.imageUrl) {
+                setImagePreview(brand.imageUrl);
+                nextData.imageUrl = brand.imageUrl;
+            }
+
+            setFormData(nextData);
         }
     };
 
@@ -305,8 +332,8 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                                 <div className="flex gap-3">
                                     {([['standard', '標準税率（10%）', 'bg-blue-50 border-blue-400 text-blue-700'], ['reduced', '軽減税率（8%）★', 'bg-green-50 border-green-400 text-green-700']] as const).map(([val, label, activeClasses]) => (
                                         <label key={val} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border cursor-pointer text-sm font-medium transition-all flex-1 justify-center ${formData.taxRate === val
-                                                ? activeClasses + ' shadow-sm'
-                                                : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
+                                            ? activeClasses + ' shadow-sm'
+                                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
                                             }`}>
                                             <input
                                                 type="radio"
@@ -375,15 +402,26 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                                 <label className="text-sm font-semibold text-slate-700 block">
                                     ストーリー <span className="text-slate-400 text-xs font-normal ml-2">任意</span>
                                 </label>
-                                <button
-                                    type="button"
-                                    onClick={handleGenerateStory}
-                                    disabled={isGeneratingStory}
-                                    className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-full font-medium transition-colors disabled:opacity-50"
-                                >
-                                    <Sparkles className="w-3.5 h-3.5" />
-                                    {isGeneratingStory ? "生成中..." : "AIで自動生成"}
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleApplyBrandBranding}
+                                        className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-full font-medium transition-colors border border-blue-100"
+                                        title="ブランドの共通コンセプト・ストーリーを反映"
+                                    >
+                                        <Tag className="w-3.5 h-3.5" />
+                                        ブランド情報を反映
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateStory}
+                                        disabled={isGeneratingStory}
+                                        className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-full font-medium transition-colors border border-purple-100 disabled:opacity-50"
+                                    >
+                                        <Sparkles className="w-3.5 h-3.5" />
+                                        {isGeneratingStory ? "生成中..." : "AIで自動生成"}
+                                    </button>
+                                </div>
                             </div>
                             <textarea
                                 rows={3}
@@ -414,7 +452,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                         {isUploading ? "保存中..." : "保存する"}
                     </button>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

@@ -14,6 +14,9 @@ import { SpotRecipientInput } from "@/components/SpotRecipientInput";
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
 
+const today = () => new Date().toISOString().split("T")[0];
+const year = new Date().getFullYear().toString();
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type DocStatus = "all" | "draft" | "issued";
 type DocType = "all" | "delivery_note" | "payment_summary" | "invoice";
@@ -65,7 +68,6 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
     const [isSaving, setIsSaving] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
 
-    const year = new Date().getFullYear().toString();
 
     const recipientName = useMemo(() => {
         if (recipientType === "store") return retailStores.find(s => s.id === storeId)?.name ?? "";
@@ -79,21 +81,29 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
         if (!recipientName || !period) return;
         setIsSaving(true);
         try {
+            const docNumber = generateDocNumber(docType, year);
+            const totalAmount = 0; // Assuming initial totalAmount is 0
             await saveIssuedDocument({
                 type: docType,
-                docNumber: generateDocNumber(docType, year),
+                docNumber,
                 status,
-                issuedDate: new Date().toISOString().split("T")[0],
+                issuedDate: today(),
                 period,
                 recipientType,
                 storeId: recipientType === "store" ? storeId : undefined,
                 supplierId: recipientType === "supplier" ? supplierId : undefined,
                 spotRecipientId: recipientType === "spot" ? spotRecipient?.id : undefined,
                 recipientName,
-                totalAmount: 0,
+                totalAmount,
+                memo: "",
             });
-            onClose();
-        } finally { setIsSaving(false); }
+            onClose(); // Automatically close after save
+        } catch (err) {
+            console.error("Save failed:", err);
+            alert("保存に失敗しました。");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -206,7 +216,7 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
 
 // ─── Documents Page ───────────────────────────────────────────────────────────
 export default function DocumentsPage() {
-    const { issuedDocuments, duplicateDocument, deleteIssuedDocument, updateIssuedDocument } = useStore();
+    const { isLoaded, issuedDocuments, duplicateDocument, deleteIssuedDocument, updateIssuedDocument } = useStore();
 
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<DocStatus>("all");
@@ -219,23 +229,35 @@ export default function DocumentsPage() {
 
     // ── Filter + sort ─────────────────────────────────────────────────────────
     const filtered = useMemo(() => {
+        if (!isLoaded) return [];
         return issuedDocuments
             .filter(d => {
-                if (filterStatus !== "all" && d.status !== filterStatus) return false;
-                if (filterType !== "all" && d.type !== filterType) return false;
-                if (searchQuery) {
-                    const q = searchQuery.toLowerCase();
-                    return d.recipientName.toLowerCase().includes(q) ||
-                        d.docNumber.toLowerCase().includes(q) ||
-                        d.period.includes(q);
-                }
-                return true;
+                const matchType = filterType === "all" || d.type === filterType;
+                const matchStatus = filterStatus === "all" || d.status === filterStatus;
+                const q = searchQuery.toLowerCase();
+                const matchSearch = !searchQuery ||
+                    d.recipientName.toLowerCase().includes(q) ||
+                    d.docNumber.toLowerCase().includes(q) ||
+                    d.period.includes(q);
+                return matchType && matchStatus && matchSearch;
             })
             .sort((a, b) => sortDesc
-                ? b.issuedDate.localeCompare(a.issuedDate)
-                : a.issuedDate.localeCompare(b.issuedDate)
+                ? (b.createdAt || "").localeCompare(a.createdAt || "")
+                : (a.createdAt || "").localeCompare(b.createdAt || "")
             );
-    }, [issuedDocuments, filterStatus, filterType, searchQuery, sortDesc]);
+    }, [issuedDocuments, filterStatus, filterType, searchQuery, sortDesc, isLoaded]);
+
+    const stats = useMemo(() => {
+        if (!isLoaded) return { total: 0, issued: 0, draft: 0, delivery: 0, invoice: 0, payment: 0 };
+        return {
+            total: issuedDocuments.length,
+            issued: issuedDocuments.filter(d => d.status === "issued").length,
+            draft: issuedDocuments.filter(d => d.status === "draft").length,
+            delivery: issuedDocuments.filter(d => d.type === "delivery_note").length,
+            invoice: issuedDocuments.filter(d => d.type === "invoice").length,
+            payment: issuedDocuments.filter(d => d.type === "payment_summary").length,
+        };
+    }, [issuedDocuments, isLoaded]);
 
     const handleDuplicate = async (id: string) => {
         setDuplicatingId(id);
@@ -249,18 +271,10 @@ export default function DocumentsPage() {
     };
 
     const handleMarkIssued = async (d: IssuedDocument) => {
-        await updateIssuedDocument(d.id, { status: "issued", issuedDate: new Date().toISOString().split("T")[0] });
+        await updateIssuedDocument(d.id, { status: "issued", issuedDate: today() });
     };
 
-    // ── Stats ──────────────────────────────────────────────────────────────────
-    const stats = useMemo(() => ({
-        total: issuedDocuments.length,
-        issued: issuedDocuments.filter(d => d.status === "issued").length,
-        draft: issuedDocuments.filter(d => d.status === "draft").length,
-        delivery: issuedDocuments.filter(d => d.type === "delivery_note").length,
-        invoice: issuedDocuments.filter(d => d.type === "invoice").length,
-        payment: issuedDocuments.filter(d => d.type === "payment_summary").length,
-    }), [issuedDocuments]);
+    if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
 
     return (
         <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
@@ -278,7 +292,7 @@ export default function DocumentsPage() {
             </div>
 
             {/* KPI row */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
                 {[
                     { label: "総件数", value: stats.total, color: "#6366f1" },
                     { label: "発行済", value: stats.issued, color: "#10b981" },
@@ -308,14 +322,12 @@ export default function DocumentsPage() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <Filter className="w-4 h-4 text-slate-400" />
-                    {/* Status filter */}
                     <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as DocStatus)}
                         className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 focus:outline-none">
                         <option value="all">すべての状態</option>
                         <option value="issued">発行済</option>
                         <option value="draft">下書き</option>
                     </select>
-                    {/* Type filter */}
                     <select value={filterType} onChange={e => setFilterType(e.target.value as DocType)}
                         className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 focus:outline-none">
                         <option value="all">すべての書類</option>
@@ -396,13 +408,11 @@ export default function DocumentsPage() {
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-1 justify-center">
-                                                    {/* Preview */}
                                                     <button onClick={() => setPreviewDoc(doc)}
                                                         title="プレビュー / PDF"
                                                         className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
                                                         <Eye className="w-4 h-4" />
                                                     </button>
-                                                    {/* Duplicate */}
                                                     <button onClick={() => handleDuplicate(doc.id)}
                                                         disabled={duplicatingId === doc.id}
                                                         title="複製（枝番付与）"
@@ -411,7 +421,6 @@ export default function DocumentsPage() {
                                                             ? <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                                                             : <Copy className="w-4 h-4" />}
                                                     </button>
-                                                    {/* Mark issued (draft only) */}
                                                     {doc.status === "draft" && (
                                                         <button onClick={() => handleMarkIssued(doc)}
                                                             title="発行済みにする"
@@ -419,7 +428,6 @@ export default function DocumentsPage() {
                                                             <CheckCircle2 className="w-4 h-4" />
                                                         </button>
                                                     )}
-                                                    {/* Delete */}
                                                     <button onClick={() => setDeletingId(doc.id)}
                                                         title="削除"
                                                         className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
@@ -443,8 +451,10 @@ export default function DocumentsPage() {
                     type={previewDoc.type}
                     storeId={previewDoc.storeId}
                     supplierId={previewDoc.supplierId}
-                    period={(previewDoc.type === "delivery_note" || previewDoc.type === "invoice") ? previewDoc.period : undefined}
-                    month={previewDoc.type === "payment_summary" ? previewDoc.period : undefined}
+                    period={previewDoc.period}
+                    month={previewDoc.period}
+                    docNumber={previewDoc.docNumber}
+                    recipientName={previewDoc.recipientName}
                     onClose={() => setPreviewDoc(null)}
                 />
             )}

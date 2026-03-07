@@ -241,7 +241,8 @@ export function SpotRecipientInput({ value, onChange, className = "" }: SpotReci
                 <button onClick={() => setMode("search")} className="flex-1 py-2 text-sm text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">
                     キャンセル
                 </button>
-                <button onClick={handleSaveNew} disabled={!form.name.trim() || isSaving}
+                <button onClick={handleSaveNew}
+                    disabled={!form?.name || !form.name.trim() || isSaving}
                     className="flex-1 py-2 text-sm text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
                     style={{ backgroundColor: BRAND }}>
                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}

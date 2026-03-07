@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
-    FileText, Plus, X, Save, Loader2, CloudSun, Cloud, CloudRain,
-    CloudSnow, Thermometer, Wind, Store, Package, Trash2,
-    ChevronDown, CheckCircle2, Building2, ClipboardList, ChevronRight,
-    Pencil, AlertTriangle
+    X, FileText, CheckCircle2, Pencil, ChevronDown, Loader2,
+    Thermometer, Wind, Plus, ClipboardList, Trash2, AlertTriangle,
+    ChevronRight, Store, Image as ImageIcon, UploadCloud, Save, Package,
+    Cloud, CloudSun, CloudRain, CloudSnow
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
+import { uploadImageWithCompression } from "@/lib/imageUpload";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -85,7 +86,19 @@ function ReportForm({
     const [officeNote, setOfficeNote] = useState(editData?.officeNote ?? "");
     const [storeId, setStoreId] = useState(editData?.storeId ?? "");
     const [storeTopics, setStoreTopics] = useState(editData?.storeTopics ?? "");
+    const [displayBeforeImageUrl, setDisplayBeforeImageUrl] = useState(editData?.displayBeforeImageUrl ?? "");
+    const [displayAfterImageUrl, setDisplayAfterImageUrl] = useState(editData?.displayAfterImageUrl ?? "");
     const [restocking, setRestocking] = useState<RestockingItem[]>(editData?.restocking ?? []);
+
+    // Image files for upload
+    const [beforeFile, setBeforeFile] = useState<File | null>(null);
+    const [afterFile, setAfterFile] = useState<File | null>(null);
+    const [beforePreview, setBeforePreview] = useState<string | null>(editData?.displayBeforeImageUrl ?? null);
+    const [afterPreview, setAfterPreview] = useState<string | null>(editData?.displayAfterImageUrl ?? null);
+
+    const beforeInputRef = useRef<HTMLInputElement>(null);
+    const afterInputRef = useRef<HTMLInputElement>(null);
+
     const [weather, setWeather] = useState<WeatherData | null>(
         editData?.weatherMain
             ? { weather: editData.weather ?? "", main: editData.weatherMain, temp: editData.temperature ?? 0, humidity: editData.humidity ?? 0, windSpeed: editData.windSpeed ?? 0 }
@@ -113,6 +126,20 @@ function ReportForm({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [storeId, selectedStore?.lat, selectedStore?.lng]);
 
+    const handleBeforeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files?.[0]) {
+            setBeforeFile(e.target.files[0]);
+            setBeforePreview(URL.createObjectURL(e.target.files[0]));
+        }
+    };
+
+    const handleAfterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files?.[0]) {
+            setAfterFile(e.target.files[0]);
+            setAfterPreview(URL.createObjectURL(e.target.files[0]));
+        }
+    };
+
     const addRestockingItem = () => {
         setRestocking(prev => [...prev, { productId: "", productName: "", qty: 1 }]);
     };
@@ -122,6 +149,16 @@ function ReportForm({
         if (!worker.trim()) return;
         setIsSaving(true);
         try {
+            let finalBeforeUrl = displayBeforeImageUrl;
+            let finalAfterUrl = displayAfterImageUrl;
+
+            if (beforeFile) {
+                finalBeforeUrl = await uploadImageWithCompression(beforeFile);
+            }
+            if (afterFile) {
+                finalAfterUrl = await uploadImageWithCompression(afterFile);
+            }
+
             const payload: Omit<DailyReport, "id" | "createdAt"> = {
                 date, worker, type,
                 ...(weather ? { weather: weather.weather, weatherMain: weather.main, temperature: weather.temp, humidity: weather.humidity, windSpeed: weather.windSpeed } : {}),
@@ -131,6 +168,8 @@ function ReportForm({
                         storeId, storeName: selectedStore?.name ?? editData?.storeName ?? "",
                         restocking: restocking.filter(r => r.productId),
                         storeTopics,
+                        displayBeforeImageUrl: finalBeforeUrl,
+                        displayAfterImageUrl: finalAfterUrl,
                     }),
             };
             if (isEdit && editData) {
@@ -139,6 +178,9 @@ function ReportForm({
                 await addDailyReport(payload);
             }
             onSaved();
+        } catch (error) {
+            console.error("Save report error:", error);
+            alert("保存に失敗しました。");
         } finally {
             setIsSaving(false);
         }
@@ -290,9 +332,65 @@ function ReportForm({
                                 )}
                             </div>
 
-                            {/* Topics */}
+                            {/* Display Photos Before/After */}
+                            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4">
+                                <label className="block text-xs font-semibold text-slate-500">📸 陳列写真（Before/After）</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Before */}
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] text-center font-bold text-slate-400 uppercase tracking-wider">Before</p>
+                                        <div
+                                            onClick={() => beforeInputRef.current?.click()}
+                                            className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-all overflow-hidden relative group"
+                                        >
+                                            {beforePreview ? (
+                                                <img src={beforePreview} alt="Before" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="flex flex-col items-center text-slate-400">
+                                                    <ImageIcon className="w-6 h-6 mb-1 opacity-40" />
+                                                    <span className="text-[10px] font-medium">追加</span>
+                                                </div>
+                                            )}
+                                            {beforePreview && (
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                    <Plus className="w-6 h-6 text-white" />
+                                                </div>
+                                            )}
+                                            <input type="file" ref={beforeInputRef} onChange={handleBeforeChange} accept="image/*" className="hidden" />
+                                        </div>
+                                    </div>
+
+                                    {/* After */}
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] text-center font-bold text-slate-400 uppercase tracking-wider">After</p>
+                                        <div
+                                            onClick={() => afterInputRef.current?.click()}
+                                            className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-all overflow-hidden relative group"
+                                        >
+                                            {afterPreview ? (
+                                                <img src={afterPreview} alt="After" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="flex flex-col items-center text-slate-400">
+                                                    <ImageIcon className="w-6 h-6 mb-1 opacity-40" />
+                                                    <span className="text-[10px] font-medium">追加</span>
+                                                </div>
+                                            )}
+                                            {afterPreview && (
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                    <Plus className="w-6 h-6 text-white" />
+                                                </div>
+                                            )}
+                                            <input type="file" ref={afterInputRef} onChange={handleAfterChange} accept="image/*" className="hidden" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-slate-400 leading-tight">
+                                    陳列のBefore/Afterを記録することで、改善効果を視覚的に振り返ることができます。
+                                </p>
+                            </div>
+
                             <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                                <label className="block text-xs font-semibold text-slate-500 mb-2">💬 店舗トピックス・気づき</label>
+                                <label className="block text-xs font-semibold text-slate-500 mb-2">💬 トピックス</label>
                                 <textarea
                                     value={storeTopics}
                                     onChange={e => setStoreTopics(e.target.value)}
@@ -420,6 +518,35 @@ function ReportCard({
                                         <span className="font-bold text-slate-900">{item.qty} 個</span>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Display Comparison */}
+                    {(report.displayBeforeImageUrl || report.displayAfterImageUrl) && (
+                        <div>
+                            <p className="text-xs font-semibold text-slate-400 mb-2">📸 商品陳列 Before / After</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <div className="aspect-[4/3] rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
+                                        {report.displayBeforeImageUrl ? (
+                                            <img src={report.displayBeforeImageUrl} alt="Before" className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-110" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px] font-bold">No Image</div>
+                                        )}
+                                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded text-[8px] font-bold text-white uppercase tracking-wider">Before</div>
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <div className="aspect-[4/3] rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
+                                        {report.displayAfterImageUrl ? (
+                                            <img src={report.displayAfterImageUrl} alt="After" className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-110" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px] font-bold">No Image</div>
+                                        )}
+                                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-blue-600/80 backdrop-blur-sm rounded text-[8px] font-bold text-white uppercase tracking-wider">After</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}

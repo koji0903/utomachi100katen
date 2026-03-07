@@ -4,6 +4,17 @@
 import useSWR from "swr";
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+
+// Helper to remove undefined properties before sending to Firestore
+const cleanObject = (obj: any) => {
+    const newObj = { ...obj };
+    Object.keys(newObj).forEach(key => {
+        if (newObj[key] === undefined) {
+            delete newObj[key];
+        }
+    });
+    return newObj;
+};
 import type { RoundingMode } from "@/lib/taxUtils";
 
 // ─── 自社情報 / 会計設定 ─────────────────────────────────────────────
@@ -78,6 +89,8 @@ export interface DailyReport {
     storeName?: string;
     restocking?: RestockingItem[];
     storeTopics?: string;
+    displayBeforeImageUrl?: string;
+    displayAfterImageUrl?: string;
     createdAt?: string | any;
 }
 
@@ -119,6 +132,9 @@ export interface Purchase {
 export interface Brand {
     id: string;
     name: string;
+    concept?: string;
+    story?: string;
+    imageUrl?: string;
 }
 
 // ─── 発行済み帳票レコード ───────────────────────────────────────────────
@@ -244,22 +260,17 @@ export function useStore() {
     const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments;
 
     // --- Brand Actions ---
-    const addBrand = async (name: string) => {
+    const addBrand = async (brandData: Omit<Brand, "id">) => {
         const newRef = doc(collection(db, "brands"));
-        const newBrand = { id: newRef.id, name };
-
-        // Optimistic UI update
-        mutateBrands([...brands, newBrand], false);
-
-        // Write to Firestore
-        await setDoc(newRef, { name });
-        mutateBrands(); // Revalidate
+        const newBrand = { id: newRef.id, ...brandData };
+        mutateBrands([newBrand, ...brands], false);
+        await setDoc(newRef, brandData);
+        mutateBrands();
     };
 
-    const updateBrand = async (id: string, name: string) => {
-        mutateBrands(brands.map((b) => (b.id === id ? { ...b, name } : b)), false);
-        const docRef = doc(db, "brands", id);
-        await updateDoc(docRef, { name });
+    const updateBrand = async (id: string, data: Partial<Omit<Brand, "id">>) => {
+        mutateBrands(brands.map((b) => (b.id === id ? { ...b, ...data } : b)), false);
+        await updateDoc(doc(db, "brands", id), data);
         mutateBrands();
     };
 
@@ -496,7 +507,7 @@ export function useStore() {
         const newRef = doc(collection(db, 'issued_documents'));
         const newDoc: IssuedDocument = { id: newRef.id, ...data, createdAt: new Date().toISOString() };
         mutateIssuedDocuments([newDoc, ...issuedDocuments], false);
-        await setDoc(newRef, { ...data, createdAt: serverTimestamp() });
+        await setDoc(newRef, { ...cleanObject(data), createdAt: serverTimestamp() });
         mutateIssuedDocuments();
         return newDoc;
     };
@@ -531,7 +542,7 @@ export function useStore() {
 
     const updateIssuedDocument = async (id: string, data: Partial<Omit<IssuedDocument, 'id' | 'createdAt'>>) => {
         mutateIssuedDocuments(issuedDocuments.map(d => d.id === id ? { ...d, ...data } : d), false);
-        await updateDoc(doc(db, 'issued_documents', id), data);
+        await updateDoc(doc(db, 'issued_documents', id), cleanObject(data));
         mutateIssuedDocuments();
     };
 
