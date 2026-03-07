@@ -2,8 +2,42 @@
 "use client";
 
 import useSWR from "swr";
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import type { RoundingMode } from "@/lib/taxUtils";
+
+// ─── 自社情報 / 会計設定 ─────────────────────────────────────────────
+export interface CompanySettings {
+    companyName: string;
+    zipCode: string;
+    address: string;
+    tel: string;
+    invoiceNumber: string;  // T-XXXXXXXXXXXXX
+    roundingMode: RoundingMode;
+    // 挙込先口座
+    bankName?: string;       // 銀行名
+    bankBranch?: string;     // 支店名
+    bankAccountType?: string; // 普通 / 当座
+    bankAccountNumber?: string;
+    bankAccountHolder?: string;
+    // ブランド資産
+    logoUrl?: string;        // ロゴ画像 URL
+    sealUrl?: string;        // 印影画像 URL
+}
+
+export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
+    companyName: '',
+    zipCode: '',
+    address: '',
+    tel: '',
+    invoiceNumber: '',
+    roundingMode: 'floor',
+    bankName: '',
+    bankBranch: '',
+    bankAccountType: '普通',
+    bankAccountNumber: '',
+    bankAccountHolder: '',
+};
 
 export interface RetailStore {
     id: string;
@@ -39,12 +73,16 @@ export interface Sale {
 
 export interface Purchase {
     id: string;
+    type: 'A' | 'B';
+    status: 'ordered' | 'waiting' | 'completed';
     productId: string;
     supplierId: string;
     orderDate: string;
-    expectedArrivalDate: string;
+    arrivalDate?: string;
+    expectedArrivalDate?: string;
     quantity: number;
-    isArrived: boolean;
+    unitCost: number;
+    totalCost: number;
     createdAt?: string | any;
 }
 
@@ -56,17 +94,40 @@ export interface Brand {
 export interface Supplier {
     id: string;
     name: string;
+    category?: 'Manufacturer' | 'Producer'; // 委託製造業者 or 一次生産者
     zipCode?: string;
     address?: string;
     tel?: string;
     email?: string;
     pic?: string; // Person in Charge
+    bankInfo?: {
+        bankName?: string;
+        branchName?: string;
+        accountType?: string; // 普通 or 当座
+        accountNumber?: string;
+        accountHolder?: string;
+    };
+    paymentTerms?: {
+        closingDay?: number;  // e.g. 末日=31, 20日=20
+        paymentDay?: number;  // 翌月何日払い
+    };
     memo?: string;
+}
+
+export interface PaymentRecord {
+    id: string;
+    supplierId: string;
+    month: string; // YYYY-MM
+    totalAmount: number;
+    status: 'unpaid' | 'paid';
+    paidDate?: string; // ISO date string
+    createdAt?: string | any;
 }
 
 export interface Product {
     id: string;
     name: string;
+    variantName?: string; // e.g., "Mega Bottle", "Craft", "100g"
     brandId: string;
     supplierId: string;
     costPrice: number;
@@ -74,7 +135,13 @@ export interface Product {
     storePrices?: { storeId: string; price: number }[]; // Store-specific prices
     stock: number;
     story?: string;
+    // Branding Hub fields
+    producerStory?: string; // 生産者の思い
+    regionBackground?: string; // 地域背景
+    servingSuggestion?: string; // おすすめの食べ方
+    storyImageUrl?: string; // ストーリー用写真URL
     imageUrl?: string;
+    taxRate?: 'standard' | 'reduced'; // 標準税率(10%) or 軽減税率(8%)
     createdAt?: string | any;
 }
 
@@ -96,10 +163,22 @@ export function useStore() {
     const { data: suppliers = [], mutate: mutateSuppliers, isLoading: loadingSuppliers } = useSWR<Supplier[]>("suppliers", () => fetcher<Supplier>("suppliers"), swrConfig);
     const { data: products = [], mutate: mutateProducts, isLoading: loadingProducts } = useSWR<Product[]>("products", () => fetcher<Product>("products"), swrConfig);
     const { data: retailStores = [], mutate: mutateRetailStores, isLoading: loadingRetailStores } = useSWR<RetailStore[]>("retailStores", () => fetcher<RetailStore>("retailStores"), swrConfig);
-    const { data: purchases = [], mutate: mutatePurchases, isLoading: loadingPurchases } = useSWR<Purchase[]>("purchases", () => fetcher<Purchase>("purchases"), swrConfig);
+    const { data: purchases = [], mutate: mutatePurchases, isLoading: loadingPurchases } = useSWR<Purchase[]>("inbound_shipments", () => fetcher<Purchase>("inbound_shipments"), swrConfig);
     const { data: sales = [], mutate: mutateSales, isLoading: loadingSales } = useSWR<Sale[]>("sales", () => fetcher<Sale>("sales"), swrConfig);
+    const { data: paymentRecords = [], mutate: mutatePaymentRecords, isLoading: loadingPayments } = useSWR<PaymentRecord[]>("payment_records", () => fetcher<PaymentRecord>("payment_records"), swrConfig);
 
-    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales;
+    // Company Settings — fetched once from Firestore doc (not a collection)
+    const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings } = useSWR<CompanySettings>(
+        "company_settings",
+        async () => {
+            const snap = await getDoc(doc(db, "company_settings", "main"));
+            if (snap.exists()) return { ...DEFAULT_COMPANY_SETTINGS, ...snap.data() } as CompanySettings;
+            return DEFAULT_COMPANY_SETTINGS;
+        },
+        { ...swrConfig, revalidateOnFocus: false }
+    );
+
+    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments;
 
     // --- Brand Actions ---
     const addBrand = async (name: string) => {
@@ -207,17 +286,17 @@ export function useStore() {
         mutateRetailStores();
     };
 
-    // --- Purchase Actions ---
+    // --- Purchase Actions (Inbound Shipments) ---
     const addPurchase = async (purchaseData: Omit<Purchase, "id" | "createdAt">) => {
-        const newRef = doc(collection(db, "purchases"));
+        const newRef = doc(collection(db, "inbound_shipments"));
         const newPurchase = {
             id: newRef.id,
             ...purchaseData,
             createdAt: new Date().toISOString(),
         };
 
-        // If added as Arrived, increment stock
-        if (purchaseData.isArrived) {
+        // If status is completed, increment stock
+        if (purchaseData.status === 'completed') {
             const product = products.find(p => p.id === purchaseData.productId);
             if (product) {
                 const newStock = (product.stock || 0) + purchaseData.quantity;
@@ -237,8 +316,8 @@ export function useStore() {
         const currentPurchase = purchases.find(p => p.id === id);
         if (!currentPurchase) return;
 
-        // If shifting to Arrived status, increment stock
-        if (purchaseUpdate.isArrived === true && !currentPurchase.isArrived) {
+        // If shifting to completed status, increment stock
+        if (purchaseUpdate.status === 'completed' && currentPurchase.status !== 'completed') {
             const product = products.find(p => p.id === currentPurchase.productId);
             if (product) {
                 const newStock = (product.stock || 0) + (purchaseUpdate.quantity || currentPurchase.quantity);
@@ -247,14 +326,14 @@ export function useStore() {
         }
 
         mutatePurchases(purchases.map((p) => p.id === id ? { ...p, ...purchaseUpdate } : p) as Purchase[], false);
-        const docRef = doc(db, "purchases", id);
+        const docRef = doc(db, "inbound_shipments", id);
         await updateDoc(docRef, purchaseUpdate);
         mutatePurchases();
     };
 
     const deletePurchase = async (id: string) => {
         mutatePurchases(purchases.filter((p) => p.id !== id), false);
-        const docRef = doc(db, "purchases", id);
+        const docRef = doc(db, "inbound_shipments", id);
         await deleteDoc(docRef);
         mutatePurchases();
     };
@@ -282,13 +361,50 @@ export function useStore() {
         mutateSales();
     };
 
+    // --- Payment Record Actions ---
+    const upsertPaymentRecord = async (supplierId: string, month: string, update: Partial<Omit<PaymentRecord, 'id' | 'createdAt'>>) => {
+        // Look for existing record
+        const existing = paymentRecords.find(pr => pr.supplierId === supplierId && pr.month === month);
+        if (existing) {
+            // Update
+            mutatePaymentRecords(paymentRecords.map(pr => pr.id === existing.id ? { ...pr, ...update } : pr), false);
+            const docRef = doc(db, "payment_records", existing.id);
+            await updateDoc(docRef, update);
+        } else {
+            // Create
+            const newRef = doc(collection(db, "payment_records"));
+            const newRecord: PaymentRecord = {
+                id: newRef.id,
+                supplierId,
+                month,
+                totalAmount: 0,
+                status: 'unpaid',
+                createdAt: new Date().toISOString(),
+                ...update,
+            };
+            mutatePaymentRecords([...paymentRecords, newRecord], false);
+            await setDoc(newRef, { supplierId, month, totalAmount: 0, status: 'unpaid', createdAt: serverTimestamp(), ...update });
+        }
+        mutatePaymentRecords();
+    };
+
+    // --- Company Settings Actions ---
+    const saveCompanySettings = async (data: CompanySettings) => {
+        mutateCompanySettings(data, false);
+        await setDoc(doc(db, "company_settings", "main"), data);
+        mutateCompanySettings();
+    };
+
     return {
         isLoaded,
+        companySettings,
+        saveCompanySettings,
         brands,
         suppliers,
         products,
         retailStores,
         purchases,
+        paymentRecords,
         addBrand,
         updateBrand,
         deleteBrand,
@@ -307,5 +423,6 @@ export function useStore() {
         sales,
         addSale,
         deleteSale,
+        upsertPaymentRecord,
     };
 }

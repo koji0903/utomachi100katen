@@ -16,6 +16,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
 
     const defaultFormData = {
         name: "",
+        variantName: "",
         brandId: "",
         supplierId: "",
         costPrice: 0,
@@ -23,7 +24,11 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         storePrices: [] as { storeId: string; price: number }[],
         stock: 0,
         story: "",
+        producerStory: "",
+        regionBackground: "",
+        servingSuggestion: "",
         imageUrl: "",
+        taxRate: 'standard' as 'standard' | 'reduced',
     };
 
     const [formData, setFormData] = useState(defaultFormData);
@@ -39,6 +44,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
             if (initialData) {
                 setFormData({
                     name: initialData.name,
+                    variantName: initialData.variantName || "",
                     brandId: initialData.brandId,
                     supplierId: initialData.supplierId,
                     costPrice: initialData.costPrice,
@@ -46,8 +52,13 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     storePrices: initialData.storePrices || [],
                     stock: initialData.stock,
                     story: initialData.story || "",
+                    producerStory: initialData.producerStory || "",
+                    regionBackground: initialData.regionBackground || "",
+                    servingSuggestion: initialData.servingSuggestion || "",
                     imageUrl: initialData.imageUrl || "",
+                    taxRate: initialData.taxRate || 'standard',
                 });
+
                 setImagePreview(initialData.imageUrl || null);
             } else {
                 setFormData({
@@ -84,7 +95,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
 
             const finalData = { ...formData, imageUrl: currentImageUrl };
 
-            if (initialData) {
+            if (initialData && initialData.id) {
                 updateProduct(initialData.id, finalData);
             } else {
                 addProduct(finalData);
@@ -151,8 +162,8 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
                 <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-white">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-blue-50 text-[#1e3a8a] rounded-lg">
@@ -220,6 +231,16 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                                 />
                             </div>
                             <div className="space-y-2">
+                                <label className="text-sm font-semibold text-slate-700 block">タイプ・容器・重量</label>
+                                <input
+                                    type="text"
+                                    value={formData.variantName}
+                                    onChange={(e) => setFormData({ ...formData, variantName: e.target.value })}
+                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white"
+                                    placeholder="例: メガボトル, クラフト, 100g"
+                                />
+                            </div>
+                            <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700 block">ブランド <span className="text-red-500">*</span></label>
                                 <select
                                     required
@@ -276,6 +297,30 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                                     className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right"
                                     placeholder="0"
                                 />
+                            </div>
+
+                            {/* Tax Rate */}
+                            <div className="space-y-2 md:col-span-2">
+                                <label className="text-sm font-semibold text-slate-700 block">消費税区分</label>
+                                <div className="flex gap-3">
+                                    {([['standard', '標準税率（10%）', 'bg-blue-50 border-blue-400 text-blue-700'], ['reduced', '軽減税率（8%）★', 'bg-green-50 border-green-400 text-green-700']] as const).map(([val, label, activeClasses]) => (
+                                        <label key={val} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border cursor-pointer text-sm font-medium transition-all flex-1 justify-center ${formData.taxRate === val
+                                                ? activeClasses + ' shadow-sm'
+                                                : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
+                                            }`}>
+                                            <input
+                                                type="radio"
+                                                name="taxRate"
+                                                value={val}
+                                                checked={formData.taxRate === val}
+                                                onChange={() => setFormData({ ...formData, taxRate: val })}
+                                                className="sr-only"
+                                            />
+                                            {label}
+                                        </label>
+                                    ))}
+                                </div>
+                                <p className="text-[11px] text-slate-400">★ 軽減税率: 食品・飲料（酒類除く）、定期購読新聞など</p>
                             </div>
 
                             <div className="space-y-2">

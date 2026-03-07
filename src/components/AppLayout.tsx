@@ -2,13 +2,20 @@
 
 import { useAuth } from "@/lib/authContext";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { Menu } from "lucide-react";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { user, loading } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    // Close drawer on route change
+    useEffect(() => {
+        setSidebarOpen(false);
+    }, [pathname]);
 
     useEffect(() => {
         if (!loading && !user && pathname !== "/login") {
@@ -38,10 +45,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="flex h-screen bg-[#f8fafc] overflow-hidden text-slate-800">
-            <Sidebar />
-            <main className="flex-1 overflow-y-auto">
-                {children}
-            </main>
+            <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                {/* Mobile header bar */}
+                <header className="lg:hidden flex items-center gap-3 px-4 h-14 bg-white border-b border-slate-200 flex-shrink-0 z-30">
+                    <button
+                        onClick={() => setSidebarOpen(true)}
+                        className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        aria-label="メニューを開く"
+                    >
+                        <Menu className="w-5 h-5" />
+                    </button>
+                    <h1 className="text-base font-bold text-[#1e3a8a] tracking-wide">
+                        ウトマチ百貨店
+                    </h1>
+                </header>
+
+                <main className="flex-1 overflow-y-auto">
+                    {children}
+                </main>
+            </div>
         </div>
     );
 }

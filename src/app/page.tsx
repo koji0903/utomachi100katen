@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
+import { BrandingHub } from "@/components/BrandingHub";
 
 export default function ProductsPage() {
   const { isLoaded, products, brands, suppliers, deleteProduct } = useStore();
@@ -11,6 +12,7 @@ export default function ProductsPage() {
   const [selectedBrandId, setSelectedBrandId] = useState<string | "all">("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [brandingProduct, setBrandingProduct] = useState<Product | null>(null);
 
   if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
@@ -36,6 +38,16 @@ export default function ProductsPage() {
     setIsModalOpen(true);
   };
 
+  const handleCreateVariant = (product: Product) => {
+    setEditingProduct({
+      ...product,
+      id: "", // Clear ID to trigger addProduct instead of updateProduct
+      variantName: "", // Clear variant name so user can input new one
+      stock: 0, // Reset stock for new variant
+    } as any);
+    setIsModalOpen(true);
+  };
+
   const handleDelete = (id: string) => {
     if (window.confirm("この商品を削除してもよろしいですか？")) {
       deleteProduct(id);
@@ -43,7 +55,7 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">商品管理</h1>
@@ -58,7 +70,32 @@ export default function ProductsPage() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      {/* Usage Guide for Staff */}
+      <div className="mb-6 bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex gap-4 items-start">
+        <div className="p-2 bg-blue-100 text-blue-600 rounded-lg shrink-0">
+          <HelpCircle className="w-5 h-5" />
+        </div>
+        <div className="text-sm">
+          <h3 className="font-bold text-blue-900 mb-1">操作ガイド</h3>
+          <div className="flex flex-wrap gap-x-8 gap-y-2 text-blue-800/80">
+            <div className="flex items-center gap-2">
+              <Edit2 className="w-3.5 h-3.5 text-[#1e3a8a]" />
+              <span><span className="font-bold text-[#1e3a8a]">編集</span>: 今ある商品の情報の直し（名前の間違い修正など）</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+              <span><span className="font-bold text-violet-600">ブランディング</span>: AIでPR文章を自動生成・ストーリー情報を管理</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Box className="w-3.5 h-3.5 text-purple-600" />
+              <span><span className="font-bold text-purple-600">バリエーション作成</span>: 同じ商品で「容量違い」や「容器違い」を新しく追加</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden sm:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Filters */}
         <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row gap-4 bg-slate-50/50">
           <div className="relative flex-1 max-w-md">
@@ -118,8 +155,13 @@ export default function ProductsPage() {
                             <ImageIcon className="w-5 h-5 text-slate-400" />
                           )}
                         </div>
-                        <div className="font-medium text-slate-900 group-hover:text-[#1e3a8a] transition-colors">
+                        <div className="font-medium text-slate-900 group-hover:text-[#1e3a8a] transition-colors leading-tight">
                           {product.name}
+                          {product.variantName && (
+                            <span className="block text-xs text-slate-500 font-normal mt-0.5">
+                              {product.variantName}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -155,6 +197,20 @@ export default function ProductsPage() {
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
+                          onClick={() => setBrandingProduct(product)}
+                          className="p-2 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                          title="ブランディングハブ：AIでPR文章を生成"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleCreateVariant(product)}
+                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                          title="バリエーションを作成"
+                        >
+                          <Box className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => handleDelete(product.id)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="削除"
@@ -181,11 +237,78 @@ export default function ProductsPage() {
         </div>
       </div>
 
+      {/* Mobile Card List */}
+      <div className="sm:hidden space-y-3 mt-4">
+        {filteredProducts.map((product) => {
+          const brand = brands.find(b => b.id === product.brandId);
+          const supplier = suppliers.find(s => s.id === product.supplierId);
+          return (
+            <div key={product.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-14 h-14 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0 border border-slate-200 flex items-center justify-center">
+                  {product.imageUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <ImageIcon className="w-5 h-5 text-slate-400" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-slate-900 leading-tight">{product.name}</div>
+                  {product.variantName && (
+                    <div className="text-xs text-slate-500 mt-0.5">{product.variantName}</div>
+                  )}
+                  <div className="flex flex-wrap gap-2 mt-1.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                      {brand?.name || "不明"}
+                    </span>
+                    <span className="text-xs text-slate-500">{supplier?.name || "不明"}</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="font-bold text-slate-900">¥{product.sellingPrice.toLocaleString()}</div>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${product.stock < 50 ? 'bg-red-50 text-red-700' : 'text-slate-600'}`}>
+                      在庫 {product.stock}個
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-slate-100">
+                <button onClick={() => handleEdit(product)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                  <Edit2 className="w-3.5 h-3.5" /> 編集
+                </button>
+                <button onClick={() => setBrandingProduct(product)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors">
+                  <Sparkles className="w-3.5 h-3.5" /> PR
+                </button>
+                <button onClick={() => handleCreateVariant(product)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                  <Box className="w-3.5 h-3.5" /> 追加
+                </button>
+                <button onClick={() => handleDelete(product.id)} className="p-1.5 text-red-500 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {filteredProducts.length === 0 && (
+          <div className="text-center py-12 text-slate-400">
+            <Search className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+            <p className="text-sm">条件に一致する商品が見つかりませんでした。</p>
+          </div>
+        )}
+      </div>
+
       <ProductModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         initialData={editingProduct}
       />
+      {brandingProduct && (
+        <BrandingHub
+          isOpen={!!brandingProduct}
+          onClose={() => setBrandingProduct(null)}
+          product={brandingProduct}
+        />
+      )}
     </div>
   );
 }

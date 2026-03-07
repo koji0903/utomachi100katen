@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Edit2, Trash2, Search, Users } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Users, Building2, Wheat } from "lucide-react";
 import { useStore, Supplier } from "@/lib/store";
 import { SupplierModal } from "@/components/SupplierModal";
 
@@ -37,7 +37,7 @@ export default function SuppliersPage() {
     };
 
     return (
-        <div className="p-8 max-w-5xl mx-auto">
+        <div className="p-4 sm:p-8 max-w-5xl mx-auto">
             <div className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-3">
                     <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
@@ -76,6 +76,7 @@ export default function SuppliersPage() {
                         <thead>
                             <tr className="border-b border-slate-200 text-slate-500 text-sm bg-white">
                                 <th className="p-5 font-semibold">仕入先名</th>
+                                <th className="p-5 font-semibold">カテゴリー</th>
                                 <th className="p-5 font-semibold">担当者</th>
                                 <th className="p-5 font-semibold">電話番号</th>
                                 <th className="p-5 font-semibold text-right">操作</th>
@@ -88,6 +89,19 @@ export default function SuppliersPage() {
                                         <div className="font-medium text-slate-900 group-hover:text-indigo-600 transition-colors">
                                             {supplier.name}
                                         </div>
+                                    </td>
+                                    <td className="p-5">
+                                        {supplier.category === 'Manufacturer' && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                                                <Building2 className="w-3 h-3" /> 委託製造業者
+                                            </span>
+                                        )}
+                                        {supplier.category === 'Producer' && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">
+                                                <Wheat className="w-3 h-3" /> 一次生産者
+                                            </span>
+                                        )}
+                                        {!supplier.category && <span className="text-xs text-slate-400 italic">未設定</span>}
                                     </td>
                                     <td className="p-5 text-slate-600">
                                         {supplier.pic || <span className="text-slate-400 italic">未登録</span>}
@@ -117,7 +131,7 @@ export default function SuppliersPage() {
                             ))}
                             {filteredSuppliers.length === 0 && (
                                 <tr>
-                                    <td colSpan={4} className="p-12 text-center text-slate-500">
+                                    <td colSpan={5} className="p-12 text-center text-slate-500">
                                         <div className="flex flex-col items-center gap-3">
                                             <Search className="w-8 h-8 text-slate-300" />
                                             <p>仕入先が見つかりませんでした。</p>

@@ -4,7 +4,7 @@ import { ShoppingCart, Construction } from "lucide-react";
 
 export default function OrdersPage() {
     return (
-        <div className="p-8 max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <div className="p-4 sm:p-8 max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center">
             <div className="p-6 bg-slate-50 rounded-full mb-6">
                 <ShoppingCart className="w-16 h-16 text-slate-300" />
             </div>

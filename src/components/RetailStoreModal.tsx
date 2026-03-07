@@ -64,8 +64,8 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
                 <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-white">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-pink-50 text-pink-600 rounded-lg">
