@@ -14,7 +14,8 @@ import {
     ArrowRight,
     Plus,
     Sparkles,
-    Search
+    Search,
+    BookOpen
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 
@@ -231,6 +232,26 @@ export default function DashboardPage() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Guideline Banner */}
+            <div className="bg-[#1e3a8a] rounded-3xl p-6 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-[0.05] rounded-full -mr-16 -mt-16" />
+                <div className="flex items-center gap-4 relative z-10">
+                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+                        <BookOpen className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold">さらに有効活用するために</h3>
+                        <p className="text-sm text-blue-100 italic">操作マニュアル・ブランディング・経営分析のコツを確認しましょう。</p>
+                    </div>
+                </div>
+                <Link
+                    href="/guidelines"
+                    className="px-6 py-2.5 bg-white text-blue-900 rounded-xl font-black text-sm hover:scale-105 transition-transform shrink-0 relative z-10 shadow-lg"
+                >
+                    ご利用ガイドをみる
+                </Link>
             </div>
         </div>
     );
