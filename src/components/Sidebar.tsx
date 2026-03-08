@@ -51,58 +51,64 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   };
 
   const sidebarContent = (
-    <div className="flex h-full w-64 flex-col border-r border-slate-200 bg-white">
-      <div className="flex h-16 items-center justify-between px-6 border-b border-slate-200">
-        <h1 className="text-xl font-bold text-[#1e3a8a] tracking-wider">
+    <div className="flex h-full w-72 flex-col border-r border-slate-200/60 bg-white shadow-[1px_0_0_0_rgba(0,0,0,0.02)]">
+      <div className="flex h-20 items-center justify-between px-8 border-b border-slate-100">
+        <h1 className="text-xl font-black text-[#1e3a8a] tracking-tighter flex items-center gap-2">
+          <div className="w-8 h-8 bg-[#1e3a8a] rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+            <Store className="w-5 h-5" />
+          </div>
           ウトマチ百貨店
         </h1>
         {/* Close button — mobile only */}
         {onClose && (
           <button
             onClick={onClose}
-            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-[#1e3a8a] hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200 active:scale-95"
             aria-label="メニューを閉じる"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6" />
           </button>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto py-4">
-        <nav className="space-y-1 px-3">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={handleNavClick}
-                className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors ${isActive
-                  ? "bg-slate-100 text-[#1e3a8a] shadow-sm"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                  }`}
-              >
-                <item.icon
-                  className={`flex-shrink-0 mr-3 h-5 w-5 ${isActive ? "text-[#1e3a8a]" : "text-slate-400 group-hover:text-slate-500"
+      <div className="flex-1 overflow-y-auto py-6 px-4 space-y-8 scrollbar-hide">
+        <div>
+          <h2 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4">Main Menu</h2>
+          <nav className="space-y-1">
+            {navigation.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  onClick={handleNavClick}
+                  className={`group flex items-center px-4 py-3 text-sm font-bold rounded-xl transition-all duration-200 ${isActive
+                    ? "bg-[#1e3a8a] text-white shadow-md shadow-blue-900/10 translate-x-1"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 hover:translate-x-1"
                     }`}
-                  aria-hidden="true"
-                />
-                {item.name}
-              </Link>
-            );
-          })}
-        </nav>
+                >
+                  <item.icon
+                    className={`flex-shrink-0 mr-3.5 h-5 w-5 transition-colors ${isActive ? "text-white" : "text-slate-400 group-hover:text-[#1e3a8a]"
+                      }`}
+                    aria-hidden="true"
+                  />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
       </div>
-      <div className="border-t border-slate-200 p-4">
+      <div className="p-4 border-t border-slate-100">
         <button
           onClick={handleLogout}
-          className="flex items-center w-full px-3 py-2.5 text-sm font-medium text-slate-600 rounded-md hover:bg-red-50 hover:text-red-700 transition-colors group"
+          className="flex items-center w-full px-4 py-3 text-sm font-bold text-slate-500 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all border border-transparent hover:border-red-100 group"
         >
-          <LogOut className="flex-shrink-0 mr-3 h-5 w-5 text-slate-400 group-hover:text-red-500" aria-hidden="true" />
+          <LogOut className="flex-shrink-0 mr-3.5 h-5 w-5 text-slate-400 group-hover:text-red-500" aria-hidden="true" />
           ログアウト
         </button>
       </div>
-      <div className="p-4 text-xs text-slate-400 text-center">
-        © {new Date().getFullYear()} Utomachi
+      <div className="pb-6 px-6 text-[10px] font-bold text-slate-300 tracking-widest text-center uppercase">
+        © {new Date().getFullYear()} UTOMACHI Platform
       </div>
     </div>
   );
@@ -117,13 +123,13 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       {/* Mobile: slide-over drawer */}
       {/* Backdrop */}
       <div
-        className={`lg:hidden fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        className={`lg:hidden fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
         onClick={onClose}
         aria-hidden="true"
       />
       {/* Drawer panel */}
       <div
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`lg:hidden fixed inset-y-0 left-0 z-[70] flex flex-col transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         {sidebarContent}
       </div>

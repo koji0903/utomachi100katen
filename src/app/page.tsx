@@ -90,38 +90,49 @@ export default function DashboardPage() {
     ];
 
     return (
-        <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8">
+        <div className="p-5 sm:p-10 max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                    <LayoutDashboard className="w-6 h-6 text-[#1e3a8a]" />
-                    ダッシュボード
-                </h1>
-                <p className="text-slate-500 mt-1 text-sm">ウトマチ百貨店の業務状況をひと目で把握します。</p>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[#1e3a8a]">
+                            <LayoutDashboard className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600/60">Overview</span>
+                    </div>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+                        ダッシュボード
+                    </h1>
+                    <p className="text-slate-500 mt-1.5 text-sm font-medium">ウトマチ百貨店の業務状況をリアルタイムで把握します。</p>
+                </div>
+                <div className="text-[10px] font-bold text-slate-400 bg-white px-3 py-1.5 rounded-full border border-slate-100 shadow-sm self-start">
+                    最終更新: {new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                </div>
             </div>
 
             {/* Quick Actions Section */}
             <section>
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Plus className="w-3 h-3" />
-                    本日の業務（クリックして開始）
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {quickActions.map((action) => (
+                <div className="flex items-center gap-2 mb-6 text-slate-400">
+                    <Plus className="w-3.5 h-3.5" />
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">Quick Actions</h2>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                    {quickActions.map((action, idx) => (
                         <Link
                             key={action.name}
                             href={action.href}
-                            className="group bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col items-start gap-4"
+                            style={{ animationDelay: `${idx * 50}ms` }}
+                            className="group bg-white p-6 rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-1 transition-all duration-300 flex flex-col items-start gap-4 animate-in fade-in slide-in-from-bottom-4"
                         >
-                            <div className={`p-3 rounded-xl ${action.bg} ${action.accent} group-hover:scale-110 transition-transform`}>
+                            <div className={`p-4 rounded-2xl ${action.bg} ${action.accent} group-hover:scale-110 transition-transform duration-300`}>
                                 <action.icon className="w-6 h-6" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-slate-900 text-lg">{action.name}</h3>
-                                <p className="text-slate-500 text-xs leading-relaxed mt-1">{action.desc}</p>
+                                <h3 className="font-black text-slate-900 text-base sm:text-lg">{action.name}</h3>
+                                <p className="text-slate-400 text-[11px] leading-relaxed mt-1 font-medium">{action.desc}</p>
                             </div>
-                            <div className="mt-auto pt-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-[#1e3a8a] transition-colors">
-                                移動する <ArrowRight className="w-3 h-3" />
+                            <div className="mt-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-300 group-hover:text-[#1e3a8a] transition-colors">
+                                START <ArrowRight className="w-3.5 h-3.5" />
                             </div>
                         </Link>
                     ))}
@@ -129,40 +140,44 @@ export default function DashboardPage() {
             </section>
 
             {/* Monthly Summary Section */}
-            <section className="bg-gradient-to-br from-[#1e3a8a] to-[#1e40af] rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl" />
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div>
-                        <h2 className="text-sm font-bold opacity-70 uppercase tracking-widest mb-1 flex items-center gap-2">
-                            <Sparkles className="w-3 h-3" />
+            <section className="bg-[#1e3a8a] rounded-[2.5rem] p-8 sm:p-10 text-white shadow-2xl relative overflow-hidden group">
+                {/* Decorative background elements */}
+                <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-white/10 transition-colors duration-700" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-400/10 rounded-full -ml-32 -mb-32 blur-3xl" />
+
+                <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-10">
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-blue-200/60 font-black text-[10px] uppercase tracking-[0.3em]">
+                            <Sparkles className="w-4 h-4" />
                             {currentMonthStats.label}
-                        </h2>
-                        <h3 className="text-2xl font-black">今月の概況</h3>
+                        </div>
+                        <h3 className="text-3xl sm:text-4xl font-black tracking-tight leading-none italic">PERFORMANCE</h3>
+                        <p className="text-blue-100/70 text-sm font-medium mt-2">今月の主要指標をサマリー形式で表示しています</p>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 max-w-2xl w-full">
-                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
-                            <div className="flex items-center gap-2 text-blue-200 text-[10px] font-bold uppercase mb-1">
-                                <BarChart3 className="w-3 h-3" /> 売上合計
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 flex-1 max-w-4xl w-full">
+                        <div className="bg-white/5 backdrop-blur-xl rounded-[2rem] p-6 border border-white/10 hover:bg-white/10 transition-colors">
+                            <div className="flex items-center gap-2 text-blue-200 text-[10px] font-black uppercase tracking-widest mb-3">
+                                <BarChart3 className="w-4 h-4 opacity-50" /> 売上合計
                             </div>
-                            <div className="text-xl font-black">¥{currentMonthStats.sales.toLocaleString()}</div>
+                            <div className="text-3xl font-black tracking-tighter">¥{currentMonthStats.sales.toLocaleString()}</div>
                         </div>
-                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
-                            <div className="flex items-center gap-2 text-emerald-200 text-[10px] font-bold uppercase mb-1">
-                                <FileText className="w-3 h-3" /> 日報提出
+                        <div className="bg-white/5 backdrop-blur-xl rounded-[2rem] p-6 border border-white/10 hover:bg-white/10 transition-colors">
+                            <div className="flex items-center gap-2 text-emerald-200 text-[10px] font-black uppercase tracking-widest mb-3">
+                                <FileText className="w-4 h-4 opacity-50" /> 日報提出
                             </div>
-                            <div className="text-xl font-black">{currentMonthStats.reports}件</div>
+                            <div className="text-3xl font-black tracking-tighter">{currentMonthStats.reports}<span className="text-sm ml-1 font-bold opacity-50">件</span></div>
                         </div>
-                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
-                            <div className="flex items-center gap-2 text-amber-200 text-[10px] font-bold uppercase mb-1">
-                                <ShoppingBag className="w-3 h-3" /> 仕入件数
+                        <div className="bg-white/5 backdrop-blur-xl rounded-[2rem] p-6 border border-white/10 hover:bg-white/10 transition-colors">
+                            <div className="flex items-center gap-2 text-amber-200 text-[10px] font-black uppercase tracking-widest mb-3">
+                                <ShoppingBag className="w-4 h-4 opacity-50" /> 仕入件数
                             </div>
-                            <div className="text-xl font-black">{currentMonthStats.purchases}件</div>
+                            <div className="text-3xl font-black tracking-tighter">{currentMonthStats.purchases}<span className="text-sm ml-1 font-bold opacity-50">件</span></div>
                         </div>
                     </div>
 
-                    <Link href="/analytics" className="px-6 py-2.5 bg-white text-blue-900 rounded-xl font-black text-sm hover:scale-105 transition-transform shadow-lg self-start md:self-center">
-                        詳細分析
+                    <Link href="/analytics" className="px-8 py-4 bg-white text-[#1e3a8a] rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-900/20 self-start xl:self-center">
+                        View Analytics
                     </Link>
                 </div>
             </section>
@@ -226,28 +241,31 @@ export default function DashboardPage() {
 
                     {/* System Overview */}
                     <section>
-                        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">システム概況</h2>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                <div className="text-slate-500 text-xs font-bold flex items-center gap-1.5 mb-2">
-                                    <Package className="w-3.5 h-3.5" />
-                                    登録商品数
+                        <div className="flex items-center gap-2 mb-6 text-slate-400">
+                            <BarChart3 className="w-3.5 h-3.5" />
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">System Status</h2>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
+                            <div className="bg-white p-7 rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
+                                    <Package className="w-4 h-4 text-blue-500/50" />
+                                    Products
                                 </div>
-                                <div className="text-3xl font-bold text-[#1e3a8a]">{totalProducts}</div>
+                                <div className="text-4xl font-black text-slate-900 tracking-tighter">{totalProducts}</div>
                             </div>
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                <div className="text-slate-500 text-xs font-bold flex items-center gap-1.5 mb-2">
-                                    <Tag className="w-3.5 h-3.5" />
-                                    ブランド数
+                            <div className="bg-white p-7 rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
+                                    <Tag className="w-4 h-4 text-emerald-500/50" />
+                                    Brands
                                 </div>
-                                <div className="text-3xl font-bold text-[#1e3a8a]">{totalBrands}</div>
+                                <div className="text-4xl font-black text-slate-900 tracking-tighter">{totalBrands}</div>
                             </div>
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                <div className="text-slate-500 text-xs font-bold flex items-center gap-1.5 mb-2">
-                                    <Store className="w-3.5 h-3.5" />
-                                    登録店舗数
+                            <div className="bg-white p-7 rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
+                                    <Store className="w-4 h-4 text-amber-500/50" />
+                                    Stores
                                 </div>
-                                <div className="text-3xl font-bold text-[#1e3a8a]">{totalStores}</div>
+                                <div className="text-4xl font-black text-slate-900 tracking-tighter">{totalStores}</div>
                             </div>
                         </div>
                     </section>

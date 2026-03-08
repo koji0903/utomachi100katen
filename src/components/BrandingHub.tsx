@@ -198,27 +198,25 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
             <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-3xl max-h-[95vh] sm:max-h-[92vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
 
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-violet-50 to-blue-50">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gradient-to-br from-violet-500 to-blue-600 text-white rounded-xl">
+                <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-slate-100 bg-white sticky top-0 z-10">
+                    <div className="flex items-center gap-4">
+                        <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20">
                             <Sparkles className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-slate-900">ブランディング・ハブ</h2>
-                            <p className="text-xs text-slate-500">
-                                <span className="font-semibold text-slate-700">{product.name}</span>
-                                {product.variantName && ` — ${product.variantName}`}
-                                <span className="mx-1 text-slate-300">|</span>
-                                {brand?.name}
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">BRANDING HUB</h2>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                                <span className="text-[#1e3a8a]">{product.name}</span>
+                                {product.variantName && ` • ${product.variantName}`}
                             </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-                        <X className="w-5 h-5" />
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-slate-100">
+                        <X className="w-6 h-6" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto scrollbar-hide">
                     <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
 
                         {/* Left: Story Input Fields */}

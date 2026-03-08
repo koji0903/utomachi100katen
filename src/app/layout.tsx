@@ -1,11 +1,20 @@
 import type { Metadata } from "next";
-import { Noto_Sans_JP } from "next/font/google";
+import { Noto_Sans_JP, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/authContext";
 import AppLayout from "@/components/AppLayout";
 import { NotificationContainer } from "@/components/NotificationContainer";
 
-const notoSansJP = Noto_Sans_JP({ subsets: ["latin"], weight: ["400", "500", "700"] });
+const notoSansJP = Noto_Sans_JP({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-noto-sans-jp",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "ウトマチ百貨店 統合管理ツール",
@@ -19,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body className={`${notoSansJP.className} bg-slate-50 text-slate-800 antialiased`}>
+      <body className={`${notoSansJP.variable} ${inter.variable} font-sans bg-slate-50 text-slate-800 antialiased`}>
         <AuthProvider>
           <NotificationContainer />
           <AppLayout>
