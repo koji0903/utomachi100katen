@@ -43,8 +43,13 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
             setState({ status: "no_coords" });
             return;
         }
+
+        const controller = new AbortController();
+
         setState({ status: "loading" });
-        fetch(`/api/weather?lat=${store.lat}&lon=${store.lng}`)
+        fetch(`/api/weather?lat=${store.lat}&lon=${store.lng}`, {
+            signal: controller.signal
+        })
             .then(r => r.json())
             .then(data => {
                 if (data.error === "OPENWEATHER_API_KEY not configured") {
@@ -55,7 +60,14 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
                     setState({ status: "ok", data });
                 }
             })
-            .catch(() => setState({ status: "error" }));
+            .catch((err) => {
+                if (err.name === 'AbortError') return;
+                setState({ status: "error" });
+            });
+
+        return () => {
+            controller.abort();
+        };
     }, [store.lat, store.lng, refresh]);
 
     if (state.status === "idle" || state.status === "loading") {

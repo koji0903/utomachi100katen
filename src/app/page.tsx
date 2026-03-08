@@ -19,12 +19,17 @@ import {
     ShoppingCart,
     ShoppingBag
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { CalendarView } from "@/components/CalendarView";
 
 export default function DashboardPage() {
     const { isLoaded, products, brands, retailStores, sales, dailyReports, purchases } = useStore();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const currentMonthStats = useMemo(() => {
         const now = new Date();
@@ -105,9 +110,11 @@ export default function DashboardPage() {
                     </h1>
                     <p className="text-slate-500 mt-1.5 text-sm font-medium">ウトマチ百貨店の業務状況をリアルタイムで把握します。</p>
                 </div>
-                <div className="text-[10px] font-bold text-slate-400 bg-white px-3 py-1.5 rounded-full border border-slate-100 shadow-sm self-start">
-                    最終更新: {new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
-                </div>
+                {mounted && (
+                    <div className="text-[10px] font-bold text-slate-400 bg-white px-3 py-1.5 rounded-full border border-slate-100 shadow-sm self-start">
+                        最終更新: {new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                )}
             </div>
 
             {/* Quick Actions Section */}

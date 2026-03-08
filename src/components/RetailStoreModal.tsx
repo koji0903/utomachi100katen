@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
@@ -69,10 +69,19 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         });
     };
 
+    const geocodeAbortControllerRef = useRef<AbortController | null>(null);
+
     const handleGeocode = async () => {
-        // 住所フィールドのみ送信（郵便番号を結合するとGSI APIが失敗するため）
         const addr = formData.address.trim();
         if (!addr) return;
+
+        // Abort previous request
+        if (geocodeAbortControllerRef.current) {
+            geocodeAbortControllerRef.current.abort();
+        }
+        const controller = new AbortController();
+        geocodeAbortControllerRef.current = controller;
+
         setIsGeocoding(true);
         setGeoResult(null);
         try {
@@ -80,17 +89,29 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ address: addr }),
+                signal: controller.signal
             });
             if (!res.ok) throw new Error();
             const { lat, lng } = await res.json();
             setFormData(prev => ({ ...prev, lat, lng }));
             setGeoResult("ok");
-        } catch {
+        } catch (err: any) {
+            if (err.name === 'AbortError') return;
             setGeoResult("error");
         } finally {
+            if (controller.signal.aborted) return;
             setIsGeocoding(false);
         }
     };
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (geocodeAbortControllerRef.current) {
+                geocodeAbortControllerRef.current.abort();
+            }
+        };
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

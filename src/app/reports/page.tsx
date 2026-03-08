@@ -84,7 +84,7 @@ function ReportForm({
 
     const [type, setType] = useState<"office" | "store">(editData?.type ?? "store");
     const [date, setDate] = useState(editData?.date ?? today());
-    const [worker, setWorker] = useState(editData?.worker ?? "");
+    const [worker, setWorker] = useState(editData?.worker ?? "山口");
     const [officeNote, setOfficeNote] = useState(editData?.officeNote ?? "");
     const [storeId, setStoreId] = useState(editData?.storeId ?? "");
     const [storeTopics, setStoreTopics] = useState(editData?.storeTopics ?? "");
@@ -117,6 +117,8 @@ function ReportForm({
 
     const selectedStore = retailStores.find(s => s.id === storeId);
 
+    const abortControllerRef = useRef<AbortController | null>(null);
+
     // Auto-fetch weather when store with lat/lng is selected (not when editing and store unchanged)
     useEffect(() => {
         if (!selectedStore?.lat || !selectedStore?.lng) {
@@ -125,12 +127,32 @@ function ReportForm({
         }
         // If editing and the store hasn't changed, keep existing weather
         if (isEdit && storeId === editData?.storeId && weather) return;
+
+        // Abort previous request
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
         setFetchingWeather(true);
-        fetch(`/api/weather?lat=${selectedStore.lat}&lon=${selectedStore.lng}`)
+        fetch(`/api/weather?lat=${selectedStore.lat}&lon=${selectedStore.lng}`, {
+            signal: controller.signal
+        })
             .then(r => r.json())
             .then(d => { if (!d.error) setWeather(d); })
-            .catch(() => { })
-            .finally(() => setFetchingWeather(false));
+            .catch((err) => {
+                if (err.name === 'AbortError') return;
+                console.error("Weather fetch error:", err);
+            })
+            .finally(() => {
+                if (controller.signal.aborted) return;
+                setFetchingWeather(false);
+            });
+
+        return () => {
+            controller.abort();
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [storeId, selectedStore?.lat, selectedStore?.lng]);
 
