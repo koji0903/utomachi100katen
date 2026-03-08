@@ -70,9 +70,9 @@ export function BrandModal({ isOpen, onClose, initialData }: BrandModalProps) {
                 showNotification("ブランドを登録しました。");
             }
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save brand:", error);
-            showNotification("保存に失敗しました。", "error");
+            showNotification("保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"), "error");
         } finally {
             setIsUploading(false);
         }

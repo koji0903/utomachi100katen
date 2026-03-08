@@ -159,8 +159,9 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
             });
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 2500);
-        } catch (_e) {
-            alert("保存に失敗しました。");
+        } catch (error: any) {
+            console.error("Failed to save branding info:", error);
+            alert("保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"));
         } finally {
             setIsSaving(false);
         }

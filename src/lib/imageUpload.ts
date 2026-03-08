@@ -1,6 +1,4 @@
 import imageCompression from "browser-image-compression";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "@/lib/firebase";
 
 export const uploadImageWithCompression = async (
     file: File,
@@ -8,7 +6,7 @@ export const uploadImageWithCompression = async (
 ): Promise<string> => {
     // 1-minute timeout for the entire process to prevent UI hang
     const globalTimeout = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Upload process timed out (60s)")), 60000);
+        setTimeout(() => reject(new Error("Upload process timed out (60s)")), 600000);
     });
 
     const uploadLogic = async (): Promise<string> => {
@@ -16,7 +14,7 @@ export const uploadImageWithCompression = async (
         const options = {
             maxSizeMB: 0.5, // 500KB max size
             maxWidthOrHeight: 800, // Resize up to 800px
-            useWebWorker: false, // Disabled web worker to avoid potential hangs in some environments
+            useWebWorker: false,
         };
 
         let fileToUpload: File | Blob = file;
@@ -24,7 +22,7 @@ export const uploadImageWithCompression = async (
         try {
             console.log(`[ImageUpload] Starting process for: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
-            // 2. Try compression with an internal timeout
+            // 2. Try compression locally
             try {
                 const compressionTimeout = new Promise<never>((_, reject) => {
                     setTimeout(() => reject(new Error("Compression timeout")), 20000);
@@ -41,28 +39,64 @@ export const uploadImageWithCompression = async (
                 fileToUpload = file;
             }
 
-            // 3. Generate a unique filename
-            const uniqueFileName = `${Date.now()}_${file.name}`;
-            const storageRef = ref(storage, `${folderPath}/${uniqueFileName}`);
+            // 3. Upload via Server-side API Proxy to bypass CORS
+            console.log(`[ImageUpload] Starting upload via API Proxy to: ${folderPath}`);
+            const formData = new FormData();
+            formData.append("file", fileToUpload as any);
+            formData.append("folderPath", folderPath);
 
-            console.log(`[ImageUpload] Starting upload to: ${folderPath}/${uniqueFileName}`);
+            const response = await fetch("/api/upload", {
+                method: "POST",
+                body: formData,
+            });
 
-            // 4. Upload to Firebase Storage
-            const uploadResult = await uploadBytes(storageRef, fileToUpload);
-            console.log(`[ImageUpload] Upload successful`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.warn("[ImageUpload] Proxy upload failed, trying Base64 fallback:", errorData);
 
-            // 5. Get and return the download URL
-            const downloadURL = await getDownloadURL(uploadResult.ref);
-            console.log(`[ImageUpload] Download URL obtained: ${downloadURL.split('?')[0]}`);
+                // Fallback: Convert to Base64 for Firestore storage (Zero Config)
+                const convertToBase64 = async (fileToConvert: Blob): Promise<string> => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result as string);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(fileToConvert);
+                    });
+                };
 
-            return downloadURL;
+                try {
+                    let base64 = await convertToBase64(fileToUpload as Blob);
+
+                    // If even after initial compression it's too big (approx > 600KB base64)
+                    // we try an aggressive compression specifically for Base64
+                    if (base64.length > 600000) {
+                        console.log(`[ImageUpload] Base64 too large (${base64.length}), trying aggressive compression...`);
+                        const aggressiveOptions = {
+                            maxSizeMB: 0.1, // 100KB target
+                            maxWidthOrHeight: 500, // Smaller dimensions
+                            useWebWorker: false,
+                        };
+                        const aggressiveBlob = await imageCompression(file as File, aggressiveOptions);
+                        base64 = await convertToBase64(aggressiveBlob);
+                    }
+
+                    if (base64.length > 900000) { // Hard limit to avoid 1MB Firestore limit
+                        throw new Error("Image is too large even after aggressive compression. Please check Firebase Storage settings.");
+                    }
+
+                    console.log("[ImageUpload] Using Base64 fallback (size: " + base64.length + ")");
+                    return base64;
+                } catch (fallbackError: any) {
+                    throw new Error("Fallback upload failed: " + (fallbackError.message || "Unknown error"));
+                }
+            }
+
+            const data = await response.json();
+            console.log(`[ImageUpload] Upload successful via Proxy`);
+
+            return data.url;
         } catch (error: any) {
             console.error("[ImageUpload] Error in upload logic:", error);
-            if (error.code === 'storage/unauthorized') {
-                console.error("[ImageUpload] HINT: Check your security rules.");
-            } else if (error.name === 'FirebaseError' || error.message?.includes('CORS')) {
-                console.error("[ImageUpload] HINT: This might be a CORS issue. Please follow the instructions in the implementation plan to fix the bucket's CORS settings.");
-            }
             throw error;
         }
     };

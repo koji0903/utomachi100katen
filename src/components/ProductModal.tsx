@@ -208,9 +208,9 @@ JANコード: ${formData.janCode || "なし"}
             }
 
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save product:", error);
-            showNotification("保存に失敗しました。", "error");
+            showNotification("保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"), "error");
         } finally {
             setIsUploading(false);
         }

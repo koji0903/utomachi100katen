@@ -209,9 +209,9 @@ function ReportForm({
         try {
             const url = await uploadImageWithCompression(file, "reports/activity");
             setImageUrl(url);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Activity image upload error:", error);
-            alert("画像のアップロードに失敗しました。");
+            alert("画像のアップロードに失敗しました。\n詳細: " + (error.message || "不明なエラー"));
         } finally {
             setIsUploadingActivityImage(false);
             if (activityInputRef.current) activityInputRef.current.value = "";
@@ -325,9 +325,13 @@ function ReportForm({
                 await addDailyReport(payload);
             }
             onSaved();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Save report error:", error);
-            alert("保存に失敗しました。");
+            if (error.message && (error.message.includes("upload") || error.message.includes("Compression"))) {
+                alert("画像のアップロード中にエラーが発生しました。\n詳細: " + error.message);
+            } else {
+                alert("保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"));
+            }
         } finally {
             setIsSaving(false);
         }
