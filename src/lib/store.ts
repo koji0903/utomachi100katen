@@ -75,13 +75,17 @@ export interface DailyReport {
     id: string;
     date: string;            // YYYY-MM-DD
     worker: string;          // 作業者名
-    type: 'office' | 'store'; // 事務所作業 | 店舗メンテ
+    type: 'office' | 'store' | 'activity'; // 事務所作業 | 店舗メンテ | 活動記録
+    title?: string;          // タイトル
+    content?: string;        // 内容（ストーリー）
     // 天気（自動取得）
     weather?: string;        // e.g. "晴れ"
     weatherMain?: string;    // e.g. "Clear"
     temperature?: number;    // 気温（℃）
     humidity?: number;       // 湿度（%）
     windSpeed?: number;      // 風速 m/s
+    // 関連商品・店舗
+    involvedProductIds?: string[]; // 関連商品
     // 事務所作業
     officeNote?: string;
     // 店舗メンテナンス
@@ -91,7 +95,9 @@ export interface DailyReport {
     storeTopics?: string;
     displayBeforeImageUrls?: string[];
     displayAfterImageUrls?: string[];
+    imageUrl?: string;       // メイン写真 URL
     createdAt?: string | any;
+    updatedAt?: string | any;
 }
 
 export interface Sale {

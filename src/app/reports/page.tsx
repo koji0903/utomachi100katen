@@ -7,7 +7,7 @@ import {
     X, FileText, CheckCircle2, Pencil, ChevronDown, Loader2,
     Thermometer, Wind, Plus, ClipboardList, Trash2, AlertTriangle,
     ChevronRight, ChevronLeft, Store, Image as ImageIcon, UploadCloud, Save, Package,
-    Cloud, CloudSun, CloudRain, CloudSnow
+    Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
@@ -82,15 +82,23 @@ function ReportForm({
     const { retailStores, products, addDailyReport, updateDailyReport } = useStore();
     const isEdit = !!editData;
 
-    const [type, setType] = useState<"office" | "store">(editData?.type ?? "store");
+    const [type, setType] = useState<"office" | "store" | "activity">(editData?.type ?? "store");
     const [date, setDate] = useState(editData?.date ?? today());
     const [worker, setWorker] = useState(editData?.worker ?? "山口");
+    const [title, setTitle] = useState(editData?.title ?? "");
+    const [content, setContent] = useState(editData?.content ?? "");
+    const [involvedProductIds, setInvolvedProductIds] = useState<string[]>(editData?.involvedProductIds ?? []);
     const [officeNote, setOfficeNote] = useState(editData?.officeNote ?? "");
     const [storeId, setStoreId] = useState(editData?.storeId ?? "");
     const [storeTopics, setStoreTopics] = useState(editData?.storeTopics ?? "");
     const [displayBeforeImageUrls, setDisplayBeforeImageUrls] = useState<string[]>(editData?.displayBeforeImageUrls ?? []);
     const [displayAfterImageUrls, setDisplayAfterImageUrls] = useState<string[]>(editData?.displayAfterImageUrls ?? []);
     const [restocking, setRestocking] = useState<RestockingItem[]>(editData?.restocking ?? []);
+    const [imageUrl, setImageUrl] = useState(editData?.imageUrl ?? "");
+
+    // AI Generation states
+    const [instaCopy, setInstaCopy] = useState("");
+    const [isGeneratingMarketing, setIsGeneratingMarketing] = useState(false);
 
     // Image files for upload (newly added files)
     const [beforeFiles, setBeforeFiles] = useState<File[]>([]);
@@ -106,6 +114,7 @@ function ReportForm({
 
     const beforeInputRef = useRef<HTMLInputElement>(null);
     const afterInputRef = useRef<HTMLInputElement>(null);
+    const activityInputRef = useRef<HTMLInputElement>(null);
 
     const [weather, setWeather] = useState<WeatherData | null>(
         editData?.weatherMain
@@ -114,6 +123,7 @@ function ReportForm({
     );
     const [fetchingWeather, setFetchingWeather] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isUploadingActivityImage, setIsUploadingActivityImage] = useState(false);
 
     const selectedStore = retailStores.find(s => s.id === storeId);
 
@@ -191,6 +201,23 @@ function ReportForm({
         if (afterInputRef.current) afterInputRef.current.value = "";
     };
 
+    const handleActivityImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploadingActivityImage(true);
+        try {
+            const url = await uploadImageWithCompression(file);
+            setImageUrl(url);
+        } catch (error) {
+            console.error("Activity image upload error:", error);
+            alert("画像のアップロードに失敗しました。");
+        } finally {
+            setIsUploadingActivityImage(false);
+            if (activityInputRef.current) activityInputRef.current.value = "";
+        }
+    };
+
     const removeBeforeImage = (index: number) => {
         const preview = beforePreviews[index];
         const nextPreviews = [...beforePreviews];
@@ -213,6 +240,36 @@ function ReportForm({
 
     const addRestockingItem = () => {
         setRestocking(prev => [...prev, { productId: "", productName: "", qty: 1 }]);
+    };
+
+    const handleGenerateInstaStory = async () => {
+        if (!content && !storeTopics && !officeNote) {
+            alert("生成するための内容を入力してください。");
+            return;
+        }
+        setIsGeneratingMarketing(true);
+        try {
+            const res = await fetch("/api/generate-copy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    mode: "daily-report",
+                    name: title || (type === "store" ? storeId : "日常業務"),
+                    story: content || storeTopics || officeNote,
+                }),
+            });
+            const data = await res.json();
+            if (data.copy) {
+                setInstaCopy(data.copy);
+            } else {
+                alert("生成に失敗しました: " + (data.detail || data.error));
+            }
+        } catch (error) {
+            console.error(error);
+            alert("生成中にエラーが発生しました。");
+        } finally {
+            setIsGeneratingMarketing(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -245,15 +302,22 @@ function ReportForm({
             const payload: Omit<DailyReport, "id" | "createdAt"> = {
                 date, worker, type,
                 ...(weather ? { weather: weather.weather, weatherMain: weather.main, temperature: weather.temp, humidity: weather.humidity, windSpeed: weather.windSpeed } : {}),
+                title,
+                content,
+                involvedProductIds,
+                imageUrl,
                 ...(type === "office"
                     ? { officeNote }
-                    : {
-                        storeId, storeName: selectedStore?.name ?? editData?.storeName ?? "",
-                        restocking: restocking.filter(r => r.productId),
-                        storeTopics,
-                        displayBeforeImageUrls: beforeUrls,
-                        displayAfterImageUrls: afterUrls,
-                    }),
+                    : type === "store"
+                        ? {
+                            storeId, storeName: selectedStore?.name ?? editData?.storeName ?? "",
+                            restocking: restocking.filter(r => r.productId),
+                            storeTopics,
+                            displayBeforeImageUrls: beforeUrls,
+                            displayAfterImageUrls: afterUrls,
+                        }
+                        : {}
+                ),
             };
             if (isEdit && editData) {
                 await updateDailyReport(editData.id, payload);
@@ -295,14 +359,15 @@ function ReportForm({
                 <form id="report-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 pb-4 space-y-4">
 
                     {/* Type toggle */}
-                    <div className="grid grid-cols-2 gap-2 bg-white rounded-2xl p-1.5 border border-slate-200">
+                    <div className="grid grid-cols-3 gap-2 bg-white rounded-2xl p-1.5 border border-slate-200">
                         {([
                             { value: "store", label: "🏪 店舗メンテ" },
-                            { value: "office", label: "🖥 事務所作業" },
+                            { value: "activity", label: "📸 活動記録" },
+                            { value: "office", label: "🖥 事務所" },
                         ] as const).map(opt => (
                             <button key={opt.value} type="button"
                                 onClick={() => setType(opt.value)}
-                                className={`py-3 rounded-xl text-sm font-bold transition-all ${type === opt.value ? "text-white shadow-sm" : "text-slate-500"}`}
+                                className={`py-3 rounded-xl text-xs font-bold transition-all ${type === opt.value ? "text-white shadow-sm" : "text-slate-500"}`}
                                 style={type === opt.value ? { backgroundColor: BRAND } : {}}
                             >
                                 {opt.label}
@@ -322,6 +387,48 @@ function ReportForm({
                                 placeholder="例: 田中" className={inputCls} />
                         </div>
                     </div>
+
+                    {/* ─── 活動記録 ─── */}
+                    {type === "activity" && (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">🏷 タイトル</label>
+                                <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+                                    placeholder="例: 山田商店さまへの初訪問" className={inputCls} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">📝 内容・ストーリー</label>
+                                <textarea
+                                    value={content}
+                                    onChange={e => setContent(e.target.value)}
+                                    rows={5}
+                                    placeholder={"活動の内容を具体的に記入してください。\n例: 新商品のサンプルを持って山田商店さんへ。店主の山田さんが「これ、うちの常連さんが好きそうだよ」と喜んでくれました。"}
+                                    className={`${inputCls} resize-none leading-relaxed`}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">📦 関連商品</label>
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {products.slice(0, 10).map(p => {
+                                        const isSelected = involvedProductIds.includes(p.id);
+                                        return (
+                                            <button
+                                                key={p.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (isSelected) setInvolvedProductIds(involvedProductIds.filter(id => id !== p.id));
+                                                    else setInvolvedProductIds([...involvedProductIds, p.id]);
+                                                }}
+                                                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isSelected ? "bg-[#b27f79] text-white border-[#b27f79]" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
+                                            >
+                                                {p.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* ─── 事務所 ─── */}
                     {type === "office" && (
@@ -494,6 +601,93 @@ function ReportForm({
                             </div>
                         </>
                     )}
+
+                    {/* 📸 メイン写真 (Activity / Other) */}
+                    {(type === "activity" || type === "office") && (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                            <label className="block text-xs font-semibold text-slate-500">📸 写真を追加</label>
+                            {imageUrl ? (
+                                <div className="relative w-full aspect-video rounded-xl overflow-hidden group">
+                                    <img src={imageUrl} alt="Main" className="w-full h-full object-cover" />
+                                    <button type="button" onClick={() => setImageUrl("")} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    disabled={isUploadingActivityImage}
+                                    onClick={() => {
+                                        console.log("Activity image button clicked");
+                                        activityInputRef.current?.click();
+                                    }}
+                                    className="w-full aspect-video border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-slate-300 transition-all disabled:opacity-50"
+                                >
+                                    {isUploadingActivityImage ? (
+                                        <Loader2 className="w-8 h-8 mb-2 animate-spin" />
+                                    ) : (
+                                        <CloudSun className="w-8 h-8 mb-2" />
+                                    )}
+                                    <span className="text-sm">
+                                        {isUploadingActivityImage ? "アップロード中..." : "お気に入りの写真を1枚"}
+                                    </span>
+                                </button>
+                            )}
+                            <input
+                                type="file"
+                                ref={activityInputRef}
+                                onChange={handleActivityImageChange}
+                                accept="image/*"
+                                className="hidden"
+                                id="activity-image-input"
+                                name="activity-image-input"
+                            />
+                        </div>
+                    )}
+
+                    {/* ✨ AI Instagram Story Generator */}
+                    <div className="bg-indigo-50/50 rounded-2xl border border-indigo-100 p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-sm">
+                                    <Sparkles className="w-4 h-4" />
+                                </div>
+                                <span className="text-sm font-bold text-indigo-900">Instagram ストーリー生成</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleGenerateInstaStory}
+                                disabled={isGeneratingMarketing || (!content && !storeTopics && !officeNote)}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-200 active:scale-95 disabled:opacity-50 transition-all"
+                            >
+                                {isGeneratingMarketing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                                生成する
+                            </button>
+                        </div>
+
+                        {instaCopy ? (
+                            <div className="bg-white rounded-xl border border-indigo-100 p-3.5 relative">
+                                <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
+                                    {instaCopy}
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(instaCopy);
+                                        alert("クリップボードにコピーしました！");
+                                    }}
+                                    className="absolute top-2 right-2 p-1.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all"
+                                    title="コピー"
+                                >
+                                    <Copy className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            <p className="text-[11px] text-slate-400 text-center py-2">
+                                日報の内容をAIが魅力的な「ブランドストーリー」に変換します ✨
+                            </p>
+                        )}
+                    </div>
                 </form>
 
                 {/* Footer */}
@@ -529,11 +723,14 @@ function ReportCard({
     onEdit: () => void;
 }) {
     const [expanded, setExpanded] = useState(false);
-    // Inline delete confirmation state
     const [confirmDelete, setConfirmDelete] = useState(false);
 
     const isStore = report.type === "store";
+    const isActivity = report.type === "activity";
     const dateLabel = report.date.replace(/-/g, "/");
+
+    const typeLabel = isActivity ? "活動記録" : isStore ? "店舗メンテ" : "事務所作業";
+    const typeColor = isActivity ? "#b27f79" : isStore ? "#1e3a8a" : "#94a3b8";
 
     const handleDeleteConfirm = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -545,32 +742,39 @@ function ReportCard({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             {/* Summary row — tap to expand */}
             <button
-                className="w-full text-left p-4 flex items-center gap-3"
+                className="w-full text-left p-4 flex items-center gap-3 hover:bg-slate-50 transition-colors"
                 onClick={() => { setExpanded(e => !e); setConfirmDelete(false); }}
             >
                 {/* Left accent */}
-                <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: isStore ? BRAND : "#94a3b8" }} />
+                <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: typeColor }} />
 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-bold text-slate-800">{dateLabel}</span>
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={isStore ? { backgroundColor: BRAND_LIGHT, color: BRAND } : { backgroundColor: "#f1f5f9", color: "#64748b" }}>
-                            {isStore ? "🏪 店舗メンテ" : "🖥 事務所"}
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider" style={{ backgroundColor: typeColor + "20", color: typeColor }}>
+                            {isActivity ? "📸 活動記録" : isStore ? "🏪 店舗メンテ" : "🖥 事務所"}
                         </span>
                         {isStore && report.storeName && (
-                            <span className="text-xs text-slate-500 truncate">{report.storeName}</span>
+                            <span className="text-xs text-slate-500 font-medium truncate">@ {report.storeName}</span>
                         )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-slate-400">👤 {report.worker}</span>
+                    {(report.title || isActivity) && (
+                        <div className="text-sm font-bold text-slate-900 mt-1 truncate">
+                            {report.title || "無題の活動記録"}
+                        </div>
+                    )}
+                    <div className="flex items-center gap-3 mt-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                            {report.worker}
+                        </span>
                         {report.temperature !== undefined && (
-                            <span className="text-xs text-slate-400 flex items-center gap-1">
+                            <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
                                 <WeatherIcon main={report.weatherMain} size={3} />
                                 {report.temperature}°C
                             </span>
                         )}
                         {isStore && report.restocking && report.restocking.length > 0 && (
-                            <span className="text-xs text-slate-400">📦 {report.restocking.length}品目補充</span>
+                            <span className="text-[10px] text-slate-400 font-bold">📦 {report.restocking.length}件</span>
                         )}
                     </div>
                 </div>
@@ -580,30 +784,44 @@ function ReportCard({
 
             {/* Expanded detail */}
             {expanded && (
-                <div className="px-5 pb-4 pt-1 border-t border-slate-100 space-y-3 text-sm">
-                    {/* Weather detail */}
-                    {report.temperature !== undefined && (
-                        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
-                            <WeatherIcon main={report.weatherMain} size={6} />
-                            <div>
-                                <span className="font-semibold text-slate-700">{report.temperature}°C {report.weather}</span>
-                                {report.humidity && <span className="text-xs text-slate-400 ml-2">湿度{report.humidity}% / 風速{report.windSpeed}m/s</span>}
+                <div className="px-5 pb-4 pt-1 border-t border-slate-100 space-y-4 text-sm">
+                    {/* Main Image for Activity */}
+                    {report.imageUrl && (
+                        <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-3">
+                            <img src={report.imageUrl} alt="Daily Report" className="w-full aspect-video object-cover" />
+                        </div>
+                    )}
+
+                    {/* Content / Story / Office note */}
+                    {(report.content || report.officeNote || report.storeTopics) && (
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mt-2">
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2 px-1 flex items-center gap-1.5">
+                                <Sparkles className="w-3 h-3" /> {(isActivity || isStore) ? "STORY / TOPICS" : "WORK LOG"}
+                            </h4>
+                            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                {report.content || report.officeNote || report.storeTopics}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Involved Products */}
+                    {report.involvedProductIds && report.involvedProductIds.length > 0 && (
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2 px-1">INVOLVED PRODUCTS</p>
+                            <div className="flex flex-wrap gap-2">
+                                {report.involvedProductIds.map(id => (
+                                    <span key={id} className="px-3 py-1 bg-[#b27f79]/5 text-[#b27f79] text-[10px] font-bold rounded-lg border border-[#b27f79]/10">
+                                        #{id.slice(0, 8)}
+                                    </span>
+                                ))}
                             </div>
                         </div>
                     )}
 
-                    {/* Office note */}
-                    {report.officeNote && (
+                    {/* Restocking (Store mode) */}
+                    {isStore && report.restocking && report.restocking.length > 0 && (
                         <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">📝 作業内容</p>
-                            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{report.officeNote}</p>
-                        </div>
-                    )}
-
-                    {/* Restocking */}
-                    {report.restocking && report.restocking.length > 0 && (
-                        <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-2">📦 補充商品</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2 px-1">RESTOCKING</p>
                             <div className="space-y-1">
                                 {report.restocking.map((item, i) => (
                                     <div key={i} className="flex items-center justify-between text-xs py-1.5 px-3 bg-slate-50 rounded-lg">
@@ -615,101 +833,65 @@ function ReportCard({
                         </div>
                     )}
 
-                    {/* Display Comparison (Multiple Photos) */}
-                    {((report.displayBeforeImageUrls && report.displayBeforeImageUrls.length > 0) ||
+                    {/* Photos Before/After (Store mode) */}
+                    {isStore && ((report.displayBeforeImageUrls && report.displayBeforeImageUrls.length > 0) ||
                         (report.displayAfterImageUrls && report.displayAfterImageUrls.length > 0)) && (
-                            <div>
-                                <p className="text-xs font-semibold text-slate-400 mb-2">📸 商品陳列 Before / After</p>
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] px-1">STORE DISPLAY COMPARISON</p>
                                 <div className="grid grid-cols-2 gap-3">
-                                    {/* Before Column */}
                                     <div className="space-y-2">
                                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">Before</div>
-                                        <div className="space-y-2">
-                                            {report.displayBeforeImageUrls && report.displayBeforeImageUrls.length > 0 ? (
-                                                report.displayBeforeImageUrls.map((url, i) => (
-                                                    <div key={i} className="aspect-[4/3] rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
-                                                        <img
-                                                            src={url}
-                                                            alt={`Before ${i}`}
-                                                            className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-105"
-                                                            onClick={() => window.open(url, '_blank')}
-                                                        />
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="aspect-[4/3] rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300 text-[10px] font-bold">No Image</div>
-                                            )}
-                                        </div>
+                                        {report.displayBeforeImageUrls?.map((url, i) => (
+                                            <div key={i} className="aspect-[4/3] rounded-xl bg-slate-100 border border-slate-200 overflow-hidden">
+                                                <img src={url} alt="Before" className="w-full h-full object-cover" onClick={(e) => { e.stopPropagation(); window.open(url, '_blank'); }} />
+                                            </div>
+                                        ))}
                                     </div>
-
-                                    {/* After Column */}
                                     <div className="space-y-2">
-                                        <div className="text-[10px] font-bold text-blue-500 uppercase tracking-wider px-1">After</div>
-                                        <div className="space-y-2">
-                                            {report.displayAfterImageUrls && report.displayAfterImageUrls.length > 0 ? (
-                                                report.displayAfterImageUrls.map((url, i) => (
-                                                    <div key={i} className="aspect-[4/3] rounded-xl bg-slate-100 border border-blue-100 overflow-hidden relative group">
-                                                        <img
-                                                            src={url}
-                                                            alt={`After ${i}`}
-                                                            className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-105"
-                                                            onClick={() => window.open(url, '_blank')}
-                                                        />
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="aspect-[4/3] rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300 text-[10px] font-bold">No Image</div>
-                                            )}
-                                        </div>
+                                        <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider px-1">After</div>
+                                        {report.displayAfterImageUrls?.map((url, i) => (
+                                            <div key={i} className="aspect-[4/3] rounded-xl bg-indigo-50 border border-indigo-100 overflow-hidden">
+                                                <img src={url} alt="After" className="w-full h-full object-cover" onClick={(e) => { e.stopPropagation(); window.open(url, '_blank'); }} />
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                    {/* Topics */}
-                    {report.storeTopics && (
-                        <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">💬 トピックス</p>
-                            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{report.storeTopics}</p>
-                        </div>
-                    )}
-
                     {/* Action buttons */}
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                        {/* Edit */}
                         <button
                             type="button"
                             onClick={e => { e.stopPropagation(); onEdit(); }}
-                            className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors"
                         >
                             <Pencil className="w-3.5 h-3.5" /> 編集
                         </button>
 
-                        {/* Delete — with inline confirm */}
                         {confirmDelete ? (
                             <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-1.5 animate-in fade-in duration-150">
-                                <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                                <span className="text-xs text-red-600 font-medium">削除しますか？</span>
+                                <span className="text-xs text-red-600 font-bold">削除しますか？</span>
                                 <button
                                     type="button"
                                     onClick={handleDeleteConfirm}
-                                    className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-2.5 py-1 rounded-lg transition-colors"
+                                    className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg transition-colors"
                                 >
                                     削除
                                 </button>
                                 <button
                                     type="button"
                                     onClick={e => { e.stopPropagation(); setConfirmDelete(false); }}
-                                    className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                                    className="text-xs text-slate-400 font-bold hover:text-slate-600 px-2"
                                 >
-                                    キャンセル
+                                    戻る
                                 </button>
                             </div>
                         ) : (
                             <button
                                 type="button"
                                 onClick={e => { e.stopPropagation(); setConfirmDelete(true); }}
-                                className="flex items-center gap-1.5 text-xs font-medium text-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                                className="flex items-center gap-1.5 text-xs font-bold text-red-400 hover:text-red-500 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"
                             >
                                 <Trash2 className="w-3.5 h-3.5" /> 削除
                             </button>
@@ -728,7 +910,7 @@ function ReportsPageContent() {
     const [showForm, setShowForm] = useState(false);
     const [editTarget, setEditTarget] = useState<DailyReport | null>(null);
     const [toast, setToast] = useState<"saved" | "updated" | null>(null);
-    const [filterType, setFilterType] = useState<"all" | "office" | "store">("all");
+    const [filterType, setFilterType] = useState<"all" | "office" | "store" | "activity">("all");
 
     const filterDate = searchParams.get("date");
 
@@ -793,6 +975,7 @@ function ReportsPageContent() {
                 <div className="flex gap-2 mb-4">
                     {([
                         { value: "all", label: "すべて" },
+                        { value: "activity", label: "📸 活動記録" },
                         { value: "store", label: "🏪 店舗" },
                         { value: "office", label: "🖥 事務所" },
                     ] as const).map(f => (
