@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { X, Sparkles, Copy, Check, ChevronRight, BookOpen, ShoppingBag, Share2, AlertCircle, UploadCloud, Image as ImageIcon } from "lucide-react";
+import { X, Sparkles, Copy, Check, ChevronRight, BookOpen, ShoppingBag, Share2, AlertCircle, UploadCloud, Image as ImageIcon, Printer, Download } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
+import { QRCodeSVG } from "qrcode.react";
+import { POP_STYLES, POPStyle } from "@/lib/popStyles";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
-type CopyMode = "marketplace" | "story" | "social";
+type CopyMode = "marketplace" | "story" | "social" | "pop";
 
 interface BrandingHubProps {
     isOpen: boolean;
@@ -35,31 +39,44 @@ const MODES: { id: CopyMode; label: string; icon: any; description: string; colo
         description: "SNS投稿文＋ハッシュタグ",
         color: "violet",
     },
+    {
+        id: "pop",
+        label: "POP",
+        icon: Printer,
+        description: "店頭用POP・棚札の作成",
+        color: "amber",
+    },
 ];
 
 const modeColorMap = {
     marketplace: { active: "bg-blue-600 text-white", ring: "ring-blue-500/20 border-blue-500", result: "border-blue-100 bg-blue-50/50" },
     story: { active: "bg-emerald-600 text-white", ring: "ring-emerald-500/20 border-emerald-500", result: "border-emerald-100 bg-emerald-50/50" },
     social: { active: "bg-violet-600 text-white", ring: "ring-violet-500/20 border-violet-500", result: "border-violet-100 bg-violet-50/50" },
+    pop: { active: "bg-amber-600 text-white", ring: "ring-amber-500/20 border-amber-500", result: "border-amber-100 bg-amber-50/50" },
 };
 
 export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
     const { brands, suppliers, updateProduct } = useStore();
 
     const brand = brands.find(b => b.id === product.brandId);
-    const supplier = suppliers.find(s => s.id === product.supplierId);
 
     const [activeMode, setActiveMode] = useState<CopyMode>("marketplace");
     const [generatedCopy, setGeneratedCopy] = useState<Record<CopyMode, string>>({
         marketplace: "",
         story: "",
         social: "",
+        pop: "",
     });
     const [isGenerating, setIsGenerating] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [error, setError] = useState("");
+
+    // POP states
+    const [activePopStyle, setActivePopStyle] = useState<POPStyle>(POP_STYLES[0]);
+    const popRef = useRef<HTMLDivElement>(null);
+    const [isExporting, setIsExporting] = useState(false);
 
     // Story fields (local edits before saving)
     const [producerStory, setProducerStory] = useState(product.producerStory || "");
@@ -102,7 +119,7 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                 return;
             }
             setGeneratedCopy(prev => ({ ...prev, [activeMode]: data.copy || "" }));
-        } catch (e) {
+        } catch (_e) {
             setError("接続エラーが発生しました。ネットワークをご確認ください。");
         } finally {
             setIsGenerating(false);
@@ -142,10 +159,34 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
             });
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 2500);
-        } catch (e) {
+        } catch (_e) {
             alert("保存に失敗しました。");
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleExportPDF = async () => {
+        if (!popRef.current) return;
+        setIsExporting(true);
+        try {
+            const canvas = await html2canvas(popRef.current, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: null,
+            });
+            const imgData = canvas.toDataURL("image/png");
+            // A4 size: 210mm x 297mm. Simple landscape POP: e.g. 148mm x 105mm (A6)
+            const pdf = new jsPDF("l", "mm", "a6");
+            const width = pdf.internal.pageSize.getWidth();
+            const height = pdf.internal.pageSize.getHeight();
+            pdf.addImage(imgData, "PNG", 0, 0, width, height);
+            pdf.save(`POP_${product.name}_${activePopStyle.id}.pdf`);
+        } catch (e) {
+            console.error(e);
+            alert("PDFの書き出しに失敗しました。");
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -291,8 +332,54 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                             )}
 
                             {/* Result Area */}
-                            <div className={`rounded-xl border p-4 min-h-[200px] relative transition-all ${currentCopy ? colors.result : "bg-slate-50 border-slate-200"}`}>
-                                {currentCopy ? (
+                            <div className={`rounded-xl border p-4 min-h-[200px] relative transition-all ${currentCopy || activeMode === 'pop' ? colors.result : "bg-slate-50 border-slate-200"}`}>
+                                {activeMode === 'pop' ? (
+                                    <div className="space-y-4">
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {POP_STYLES.map(style => (
+                                                <button key={style.id} onClick={() => setActivePopStyle(style)}
+                                                    className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${activePopStyle.id === style.id ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}>
+                                                    {style.name}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* POP Preview Area */}
+                                        <div ref={popRef} className={`w-full aspect-[1.414/1] ${activePopStyle.bgColor} ${activePopStyle.textColor} p-8 ${activePopStyle.borderStyle} ${activePopStyle.accentColor} relative overflow-hidden flex flex-col justify-between shadow-lg`}>
+                                            <div className="relative z-10">
+                                                <div className={`text-[10px] uppercase tracking-[0.3em] font-bold opacity-60 mb-1`}>{brand?.name || "Premium Selection"}</div>
+                                                <h1 className={`text-3xl ${activePopStyle.fontFamily} font-black leading-tight mb-2 underline decoration-amber-500/50`}>{product.name}</h1>
+                                                <p className="text-xs leading-relaxed line-clamp-4 font-medium opacity-90">{generatedCopy.pop || currentCopy || product.story || "こだわりの逸品をお届けします。"}</p>
+                                            </div>
+
+                                            <div className="flex justify-between items-end relative z-10">
+                                                <div>
+                                                    <div className="text-[10px] font-bold opacity-60">PRICE</div>
+                                                    <div className={`text-4xl font-black italic ${activePopStyle.fontFamily}`}>
+                                                        <span className="text-lg mr-0.5 NOT-italic">¥</span>
+                                                        {product.sellingPrice.toLocaleString()}
+                                                        <span className="text-xs ml-1 font-bold">(税込)</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <div className="p-1 px-1 bg-white rounded shadow-sm">
+                                                        <QRCodeSVG value={`https://utomachi.example.jp/products/${product.id}`} size={48} />
+                                                    </div>
+                                                    <div className="text-[8px] font-bold tracking-tighter opacity-70">STORY READ</div>
+                                                </div>
+                                            </div>
+
+                                            {/* Decorative Elements */}
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full -mr-16 -mt-16 blur-xl" />
+                                            <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full -ml-12 -mb-12 blur-xl" />
+                                        </div>
+
+                                        <button onClick={handleExportPDF} disabled={isExporting}
+                                            className="w-full py-2.5 rounded-lg text-sm font-bold bg-slate-800 text-white hover:bg-slate-700 transition-all flex items-center justify-center gap-2">
+                                            {isExporting ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> 作成中...</> : <><Download className="w-4 h-4" /> PDFでPOPをダウンロード</>}
+                                        </button>
+                                    </div>
+                                ) : currentCopy ? (
                                     <>
                                         <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{currentCopy}</p>
                                         <button onClick={handleCopy}
@@ -311,7 +398,7 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                             {/* Brand Guidelines badge */}
                             <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-100 rounded-lg text-[10px] text-amber-700">
                                 <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" />
-                                <span>全モードに「地域文化 × 丁寧さ × 少しの遊び心」「ヒトとモノをつなぐ架け橋」のブランドガイドラインが自動注入されます</span>
+                                <span>{activeMode === 'pop' ? "POPにはQRコードが自動付与され、スマートフォンから物語を読めるようになります" : "全モードに「地域文化 × 丁寧さ × 少しの遊び心」「ヒトとモノをつなぐ架け橋」のブランドガイドラインが自動注入されます"}</span>
                             </div>
                         </div>
                     </div>

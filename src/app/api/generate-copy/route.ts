@@ -35,16 +35,22 @@ export async function POST(req: Request) {
             regionBackground,
             servingSuggestion,
             story,
+            concept,
+            isBrandLevel,
         } = await req.json();
 
-        if (!name || !brand) {
+        if (!name && !brand) {
             return NextResponse.json(
-                { error: "Name and Brand are required" },
+                { error: "Name or Brand is required" },
                 { status: 400 }
             );
         }
 
-        const productInfo = `
+        const productOrBrandInfo = isBrandLevel ? `
+ブランド名: ${name}
+ブランドコンセプト: ${concept || "（未入力）"}
+ブランドストーリー: ${story || "（未入力）"}
+` : `
 商品名: ${name}${variant ? `（${variant}）` : ""}
 ブランド名: ${brand}
 生産者の思い: ${producerStory || "（未入力）"}
@@ -78,6 +84,29 @@ Instagram・X（Twitter）等のSNS用の投稿文を作成してください。
 ・改行を活かしてテンポよく。絵文字を2〜3個使ってOK。
 ・本文120字以内（短く！）のあと、改行して関連ハッシュタグを5個。
 ・タイトルや前置きなしで本文から始める。`;
+        } else if (mode === "pop") {
+            modeInstruction = `
+【出力形式：POP Mode】
+店頭の棚札（POP）用の「ひとこと紹介文」を作成してください。
+・一瞬で目が止まる、短くインパクトのある文章。
+・最大50文字程度。
+・魅力、食感、味の特長を凝縮。
+・タイトルや前置きなしで本文のみ出力。`;
+        } else if (mode === "manifesto" && isBrandLevel) {
+            modeInstruction = `
+【出力形式：Manifesto Mode】
+ブランドの魂を揺さぶる「マニフェスト（宣言）」を作成してください。
+・ブランドの存在意義、地域への想い、届ける価値を、詩的かつ力強く。
+・一文ごとに改行し、リズム感のある構成に。
+・全体200〜300字程度。
+・タイトルや前置きなしで本文のみ出力。`;
+        } else if (mode === "press" && isBrandLevel) {
+            modeInstruction = `
+【出力形式：Press Mode】
+プレスリリースやメディア紹介用の、信頼感のある「ブランド紹介文」を作成してください。
+・客観的かつ情熱的に、ブランドの価値を記述。
+・全体300字程度。
+・タイトルや前置きなしで本文のみ出力。`;
         } else {
             // fallback: simple story
             modeInstruction = `
@@ -88,8 +117,8 @@ Instagram・X（Twitter）等のSNS用の投稿文を作成してください。
 
         const fullPrompt = `${BRAND_CONTEXT}
 
-【商品情報】
-${productInfo}
+【${isBrandLevel ? "ブランド情報" : "商品情報"}】
+${productOrBrandInfo}
 
 ${modeInstruction}`;
 
@@ -103,12 +132,12 @@ ${modeInstruction}`;
                 const result = await model.generateContent(fullPrompt);
                 responseText = result.response.text();
                 break; // success
-            } catch (e: any) {
-                lastError = e;
-                if (e?.message?.includes("429")) {
+            } catch (_e) {
+                lastError = _e;
+                if (typeof _e === "object" && _e !== null && "message" in _e && typeof _e.message === "string" && _e.message.includes("429")) {
                     continue; // try next model
                 }
-                throw e; // other error, rethrow
+                throw _e; // other error, rethrow
             }
         }
 

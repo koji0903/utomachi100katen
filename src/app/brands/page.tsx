@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Sparkles } from "lucide-react";
 import { useStore, Brand } from "@/lib/store";
 import { BrandModal } from "@/components/BrandModal";
+import { BrandBrandingHub } from "@/components/BrandBrandingHub";
 import { showNotification } from "@/lib/notifications";
 
 export default function BrandsPage() {
     const { isLoaded, brands, deleteBrand } = useStore();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
+    const [brandingBrand, setBrandingBrand] = useState<Brand | null>(null);
 
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
@@ -71,6 +73,13 @@ export default function BrandsPage() {
                                                 <Edit2 className="w-4 h-4" />
                                             </button>
                                             <button
+                                                onClick={() => setBrandingBrand(brand)}
+                                                className="p-2 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                                                title="ブランド・ブランディング"
+                                            >
+                                                <Sparkles className="w-4 h-4" />
+                                            </button>
+                                            <button
                                                 onClick={() => handleDelete(brand.id)}
                                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                                 title="削除"
@@ -98,6 +107,13 @@ export default function BrandsPage() {
                 onClose={() => setIsModalOpen(false)}
                 initialData={editingBrand}
             />
+            {brandingBrand && (
+                <BrandBrandingHub
+                    isOpen={!!brandingBrand}
+                    onClose={() => setBrandingBrand(null)}
+                    brand={brandingBrand}
+                />
+            )}
         </div>
     );
 }
