@@ -1,14 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle } from "lucide-react";
-import { useStore, Product } from "@/lib/store";
+import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History } from "lucide-react";
+import { useStore, Product, Brand, Supplier } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
 import { showNotification } from "@/lib/notifications";
+import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
+import { convertToCSV, parseCSV, downloadCSV } from "@/lib/csvUtils";
+import { useRef } from "react";
+import Link from "next/link";
 
 export default function ProductsPage() {
-  const { isLoaded, products, brands, suppliers, deleteProduct } = useStore();
+  const { isLoaded, products, brands, suppliers, sales, addProduct, updateProduct, deleteProduct } = useStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrandId, setSelectedBrandId] = useState<string | "all">("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -49,6 +54,72 @@ export default function ProductsPage() {
     setIsModalOpen(true);
   };
 
+  const handleExport = () => {
+    const exportData = products.map(p => ({
+      ID: p.id,
+      商品名: p.name,
+      バリエーション: p.variantName || "",
+      ブランドID: p.brandId,
+      ブランド名: brands.find(b => b.id === p.brandId)?.name || "",
+      仕入先ID: p.supplierId,
+      仕入先名: suppliers.find(s => s.id === p.supplierId)?.name || "",
+      仕入価格: p.costPrice,
+      販売価格: p.sellingPrice,
+      在庫数: p.stock,
+      アラート閾値: p.alertThreshold || 20,
+      JANコード: p.janCode || "",
+    }));
+
+    const csvContent = convertToCSV(exportData);
+    downloadCSV(csvContent, `products_${new Date().toISOString().slice(0, 10)}.csv`);
+    showNotification("商品をCSVで書き出しました。");
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+
+      try {
+        const rows = parseCSV(text);
+        let updatedCount = 0;
+        let addedCount = 0;
+
+        for (const row of rows) {
+          const productData = {
+            name: row["商品名"],
+            variantName: row["バリエーション"],
+            brandId: row["ブランドID"],
+            supplierId: row["仕入先ID"],
+            costPrice: Number(row["仕入価格"]),
+            sellingPrice: Number(row["販売価格"]),
+            stock: Number(row["在庫数"]),
+            alertThreshold: Number(row["アラート閾値"]),
+            janCode: row["JANコード"],
+          };
+
+          if (row["ID"] && products.find(p => p.id === row["ID"])) {
+            await updateProduct(row["ID"], productData as any);
+            updatedCount++;
+          } else {
+            await addProduct(productData as any);
+            addedCount++;
+          }
+        }
+        showNotification(`インポート完了: 更新 ${updatedCount}件, 新規 ${addedCount}件`);
+      } catch (err) {
+        console.error("CSV Import error:", err);
+        showNotification("CSVの読み込みに失敗しました。形式を確認してください。");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // Reset input
+  };
+
   const handleDelete = (id: string) => {
     if (confirm("商品の削除をしてもよろしいですか？関連するバリエーションも削除されます。")) {
       deleteProduct(id);
@@ -63,13 +134,43 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">商品管理</h1>
           <p className="text-slate-500 mt-1 text-sm">ウトマチ百貨店の取扱商品を管理します。</p>
         </div>
-        <button
-          onClick={handleCreate}
-          className="flex items-center gap-2 bg-[#1e3a8a] text-white px-4 py-2.5 rounded-lg hover:bg-blue-800 transition-colors shadow-sm font-medium"
-        >
-          <Plus className="w-5 h-5" />
-          商品登録
-        </button>
+        <div className="flex items-center gap-3">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImport}
+            accept=".csv"
+            className="hidden"
+          />
+          <button
+            onClick={handleExport}
+            className="hidden sm:flex items-center gap-2 bg-white text-slate-700 px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm font-medium"
+          >
+            <Box className="w-4 h-4 text-slate-400" />
+            エクスポート
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="hidden sm:flex items-center gap-2 bg-white text-slate-700 px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm font-medium"
+          >
+            <Plus className="w-4 h-4 text-slate-400" />
+            インポート
+          </button>
+          <Link
+            href="/products/conversion"
+            className="hidden sm:flex items-center gap-2 bg-slate-100 text-[#1e3a8a] px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-200 transition-colors shadow-sm font-bold"
+          >
+            <History className="w-4 h-4" />
+            在庫変換
+          </Link>
+          <button
+            onClick={handleCreate}
+            className="flex items-center gap-2 bg-[#1e3a8a] text-white px-4 py-2.5 rounded-lg hover:bg-blue-800 transition-colors shadow-sm font-medium"
+          >
+            <Plus className="w-5 h-5" />
+            商品登録
+          </button>
+        </div>
       </div>
 
       {/* Usage Guide for Staff */}
@@ -189,10 +290,15 @@ export default function ProductsPage() {
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-sm font-bold ${product.stock <= (product.alertThreshold ?? 20) ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'text-slate-700'}`}>
                           {product.stock}個
                         </span>
-                        <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
-                          <AlertTriangle className="w-2.5 h-2.5" />
-                          {product.alertThreshold ?? 20}
-                        </span>
+                        {(() => {
+                          const days = calculateDaysRemaining(product, sales);
+                          const status = getStockoutStatus(days);
+                          return (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${status.bg} ${status.color}`}>
+                              {status.label}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </td>
                     <td className="p-5 text-right">
@@ -278,10 +384,15 @@ export default function ProductsPage() {
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${product.stock <= (product.alertThreshold ?? 20) ? 'bg-amber-50 text-amber-700' : 'text-slate-600'}`}>
                         在庫 {product.stock}個
                       </span>
-                      <span className="text-[9px] text-slate-400 flex items-center gap-1">
-                        <AlertTriangle className="w-2 h-2" />
-                        アラート: {product.alertThreshold ?? 20}
-                      </span>
+                      {(() => {
+                        const days = calculateDaysRemaining(product, sales);
+                        const status = getStockoutStatus(days);
+                        return (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${status.bg} ${status.color}`}>
+                            {status.label}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

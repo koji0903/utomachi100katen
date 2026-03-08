@@ -22,6 +22,7 @@ import {
 import { useMemo, useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { CalendarView } from "@/components/CalendarView";
+import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
 
 export default function DashboardPage() {
     const { isLoaded, products, brands, retailStores, sales, dailyReports, purchases } = useStore();
@@ -49,11 +50,24 @@ export default function DashboardPage() {
     const totalBrands = brands.length;
     const totalStores = retailStores.length;
 
-    // Low Stock Items (threshold: per-product or 20)
-    const lowStockItems = products
-        .filter(p => p.stock <= (p.alertThreshold ?? 20))
-        .sort((a, b) => a.stock - b.stock)
-        .slice(0, 5);
+    // Low Stock Items (threshold: per-product or 20, OR predicted to run out within 14 days)
+    const lowStockItems = useMemo(() => {
+        return products
+            .map(p => ({
+                ...p,
+                daysRemaining: calculateDaysRemaining(p, sales)
+            }))
+            .filter(p =>
+                p.stock <= (p.alertThreshold ?? 20) ||
+                (p.daysRemaining !== Infinity && p.daysRemaining <= 14)
+            )
+            .sort((a, b) => {
+                const aDays = a.daysRemaining === Infinity ? 999 : a.daysRemaining;
+                const bDays = b.daysRemaining === Infinity ? 999 : b.daysRemaining;
+                return aDays - bDays || a.stock - b.stock;
+            })
+            .slice(0, 5);
+    }, [products, sales]);
 
     const quickActions = [
         {
@@ -219,7 +233,14 @@ export default function DashboardPage() {
                                             </div>
                                             <div>
                                                 <div className="font-bold text-slate-800 text-sm">{product.name}</div>
-                                                <div className="text-[10px] text-slate-500">{product.variantName || "通常版"}</div>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="text-[10px] text-slate-500">{product.variantName || "通常版"}</span>
+                                                    {product.daysRemaining !== undefined && (
+                                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${getStockoutStatus(product.daysRemaining).bg} ${getStockoutStatus(product.daysRemaining).color}`}>
+                                                            {getStockoutStatus(product.daysRemaining).label}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="text-right">
@@ -229,9 +250,6 @@ export default function DashboardPage() {
                                             <div className="text-[9px] text-slate-400 font-medium">
                                                 (しきい値: {product.alertThreshold ?? 20}個)
                                             </div>
-                                            <Link href="/products" className="text-[10px] text-blue-600 font-bold hover:underline">
-                                                管理画面を開く
-                                            </Link>
                                         </div>
                                     </div>
                                 ))

@@ -229,6 +229,17 @@ export interface BusinessChallenge {
     updatedAt?: string | any;
 }
 
+export interface StockConversion {
+    id: string;
+    date: string; // YYYY-MM-DD
+    inputProductId: string;
+    inputQty: number;
+    outputProductId: string;
+    outputQty: number;
+    notes?: string;
+    createdAt?: string | any;
+}
+
 export interface Product {
     id: string;
     name: string;
@@ -248,6 +259,9 @@ export interface Product {
     imageUrl?: string;
     taxRate?: 'standard' | 'reduced'; // 標準税率(10%) or 軽減税率(8%)
     alertThreshold?: number; // 在庫アラートのしきい値
+    janCode?: string; // JANコード (CSV連携用)
+    isComposite?: boolean; // セット商品フラグ
+    components?: { productId: string; quantity: number }[]; // 構成要素
     createdAt?: string | any;
 }
 
@@ -276,6 +290,7 @@ export function useStore() {
     const { data: issuedDocuments = [], mutate: mutateIssuedDocuments } = useSWR<IssuedDocument[]>("issued_documents", () => fetcher<IssuedDocument>("issued_documents"), swrConfig);
     const { data: spotRecipients = [], mutate: mutateSpotRecipients } = useSWR<SpotRecipient[]>("spot_recipients", () => fetcher<SpotRecipient>("spot_recipients"), swrConfig);
     const { data: challenges = [], mutate: mutateChallenges } = useSWR<BusinessChallenge[]>("business_challenges", () => fetcher<BusinessChallenge>("business_challenges"), swrConfig);
+    const { data: stockConversions = [], mutate: mutateStockConversions } = useSWR<StockConversion[]>("stock_conversions", () => fetcher<StockConversion>("stock_conversions"), swrConfig);
 
     // Company Settings — fetched once from Firestore doc (not a collection)
     const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings } = useSWR<CompanySettings>(
@@ -451,12 +466,58 @@ export function useStore() {
             ...saleData,
             updatedAt: new Date().toISOString(),
         };
+
+        // Stock adjustment logic
+        for (const item of saleData.items) {
+            const product = products.find(p => p.id === item.productId);
+            if (!product) continue;
+
+            if (product.isComposite && product.components) {
+                // Adjust components
+                for (const comp of product.components) {
+                    const compProduct = products.find(p => p.id === comp.productId);
+                    if (compProduct) {
+                        const newStock = (compProduct.stock || 0) - (comp.quantity * item.quantity);
+                        await updateProduct(compProduct.id, { stock: newStock });
+                    }
+                }
+            } else {
+                // Adjust simple product result
+                const newStock = (product.stock || 0) - item.quantity;
+                await updateProduct(product.id, { stock: newStock });
+            }
+        }
+
         mutateSales([newSale as Sale, ...sales], false);
         await setDoc(newRef, {
             ...saleData,
             updatedAt: serverTimestamp(),
         });
         mutateSales();
+    };
+
+    // --- Stock Conversion Actions ---
+    const addStockConversion = async (data: Omit<StockConversion, "id" | "createdAt">) => {
+        const newRef = doc(collection(db, "stock_conversions"));
+        const newConv: StockConversion = {
+            id: newRef.id,
+            ...data,
+            createdAt: new Date().toISOString()
+        };
+
+        // Adjust stocks
+        const inputProduct = products.find(p => p.id === data.inputProductId);
+        if (inputProduct) {
+            await updateProduct(inputProduct.id, { stock: (inputProduct.stock || 0) - data.inputQty });
+        }
+        const outputProduct = products.find(p => p.id === data.outputProductId);
+        if (outputProduct) {
+            await updateProduct(outputProduct.id, { stock: (outputProduct.stock || 0) + data.outputQty });
+        }
+
+        mutateStockConversions([newConv, ...stockConversions], false);
+        await setDoc(newRef, { ...data, createdAt: serverTimestamp() });
+        mutateStockConversions();
     };
 
     const updateSale = async (id: string, saleData: Partial<Sale>) => {
@@ -693,5 +754,8 @@ export function useStore() {
         addChallenge,
         updateChallenge,
         deleteChallenge,
+        // Stock Conversions
+        stockConversions,
+        addStockConversion,
     };
 }

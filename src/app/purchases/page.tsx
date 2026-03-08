@@ -3,16 +3,66 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, Edit2, Trash2, Search, ShoppingBag, CheckCircle, Clock, ChevronLeft } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, ShoppingBag, CheckCircle, Clock, ChevronLeft, Sparkles } from "lucide-react";
 import { useStore, Purchase } from "@/lib/store";
 import { PurchaseModal } from "@/components/PurchaseModal";
+import { calculateDaysRemaining } from "@/lib/stockUtils";
+import { showNotification } from "@/lib/notifications";
 
 function PurchasesPageContent() {
-    const { isLoaded, purchases, products, suppliers, updatePurchase, deletePurchase } = useStore();
+    const { isLoaded, purchases, products, suppliers, sales, addPurchase, updatePurchase, deletePurchase } = useStore();
     const searchParams = useSearchParams();
     const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const handleAutoGenerate = async () => {
+        if (!window.confirm("在庫不足の商品に対して、自動的に発注データを作成しますか？")) return;
+
+        setIsGenerating(true);
+        let count = 0;
+
+        try {
+            for (const product of products) {
+                const days = calculateDaysRemaining(product, sales);
+                const isUnderThreshold = product.stock <= (product.alertThreshold ?? 20);
+                const isRunningOutSoon = days !== Infinity && days <= 7;
+
+                if (isUnderThreshold || isRunningOutSoon) {
+                    // Avoid duplicate orders if there's already an active PO (ordered/waiting) for this product
+                    const hasActivePO = purchases.some(p => p.productId === product.id && p.status !== 'completed');
+                    if (hasActivePO) continue;
+
+                    const threshold = product.alertThreshold ?? 20;
+                    const quantity = Math.max(threshold * 2, 10); // Simple restock rule
+
+                    await addPurchase({
+                        type: 'A',
+                        status: 'ordered',
+                        productId: product.id,
+                        supplierId: product.supplierId,
+                        orderDate: new Date().toISOString().split('T')[0],
+                        expectedArrivalDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default 7 days
+                        quantity,
+                        unitCost: product.costPrice,
+                        totalCost: product.costPrice * quantity,
+                    });
+                    count++;
+                }
+            }
+            if (count > 0) {
+                showNotification(`${count}件の発注データを自動作成しました。`);
+            } else {
+                showNotification("現在、補充が必要な商品はありません。");
+            }
+        } catch (err) {
+            console.error(err);
+            showNotification("エラーが発生しました。");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
 
     const filterDate = searchParams.get("date");
 
@@ -106,6 +156,14 @@ function PurchasesPageContent() {
                     </div>
                 </div>
                 <div className="flex gap-3">
+                    <button
+                        onClick={handleAutoGenerate}
+                        disabled={isGenerating}
+                        className="hidden sm:flex items-center gap-2 bg-white text-emerald-700 px-4 py-2.5 rounded-lg border border-emerald-200 hover:bg-emerald-50 transition-colors shadow-sm font-bold text-sm disabled:opacity-50"
+                    >
+                        <Sparkles className={`w-4 h-4 ${isGenerating ? 'animate-pulse' : ''}`} />
+                        {isGenerating ? "生成中..." : "欠品予測から自動生成"}
+                    </button>
                     <button
                         onClick={handleCreate}
                         className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm font-medium"

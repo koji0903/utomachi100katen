@@ -536,6 +536,8 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     );
 }
 
+import { convertToCSV, downloadCSV } from "@/lib/csvUtils";
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 function SalesPageContent() {
     const searchParams = useSearchParams();
@@ -544,7 +546,36 @@ function SalesPageContent() {
 
     const [activeTab, setActiveTab] = useState<'input' | 'log' | 'analysis'>(queryTab || 'input');
     const [editingSale, setEditingSale] = useState<Sale | null>(null);
-    const { sales } = useStore();
+    const { sales, products, retailStores } = useStore();
+
+    const handleExport = () => {
+        // Build export rows from sales data
+        const exportRows: any[] = [];
+
+        sales.forEach(sale => {
+            const store = retailStores.find(s => s.id === sale.storeId);
+            sale.items.forEach(item => {
+                const product = products.find(p => p.id === item.productId);
+                exportRows.push({
+                    ID: sale.id,
+                    日付: sale.period,
+                    区分: sale.type === 'daily' ? '日次' : '月次',
+                    店舗名: store?.name || '不明',
+                    商品ID: item.productId,
+                    商品名: product?.name || '不明',
+                    バリエーション: product?.variantName || '',
+                    単価: item.priceAtSale,
+                    数量: item.quantity,
+                    小計: item.subtotal,
+                    店舗手数料: item.commission,
+                    純利益: item.netProfit
+                });
+            });
+        });
+
+        const csv = convertToCSV(exportRows);
+        downloadCSV(csv, `sales_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    };
 
     useEffect(() => {
         if (queryTab) {
@@ -575,6 +606,16 @@ function SalesPageContent() {
                         </h1>
                     </div>
                     <p className="text-slate-500 text-sm">売上の入力と日別実績・天気の確認</p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleExport}
+                        className="flex items-center gap-2 bg-white text-slate-700 px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm font-medium"
+                    >
+                        <Save className="w-4 h-4 text-slate-400" />
+                        実績CSV出力
+                    </button>
                 </div>
             </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle } from "lucide-react";
+import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle, Plus } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
@@ -13,7 +13,7 @@ interface ProductModalProps {
 }
 
 export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps) {
-    const { brands, suppliers, retailStores, addProduct, updateProduct } = useStore();
+    const { products, brands, suppliers, retailStores, addProduct, updateProduct } = useStore();
 
     const defaultFormData = {
         name: "",
@@ -31,6 +31,9 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         imageUrl: "",
         taxRate: 'standard' as 'standard' | 'reduced',
         alertThreshold: 20,
+        janCode: "",
+        isComposite: false,
+        components: [] as { productId: string; quantity: number }[],
     };
 
     const [formData, setFormData] = useState(defaultFormData);
@@ -60,6 +63,9 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     imageUrl: initialData.imageUrl || "",
                     taxRate: initialData.taxRate || 'standard',
                     alertThreshold: initialData.alertThreshold ?? 20,
+                    janCode: initialData.janCode || "",
+                    isComposite: initialData.isComposite || false,
+                    components: initialData.components || [],
                 });
 
                 setImagePreview(initialData.imageUrl || null);
@@ -69,6 +75,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     brandId: brands.length > 0 ? brands[0].id : "",
                     supplierId: suppliers.length > 0 ? suppliers[0].id : "",
                     storePrices: [],
+                    janCode: "",
                 });
                 setImagePreview(null);
             }
@@ -383,6 +390,17 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                                 />
                                 <p className="text-[10px] text-slate-400">この数値を下回るとダッシュボードに警告が表示されます。</p>
                             </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <label className="text-sm font-semibold text-slate-700 block">JANコード (13桁)</label>
+                                <input
+                                    type="text"
+                                    value={formData.janCode}
+                                    onChange={(e) => setFormData({ ...formData, janCode: e.target.value })}
+                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white"
+                                    placeholder="49XXXXXXXXXXX"
+                                />
+                                <p className="text-[10px] text-slate-400">CSV連携や在庫検索に使用されます。</p>
+                            </div>
                         </div>
 
                         {/* Store Specific Prices */}
@@ -418,6 +436,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                             )}
                         </div>
 
+                        {/* Story Area */}
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
                                 <label className="text-sm font-semibold text-slate-700 block">
@@ -451,6 +470,81 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                                 className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white resize-none"
                                 placeholder="商品の背景や生産者の想いをご記入ください..."
                             />
+                        </div>
+
+                        {/* Composite Settings */}
+                        <div className="space-y-4 border-t border-slate-100 pt-6">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-md font-bold text-slate-800 flex items-center gap-2">
+                                    <Box className="w-4 h-4 text-orange-500" />
+                                    セット商品（BOM）設定
+                                </h3>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={formData.isComposite}
+                                        onChange={(e) => setFormData({ ...formData, isComposite: e.target.checked })}
+                                    />
+                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    <span className="ml-3 text-sm font-medium text-slate-600">この商品をセット品にする</span>
+                                </label>
+                            </div>
+
+                            {formData.isComposite && (
+                                <div className="space-y-3 bg-orange-50/30 p-4 rounded-xl border border-orange-100">
+                                    <p className="text-xs text-orange-700 mb-2">この商品が売れた際、以下の構成商品の在庫が自動的に減算されます。</p>
+                                    {formData.components.map((comp, index) => (
+                                        <div key={index} className="flex items-center gap-2">
+                                            <select
+                                                value={comp.productId}
+                                                onChange={(e) => {
+                                                    const newComps = [...formData.components];
+                                                    newComps[index].productId = e.target.value;
+                                                    setFormData({ ...formData, components: newComps });
+                                                }}
+                                                className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+                                            >
+                                                <option value="">商品を選択</option>
+                                                {products.filter(p => p.id !== initialData?.id && !p.isComposite).map(p => (
+                                                    <option key={p.id} value={p.id}>{p.name} {p.variantName}</option>
+                                                ))}
+                                            </select>
+                                            <div className="flex items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    required
+                                                    min="1"
+                                                    value={comp.quantity}
+                                                    onChange={(e) => {
+                                                        const newComps = [...formData.components];
+                                                        newComps[index].quantity = Math.max(1, Number(e.target.value));
+                                                        setFormData({ ...formData, components: newComps });
+                                                    }}
+                                                    className="w-20 px-3 py-2 text-sm border border-slate-300 rounded-lg text-right"
+                                                />
+                                                <span className="text-xs text-slate-500">個</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setFormData({ ...formData, components: formData.components.filter((_, i) => i !== index) });
+                                                }}
+                                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, components: [...formData.components, { productId: "", quantity: 1 }] })}
+                                        className="text-xs text-blue-600 font-bold hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border border-dashed border-blue-200 w-full justify-center"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" /> 構成商品を追加
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </form>
                 </div>
