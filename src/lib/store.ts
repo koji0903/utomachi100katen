@@ -749,7 +749,7 @@ export function useStore() {
         updateSale,
         deleteSale,
         upsertPaymentRecord,
-        dailyReports: dailyReports ?? [],
+        dailyReports: (dailyReports ?? []).slice().sort((a, b) => b.date.localeCompare(a.date)),
         addDailyReport,
         updateDailyReport,
         deleteDailyReport,

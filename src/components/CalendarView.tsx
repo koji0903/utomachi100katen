@@ -8,7 +8,10 @@ import {
     BarChart3,
     FileText,
     ShoppingCart,
-    Calendar
+    Calendar,
+    Store,
+    Camera,
+    Laptop
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 
@@ -52,14 +55,22 @@ export const CalendarView: React.FC = () => {
         const daySales = sales.filter(s => s.period === dateStr);
         const totalSales = daySales.reduce((sum, s) => sum + s.totalAmount, 0);
 
-        const hasReport = dailyReports.some(r => r.date === dateStr);
+        const reports = dailyReports.filter(r => r.date === dateStr);
+        const hasStoreReport = reports.some(r => r.type === 'store');
+        const hasActivityReport = reports.some(r => r.type === 'activity');
+        const hasOfficeReport = reports.some(r => r.type === 'office');
 
         // Purchases might have orderDate or arrivalDate. Assuming orderDate for record.
         const dayPurchases = purchases.filter(p => p.orderDate === dateStr);
 
         return {
             totalSales,
-            hasReport,
+            reports: {
+                store: hasStoreReport,
+                activity: hasActivityReport,
+                office: hasOfficeReport,
+                any: reports.length > 0
+            },
             purchaseCount: dayPurchases.length
         };
     };
@@ -99,13 +110,36 @@ export const CalendarView: React.FC = () => {
                         </Link>
                     )}
 
-                    {data.hasReport && (
+                    {data.reports.store && (
                         <Link
-                            href={`/reports?date=${dayDate}`}
+                            href={`/reports?date=${dayDate}&type=store`}
                             className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-bold text-emerald-600 truncate hover:bg-emerald-100/50 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
+                            title="店舗メンテ"
                         >
-                            <FileText className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
-                            <span>日報</span>
+                            <Store className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
+                            <span className="hidden sm:inline">店舗</span>
+                        </Link>
+                    )}
+
+                    {data.reports.activity && (
+                        <Link
+                            href={`/reports?date=${dayDate}&type=activity`}
+                            className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-bold text-indigo-600 truncate hover:bg-indigo-100/50 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
+                            title="活動記録"
+                        >
+                            <Camera className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
+                            <span className="hidden sm:inline">活動</span>
+                        </Link>
+                    )}
+
+                    {data.reports.office && (
+                        <Link
+                            href={`/reports?date=${dayDate}&type=office`}
+                            className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-bold text-slate-600 truncate hover:bg-slate-100/50 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
+                            title="事務所"
+                        >
+                            <Laptop className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
+                            <span className="hidden sm:inline">事務所</span>
                         </Link>
                     )}
 
@@ -183,13 +217,19 @@ export const CalendarView: React.FC = () => {
 
             <div className="p-5 bg-slate-50/30 border-t border-slate-100/50 flex flex-wrap gap-6 justify-center">
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/20" /> Sales
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Sales
                 </div>
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/20" /> Report
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Store
                 </div>
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/20" /> Purchase
+                    <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" /> Activity
+                </div>
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <div className="w-2.5 h-2.5 rounded-full bg-slate-500" /> Office
+                </div>
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Purchase
                 </div>
             </div>
         </section>
