@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { X, Sparkles, Copy, Check, ChevronRight, BookOpen, ShoppingBag, Share2, AlertCircle, UploadCloud, Image as ImageIcon, Printer, Download } from "lucide-react";
+import { X, Sparkles, Copy, Check, ChevronRight, BookOpen, ShoppingBag, Share2, AlertCircle, UploadCloud, Image as ImageIcon, Printer, Download, Video } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
 import { QRCodeSVG } from "qrcode.react";
@@ -9,7 +9,7 @@ import { POP_STYLES, POPStyle } from "@/lib/popStyles";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
-type CopyMode = "marketplace" | "story" | "social" | "pop";
+type CopyMode = "marketplace" | "story" | "social" | "pop" | "video";
 
 interface BrandingHubProps {
     isOpen: boolean;
@@ -46,6 +46,13 @@ const MODES: { id: CopyMode; label: string; icon: any; description: string; colo
         description: "店頭用POP・棚札の作成",
         color: "amber",
     },
+    {
+        id: "video",
+        label: "Video",
+        icon: Video,
+        description: "ショート動画・リール用台本案",
+        color: "rose",
+    },
 ];
 
 const modeColorMap = {
@@ -53,6 +60,7 @@ const modeColorMap = {
     story: { active: "bg-emerald-600 text-white", ring: "ring-emerald-500/20 border-emerald-500", result: "border-emerald-100 bg-emerald-50/50" },
     social: { active: "bg-violet-600 text-white", ring: "ring-violet-500/20 border-violet-500", result: "border-violet-100 bg-violet-50/50" },
     pop: { active: "bg-amber-600 text-white", ring: "ring-amber-500/20 border-amber-500", result: "border-amber-100 bg-amber-50/50" },
+    video: { active: "bg-rose-600 text-white", ring: "ring-rose-500/20 border-rose-500", result: "border-rose-100 bg-rose-50/50" },
 };
 
 export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
@@ -66,6 +74,7 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
         story: "",
         social: "",
         pop: "",
+        video: "",
     });
     const [isGenerating, setIsGenerating] = useState(false);
     const [copied, setCopied] = useState(false);

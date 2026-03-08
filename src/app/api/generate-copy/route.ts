@@ -132,6 +132,16 @@ Instagramでの投稿文を作成してください。
   3. 最後に、読んでくれた方への感謝や、地域への想いを込めた一言
   4. 関連ハッシュタグを10個程度。
 ・タイトルや前置きなしで本文から始める。`;
+        } else if (mode === "video") {
+            modeInstruction = `
+【出力形式：Short Video Script Mode】
+InstagramリールやTikTok用の、30〜60秒のショート動画台本を作成してください。
+・フック：冒頭3秒で視線を釘付けにする「問いかけ」や「驚きの事実」。
+・シーン構成：5〜6つのカット割り（映像の内容 ＋ テロップの内容）。
+・ナレーション：感情に訴えかける、温かく丁寧な語り。
+・BGMイメージ：宇土の風情や商品の雰囲気に合う音楽の指定。
+・最後に「プロフィールをチェック」や「サイトを見てね」などのCTA。
+・タイトルや前置きなしで、構成案のみ出力。`;
         } else {
             // fallback: simple story
             modeInstruction = `
@@ -148,13 +158,13 @@ ${productOrBrandInfo}
 ${modeInstruction}`;
 
         let responseText = "";
-        // Try gemini-2.0-flash-lite first, fall back to gemini-1.5-flash if quota exceeded
+        // Prioritize Pro models for maximum intelligence
         const modelsToTry = [
-            "gemini-2.0-flash-lite",
+            "gemini-1.5-pro-latest",
+            "gemini-1.5-pro",
+            "gemini-2.0-flash-exp",
             "gemini-2.0-flash",
-            "gemini-2.5-flash",
-            "gemini-flash-latest",
-            "gemini-flash-lite-latest"
+            "gemini-1.5-flash-latest"
         ];
         let lastError: any = null;
         for (const modelName of modelsToTry) {
@@ -165,7 +175,8 @@ ${modeInstruction}`;
                 break; // success
             } catch (_e) {
                 lastError = _e;
-                if (typeof _e === "object" && _e !== null && "message" in _e && typeof _e.message === "string" && _e.message.includes("429")) {
+                console.warn(`[Gemini] Failed to use model ${modelName}:`, _e);
+                if (typeof _e === "object" && _e !== null && "message" in _e && typeof _e.message === "string" && (_e.message.includes("429") || _e.message.includes("404") || _e.message.includes("503"))) {
                     continue; // try next model
                 }
                 throw _e; // other error, rethrow

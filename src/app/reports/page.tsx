@@ -7,7 +7,7 @@ import {
     X, FileText, CheckCircle2, Pencil, ChevronDown, Loader2,
     Thermometer, Wind, Plus, ClipboardList, Trash2, AlertTriangle,
     ChevronRight, ChevronLeft, Store, Image as ImageIcon, UploadCloud, Save, Package,
-    Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy
+    Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy, Video
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
@@ -612,8 +612,12 @@ function ReportForm({
                             <label className="block text-xs font-semibold text-slate-500">📸 写真を追加</label>
                             {imageUrl ? (
                                 <div className="relative w-full aspect-video rounded-xl overflow-hidden group">
-                                    <img src={imageUrl} alt="Main" className="w-full h-full object-cover" />
-                                    <button type="button" onClick={() => setImageUrl("")} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {(imageUrl.startsWith("data:video/") || imageUrl.toLowerCase().includes(".mp4") || imageUrl.toLowerCase().includes(".mov") || imageUrl.toLowerCase().includes(".webm")) ? (
+                                        <video src={imageUrl} className="w-full h-full object-cover" controls muted playsInline />
+                                    ) : (
+                                        <img src={imageUrl} alt="Main" className="w-full h-full object-cover" />
+                                    )}
+                                    <button type="button" onClick={() => setImageUrl("")} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -630,10 +634,10 @@ function ReportForm({
                                     {isUploadingActivityImage ? (
                                         <Loader2 className="w-8 h-8 mb-2 animate-spin" />
                                     ) : (
-                                        <CloudSun className="w-8 h-8 mb-2" />
+                                        <Video className="w-8 h-8 mb-2 text-indigo-500" />
                                     )}
                                     <span className="text-sm">
-                                        {isUploadingActivityImage ? "アップロード中..." : "お気に入りの写真を1枚"}
+                                        {isUploadingActivityImage ? "アップロード中..." : "写真または動画をアップロード"}
                                     </span>
                                 </button>
                             )}
@@ -641,7 +645,7 @@ function ReportForm({
                                 type="file"
                                 ref={activityInputRef}
                                 onChange={handleActivityImageChange}
-                                accept="image/*"
+                                accept="image/*,video/*"
                                 className="hidden"
                                 id="activity-image-input"
                                 name="activity-image-input"
@@ -792,7 +796,11 @@ function ReportCard({
                     {/* Main Image for Activity */}
                     {report.imageUrl && (
                         <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-3">
-                            <img src={report.imageUrl} alt="Daily Report" className="w-full aspect-video object-cover" />
+                            {(report.imageUrl.startsWith("data:video/") || report.imageUrl.toLowerCase().includes(".mp4") || report.imageUrl.toLowerCase().includes(".mov") || report.imageUrl.toLowerCase().includes(".webm")) ? (
+                                <video src={report.imageUrl} className="w-full aspect-video object-cover" controls muted playsInline />
+                            ) : (
+                                <img src={report.imageUrl} alt="Daily Report" className="w-full aspect-video object-cover" />
+                            )}
                         </div>
                     )}
 
