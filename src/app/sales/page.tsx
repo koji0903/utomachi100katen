@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
     Calendar,
     Save,
@@ -10,7 +11,7 @@ import {
     CheckCircle2,
     BarChart3,
     CloudSun, Cloud, CloudRain, CloudSnow,
-    Thermometer, Wind, Package, ChevronDown,
+    Thermometer, Wind, Package, ChevronDown, ChevronLeft,
     Sparkles, Edit2,
 } from "lucide-react";
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
@@ -563,10 +564,17 @@ function SalesPageContent() {
             {/* Header */}
             <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                        {filterDate ? `${filterDate.replace(/-/g, "/")} の売上実績` : "売上管理"}
-                    </h1>
-                    <p className="text-slate-500 mt-1 text-sm">売上の入力と日別実績・天気の確認</p>
+                    <div className="flex items-center gap-2 mb-1">
+                        {filterDate && (
+                            <Link href="/sales" className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
+                                <ChevronLeft className="w-4 h-4" />
+                            </Link>
+                        )}
+                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                            {filterDate ? `${filterDate.replace(/-/g, "/")} の売上実績` : "売上管理"}
+                        </h1>
+                    </div>
+                    <p className="text-slate-500 text-sm">売上の入力と日別実績・天気の確認</p>
                 </div>
             </div>
 

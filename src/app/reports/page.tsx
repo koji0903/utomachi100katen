@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
     X, FileText, CheckCircle2, Pencil, ChevronDown, Loader2,
     Thermometer, Wind, Plus, ClipboardList, Trash2, AlertTriangle,
-    ChevronRight, Store, Image as ImageIcon, UploadCloud, Save, Package,
+    ChevronRight, ChevronLeft, Store, Image as ImageIcon, UploadCloud, Save, Package,
     Cloud, CloudSun, CloudRain, CloudSnow
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
@@ -733,10 +734,17 @@ function ReportsPageContent() {
                         <ClipboardList className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-slate-900">
-                            {filterDate ? `${filterDate.replace(/-/g, "/")} の日報` : "業務日報"}
-                        </h1>
-                        <p className="text-xs text-slate-400 mt-0.5">現場の記録を積み上げる</p>
+                        <div className="flex items-center gap-2 mb-1">
+                            {filterDate && (
+                                <Link href="/reports" className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
+                                    <ChevronLeft className="w-4 h-4" />
+                                </Link>
+                            )}
+                            <h1 className="text-xl font-bold text-slate-900">
+                                {filterDate ? `${filterDate.replace(/-/g, "/")} の日報` : "業務日報"}
+                            </h1>
+                        </div>
+                        <p className="text-xs text-slate-400">現場の記録を積み上げる</p>
                     </div>
                 </div>
                 {!filterDate && (

@@ -7,7 +7,8 @@ import {
     ChevronRight,
     BarChart3,
     FileText,
-    ShoppingCart
+    ShoppingCart,
+    Calendar
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 
@@ -30,6 +31,10 @@ export const CalendarView: React.FC = () => {
 
     const nextMonth = () => {
         setCurrentDate(new Date(year, month + 1, 1));
+    };
+
+    const goToToday = () => {
+        setCurrentDate(new Date());
     };
 
     const today = new Date();
@@ -62,52 +67,55 @@ export const CalendarView: React.FC = () => {
     const days = [];
     // Padding for the first week
     for (let i = 0; i < startDayOfWeek; i++) {
-        days.push(<div key={`empty-${i}`} className="h-24 sm:h-32 border-b border-r border-slate-100 bg-slate-50/30" />);
+        days.push(<div key={`empty-${i}`} className="h-24 sm:h-32 border-b border-r border-slate-100 bg-slate-50/20" />);
     }
 
     // Days of the month
     for (let d = 1; d <= daysInMonth; d++) {
         const data = getDayData(d);
+        const dayDate = formatDate(year, month, d);
+
         days.push(
             <div
                 key={d}
-                className={`h-24 sm:h-32 border-b border-r border-slate-100 p-2 transition-colors hover:bg-slate-50 relative ${isToday(d) ? "bg-blue-50/50" : "bg-white"
+                className={`h-24 sm:h-32 border-b border-r border-slate-100 p-1.5 sm:p-2 transition-all hover:bg-slate-50 relative group ${isToday(d) ? "bg-blue-50/30" : "bg-white"
                     }`}
             >
                 <div className="flex justify-between items-start">
-                    <span className={`text-xs font-bold ${isToday(d) ? "text-blue-600 bg-blue-100 w-6 h-6 flex items-center justify-center rounded-full" : "text-slate-400"}`}>
+                    <span className={`text-[10px] sm:text-xs font-bold ${isToday(d) ? "text-white bg-blue-600 w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full shadow-sm" : "text-slate-400"}`}>
                         {d}
                     </span>
+                    {isToday(d) && <span className="text-[8px] font-bold text-blue-600 hidden sm:block uppercase tracking-tighter">Today</span>}
                 </div>
 
-                <div className="mt-2 space-y-1 overflow-hidden">
+                <div className="mt-1 space-y-0.5 sm:space-y-1 overflow-hidden">
                     {data.totalSales > 0 && (
                         <Link
-                            href={`/sales?tab=log&date=${formatDate(year, month, d)}`}
-                            className="flex items-center gap-1 text-[10px] sm:text-xs font-bold text-blue-600 truncate hover:bg-blue-100/50 rounded px-1 -mx-1 transition-colors"
+                            href={`/sales?tab=log&date=${dayDate}`}
+                            className="flex items-center gap-1 text-[9px] sm:text-[11px] font-bold text-blue-600 truncate hover:bg-blue-100 rounded px-1 -mx-1 transition-colors py-0.5"
                         >
-                            <BarChart3 className="w-3 h-3 shrink-0" />
+                            <BarChart3 className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" />
                             <span>¥{data.totalSales.toLocaleString()}</span>
                         </Link>
                     )}
 
                     {data.hasReport && (
                         <Link
-                            href={`/reports?date=${formatDate(year, month, d)}`}
-                            className="flex items-center gap-1 text-[10px] sm:text-xs font-medium text-emerald-600 truncate hover:bg-emerald-100/50 rounded px-1 -mx-1 transition-colors"
+                            href={`/reports?date=${dayDate}`}
+                            className="flex items-center gap-1 text-[9px] sm:text-[11px] font-medium text-emerald-600 truncate hover:bg-emerald-100 rounded px-1 -mx-1 transition-colors py-0.5"
                         >
-                            <FileText className="w-3 h-3 shrink-0" />
-                            <span>日報あり</span>
+                            <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" />
+                            <span>日報</span>
                         </Link>
                     )}
 
                     {data.purchaseCount > 0 && (
                         <Link
-                            href={`/purchases?date=${formatDate(year, month, d)}`}
-                            className="flex items-center gap-1 text-[10px] sm:text-xs font-medium text-amber-600 truncate hover:bg-amber-100/50 rounded px-1 -mx-1 transition-colors"
+                            href={`/purchases?date=${dayDate}`}
+                            className="flex items-center gap-1 text-[9px] sm:text-[11px] font-medium text-amber-600 truncate hover:bg-amber-100 rounded px-1 -mx-1 transition-colors py-0.5"
                         >
-                            <ShoppingCart className="w-3 h-3 shrink-0" />
-                            <span>仕入 {data.purchaseCount}件</span>
+                            <ShoppingCart className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" />
+                            <span>仕入 {data.purchaseCount}</span>
                         </Link>
                     )}
                 </div>
@@ -117,27 +125,40 @@ export const CalendarView: React.FC = () => {
 
     return (
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <h2 className="font-bold text-slate-800 flex items-center gap-2">
-                    業務カレンダー
-                </h2>
-                <div className="flex items-center gap-4">
-                    <span className="text-sm font-bold text-slate-700">
-                        {year}年 {month + 1}月
-                    </span>
-                    <div className="flex gap-1">
-                        <button
-                            onClick={prevMonth}
-                            className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 transition-colors"
-                        >
-                            <ChevronLeft className="w-5 h-5" />
-                        </button>
-                        <button
-                            onClick={nextMonth}
-                            className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 transition-colors"
-                        >
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-white">
+                        <Calendar className="w-4 h-4" />
+                    </div>
+                    <h2 className="font-bold text-slate-800">業務カレンダー</h2>
+                </div>
+
+                <div className="flex items-center gap-2 sm:gap-4">
+                    <button
+                        onClick={goToToday}
+                        className="text-[10px] sm:text-xs font-bold text-slate-500 hover:text-slate-800 px-2 py-1 bg-white border border-slate-200 rounded-lg hover:border-slate-300 transition-all active:scale-95"
+                    >
+                        今日
+                    </button>
+
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <span className="text-xs sm:text-sm font-bold text-slate-700 min-w-[80px] text-center">
+                            {year}年 {month + 1}月
+                        </span>
+                        <div className="flex gap-1">
+                            <button
+                                onClick={prevMonth}
+                                className="p-1 sm:p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 transition-colors border border-transparent hover:border-slate-200 bg-white shadow-sm sm:shadow-none"
+                            >
+                                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                            </button>
+                            <button
+                                onClick={nextMonth}
+                                className="p-1 sm:p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 transition-colors border border-transparent hover:border-slate-200 bg-white shadow-sm sm:shadow-none"
+                            >
+                                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -15,13 +15,27 @@ import {
     Plus,
     Sparkles,
     Search,
-    BookOpen
+    BookOpen,
+    ShoppingCart,
+    ShoppingBag
 } from "lucide-react";
+import { useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { CalendarView } from "@/components/CalendarView";
 
 export default function DashboardPage() {
-    const { isLoaded, products, brands, retailStores } = useStore();
+    const { isLoaded, products, brands, retailStores, sales, dailyReports, purchases } = useStore();
+
+    const currentMonthStats = useMemo(() => {
+        const now = new Date();
+        const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        return {
+            sales: sales.filter(s => s.period.startsWith(monthPrefix)).reduce((sum, s) => sum + s.totalAmount, 0),
+            reports: dailyReports.filter(r => r.date.startsWith(monthPrefix)).length,
+            purchases: purchases.filter(p => p.orderDate?.startsWith(monthPrefix) || p.arrivalDate?.startsWith(monthPrefix)).length,
+            label: `${now.getMonth() + 1}月の実績`
+        };
+    }, [sales, dailyReports, purchases]);
 
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
@@ -111,6 +125,45 @@ export default function DashboardPage() {
                             </div>
                         </Link>
                     ))}
+                </div>
+            </section>
+
+            {/* Monthly Summary Section */}
+            <section className="bg-gradient-to-br from-[#1e3a8a] to-[#1e40af] rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl" />
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div>
+                        <h2 className="text-sm font-bold opacity-70 uppercase tracking-widest mb-1 flex items-center gap-2">
+                            <Sparkles className="w-3 h-3" />
+                            {currentMonthStats.label}
+                        </h2>
+                        <h3 className="text-2xl font-black">今月の概況</h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 max-w-2xl w-full">
+                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
+                            <div className="flex items-center gap-2 text-blue-200 text-[10px] font-bold uppercase mb-1">
+                                <BarChart3 className="w-3 h-3" /> 売上合計
+                            </div>
+                            <div className="text-xl font-black">¥{currentMonthStats.sales.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
+                            <div className="flex items-center gap-2 text-emerald-200 text-[10px] font-bold uppercase mb-1">
+                                <FileText className="w-3 h-3" /> 日報提出
+                            </div>
+                            <div className="text-xl font-black">{currentMonthStats.reports}件</div>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
+                            <div className="flex items-center gap-2 text-amber-200 text-[10px] font-bold uppercase mb-1">
+                                <ShoppingBag className="w-3 h-3" /> 仕入件数
+                            </div>
+                            <div className="text-xl font-black">{currentMonthStats.purchases}件</div>
+                        </div>
+                    </div>
+
+                    <Link href="/analytics" className="px-6 py-2.5 bg-white text-blue-900 rounded-xl font-black text-sm hover:scale-105 transition-transform shadow-lg self-start md:self-center">
+                        詳細分析
+                    </Link>
                 </div>
             </section>
 

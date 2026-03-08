@@ -2,7 +2,8 @@
 
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, Edit2, Trash2, Search, ShoppingBag, CheckCircle, Clock } from "lucide-react";
+import Link from "next/link";
+import { Plus, Edit2, Trash2, Search, ShoppingBag, CheckCircle, Clock, ChevronLeft } from "lucide-react";
 import { useStore, Purchase } from "@/lib/store";
 import { PurchaseModal } from "@/components/PurchaseModal";
 
@@ -91,10 +92,17 @@ function PurchasesPageContent() {
                         <ShoppingBag className="w-6 h-6" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                            {filterDate ? `${filterDate.replace(/-/g, "/")} の仕入れ` : "仕入れ管理"}
-                        </h1>
-                        <p className="text-slate-500 mt-1 text-sm">商品の発注から入荷、直接入荷の管理を行います。</p>
+                        <div className="flex items-center gap-2 mb-1">
+                            {filterDate && (
+                                <Link href="/purchases" className="p-1 hover:bg-emerald-50 rounded-lg text-emerald-400 hover:text-emerald-600 transition-colors">
+                                    <ChevronLeft className="w-4 h-4" />
+                                </Link>
+                            )}
+                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                                {filterDate ? `${filterDate.replace(/-/g, "/")} の仕入れ` : "仕入れ管理"}
+                            </h1>
+                        </div>
+                        <p className="text-slate-500 text-sm">商品の発注から入荷、直接入荷の管理を行います。</p>
                     </div>
                 </div>
                 <div className="flex gap-3">
