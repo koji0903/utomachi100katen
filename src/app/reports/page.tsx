@@ -207,7 +207,7 @@ function ReportForm({
 
         setIsUploadingActivityImage(true);
         try {
-            const url = await uploadImageWithCompression(file);
+            const url = await uploadImageWithCompression(file, "reports/activity");
             setImageUrl(url);
         } catch (error) {
             console.error("Activity image upload error:", error);
@@ -283,7 +283,7 @@ function ReportForm({
                 if (p.isExisting) {
                     beforeUrls.push(p.url);
                 } else if (p.fileIndex !== undefined) {
-                    const url = await uploadImageWithCompression(beforeFiles[p.fileIndex]);
+                    const url = await uploadImageWithCompression(beforeFiles[p.fileIndex], "reports/maintenance/before");
                     beforeUrls.push(url);
                 }
             }
@@ -294,7 +294,7 @@ function ReportForm({
                 if (p.isExisting) {
                     afterUrls.push(p.url);
                 } else if (p.fileIndex !== undefined) {
-                    const url = await uploadImageWithCompression(afterFiles[p.fileIndex]);
+                    const url = await uploadImageWithCompression(afterFiles[p.fileIndex], "reports/maintenance/after");
                     afterUrls.push(url);
                 }
             }
