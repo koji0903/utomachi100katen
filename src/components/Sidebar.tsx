@@ -14,22 +14,47 @@ interface SidebarProps {
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
 
-  const navigation = [
-    { name: "ダッシュボード", href: "/", icon: LayoutDashboard },
-    { name: "商品管理", href: "/products", icon: Package },
-    { name: "ブランド管理", href: "/brands", icon: Tag },
-    { name: "店舗管理", href: "/retail-stores", icon: Store },
-    { name: "仕入先管理", href: "/suppliers", icon: Users },
-    { name: "仕入れ管理", href: "/purchases", icon: Truck },
-    { name: "支払い管理", href: "/payments", icon: CreditCard },
-    { name: "売上入力", href: "/sales", icon: BarChart3 },
-    { name: "事業分析", href: "/analytics", icon: BarChart2 },
-    { name: "業務日報", href: "/reports", icon: FileText },
-    { name: "帳票管理", href: "/documents", icon: Archive },
-    { name: "注文管理", href: "/orders", icon: ShoppingCart },
-    { name: "課題・ToDo管理", href: "/todo", icon: AlertCircle },
-    { name: "ご利用ガイド", href: "/guidelines", icon: BookOpen },
-    { name: "設定", href: "/settings", icon: Settings },
+  const groups = [
+    {
+      label: "業務（デイリー）",
+      items: [
+        { name: "ダッシュボード", href: "/", icon: LayoutDashboard },
+        { name: "売上入力", href: "/sales", icon: BarChart3 },
+        { name: "業務日報", href: "/reports", icon: FileText },
+        { name: "課題・ToDo管理", href: "/todo", icon: AlertCircle },
+      ]
+    },
+    {
+      label: "在庫・仕入れ",
+      items: [
+        { name: "商品管理", href: "/products", icon: Package },
+        { name: "仕入れ管理", href: "/purchases", icon: Truck },
+        { name: "支払い管理", href: "/payments", icon: CreditCard },
+        { name: "注文管理", href: "/orders", icon: ShoppingCart },
+      ]
+    },
+    {
+      label: "分析・報告",
+      items: [
+        { name: "事業分析", href: "/analytics", icon: BarChart2 },
+        { name: "帳票管理", href: "/documents", icon: Archive },
+      ]
+    },
+    {
+      label: "マスタ・設定",
+      items: [
+        { name: "ブランド管理", href: "/brands", icon: Tag },
+        { name: "店舗管理", href: "/retail-stores", icon: Store },
+        { name: "仕入先管理", href: "/suppliers", icon: Users },
+        { name: "設定", href: "/settings", icon: Settings },
+      ]
+    },
+    {
+      label: "サポート",
+      items: [
+        { name: "ご利用ガイド", href: "/guidelines", icon: BookOpen },
+      ]
+    }
   ];
 
   const router = useRouter();
@@ -52,7 +77,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   const sidebarContent = (
     <div className="flex h-full w-72 flex-col border-r border-slate-200/60 bg-white shadow-[1px_0_0_0_rgba(0,0,0,0.02)]">
-      <div className="flex h-20 items-center justify-between px-8 border-b border-slate-100">
+      <div className="flex h-20 items-center justify-between px-8 border-b border-slate-100 shrink-0">
         <h1 className="text-xl font-black text-[#1e3a8a] tracking-tighter flex items-center gap-2">
           <div className="w-8 h-8 bg-[#1e3a8a] rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
             <Store className="w-5 h-5" />
@@ -70,33 +95,35 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           </button>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto py-6 px-4 space-y-8 scrollbar-hide">
-        <div>
-          <h2 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4">Main Menu</h2>
-          <nav className="space-y-1">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={handleNavClick}
-                  className={`group flex items-center px-4 py-3 text-sm font-bold rounded-xl transition-all duration-200 ${isActive
-                    ? "bg-[#1e3a8a] text-white shadow-md shadow-blue-900/10 translate-x-1"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 hover:translate-x-1"
-                    }`}
-                >
-                  <item.icon
-                    className={`flex-shrink-0 mr-3.5 h-5 w-5 transition-colors ${isActive ? "text-white" : "text-slate-400 group-hover:text-[#1e3a8a]"
+      <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6 scrollbar-hide">
+        {groups.map((group) => (
+          <div key={group.label}>
+            <h2 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">{group.label}</h2>
+            <nav className="space-y-1">
+              {group.items.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={handleNavClick}
+                    className={`group flex items-center px-4 py-3 text-sm font-bold rounded-xl transition-all duration-200 ${isActive
+                      ? "bg-[#1e3a8a] text-white shadow-md shadow-blue-900/10 translate-x-1"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 hover:translate-x-1"
                       }`}
-                    aria-hidden="true"
-                  />
-                  {item.name}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+                  >
+                    <item.icon
+                      className={`flex-shrink-0 mr-3.5 h-5 w-5 transition-colors ${isActive ? "text-white" : "text-slate-400 group-hover:text-[#1e3a8a]"
+                        }`}
+                      aria-hidden="true"
+                    />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        ))}
       </div>
       <div className="p-4 border-t border-slate-100">
         <button
