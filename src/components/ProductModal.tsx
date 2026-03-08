@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle, Plus } from "lucide-react";
+import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle, Plus, HelpCircle, Copy, Check } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
@@ -34,6 +34,14 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         janCode: "",
         isComposite: false,
         components: [] as { productId: string; quantity: number }[],
+        productContent: "",
+        ingredients: "",
+        amount: "",
+        storageMethod: "",
+        shelfLife: "",
+        shippingMethod: "",
+        precautions: "",
+        dimensions: { width: 0, height: 0, depth: 0 },
     };
 
     const [formData, setFormData] = useState(defaultFormData);
@@ -41,6 +49,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [isGeneratingStory, setIsGeneratingStory] = useState(false);
+    const [isCopying, setIsCopying] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Set default values when data loads or modal opens
@@ -66,6 +75,14 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     janCode: initialData.janCode || "",
                     isComposite: initialData.isComposite || false,
                     components: initialData.components || [],
+                    productContent: initialData.productContent || "",
+                    ingredients: initialData.ingredients || "",
+                    amount: initialData.amount || "",
+                    storageMethod: initialData.storageMethod || "",
+                    shelfLife: initialData.shelfLife || "",
+                    shippingMethod: initialData.shippingMethod || "",
+                    precautions: initialData.precautions || "",
+                    dimensions: initialData.dimensions || { width: 0, height: 0, depth: 0 },
                 });
 
                 setImagePreview(initialData.imageUrl || null);
@@ -83,7 +100,33 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         }
     }, [isOpen, initialData, brands, suppliers]);
 
+
     if (!isOpen) return null;
+
+    const handleCopyDetails = () => {
+        const dimensionsStr = formData.dimensions.height || formData.dimensions.width || formData.dimensions.depth
+            ? `${formData.dimensions.height || 0}mm x ${formData.dimensions.width || 0}mm x ${formData.dimensions.depth || 0}mm`
+            : "未設定";
+
+        const text = `
+【商品詳細情報】
+商品名: ${formData.name} ${formData.variantName}
+商品内容: ${formData.productContent || "未設定"}
+原材料: ${formData.ingredients || "未設定"}
+内容量: ${formData.amount || "未設定"}
+保存方法: ${formData.storageMethod || "未設定"}
+賞味期限: ${formData.shelfLife || "未設定"}
+配送方法: ${formData.shippingMethod || "未設定"}
+サイズ: ${dimensionsStr}
+注意点: ${formData.precautions || "なし"}
+JANコード: ${formData.janCode || "なし"}
+`.trim();
+
+        navigator.clipboard.writeText(text);
+        setIsCopying(true);
+        setTimeout(() => setIsCopying(false), 2000);
+        showNotification("商品詳細をクリップボードにコピーしました", "success");
+    };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -492,50 +535,53 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                             </div>
 
                             {formData.isComposite && (
-                                <div className="space-y-3 bg-orange-50/30 p-4 rounded-xl border border-orange-100">
-                                    <p className="text-xs text-orange-700 mb-2">この商品が売れた際、以下の構成商品の在庫が自動的に減算されます。</p>
-                                    {formData.components.map((comp, index) => (
-                                        <div key={index} className="flex items-center gap-2">
-                                            <select
-                                                value={comp.productId}
-                                                onChange={(e) => {
-                                                    const newComps = [...formData.components];
-                                                    newComps[index].productId = e.target.value;
-                                                    setFormData({ ...formData, components: newComps });
-                                                }}
-                                                className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
-                                            >
-                                                <option value="">商品を選択</option>
-                                                {products.filter(p => p.id !== initialData?.id && !p.isComposite).map(p => (
-                                                    <option key={p.id} value={p.id}>{p.name} {p.variantName}</option>
-                                                ))}
-                                            </select>
-                                            <div className="flex items-center gap-1">
-                                                <input
-                                                    type="number"
+                                <div className="space-y-3 bg-orange-50/30 p-4 rounded-xl border border-orange-100 mb-6">
+                                    <p className="text-xs text-orange-700 mb-2 font-medium">この商品が売れた際、以下の構成商品の在庫が自動的に減算されます。</p>
+                                    <div className="space-y-2">
+                                        {formData.components.map((comp, index) => (
+                                            <div key={index} className="flex items-center gap-2">
+                                                <select
                                                     required
-                                                    min="1"
-                                                    value={comp.quantity}
+                                                    value={comp.productId}
                                                     onChange={(e) => {
                                                         const newComps = [...formData.components];
-                                                        newComps[index].quantity = Math.max(1, Number(e.target.value));
+                                                        newComps[index].productId = e.target.value;
                                                         setFormData({ ...formData, components: newComps });
                                                     }}
-                                                    className="w-20 px-3 py-2 text-sm border border-slate-300 rounded-lg text-right"
-                                                />
-                                                <span className="text-xs text-slate-500">個</span>
+                                                    className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-orange-200"
+                                                >
+                                                    <option value="">商品を選択</option>
+                                                    {products.filter(p => p.id !== initialData?.id && !p.isComposite).map(p => (
+                                                        <option key={p.id} value={p.id}>{p.name} {p.variantName}</option>
+                                                    ))}
+                                                </select>
+                                                <div className="flex items-center gap-1">
+                                                    <input
+                                                        type="number"
+                                                        required
+                                                        min="1"
+                                                        value={comp.quantity}
+                                                        onChange={(e) => {
+                                                            const newComps = [...formData.components];
+                                                            newComps[index].quantity = Math.max(1, Number(e.target.value));
+                                                            setFormData({ ...formData, components: newComps });
+                                                        }}
+                                                        className="w-16 px-2 py-2 text-sm border border-slate-300 rounded-lg text-right"
+                                                    />
+                                                    <span className="text-xs text-slate-500">個</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setFormData({ ...formData, components: formData.components.filter((_, i) => i !== index) });
+                                                    }}
+                                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setFormData({ ...formData, components: formData.components.filter((_, i) => i !== index) });
-                                                }}
-                                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                     <button
                                         type="button"
                                         onClick={() => setFormData({ ...formData, components: [...formData.components, { productId: "", quantity: 1 }] })}
@@ -546,26 +592,153 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                                 </div>
                             )}
                         </div>
+
+                        {/* Detail / EC Information */}
+                        <div className="space-y-4 border-t border-slate-100 pt-6">
+                            <h3 className="text-md font-bold text-slate-800 flex items-center gap-2">
+                                <HelpCircle className="w-4 h-4 text-[#1e3a8a]" />
+                                詳細情報 / EC連携（Shopify・Amazon等）
+                            </h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-sm font-semibold text-slate-700 block">商品内容（説明文）</label>
+                                    <textarea
+                                        rows={3}
+                                        value={formData.productContent}
+                                        onChange={(e) => setFormData({ ...formData, productContent: e.target.value })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-sm"
+                                        placeholder="商品の詳しい説明文をご記入ください..."
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 block">原材料</label>
+                                    <input
+                                        type="text"
+                                        value={formData.ingredients}
+                                        onChange={(e) => setFormData({ ...formData, ingredients: e.target.value })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-sm"
+                                        placeholder="海苔、塩、醤油など"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 block">内容量</label>
+                                    <input
+                                        type="text"
+                                        value={formData.amount}
+                                        onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-sm"
+                                        placeholder="8切48枚、30kgなど"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 block">保存方法</label>
+                                    <input
+                                        type="text"
+                                        value={formData.storageMethod}
+                                        onChange={(e) => setFormData({ ...formData, storageMethod: e.target.value })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-sm"
+                                        placeholder="常温保存、冷暗所など"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 block">賞味期限</label>
+                                    <input
+                                        type="text"
+                                        value={formData.shelfLife}
+                                        onChange={(e) => setFormData({ ...formData, shelfLife: e.target.value })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-sm"
+                                        placeholder="製造より1年、発送日より3ヶ月など"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 block">配送方法</label>
+                                    <select
+                                        value={formData.shippingMethod}
+                                        onChange={(e) => setFormData({ ...formData, shippingMethod: e.target.value })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-sm"
+                                    >
+                                        <option value="">配送方法を選択</option>
+                                        <option value="Standard">通常便</option>
+                                        <option value="Chilled">冷蔵便</option>
+                                        <option value="Frozen">冷凍便</option>
+                                        <option value="Post">ポスト投函（クリックポスト等）</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 block">注意点</label>
+                                    <input
+                                        type="text"
+                                        value={formData.precautions}
+                                        onChange={(e) => setFormData({ ...formData, precautions: e.target.value })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-sm"
+                                        placeholder="アレルギー、割れ注意など"
+                                    />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-sm font-semibold text-slate-700 block">サイズ情報 (mm)</label>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-slate-400">縦</span>
+                                            <input
+                                                type="number"
+                                                value={formData.dimensions.height || ""}
+                                                onChange={(e) => setFormData({ ...formData, dimensions: { ...formData.dimensions, height: Number(e.target.value) } })}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] bg-slate-50 text-sm"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-slate-400">横</span>
+                                            <input
+                                                type="number"
+                                                value={formData.dimensions.width || ""}
+                                                onChange={(e) => setFormData({ ...formData, dimensions: { ...formData.dimensions, width: Number(e.target.value) } })}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] bg-slate-50 text-sm"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-slate-400">奥行</span>
+                                            <input
+                                                type="number"
+                                                value={formData.dimensions.depth || ""}
+                                                onChange={(e) => setFormData({ ...formData, dimensions: { ...formData.dimensions, depth: Number(e.target.value) } })}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] bg-slate-50 text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </form>
                 </div>
 
-                <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-100 bg-slate-50/50">
+                <div className="flex items-center justify-between p-6 border-t border-slate-100 bg-slate-50/50">
                     <button
                         type="button"
-                        onClick={onClose}
-                        className="px-5 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors"
+                        onClick={handleCopyDetails}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#1e3a8a] bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                     >
-                        キャンセル
+                        {isCopying ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                        商品詳細をコピー (EC用)
                     </button>
-                    <button
-                        type="submit"
-                        form="product-form"
-                        disabled={isUploading}
-                        className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-[#1e3a8a] rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/50 transition-colors shadow-sm"
-                    >
-                        <Save className="w-4 h-4" />
-                        {isUploading ? "保存中..." : "保存する"}
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-5 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors"
+                        >
+                            キャンセル
+                        </button>
+                        <button
+                            type="submit"
+                            form="product-form"
+                            disabled={isUploading}
+                            className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-[#1e3a8a] rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/50 transition-colors shadow-sm"
+                        >
+                            <Save className="w-4 h-4" />
+                            {isUploading ? "保存中..." : "保存する"}
+                        </button>
+                    </div>
                 </div>
             </div >
         </div >

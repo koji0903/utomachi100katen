@@ -251,6 +251,15 @@ export interface Product {
     storePrices?: { storeId: string; price: number }[]; // Store-specific prices
     stock: number;
     story?: string;
+    // EC / Product Detail fields
+    productContent?: string; // 商品内容
+    ingredients?: string; // 原材料
+    amount?: string; // 内容量
+    storageMethod?: string; // 保存方法
+    shelfLife?: string; // 賞味期限
+    shippingMethod?: string; // 配送方法
+    precautions?: string; // 注意点
+    dimensions?: { width: number; height: number; depth: number }; // サイズ
     // Branding Hub fields
     producerStory?: string; // 生産者の思い
     regionBackground?: string; // 地域背景

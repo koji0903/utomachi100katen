@@ -43,8 +43,6 @@ export default function DashboardPage() {
         };
     }, [sales, dailyReports, purchases]);
 
-    if (!isLoaded) return <div className="p-8">読み込み中...</div>;
-
     // Stats
     const totalProducts = products.length;
     const totalBrands = brands.length;
@@ -68,6 +66,8 @@ export default function DashboardPage() {
             })
             .slice(0, 5);
     }, [products, sales]);
+
+    if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
     const quickActions = [
         {
