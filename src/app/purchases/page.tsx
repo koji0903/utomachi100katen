@@ -1,23 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Edit2, Trash2, Search, ShoppingBag, CheckCircle, Clock } from "lucide-react";
 import { useStore, Purchase } from "@/lib/store";
 import { PurchaseModal } from "@/components/PurchaseModal";
 
-export default function PurchasesPage() {
+function PurchasesPageContent() {
     const { isLoaded, purchases, products, suppliers, updatePurchase, deletePurchase } = useStore();
+    const searchParams = useSearchParams();
     const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
 
+    const filterDate = searchParams.get("date");
+
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
     const filteredPurchases = purchases.filter((purchase) => {
+        // Search filter
         const product = products.find(p => p.id === purchase.productId);
         const supplier = suppliers.find(s => s.id === purchase.supplierId);
         const searchTarget = `${product?.name} ${supplier?.name}`.toLowerCase();
-        return searchTarget.includes(searchQuery.toLowerCase());
+        const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
+
+        // Date filter
+        const matchesDate = !filterDate || purchase.orderDate === filterDate || purchase.arrivalDate === filterDate;
+
+        return matchesSearch && matchesDate;
     }).sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 
     const handleEdit = (purchase: Purchase) => {
@@ -81,7 +91,9 @@ export default function PurchasesPage() {
                         <ShoppingBag className="w-6 h-6" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">仕入れ管理</h1>
+                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                            {filterDate ? `${filterDate.replace(/-/g, "/")} の仕入れ` : "仕入れ管理"}
+                        </h1>
                         <p className="text-slate-500 mt-1 text-sm">商品の発注から入荷、直接入荷の管理を行います。</p>
                     </div>
                 </div>
@@ -203,5 +215,13 @@ export default function PurchasesPage() {
                 initialData={editingPurchase}
             />
         </div>
+    );
+}
+
+export default function PurchasesPage() {
+    return (
+        <Suspense fallback={<div className="p-8">読み込み中...</div>}>
+            <PurchasesPageContent />
+        </Suspense>
     );
 }

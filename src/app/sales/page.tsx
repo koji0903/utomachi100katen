@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
     Calendar,
     Save,
@@ -268,7 +269,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 }
 
 // ─── Daily Log Tab ────────────────────────────────────────────────────────────
-function DailyLogTab({ onEdit }: { onEdit: (sale: Sale) => void }) {
+function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, filterDate?: string }) {
     const { sales, products, retailStores, dailyReports } = useStore();
 
     // Filter controls
@@ -276,6 +277,13 @@ function DailyLogTab({ onEdit }: { onEdit: (sale: Sale) => void }) {
     const [filterStoreId, setFilterStoreId] = useState<string>("");
     const [filterMonth, setFilterMonth] = useState<string>(new Date().toISOString().slice(0, 7));
     const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
+
+    useEffect(() => {
+        if (filterDate) {
+            setLogType('daily');
+            setFilterMonth(filterDate.slice(0, 7));
+        }
+    }, [filterDate]);
 
     // Build product name map
     const productMap = useMemo(() => {
@@ -296,6 +304,9 @@ function DailyLogTab({ onEdit }: { onEdit: (sale: Sale) => void }) {
             .filter(s => s.type === logType || (!s.type && logType === 'daily'))
             .filter(s => !filterStoreId || s.storeId === filterStoreId)
             .filter(s => {
+                if (filterDate) {
+                    return s.period === filterDate;
+                }
                 if (logType === 'daily') {
                     return s.period.startsWith(filterMonth);
                 } else {
@@ -303,7 +314,7 @@ function DailyLogTab({ onEdit }: { onEdit: (sale: Sale) => void }) {
                 }
             })
             .sort((a, b) => b.period.localeCompare(a.period));
-    }, [sales, logType, filterStoreId, filterMonth, filterYear]);
+    }, [sales, logType, filterStoreId, filterMonth, filterYear, filterDate]);
 
     // Build weather lookup: key = "YYYY-MM-DD|storeId"
     const weatherMap = useMemo(() => {
@@ -525,10 +536,20 @@ function DailyLogTab({ onEdit }: { onEdit: (sale: Sale) => void }) {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-export default function SalesPage() {
-    const [activeTab, setActiveTab] = useState<'input' | 'log' | 'analysis'>('input');
+function SalesPageContent() {
+    const searchParams = useSearchParams();
+    const queryTab = searchParams.get('tab') as 'input' | 'log' | 'analysis' | null;
+    const filterDate = searchParams.get('date');
+
+    const [activeTab, setActiveTab] = useState<'input' | 'log' | 'analysis'>(queryTab || 'input');
     const [editingSale, setEditingSale] = useState<Sale | null>(null);
     const { sales } = useStore();
+
+    useEffect(() => {
+        if (queryTab) {
+            setActiveTab(queryTab);
+        }
+    }, [queryTab]);
 
     // Show success toast from input tab — handled inside SalesInputTab
     const tabs = [
@@ -542,32 +563,36 @@ export default function SalesPage() {
             {/* Header */}
             <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">売上管理</h1>
+                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                        {filterDate ? `${filterDate.replace(/-/g, "/")} の売上実績` : "売上管理"}
+                    </h1>
                     <p className="text-slate-500 mt-1 text-sm">売上の入力と日別実績・天気の確認</p>
                 </div>
             </div>
 
             {/* Tab bar */}
-            <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl mb-6 w-fit">
-                {tabs.map(tab => {
-                    const Icon = tab.icon;
-                    return (
-                        <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
-                            <Icon className="w-4 h-4" />
-                            {tab.label}
-                            {tab.id === 'log' && sales.filter(s => s.type === 'daily').length > 0 && (
-                                <span className="ml-0.5 text-[10px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND }}>
-                                    {sales.filter(s => s.type === 'daily').length}
-                                </span>
-                            )}
-                        </button>
-                    );
-                })}
-            </div>
+            {!filterDate && (
+                <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl mb-6 w-fit">
+                    {tabs.map(tab => {
+                        const Icon = tab.icon;
+                        return (
+                            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
+                                <Icon className="w-4 h-4" />
+                                {tab.label}
+                                {tab.id === 'log' && sales.filter(s => s.type === 'daily').length > 0 && (
+                                    <span className="ml-0.5 text-[10px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND }}>
+                                        {sales.filter(s => s.type === 'daily').length}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Tab content */}
-            {activeTab === 'input' && (
+            {activeTab === 'input' && !filterDate && (
                 <SalesInputTab
                     editingSale={editingSale}
                     onClearEdit={() => setEditingSale(null)}
@@ -575,13 +600,22 @@ export default function SalesPage() {
             )}
             {activeTab === 'log' && (
                 <DailyLogTab
+                    filterDate={filterDate || undefined}
                     onEdit={(sale) => {
                         setEditingSale(sale);
                         setActiveTab('input');
                     }}
                 />
             )}
-            {activeTab === 'analysis' && <SalesAnalysisTab />}
+            {activeTab === 'analysis' && !filterDate && <SalesAnalysisTab />}
         </div>
+    );
+}
+
+export default function SalesPage() {
+    return (
+        <Suspense fallback={<div className="p-8">読み込み中...</div>}>
+            <SalesPageContent />
+        </Suspense>
     );
 }

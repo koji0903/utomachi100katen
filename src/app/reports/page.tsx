@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
     X, FileText, CheckCircle2, Pencil, ChevronDown, Loader2,
     Thermometer, Wind, Plus, ClipboardList, Trash2, AlertTriangle,
@@ -698,12 +699,15 @@ function ReportCard({
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-export default function ReportsPage() {
+function ReportsPageContent() {
     const { dailyReports, deleteDailyReport, isLoaded } = useStore();
+    const searchParams = useSearchParams();
     const [showForm, setShowForm] = useState(false);
     const [editTarget, setEditTarget] = useState<DailyReport | null>(null);
     const [toast, setToast] = useState<"saved" | "updated" | null>(null);
     const [filterType, setFilterType] = useState<"all" | "office" | "store">("all");
+
+    const filterDate = searchParams.get("date");
 
     const showToast = (type: "saved" | "updated") => {
         setToast(type);
@@ -714,7 +718,11 @@ export default function ReportsPage() {
     const handleEditSaved = () => { setEditTarget(null); showToast("updated"); };
 
     const sorted = [...dailyReports].sort((a, b) => b.date.localeCompare(a.date));
-    const filtered = filterType === "all" ? sorted : sorted.filter(r => r.type === filterType);
+    let filtered = filterType === "all" ? sorted : sorted.filter(r => r.type === filterType);
+
+    if (filterDate) {
+        filtered = filtered.filter(r => r.date === filterDate);
+    }
 
     return (
         <div className="p-4 sm:p-6 max-w-3xl mx-auto">
@@ -725,17 +733,21 @@ export default function ReportsPage() {
                         <ClipboardList className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-slate-900">業務日報</h1>
+                        <h1 className="text-xl font-bold text-slate-900">
+                            {filterDate ? `${filterDate.replace(/-/g, "/")} の日報` : "業務日報"}
+                        </h1>
                         <p className="text-xs text-slate-400 mt-0.5">現場の記録を積み上げる</p>
                     </div>
                 </div>
-                <button
-                    onClick={() => setShowForm(true)}
-                    className="flex items-center gap-2 px-4 py-3 text-white font-bold rounded-2xl shadow-sm active:scale-95 transition-transform text-sm"
-                    style={{ backgroundColor: BRAND }}
-                >
-                    <Plus className="w-4 h-4" /> 日報を書く
-                </button>
+                {!filterDate && (
+                    <button
+                        onClick={() => setShowForm(true)}
+                        className="flex items-center gap-2 px-4 py-3 text-white font-bold rounded-2xl shadow-sm active:scale-95 transition-transform text-sm"
+                        style={{ backgroundColor: BRAND }}
+                    >
+                        <Plus className="w-4 h-4" /> 日報を書く
+                    </button>
+                )}
             </div>
 
             {/* Toast */}
@@ -817,5 +829,13 @@ export default function ReportsPage() {
                 />
             )}
         </div>
+    );
+}
+
+export default function ReportsPage() {
+    return (
+        <Suspense fallback={<div className="p-8">読み込み中...</div>}>
+            <ReportsPageContent />
+        </Suspense>
     );
 }

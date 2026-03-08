@@ -18,9 +18,10 @@ import {
     BookOpen
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { CalendarView } from "@/components/CalendarView";
 
 export default function DashboardPage() {
-    const { isLoaded, products, brands, retailStores, dailyReports } = useStore();
+    const { isLoaded, products, brands, retailStores } = useStore();
 
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
@@ -114,8 +115,11 @@ export default function DashboardPage() {
             </section>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Inventory Alert Column */}
+                {/* Main Column */}
                 <div className="lg:col-span-2 space-y-8">
+                    {/* Calendar Section */}
+                    <CalendarView />
+
                     <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
                             <h2 className="font-bold text-slate-900 flex items-center gap-2">
