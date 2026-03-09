@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
+import { getHolidayName } from "@/lib/holidays";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -399,7 +400,10 @@ function ReportForm({
                         </div>
                         <div>
                             <h2 className="font-bold text-slate-900 text-base">{isEdit ? "日報を編集" : "日報入力"}</h2>
-                            <p className="text-xs text-slate-400">{date}</p>
+                            <p className="text-xs text-slate-400">
+                                {date.replace(/-/g, "/")}
+                                {getHolidayName(date) && <span className="ml-1 text-red-500 font-bold">({getHolidayName(date)})</span>}
+                            </p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">

@@ -14,6 +14,7 @@ import {
     Laptop
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { getHolidayName } from "@/lib/holidays";
 
 export const CalendarView: React.FC = () => {
     const { sales, dailyReports, purchases } = useStore();
@@ -63,6 +64,8 @@ export const CalendarView: React.FC = () => {
         // Purchases might have orderDate or arrivalDate. Assuming orderDate for record.
         const dayPurchases = purchases.filter(p => p.orderDate === dateStr);
 
+        const holidayName = getHolidayName(dateStr);
+
         return {
             totalSales,
             reports: {
@@ -71,7 +74,8 @@ export const CalendarView: React.FC = () => {
                 office: hasOfficeReport,
                 any: reports.length > 0
             },
-            purchaseCount: dayPurchases.length
+            purchaseCount: dayPurchases.length,
+            holidayName
         };
     };
 
@@ -93,9 +97,23 @@ export const CalendarView: React.FC = () => {
                     }`}
             >
                 <div className="flex justify-between items-start mb-1">
-                    <span className={`text-[10px] sm:text-xs font-black tracking-tight ${isToday(d) ? "text-white bg-[#1e3a8a] w-5 h-5 sm:w-7 sm:h-7 flex items-center justify-center rounded-xl shadow-lg shadow-blue-900/20 ring-2 ring-blue-100" : "text-slate-400 group-hover/day:text-slate-900"}`}>
-                        {d}
-                    </span>
+                    <div className="flex flex-col items-start gap-1">
+                        <span className={`text-[10px] sm:text-xs font-black tracking-tight ${isToday(d)
+                            ? "text-white bg-[#1e3a8a] w-5 h-5 sm:w-7 sm:h-7 flex items-center justify-center rounded-xl shadow-lg shadow-blue-900/20 ring-2 ring-blue-100"
+                            : data.holidayName || new Date(year, month, d).getDay() === 0
+                                ? "text-red-500"
+                                : new Date(year, month, d).getDay() === 6
+                                    ? "text-blue-500"
+                                    : "text-slate-400 group-hover/day:text-slate-900"
+                            }`}>
+                            {d}
+                        </span>
+                        {data.holidayName && (
+                            <span className="text-[8px] sm:text-[9px] font-bold text-red-500 truncate max-w-full leading-none">
+                                {data.holidayName}
+                            </span>
+                        )}
+                    </div>
                     {isToday(d) && <span className="text-[7px] font-black text-[#1e3a8a] hidden sm:block uppercase tracking-[0.2em] opacity-40">Today</span>}
                 </div>
 

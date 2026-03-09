@@ -16,6 +16,7 @@ import {
     ArrowUpDown, ChevronUp, ChevronDown
 } from "lucide-react";
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
+import { getHolidayName } from "@/lib/holidays";
 import { SalesAnalysisTab } from "@/components/SalesAnalysisTab";
 
 const BRAND = "#b27f79";
@@ -250,7 +251,12 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">{inputMode === 'daily' ? '対象日' : '対象月'}</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            {inputMode === 'daily' ? '対象日' : '対象月'}
+                            {inputMode === 'daily' && getHolidayName(targetDate) && (
+                                <span className="ml-1 text-red-500 font-black">({getHolidayName(targetDate)})</span>
+                            )}
+                        </label>
                         <div className="relative">
                             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                             <input type={inputMode === 'daily' ? 'date' : 'month'}
@@ -657,11 +663,31 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                     const itemQtyMap: Record<string, number> = {};
                                     sale.items.forEach(it => { itemQtyMap[it.productId] = it.quantity; });
 
+                                    const dateObj = new Date(sale.period);
+                                    const dayOfWeek = dateObj.getDay(); // 0: Sun, 6: Sat
+                                    const holidayName = getHolidayName(sale.period);
+                                    const isWeekendOrHoliday = dayOfWeek === 0 || dayOfWeek === 6 || !!holidayName;
+
+                                    let bgClass = idx % 2 === 0 ? '' : 'bg-slate-50/30';
+                                    if (dayOfWeek === 0 || !!holidayName) bgClass = 'bg-red-50/40';
+                                    else if (dayOfWeek === 6) bgClass = 'bg-blue-50/40';
+
+                                    const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
+                                    const dayLabel = dayLabels[dayOfWeek];
+
                                     return (
-                                        <tr key={sale.id} className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-50/30'}`}>
+                                        <tr key={sale.id} className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${bgClass}`}>
                                             {/* Date */}
                                             <td className="px-4 py-3 font-bold text-slate-800 whitespace-nowrap">
-                                                {sale.period.replace(/-/g, "/")}
+                                                <div className="flex items-center gap-1.5">
+                                                    <span>{sale.period.replace(/-/g, "/")}</span>
+                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${dayOfWeek === 0 || !!holidayName ? "text-red-600 bg-red-100" : dayOfWeek === 6 ? "text-blue-600 bg-blue-100" : "text-slate-400 bg-slate-100"}`}>
+                                                        {dayLabel}
+                                                    </span>
+                                                </div>
+                                                {logType === 'daily' && holidayName && (
+                                                    <div className="text-[10px] text-red-500 font-bold leading-none mt-1">{holidayName}</div>
+                                                )}
                                             </td>
                                             {/* Store */}
                                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs font-medium">
