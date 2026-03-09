@@ -533,6 +533,28 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
         return [...ids].sort((a, b) => (productMap[a] ?? a).localeCompare(productMap[b] ?? b));
     }, [filteredSales, productMap]);
 
+    // Summary calculation
+    const summary = useMemo(() => {
+        const productStats: Record<string, number> = {};
+        let totalAmt = 0;
+        let totalQty = 0;
+
+        filteredSales.forEach(sale => {
+            totalAmt += sale.totalAmount;
+            totalQty += sale.totalQuantity;
+            sale.items.forEach(item => {
+                productStats[item.productId] = (productStats[item.productId] || 0) + item.quantity;
+            });
+        });
+
+        // Convert to array and sort by quantity desc
+        const sortedProductStats = Object.entries(productStats)
+            .map(([id, qty]) => ({ id, name: productMap[id] || id, qty }))
+            .sort((a, b) => b.qty - a.qty);
+
+        return { totalAmt, totalQty, sortedProductStats };
+    }, [filteredSales, productMap]);
+
     const requestSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -611,6 +633,34 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
 
                 <div className="ml-auto flex items-center text-xs text-slate-400 font-medium self-center">
                     {filteredSales.length}件 / {usedProductIds.length}商品
+                </div>
+            </div>
+
+            {/* Summary Dashboard */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">期間売上総額</div>
+                    <div className="text-2xl font-black" style={{ color: BRAND }}>
+                        ¥{summary.totalAmt.toLocaleString()}
+                    </div>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">期間販売合計</div>
+                    <div className="text-2xl font-black text-slate-800">
+                        {summary.totalQty.toLocaleString()}<small className="ml-1 text-xs text-slate-400">個</small>
+                    </div>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">商品別売上（上位）</div>
+                    <div className="flex flex-wrap gap-2">
+                        {summary.sortedProductStats.slice(0, 5).map(stat => (
+                            <div key={stat.id} className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-2 py-1 rounded-lg">
+                                <span className="text-[10px] font-bold text-slate-700 truncate max-w-[80px]">{stat.name}</span>
+                                <span className="text-[11px] font-black text-blue-600">{stat.qty}</span>
+                            </div>
+                        ))}
+                        {summary.sortedProductStats.length === 0 && <span className="text-[10px] text-slate-300">データなし</span>}
+                    </div>
                 </div>
             </div>
 
