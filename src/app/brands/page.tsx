@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Edit2, Trash2, Sparkles, Image as ImageIcon, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Edit2, Trash2, Sparkles, Image as ImageIcon, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useStore, Brand } from "@/lib/store";
 import { BrandModal } from "@/components/BrandModal";
@@ -8,18 +8,21 @@ import { BrandBrandingHub } from "@/components/BrandBrandingHub";
 import { showNotification } from "@/lib/notifications";
 
 export default function BrandsPage() {
-    const { isLoaded, brands, products, deleteBrand } = useStore();
+    const { isLoaded, brands, products, deleteBrand, restoreBrand, permanentlyDeleteBrand } = useStore();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
     const [brandingBrand, setBrandingBrand] = useState<Brand | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+    const [showTrash, setShowTrash] = useState(false);
 
     const brandStats = useMemo(() => {
-        return brands.map(brand => {
-            const productCount = products.filter(p => p.brandId === brand.id).length;
-            return { ...brand, productCount };
-        });
-    }, [brands, products]);
+        return brands
+            .filter(b => !!b.isTrashed === showTrash)
+            .map(brand => {
+                const productCount = products.filter(p => p.brandId === brand.id).length;
+                return { ...brand, productCount };
+            });
+    }, [brands, products, showTrash]);
 
     const sortedBrands = useMemo(() => {
         if (!sortConfig) return brandStats;
@@ -76,9 +79,21 @@ export default function BrandsPage() {
     };
 
     const handleDelete = (id: string) => {
-        if (window.confirm("このブランドを削除してもよろしいですか？")) {
+        if (window.confirm("このブランドをゴミ箱に移動してもよろしいですか？")) {
             deleteBrand(id);
-            showNotification("ブランドを削除しました。");
+            showNotification("ゴミ箱に移動しました。");
+        }
+    };
+
+    const handleRestore = (id: string) => {
+        restoreBrand(id);
+        showNotification("ブランドを復元しました。");
+    };
+
+    const handlePermanentDelete = (id: string) => {
+        if (window.confirm("このブランドを完全に削除しますか？この操作は取り消せません。")) {
+            permanentlyDeleteBrand(id);
+            showNotification("完全に削除しました。");
         }
     };
 
@@ -89,13 +104,22 @@ export default function BrandsPage() {
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">ブランド管理</h1>
                     <p className="text-slate-500 mt-1 text-sm">商品のブランド（旧カテゴリー）を管理します。</p>
                 </div>
-                <button
-                    onClick={handleCreate}
-                    className="flex items-center gap-2 bg-[#1e3a8a] text-white px-4 py-2.5 rounded-lg hover:bg-blue-800 transition-colors shadow-sm font-medium"
-                >
-                    <Plus className="w-5 h-5" />
-                    ブランド登録
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowTrash(!showTrash)}
+                        className={`flex items-center gap-2 px-4 py-2.5 font-bold rounded-xl shadow-sm active:scale-95 transition-all text-sm border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        {showTrash ? "戻る" : "ゴミ箱"}
+                    </button>
+                    <button
+                        onClick={handleCreate}
+                        className="flex items-center gap-2 bg-[#1e3a8a] text-white px-4 py-2.5 rounded-lg hover:bg-blue-800 transition-colors shadow-sm font-medium"
+                    >
+                        <Plus className="w-5 h-5" />
+                        ブランド登録
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -147,27 +171,48 @@ export default function BrandsPage() {
                                     </td>
                                     <td className="p-5 text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleEdit(brand)}
-                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                title="編集"
-                                            >
-                                                <Edit2 className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => setBrandingBrand(brand)}
-                                                className="p-2 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
-                                                title="ブランド・ブランディング"
-                                            >
-                                                <Sparkles className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(brand.id)}
-                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                title="削除"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            {brand.isTrashed ? (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleRestore(brand.id)}
+                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                        title="復元"
+                                                    >
+                                                        <RotateCcw className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handlePermanentDelete(brand.id)}
+                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="完全削除"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleEdit(brand)}
+                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        title="編集"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setBrandingBrand(brand)}
+                                                        className="p-2 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                                                        title="ブランド・ブランディング"
+                                                    >
+                                                        <Sparkles className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(brand.id)}
+                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="削除"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

@@ -34,8 +34,9 @@ export default function AnalyticsPage() {
 
     // Filter sales by store
     const storeSales = useMemo(() => {
-        if (selectedStoreId === "all") return sales;
-        return sales.filter(s => s.storeId === selectedStoreId);
+        let baseSales = sales.filter(s => !s.isTrashed);
+        if (selectedStoreId === "all") return baseSales;
+        return baseSales.filter(s => s.storeId === selectedStoreId);
     }, [sales, selectedStoreId]);
 
     // Filter sales by period

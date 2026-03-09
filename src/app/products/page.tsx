@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
 import { useStore, Product, Brand, Supplier } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
@@ -12,7 +12,7 @@ import { useRef } from "react";
 import Link from "next/link";
 
 export default function ProductsPage() {
-  const { isLoaded, products, brands, suppliers, sales, addProduct, updateProduct, deleteProduct } = useStore();
+  const { isLoaded, products, brands, suppliers, sales, addProduct, updateProduct, deleteProduct, restoreProduct, permanentlyDeleteProduct } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrandId, setSelectedBrandId] = useState<string | "all">("all");
@@ -20,6 +20,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [brandingProduct, setBrandingProduct] = useState<Product | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [showTrash, setShowTrash] = useState(false);
 
   // Note: The instruction provided a `filteredProducts` definition that uses `selectedBrands`
   // and a different filtering logic. To maintain syntactic correctness and align with the
@@ -28,6 +29,7 @@ export default function ProductsPage() {
   // and moved as requested.
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
+      const matchTrash = !!product.isTrashed === showTrash;
       // Get the supplier and brand names for searching
       const supplier = suppliers.find(s => s.id === product.supplierId);
       const brand = brands.find(b => b.id === product.brandId);
@@ -36,9 +38,9 @@ export default function ProductsPage() {
       const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
       const matchesBrand = selectedBrandId === "all" || product.brandId === selectedBrandId;
 
-      return matchesSearch && matchesBrand;
+      return matchesSearch && matchesBrand && matchTrash;
     });
-  }, [products, searchQuery, selectedBrandId, brands, suppliers]);
+  }, [products, searchQuery, selectedBrandId, brands, suppliers, showTrash]);
 
   const sortedProducts = useMemo(() => {
     if (!sortConfig) return filteredProducts;
@@ -193,9 +195,21 @@ export default function ProductsPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("商品の削除をしてもよろしいですか？関連するバリエーションも削除されます。")) {
+    if (confirm("商品をゴミ箱に移動してもよろしいですか？関連するバリエーションも移動されます。")) {
       deleteProduct(id);
-      showNotification("商品を削除しました。");
+      showNotification("ゴミ箱に移動しました。");
+    }
+  };
+
+  const handleRestore = (id: string) => {
+    restoreProduct(id);
+    showNotification("商品を復元しました。");
+  };
+
+  const handlePermanentDelete = (id: string) => {
+    if (confirm("商品を完全に削除しますか？この操作は取り消せません。関連するバリエーションも完全に削除されます。")) {
+      permanentlyDeleteProduct(id);
+      showNotification("完全に削除しました。");
     }
   };
 
@@ -207,6 +221,13 @@ export default function ProductsPage() {
           <p className="text-slate-500 mt-1 text-sm">ウトマチ百貨店の取扱商品を管理します。</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowTrash(!showTrash)}
+            className={`flex items-center gap-2 px-4 py-2.5 font-bold rounded-xl shadow-sm active:scale-95 transition-all text-sm border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+          >
+            <Trash2 className="w-4 h-4" />
+            {showTrash ? "戻る" : "ゴミ箱"}
+          </button>
           <input
             type="file"
             ref={fileInputRef}
@@ -423,34 +444,55 @@ export default function ProductsPage() {
                     </td>
                     <td className="p-5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(product)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="編集"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setBrandingProduct(product)}
-                          className="p-2 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
-                          title="ブランディングハブ：AIでPR文章を生成"
-                        >
-                          <Sparkles className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleCreateVariant(product)}
-                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                          title="バリエーションを作成"
-                        >
-                          <Box className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(product.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="削除"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {product.isTrashed ? (
+                          <>
+                            <button
+                              onClick={() => handleRestore(product.id)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="復元"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handlePermanentDelete(product.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="完全削除"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleEdit(product)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="編集"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setBrandingProduct(product)}
+                              className="p-2 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                              title="ブランディングハブ：AIでPR文章を生成"
+                            >
+                              <Sparkles className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleCreateVariant(product)}
+                              className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                              title="バリエーションを作成"
+                            >
+                              <Box className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(product.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="削除"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -520,18 +562,31 @@ export default function ProductsPage() {
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-slate-100">
-                <button onClick={() => handleEdit(product)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                  <Edit2 className="w-3.5 h-3.5" /> 編集
-                </button>
-                <button onClick={() => setBrandingProduct(product)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors">
-                  <Sparkles className="w-3.5 h-3.5" /> PR
-                </button>
-                <button onClick={() => handleCreateVariant(product)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
-                  <Box className="w-3.5 h-3.5" /> 追加
-                </button>
-                <button onClick={() => handleDelete(product.id)} className="p-1.5 text-red-500 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                {product.isTrashed ? (
+                  <>
+                    <button onClick={() => handleRestore(product.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                      <RotateCcw className="w-3.5 h-3.5" /> 復元
+                    </button>
+                    <button onClick={() => handlePermanentDelete(product.id)} className="p-1.5 text-red-500 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" /> 完全削除
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => handleEdit(product)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                      <Edit2 className="w-3.5 h-3.5" /> 編集
+                    </button>
+                    <button onClick={() => setBrandingProduct(product)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors">
+                      <Sparkles className="w-3.5 h-3.5" /> PR
+                    </button>
+                    <button onClick={() => handleCreateVariant(product)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                      <Box className="w-3.5 h-3.5" /> 追加
+                    </button>
+                    <button onClick={() => handleDelete(product.id)} className="p-1.5 text-red-500 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           );

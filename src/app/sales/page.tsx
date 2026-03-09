@@ -12,7 +12,7 @@ import {
     BarChart3,
     CloudSun, Cloud, CloudRain, CloudSnow,
     Thermometer, Wind, Package, ChevronLeft,
-    Sparkles, Edit2, Trash2,
+    Sparkles, Edit2, Trash2, RotateCcw,
     ArrowUpDown, ChevronUp, ChevronDown
 } from "lucide-react";
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
@@ -420,7 +420,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
 // ─── Daily Log Tab ────────────────────────────────────────────────────────────
 function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, filterDate?: string }) {
-    const { sales, products, retailStores, dailyReports, dailyWeather, deleteSale } = useStore();
+    const { sales, products, retailStores, dailyReports, dailyWeather, deleteSale, restoreSale, permanentlyDeleteSale } = useStore();
 
     // Filter controls
     const [logType, setLogType] = useState<'daily' | 'monthly'>('daily');
@@ -428,6 +428,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     const [filterMonth, setFilterMonth] = useState<string>(new Date().toISOString().slice(0, 7));
     const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+    const [showTrash, setShowTrash] = useState(false);
 
     useEffect(() => {
         if (filterDate) {
@@ -452,6 +453,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     // Filter sales to selected logType + selected filters
     const filteredSales = useMemo(() => {
         return sales
+            .filter(s => !!s.isTrashed === showTrash)
             .filter(s => s.type === logType || (!s.type && logType === 'daily'))
             .filter(s => !filterStoreId || s.storeId === filterStoreId)
             .filter(s => {
@@ -464,7 +466,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                     return s.period.startsWith(filterYear);
                 }
             });
-    }, [sales, logType, filterStoreId, filterMonth, filterYear, filterDate]);
+    }, [sales, logType, filterStoreId, filterMonth, filterYear, filterDate, showTrash]);
 
     const sortedSales = useMemo(() => {
         const base = [...filteredSales].sort((a, b) => b.period.localeCompare(a.period));
@@ -596,6 +598,17 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                         </select>
                     )}
                 </div>
+
+                <div className="h-8 w-px bg-slate-200 self-center hidden sm:block" />
+
+                <button
+                    onClick={() => setShowTrash(!showTrash)}
+                    className={`flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                >
+                    <Trash2 className="w-4 h-4" />
+                    {showTrash ? "ゴミ箱を非表示" : "ゴミ箱を表示"}
+                </button>
+
                 <div className="ml-auto flex items-center text-xs text-slate-400 font-medium self-center">
                     {filteredSales.length}件 / {usedProductIds.length}商品
                 </div>
@@ -749,29 +762,68 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                 ¥{sale.totalNetProfit.toLocaleString()}
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                <button
-                                                    onClick={() => onEdit(sale)}
-                                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                    title="編集"
-                                                >
-                                                    <Edit2 className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={async () => {
-                                                        if (window.confirm("この売上データを削除してもよろしいですか？在庫数も自動的に差し戻されます。")) {
-                                                            try {
-                                                                await deleteSale(sale.id);
-                                                            } catch (error) {
-                                                                console.error("Delete error:", error);
-                                                                alert("削除に失敗しました。");
-                                                            }
-                                                        }
-                                                    }}
-                                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
-                                                    title="削除"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                {showTrash ? (
+                                                    <>
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (window.confirm("この売上データを復元しますか？")) {
+                                                                    try {
+                                                                        await restoreSale(sale.id);
+                                                                    } catch (error) {
+                                                                        console.error("Restore error:", error);
+                                                                        alert("復元に失敗しました。");
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                            title="復元"
+                                                        >
+                                                            <RotateCcw className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (window.confirm("このデータを完全に削除しますか？この操作は取り消せません。")) {
+                                                                    try {
+                                                                        await permanentlyDeleteSale(sale.id);
+                                                                    } catch (error) {
+                                                                        console.error("Delete error:", error);
+                                                                        alert("削除に失敗しました。");
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                                                            title="完全削除"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={() => onEdit(sale)}
+                                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                            title="編集"
+                                                        >
+                                                            <Edit2 className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (window.confirm("この売上データをゴミ箱に移動しますか？在庫数も自動的に差し戻されます。")) {
+                                                                    try {
+                                                                        await deleteSale(sale.id);
+                                                                    } catch (error) {
+                                                                        console.error("Delete error:", error);
+                                                                        alert("削除に失敗しました。");
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                                                            title="ゴミ箱へ移動"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
                                             </td>
                                         </tr>
                                     );

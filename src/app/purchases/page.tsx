@@ -3,19 +3,20 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, Edit2, Trash2, Search, ShoppingBag, CheckCircle, Clock, ChevronLeft, Sparkles } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, ShoppingBag, CheckCircle, Clock, ChevronLeft, Sparkles, RotateCcw } from "lucide-react";
 import { useStore, Purchase } from "@/lib/store";
 import { PurchaseModal } from "@/components/PurchaseModal";
 import { calculateDaysRemaining } from "@/lib/stockUtils";
 import { showNotification } from "@/lib/notifications";
 
 function PurchasesPageContent() {
-    const { isLoaded, purchases, products, suppliers, sales, addPurchase, updatePurchase, deletePurchase } = useStore();
+    const { isLoaded, purchases, products, suppliers, sales, addPurchase, updatePurchase, deletePurchase, restorePurchase, permanentlyDeletePurchase } = useStore();
     const searchParams = useSearchParams();
     const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [showTrash, setShowTrash] = useState(false);
 
     const handleAutoGenerate = async () => {
         if (!window.confirm("在庫不足の商品に対して、自動的に発注データを作成しますか？")) return;
@@ -68,18 +69,20 @@ function PurchasesPageContent() {
 
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
-    const filteredPurchases = purchases.filter((purchase) => {
-        // Search filter
-        const product = products.find(p => p.id === purchase.productId);
-        const supplier = suppliers.find(s => s.id === purchase.supplierId);
-        const searchTarget = `${product?.name} ${supplier?.name}`.toLowerCase();
-        const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
+    const filteredPurchases = purchases
+        .filter(p => !!p.isTrashed === showTrash)
+        .filter((purchase) => {
+            // Search filter
+            const product = products.find(p => p.id === purchase.productId);
+            const supplier = suppliers.find(s => s.id === purchase.supplierId);
+            const searchTarget = `${product?.name} ${supplier?.name}`.toLowerCase();
+            const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
 
-        // Date filter
-        const matchesDate = !filterDate || purchase.orderDate === filterDate || purchase.arrivalDate === filterDate;
+            // Date filter
+            const matchesDate = !filterDate || purchase.orderDate === filterDate || purchase.arrivalDate === filterDate;
 
-        return matchesSearch && matchesDate;
-    }).sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
+            return matchesSearch && matchesDate;
+        }).sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 
     const handleEdit = (purchase: Purchase) => {
         setEditingPurchase(purchase);
@@ -105,8 +108,21 @@ function PurchasesPageContent() {
     };
 
     const handleDelete = (id: string) => {
-        if (window.confirm("この仕入れ記録を削除してもよろしいですか？")) {
+        if (window.confirm("この仕入れ記録をゴミ箱に移動してもよろしいですか？")) {
             deletePurchase(id);
+            showNotification("ゴミ箱に移動しました。");
+        }
+    };
+
+    const handleRestore = (id: string) => {
+        restorePurchase(id);
+        showNotification("仕入れ記録を復元しました。");
+    };
+
+    const handlePermanentDelete = (id: string) => {
+        if (window.confirm("この仕入れ記録を完全に削除しますか？この操作は取り消せません。")) {
+            permanentlyDeletePurchase(id);
+            showNotification("完全に削除しました。");
         }
     };
 
@@ -156,6 +172,13 @@ function PurchasesPageContent() {
                     </div>
                 </div>
                 <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowTrash(!showTrash)}
+                        className={`flex items-center gap-2 px-4 py-2.5 font-bold rounded-xl shadow-sm active:scale-95 transition-all text-sm border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        {showTrash ? "戻る" : "ゴミ箱"}
+                    </button>
                     <button
                         onClick={handleAutoGenerate}
                         disabled={isGenerating}
@@ -241,20 +264,41 @@ function PurchasesPageContent() {
                                         </td>
                                         <td className="p-5 text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleEdit(purchase)}
-                                                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                                    title="編集"
-                                                >
-                                                    <Edit2 className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(purchase.id)}
-                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                    title="削除"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                {purchase.isTrashed ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleRestore(purchase.id)}
+                                                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                            title="復元"
+                                                        >
+                                                            <RotateCcw className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handlePermanentDelete(purchase.id)}
+                                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="完全削除"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleEdit(purchase)}
+                                                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                            title="編集"
+                                                        >
+                                                            <Edit2 className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDelete(purchase.id)}
+                                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="削除"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

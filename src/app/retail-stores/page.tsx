@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon, ArrowUpDown } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon, ArrowUpDown, RotateCcw } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { RetailStoreModal } from "@/components/RetailStoreModal";
 import { showNotification } from "@/lib/notifications";
@@ -137,17 +137,20 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
 }
 
 // ─── Store Card ────────────────────────────────────────────────────────────────
-
 function StoreCard({
     store,
     refresh,
     onEdit,
     onDelete,
+    onRestore,
+    onPermanentDelete,
 }: {
     store: RetailStore;
     refresh: number;
     onEdit: () => void;
     onDelete: () => void;
+    onRestore: () => void;
+    onPermanentDelete: () => void;
 }) {
     const gmapsUrl = store.address
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`
@@ -186,13 +189,26 @@ function StoreCard({
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors" title="編集">
-                            <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="削除">
-                            <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {store.isTrashed ? (
+                            <div className="flex items-center gap-1">
+                                <button onClick={onRestore} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="復元">
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={onPermanentDelete} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="完全削除">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors" title="編集">
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="削除">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -247,19 +263,22 @@ function StoreCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RetailStoresPage() {
-    const { isLoaded, retailStores, deleteRetailStore } = useStore();
+    const { isLoaded, retailStores, deleteRetailStore, restoreRetailStore, permanentlyDeleteRetailStore } = useStore();
     const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStore, setEditingStore] = useState<RetailStore | null>(null);
     const [refresh, setRefresh] = useState(0);
     const [sortBy, setSortBy] = useState<'name' | 'type' | 'commission'>('name');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+    const [showTrash, setShowTrash] = useState(false);
 
     const filtered = useMemo(() => {
-        return retailStores.filter(s =>
-            `${s.name} ${s.pic ?? ""} ${s.address ?? ""} ${s.tel ?? ""}`.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [retailStores, searchQuery]);
+        return retailStores
+            .filter(s => !!s.isTrashed === showTrash)
+            .filter(s =>
+                `${s.name} ${s.pic ?? ""} ${s.address ?? ""} ${s.tel ?? ""}`.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+    }, [retailStores, searchQuery, showTrash]);
 
     const sorted = useMemo(() => {
         return [...filtered].sort((a, b) => {
@@ -294,9 +313,21 @@ export default function RetailStoresPage() {
     const handleEdit = (store: RetailStore) => { setEditingStore(store); setIsModalOpen(true); };
     const handleCreate = () => { setEditingStore(null); setIsModalOpen(true); };
     const handleDelete = (id: string) => {
-        if (window.confirm("この店舗・事業者を削除してもよろしいですか？")) {
+        if (window.confirm("この店舗・事業者をゴミ箱に移動してもよろしいですか？")) {
             deleteRetailStore(id);
-            showNotification("店舗・事業者を削除しました。");
+            showNotification("ゴミ箱に移動しました。");
+        }
+    };
+
+    const handleRestore = (id: string) => {
+        restoreRetailStore(id);
+        showNotification("店舗・事業者を復元しました。");
+    };
+
+    const handlePermanentDelete = (id: string) => {
+        if (window.confirm("この店舗・事業者を完全に削除しますか？この操作は取り消せません。")) {
+            permanentlyDeleteRetailStore(id);
+            showNotification("完全に削除しました。");
         }
     };
 
@@ -314,6 +345,13 @@ export default function RetailStoresPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowTrash(!showTrash)}
+                        className={`flex items-center gap-2 px-4 py-2.5 font-bold rounded-xl shadow-sm active:scale-95 transition-all text-sm border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        {showTrash ? "戻る" : "ゴミ箱"}
+                    </button>
                     <button
                         onClick={() => setRefresh(r => r + 1)}
                         className="p-2.5 text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
@@ -389,6 +427,8 @@ export default function RetailStoresPage() {
                             refresh={refresh}
                             onEdit={() => handleEdit(store)}
                             onDelete={() => handleDelete(store.id)}
+                            onRestore={() => handleRestore(store.id)}
+                            onPermanentDelete={() => handlePermanentDelete(store.id)}
                         />
                     ))}
                 </div>

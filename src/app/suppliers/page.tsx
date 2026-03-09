@@ -1,26 +1,29 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, Edit2, Trash2, Search, Users, Building2, Wheat, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Users, Building2, Wheat, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
 import { useStore, Supplier } from "@/lib/store";
 import { SupplierModal } from "@/components/SupplierModal";
 import { showNotification } from "@/lib/notifications";
 
 export default function SuppliersPage() {
-    const { isLoaded, suppliers, deleteSupplier } = useStore();
+    const { isLoaded, suppliers, deleteSupplier, restoreSupplier, permanentlyDeleteSupplier } = useStore();
     const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+    const [showTrash, setShowTrash] = useState(false);
 
     const filteredSuppliers = useMemo(() => {
-        return suppliers.filter((supplier) =>
-            supplier.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            supplier.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            supplier.tel?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            supplier.pic?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [suppliers, searchQuery]);
+        return suppliers
+            .filter(s => !!s.isTrashed === showTrash)
+            .filter((supplier) =>
+                supplier.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                supplier.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                supplier.tel?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                supplier.pic?.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+    }, [suppliers, searchQuery, showTrash]);
 
     const sortedSuppliers = useMemo(() => {
         if (!sortConfig) return filteredSuppliers;
@@ -81,9 +84,21 @@ export default function SuppliersPage() {
     };
 
     const handleDelete = (id: string) => {
-        if (window.confirm("この仕入先を削除してもよろしいですか？")) {
+        if (window.confirm("この仕入先をゴミ箱に移動してもよろしいですか？")) {
             deleteSupplier(id);
-            showNotification("仕入先を削除しました。");
+            showNotification("ゴミ箱に移動しました。");
+        }
+    };
+
+    const handleRestore = (id: string) => {
+        restoreSupplier(id);
+        showNotification("仕入先を復元しました。");
+    };
+
+    const handlePermanentDelete = (id: string) => {
+        if (window.confirm("この仕入先を完全に削除しますか？この操作は取り消せません。")) {
+            permanentlyDeleteSupplier(id);
+            showNotification("完全に削除しました。");
         }
     };
 
@@ -99,13 +114,22 @@ export default function SuppliersPage() {
                         <p className="text-slate-500 mt-1 text-sm">商品の卸元や生産者の基本情報を管理します。</p>
                     </div>
                 </div>
-                <button
-                    onClick={handleCreate}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-medium"
-                >
-                    <Plus className="w-5 h-5" />
-                    仕入先登録
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowTrash(!showTrash)}
+                        className={`flex items-center gap-2 px-4 py-2.5 font-bold rounded-xl shadow-sm active:scale-95 transition-all text-sm border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        {showTrash ? "戻る" : "ゴミ箱"}
+                    </button>
+                    <button
+                        onClick={handleCreate}
+                        className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-medium"
+                    >
+                        <Plus className="w-5 h-5" />
+                        仕入先登録
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -183,20 +207,41 @@ export default function SuppliersPage() {
                                     </td>
                                     <td className="p-5 text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleEdit(supplier)}
-                                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                title="編集"
-                                            >
-                                                <Edit2 className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(supplier.id)}
-                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                title="削除"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            {supplier.isTrashed ? (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleRestore(supplier.id)}
+                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                        title="復元"
+                                                    >
+                                                        <RotateCcw className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handlePermanentDelete(supplier.id)}
+                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="完全削除"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleEdit(supplier)}
+                                                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                        title="編集"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(supplier.id)}
+                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="削除"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

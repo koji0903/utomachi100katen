@@ -17,7 +17,8 @@ import {
     Trash2,
     PlusCircle,
     X,
-    ChevronDown
+    ChevronDown,
+    RotateCcw
 } from "lucide-react";
 import { useStore, BusinessChallenge } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
@@ -44,12 +45,13 @@ const STATUSES = {
 };
 
 export default function TodoPage() {
-    const { challenges, addChallenge, updateChallenge, deleteChallenge, isLoaded } = useStore();
+    const { challenges, addChallenge, updateChallenge, deleteChallenge, restoreChallenge, permanentlyDeleteChallenge, isLoaded } = useStore();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingChallenge, setEditingChallenge] = useState<BusinessChallenge | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterCategory, setFilterCategory] = useState<string>("all");
     const [filterStatus, setFilterStatus] = useState<string>("all");
+    const [showTrash, setShowTrash] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -101,13 +103,26 @@ export default function TodoPage() {
     };
 
     const handleDelete = (id: string) => {
-        if (window.confirm("この課題を削除してもよろしいですか？")) {
+        if (window.confirm("この課題をゴミ箱に移動してもよろしいですか？")) {
             deleteChallenge(id);
-            showNotification("課題を削除しました。");
+            showNotification("ゴミ箱に移動しました。");
+        }
+    };
+
+    const handleRestore = (id: string) => {
+        restoreChallenge(id);
+        showNotification("課題を復元しました。");
+    };
+
+    const handlePermanentDelete = (id: string) => {
+        if (window.confirm("この課題を完全に削除しますか？この操作は取り消せません。")) {
+            permanentlyDeleteChallenge(id);
+            showNotification("完全に削除しました。");
         }
     };
 
     const filteredChallenges = (challenges || [])
+        .filter(c => !!c.isTrashed === showTrash)
         .filter((c: BusinessChallenge) =>
             (filterCategory === "all" || c.category === filterCategory) &&
             (filterStatus === "all" || c.status === filterStatus) &&
@@ -141,13 +156,22 @@ export default function TodoPage() {
                         現場の声や運用上の課題を資産に変える
                     </p>
                 </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 bg-[#1e3a8a] text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-blue-900/10 hover:scale-105 active:scale-95 transition-all text-sm shrink-0"
-                >
-                    <PlusCircle className="w-5 h-5" />
-                    新しい課題を追加
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowTrash(!showTrash)}
+                        className={`flex items-center gap-2 px-4 py-2.5 font-bold rounded-xl shadow-sm active:scale-95 transition-all text-sm border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        {showTrash ? "戻る" : "ゴミ箱"}
+                    </button>
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="flex items-center gap-2 bg-[#1e3a8a] text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-blue-900/10 hover:scale-105 active:scale-95 transition-all text-sm shrink-0"
+                    >
+                        <PlusCircle className="w-5 h-5" />
+                        新しい課題を追加
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
@@ -226,20 +250,41 @@ export default function TodoPage() {
                                     </div>
 
                                     <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => handleOpenModal(challenge)}
-                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                                            title="編集"
-                                        >
-                                            <MoreVertical className="w-5 h-5" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(challenge.id)}
-                                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                            title="削除"
-                                        >
-                                            <Trash2 className="w-5 h-5" />
-                                        </button>
+                                        {challenge.isTrashed ? (
+                                            <>
+                                                <button
+                                                    onClick={() => handleRestore(challenge.id)}
+                                                    className="p-2 text-green-600 hover:bg-green-50 rounded-xl transition-all"
+                                                    title="復元"
+                                                >
+                                                    <RotateCcw className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handlePermanentDelete(challenge.id)}
+                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                                    title="完全削除"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    onClick={() => handleOpenModal(challenge)}
+                                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                                                    title="編集"
+                                                >
+                                                    <MoreVertical className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(challenge.id)}
+                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                                    title="削除"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>

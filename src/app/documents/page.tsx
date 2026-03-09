@@ -5,7 +5,7 @@ import {
     FileText, Receipt, Search, Filter, Copy, Eye,
     Pencil, Trash2, CheckCircle2, Clock, ChevronDown,
     ChevronUp, Store, Users, UserCircle, Plus, X,
-    Download,
+    Download, RotateCcw
 } from "lucide-react";
 import { useStore, IssuedDocument, SpotRecipient, InvoiceItem, InvoiceAdjustment } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
@@ -332,7 +332,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
 
 // ─── Documents Page ───────────────────────────────────────────────────────────
 export default function DocumentsPage() {
-    const { isLoaded, issuedDocuments, duplicateDocument, deleteIssuedDocument, updateIssuedDocument } = useStore();
+    const { isLoaded, issuedDocuments, duplicateDocument, deleteIssuedDocument, restoreIssuedDocument, permanentlyDeleteIssuedDocument, updateIssuedDocument } = useStore();
 
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<DocStatus>("all");
@@ -343,6 +343,7 @@ export default function DocumentsPage() {
     const [previewDoc, setPreviewDoc] = useState<IssuedDocument | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+    const [showTrash, setShowTrash] = useState(false);
 
     // ── Filter + sort ─────────────────────────────────────────────────────────
     const filtered = useMemo(() => {
@@ -351,12 +352,13 @@ export default function DocumentsPage() {
             .filter(d => {
                 const matchType = filterType === "all" || d.type === filterType;
                 const matchStatus = filterStatus === "all" || d.status === filterStatus;
+                const matchTrash = !!d.isTrashed === showTrash;
                 const q = searchQuery.toLowerCase();
                 const matchSearch = !searchQuery ||
                     d.recipientName.toLowerCase().includes(q) ||
                     d.docNumber.toLowerCase().includes(q) ||
                     d.period.includes(q);
-                return matchType && matchStatus && matchSearch;
+                return matchType && matchStatus && matchSearch && matchTrash;
             })
             .sort((a, b) => {
                 const dateA = a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000) : new Date(a.createdAt || 0);
@@ -368,14 +370,16 @@ export default function DocumentsPage() {
     }, [issuedDocuments, filterStatus, filterType, searchQuery, sortDesc, isLoaded]);
 
     const stats = useMemo(() => {
-        if (!isLoaded) return { total: 0, issued: 0, draft: 0, delivery: 0, invoice: 0, payment: 0 };
+        if (!isLoaded) return { total: 0, issued: 0, draft: 0, delivery: 0, invoice: 0, payment: 0, trashed: 0 };
+        const activeDocs = issuedDocuments.filter(d => !d.isTrashed);
         return {
-            total: issuedDocuments.length,
-            issued: issuedDocuments.filter(d => d.status === "issued").length,
-            draft: issuedDocuments.filter(d => d.status === "draft").length,
-            delivery: issuedDocuments.filter(d => d.type === "delivery_note").length,
-            invoice: issuedDocuments.filter(d => d.type === "invoice").length,
-            payment: issuedDocuments.filter(d => d.type === "payment_summary").length,
+            total: activeDocs.length,
+            issued: activeDocs.filter(d => d.status === "issued").length,
+            draft: activeDocs.filter(d => d.status === "draft").length,
+            delivery: activeDocs.filter(d => d.type === "delivery_note").length,
+            invoice: activeDocs.filter(d => d.type === "invoice").length,
+            payment: activeDocs.filter(d => d.type === "payment_summary").length,
+            trashed: issuedDocuments.filter(d => d.isTrashed).length,
         };
     }, [issuedDocuments, isLoaded]);
 
@@ -404,11 +408,20 @@ export default function DocumentsPage() {
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">帳票アーカイブ</h1>
                     <p className="text-slate-500 mt-1 text-sm">発行済み・下書きの帳票を一元管理</p>
                 </div>
-                <button onClick={() => setShowNewModal(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl shadow-sm transition-all hover:opacity-90"
-                    style={{ backgroundColor: BRAND }}>
-                    <Plus className="w-4 h-4" />新規帳票を作成
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setShowTrash(!showTrash)}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl shadow-sm transition-all border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        {showTrash ? "戻る" : "ゴミ箱"}
+                    </button>
+                    <button onClick={() => setShowNewModal(true)}
+                        className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl shadow-sm transition-all hover:opacity-90"
+                        style={{ backgroundColor: BRAND }}>
+                        <Plus className="w-4 h-4" />新規帳票を作成
+                    </button>
+                </div>
             </div>
 
             {/* KPI row */}
@@ -423,9 +436,9 @@ export default function DocumentsPage() {
                 ].map(item => (
                     <div key={item.label} className="bg-white rounded-xl border border-slate-200 p-3 flex sm:flex-col sm:items-start items-center gap-2.5">
                         <div className="w-2 h-8 rounded-full" style={{ backgroundColor: item.color + "40", borderLeft: `3px solid ${item.color}` }} />
-                        <div>
-                            <div className="text-xs text-slate-400 font-medium">{item.label}</div>
-                            <div className="text-lg font-black text-slate-900">{item.value}<span className="text-xs text-slate-400 ml-0.5">件</span></div>
+                        <div className="flex-1">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{item.label}</div>
+                            <div className="text-lg font-black text-slate-900 leading-none mt-1">{item.value}<span className="text-[10px] text-slate-400 ml-0.5">件</span></div>
                         </div>
                     </div>
                 ))}
@@ -514,52 +527,59 @@ export default function DocumentsPage() {
                                             {doc.totalAmount > 0 ? fmtMoney(doc.totalAmount) : <span className="text-slate-300 text-xs">—</span>}
                                         </td>
                                         <td className="px-4 py-3">
-                                            {deletingId === doc.id ? (
-                                                <div className="flex items-center gap-1 justify-center">
-                                                    <span className="text-xs text-red-600 font-medium">削除しますか？</span>
-                                                    <button onClick={() => handleDelete(doc.id)}
-                                                        className="text-xs font-bold text-white bg-red-500 rounded-lg px-2 py-1 hover:bg-red-600">
-                                                        削除
-                                                    </button>
-                                                    <button onClick={() => setDeletingId(null)}
-                                                        className="text-xs font-bold text-slate-500 bg-slate-100 rounded-lg px-2 py-1 hover:bg-slate-200">
-                                                        取消
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-1 justify-center">
-                                                    <button onClick={() => setPreviewDoc(doc)}
-                                                        title="プレビュー / PDF"
-                                                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
-                                                        <Eye className="w-4 h-4" />
-                                                    </button>
-                                                    <button onClick={() => setEditingDoc(doc)}
-                                                        title="編集"
-                                                        className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-500 hover:text-amber-600 transition-colors">
-                                                        <Pencil className="w-4 h-4" />
-                                                    </button>
-                                                    <button onClick={() => handleDuplicate(doc.id)}
-                                                        disabled={duplicatingId === doc.id}
-                                                        title="複製（枝番付与）"
-                                                        className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 transition-colors disabled:opacity-40">
-                                                        {duplicatingId === doc.id
-                                                            ? <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                                                            : <Copy className="w-4 h-4" />}
-                                                    </button>
-                                                    {doc.status === "draft" && (
-                                                        <button onClick={() => handleMarkIssued(doc)}
-                                                            title="発行済みにする"
-                                                            className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 transition-colors">
-                                                            <CheckCircle2 className="w-4 h-4" />
+                                            <div className="flex items-center gap-1 justify-center">
+                                                {doc.isTrashed ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => restoreIssuedDocument(doc.id)}
+                                                            title="復元"
+                                                            className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors"
+                                                        >
+                                                            <RotateCcw className="w-4 h-4" />
                                                         </button>
-                                                    )}
-                                                    <button onClick={() => setDeletingId(doc.id)}
-                                                        title="削除"
-                                                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            )}
+                                                        <button
+                                                            onClick={() => { if (window.confirm("この帳票を完全に削除しますか？")) permanentlyDeleteIssuedDocument(doc.id); }}
+                                                            title="完全削除"
+                                                            className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button onClick={() => setPreviewDoc(doc)}
+                                                            title="プレビュー / PDF"
+                                                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
+                                                            <Eye className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => setEditingDoc(doc)}
+                                                            title="編集"
+                                                            className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-500 hover:text-amber-600 transition-colors">
+                                                            <Pencil className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => handleDuplicate(doc.id)}
+                                                            disabled={duplicatingId === doc.id}
+                                                            title="複製（枝番付与）"
+                                                            className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 transition-colors disabled:opacity-40">
+                                                            {duplicatingId === doc.id
+                                                                ? <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                                                                : <Copy className="w-4 h-4" />}
+                                                        </button>
+                                                        {doc.status === "draft" && (
+                                                            <button onClick={() => handleMarkIssued(doc)}
+                                                                title="発行済みにする"
+                                                                className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 transition-colors">
+                                                                <CheckCircle2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                        <button onClick={() => setDeletingId(doc.id)}
+                                                            title="削除"
+                                                            className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

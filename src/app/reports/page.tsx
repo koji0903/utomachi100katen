@@ -7,7 +7,7 @@ import {
     X, FileText, CheckCircle2, Pencil, ChevronDown, Loader2,
     Thermometer, Wind, Plus, ClipboardList, Trash2, AlertTriangle,
     ChevronRight, ChevronLeft, Store, Image as ImageIcon, UploadCloud, Save, Package,
-    Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy, Video
+    Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy, Video, RotateCcw
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
@@ -782,10 +782,14 @@ function ReportCard({
     report,
     onDelete,
     onEdit,
+    onRestore,
+    onPermanentDelete,
 }: {
     report: DailyReport;
     onDelete: () => void;
     onEdit: () => void;
+    onRestore: () => void;
+    onPermanentDelete: () => void;
 }) {
     const [expanded, setExpanded] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -930,40 +934,61 @@ function ReportCard({
 
                     {/* Action buttons */}
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                        <button
-                            type="button"
-                            onClick={e => { e.stopPropagation(); onEdit(); }}
-                            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors"
-                        >
-                            <Pencil className="w-3.5 h-3.5" /> 編集
-                        </button>
-
-                        {confirmDelete ? (
-                            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-1.5 animate-in fade-in duration-150">
-                                <span className="text-xs text-red-600 font-bold">削除しますか？</span>
+                        {report.isTrashed ? (
+                            <>
                                 <button
                                     type="button"
-                                    onClick={handleDeleteConfirm}
-                                    className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg transition-colors"
+                                    onClick={e => { e.stopPropagation(); onRestore(); }}
+                                    className="flex items-center gap-1.5 text-xs font-bold text-green-600 hover:text-green-700 px-3 py-2 rounded-xl hover:bg-green-50 transition-colors"
                                 >
-                                    削除
+                                    <RotateCcw className="w-3.5 h-3.5" /> 復元
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={e => { e.stopPropagation(); setConfirmDelete(false); }}
-                                    className="text-xs text-slate-400 font-bold hover:text-slate-600 px-2"
+                                    onClick={e => { e.stopPropagation(); if (window.confirm("このデータを完全に削除しますか？この操作は取り消せません。")) onPermanentDelete(); }}
+                                    className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-red-700 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"
                                 >
-                                    戻る
+                                    <Trash2 className="w-3.5 h-3.5" /> 完全削除
                                 </button>
-                            </div>
+                            </>
                         ) : (
-                            <button
-                                type="button"
-                                onClick={e => { e.stopPropagation(); setConfirmDelete(true); }}
-                                className="flex items-center gap-1.5 text-xs font-bold text-red-400 hover:text-red-500 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" /> 削除
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={e => { e.stopPropagation(); onEdit(); }}
+                                    className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors"
+                                >
+                                    <Pencil className="w-3.5 h-3.5" /> 編集
+                                </button>
+
+                                {confirmDelete ? (
+                                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-1.5 animate-in fade-in duration-150">
+                                        <span className="text-xs text-red-600 font-bold">ゴミ箱に移動しますか？</span>
+                                        <button
+                                            type="button"
+                                            onClick={handleDeleteConfirm}
+                                            className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg transition-colors"
+                                        >
+                                            移動
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={e => { e.stopPropagation(); setConfirmDelete(false); }}
+                                            className="text-xs text-slate-400 font-bold hover:text-slate-600 px-2"
+                                        >
+                                            戻る
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={e => { e.stopPropagation(); setConfirmDelete(true); }}
+                                        className="flex items-center gap-1.5 text-xs font-bold text-red-400 hover:text-red-500 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" /> 削除
+                                    </button>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
@@ -974,12 +999,13 @@ function ReportCard({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 function ReportsPageContent() {
-    const { dailyReports, deleteDailyReport, isLoaded } = useStore();
+    const { dailyReports, deleteDailyReport, restoreDailyReport, permanentlyDeleteDailyReport, isLoaded } = useStore();
     const searchParams = useSearchParams();
     const [showForm, setShowForm] = useState(false);
     const [editTarget, setEditTarget] = useState<DailyReport | null>(null);
     const [toast, setToast] = useState<"saved" | "updated" | null>(null);
     const [filterType, setFilterType] = useState<"all" | "office" | "store" | "activity">("all");
+    const [showTrash, setShowTrash] = useState(false);
 
     const filterDate = searchParams.get("date");
 
@@ -991,7 +1017,9 @@ function ReportsPageContent() {
     const handleNewSaved = () => { setShowForm(false); showToast("saved"); };
     const handleEditSaved = () => { setEditTarget(null); showToast("updated"); };
 
-    const sorted = [...dailyReports].sort((a, b) => b.date.localeCompare(a.date));
+    const sorted = [...dailyReports]
+        .filter(r => !!r.isTrashed === showTrash)
+        .sort((a, b) => b.date.localeCompare(a.date));
     let filtered = filterType === "all" ? sorted : sorted.filter(r => r.type === filterType);
 
     if (filterDate) {
@@ -1021,13 +1049,22 @@ function ReportsPageContent() {
                     </div>
                 </div>
                 {!filterDate && (
-                    <button
-                        onClick={() => setShowForm(true)}
-                        className="flex items-center gap-2 px-4 py-3 text-white font-bold rounded-2xl shadow-sm active:scale-95 transition-transform text-sm"
-                        style={{ backgroundColor: BRAND }}
-                    >
-                        <Plus className="w-4 h-4" /> 日報を書く
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setShowTrash(!showTrash)}
+                            className={`flex items-center gap-2 px-4 py-3 font-bold rounded-2xl shadow-sm active:scale-95 transition-all text-sm border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            {showTrash ? "戻る" : "ゴミ箱"}
+                        </button>
+                        <button
+                            onClick={() => setShowForm(true)}
+                            className="flex items-center gap-2 px-4 py-3 text-white font-bold rounded-2xl shadow-sm active:scale-95 transition-transform text-sm"
+                            style={{ backgroundColor: BRAND }}
+                        >
+                            <Plus className="w-4 h-4" /> 日報を書く
+                        </button>
+                    </div>
                 )}
             </div>
 
@@ -1092,6 +1129,8 @@ function ReportsPageContent() {
                             report={report}
                             onDelete={() => deleteDailyReport(report.id)}
                             onEdit={() => setEditTarget(report)}
+                            onRestore={() => restoreDailyReport(report.id)}
+                            onPermanentDelete={() => permanentlyDeleteDailyReport(report.id)}
                         />
                     ))}
                 </div>

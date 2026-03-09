@@ -53,7 +53,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     weatherFetchTime: '14:00',
 };
 
-export interface RetailStore {
+export interface RetailStore extends BaseEntity {
     id: string;
     name: string;
     zipCode?: string;
@@ -87,7 +87,7 @@ export interface RestockingItem {
     qty: number;
 }
 
-export interface DailyReport {
+export interface DailyReport extends BaseEntity {
     id: string;
     date: string;            // YYYY-MM-DD
     worker: string;          // 作業者名
@@ -116,7 +116,7 @@ export interface DailyReport {
     updatedAt?: string | any;
 }
 
-export interface Sale {
+export interface Sale extends BaseEntity {
     id: string;
     storeId: string;
     type: 'daily' | 'monthly';
@@ -136,7 +136,7 @@ export interface Sale {
     updatedAt?: string | any;
 }
 
-export interface Purchase {
+export interface Purchase extends BaseEntity {
     id: string;
     type: 'A' | 'B';
     status: 'ordered' | 'waiting' | 'completed';
@@ -163,7 +163,7 @@ export interface DailyWeather {
     updatedAt?: string | any;
 }
 
-export interface Brand {
+export interface Brand extends BaseEntity {
     id: string;
     name: string;
     concept?: string;
@@ -187,7 +187,7 @@ export interface InvoiceAdjustment {
 }
 
 // ─── 発行済み帳票レコード ───────────────────────────────────────────────
-export interface IssuedDocument {
+export interface IssuedDocument extends BaseEntity {
     id: string;
     type: 'delivery_note' | 'payment_summary' | 'invoice';
     docNumber: string;          // "DN-2026-001", "INV-2026-001" or branch variants
@@ -210,7 +210,7 @@ export interface IssuedDocument {
 }
 
 // ─── スポット（非登録）宛先マスター ───────────────────────────────────
-export interface SpotRecipient {
+export interface SpotRecipient extends BaseEntity {
     id: string;
     name: string;
     zipCode?: string;
@@ -221,7 +221,7 @@ export interface SpotRecipient {
     createdAt?: string | any;
 }
 
-export interface Supplier {
+export interface Supplier extends BaseEntity {
     id: string;
     name: string;
     category?: 'Manufacturer' | 'Producer'; // 委託製造業者 or 一次生産者
@@ -254,7 +254,7 @@ export interface PaymentRecord {
     createdAt?: string | any;
 }
 
-export interface BusinessChallenge {
+export interface BusinessChallenge extends BaseEntity {
     id: string;
     title: string;
     description: string;
@@ -287,7 +287,20 @@ export interface Activity {
     createdAt: string | any;
 }
 
-export interface Product {
+export interface TrashItem {
+    id: string;
+    originalId: string;
+    collectionName: string;
+    data: any;
+    deletedAt: string | any;
+    label: string; // e.g., "商品: ○○", "売上: INV-2026-001"
+}
+
+export interface BaseEntity {
+    isTrashed?: boolean;
+}
+
+export interface Product extends BaseEntity {
     id: string;
     name: string;
     variantName?: string; // e.g., "Mega Bottle", "Craft", "100g"
@@ -349,6 +362,7 @@ export function useStore() {
     const { data: challenges = [], mutate: mutateChallenges } = useSWR<BusinessChallenge[]>("business_challenges", () => fetcher<BusinessChallenge>("business_challenges"), swrConfig);
     const { data: stockConversions = [], mutate: mutateStockConversions } = useSWR<StockConversion[]>("stock_conversions", () => fetcher<StockConversion>("stock_conversions"), swrConfig);
     const { data: activities = [], mutate: mutateActivities } = useSWR<Activity[]>("activities", () => fetcher<Activity>("activities"), swrConfig);
+    const { data: trash = [], mutate: mutateTrash } = useSWR<TrashItem[]>("trash", () => fetcher<TrashItem>("trash"), swrConfig);
 
     // Company Settings — fetched once from Firestore doc (not a collection)
     const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings } = useSWR<CompanySettings>(
@@ -395,9 +409,17 @@ export function useStore() {
     };
 
     const deleteBrand = async (id: string) => {
-        mutateBrands(brands.filter((b) => b.id !== id), false);
-        const docRef = doc(db, "brands", id);
-        await deleteDoc(docRef);
+        await updateDoc(doc(db, "brands", id), { isTrashed: true });
+        mutateBrands();
+    };
+
+    const restoreBrand = async (id: string) => {
+        await updateDoc(doc(db, "brands", id), { isTrashed: false });
+        mutateBrands();
+    };
+
+    const permanentlyDeleteBrand = async (id: string) => {
+        await deleteDoc(doc(db, "brands", id));
         mutateBrands();
     };
 
@@ -441,15 +463,23 @@ export function useStore() {
 
     const deleteProduct = async (id: string) => {
         const product = products.find(p => p.id === id);
-        mutateProducts(products.filter((p) => p.id !== id), false);
-        const docRef = doc(db, "products", id);
-        await deleteDoc(docRef);
+        await updateDoc(doc(db, "products", id), { isTrashed: true });
         logActivity({
             type: 'delete',
             category: 'product',
-            title: `商品を削除しました`,
+            title: `商品をゴミ箱に移動しました`,
             detail: product?.name || id
         });
+        mutateProducts();
+    };
+
+    const restoreProduct = async (id: string) => {
+        await updateDoc(doc(db, "products", id), { isTrashed: false });
+        mutateProducts();
+    };
+
+    const permanentlyDeleteProduct = async (id: string) => {
+        await deleteDoc(doc(db, "products", id));
         mutateProducts();
     };
 
@@ -470,9 +500,17 @@ export function useStore() {
     };
 
     const deleteSupplier = async (id: string) => {
-        mutateSuppliers(suppliers.filter((s) => s.id !== id), false);
-        const docRef = doc(db, "suppliers", id);
-        await deleteDoc(docRef);
+        await updateDoc(doc(db, "suppliers", id), { isTrashed: true });
+        mutateSuppliers();
+    };
+
+    const restoreSupplier = async (id: string) => {
+        await updateDoc(doc(db, "suppliers", id), { isTrashed: false });
+        mutateSuppliers();
+    };
+
+    const permanentlyDeleteSupplier = async (id: string) => {
+        await deleteDoc(doc(db, "suppliers", id));
         mutateSuppliers();
     };
 
@@ -510,9 +548,17 @@ export function useStore() {
     };
 
     const deleteRetailStore = async (id: string) => {
-        mutateRetailStores(retailStores.filter((s) => s.id !== id), false);
-        const docRef = doc(db, "retailStores", id);
-        await deleteDoc(docRef);
+        await updateDoc(doc(db, "retailStores", id), { isTrashed: true });
+        mutateRetailStores();
+    };
+
+    const restoreRetailStore = async (id: string) => {
+        await updateDoc(doc(db, "retailStores", id), { isTrashed: false });
+        mutateRetailStores();
+    };
+
+    const permanentlyDeleteRetailStore = async (id: string) => {
+        await deleteDoc(doc(db, "retailStores", id));
         mutateRetailStores();
     };
 
@@ -562,9 +608,41 @@ export function useStore() {
     };
 
     const deletePurchase = async (id: string) => {
-        mutatePurchases(purchases.filter((p) => p.id !== id), false);
-        const docRef = doc(db, "inbound_shipments", id);
-        await deleteDoc(docRef);
+        const purchase = purchases.find(p => p.id === id);
+        if (!purchase) return;
+
+        // Correct stock if the purchase was completed
+        if (purchase.status === 'completed' && !purchase.isTrashed) {
+            const product = products.find(p => p.id === purchase.productId);
+            if (product) {
+                const newStock = (product.stock || 0) - purchase.quantity;
+                await updateProduct(product.id, { stock: newStock });
+            }
+        }
+
+        await updateDoc(doc(db, "inbound_shipments", id), { isTrashed: true });
+        mutatePurchases();
+    };
+
+    const restorePurchase = async (id: string) => {
+        const purchase = purchases.find(p => p.id === id);
+        if (!purchase) return;
+
+        // Redo stock if the purchase was completed
+        if (purchase.status === 'completed') {
+            const product = products.find(p => p.id === purchase.productId);
+            if (product) {
+                const newStock = (product.stock || 0) + purchase.quantity;
+                await updateProduct(product.id, { stock: newStock });
+            }
+        }
+
+        await updateDoc(doc(db, "inbound_shipments", id), { isTrashed: false });
+        mutatePurchases();
+    };
+
+    const permanentlyDeletePurchase = async (id: string) => {
+        await deleteDoc(doc(db, "inbound_shipments", id));
         mutatePurchases();
     };
 
@@ -671,9 +749,39 @@ export function useStore() {
             }
         }
 
-        mutateSales(sales.filter((s) => s.id !== id), false);
-        const docRef = doc(db, "sales", id);
-        await deleteDoc(docRef);
+        await updateDoc(doc(db, "sales", id), { isTrashed: true });
+        mutateSales();
+    };
+
+    const restoreSale = async (id: string) => {
+        const sale = sales.find(s => s.id === id);
+        if (!sale) return;
+
+        // Re-apply stock adjustments
+        for (const item of sale.items) {
+            const product = products.find(p => p.id === item.productId);
+            if (!product) continue;
+
+            if (product.isComposite && product.components) {
+                for (const comp of product.components) {
+                    const compProduct = products.find(p => p.id === comp.productId);
+                    if (compProduct) {
+                        const newStock = (compProduct.stock || 0) - (comp.quantity * item.quantity);
+                        await updateProduct(compProduct.id, { stock: newStock });
+                    }
+                }
+            } else {
+                const newStock = (product.stock || 0) - item.quantity;
+                await updateProduct(product.id, { stock: newStock });
+            }
+        }
+
+        await updateDoc(doc(db, "sales", id), { isTrashed: false });
+        mutateSales();
+    };
+
+    const permanentlyDeleteSale = async (id: string) => {
+        await deleteDoc(doc(db, "sales", id));
         mutateSales();
     };
 
@@ -727,7 +835,16 @@ export function useStore() {
     };
 
     const deleteDailyReport = async (id: string) => {
-        mutateDailyReports((dailyReports ?? []).filter(r => r.id !== id), false);
+        await updateDoc(doc(db, "daily_reports", id), { isTrashed: true });
+        mutateDailyReports();
+    };
+
+    const restoreDailyReport = async (id: string) => {
+        await updateDoc(doc(db, "daily_reports", id), { isTrashed: false });
+        mutateDailyReports();
+    };
+
+    const permanentlyDeleteDailyReport = async (id: string) => {
         await deleteDoc(doc(db, "daily_reports", id));
         mutateDailyReports();
     };
@@ -795,7 +912,16 @@ export function useStore() {
     };
 
     const deleteIssuedDocument = async (id: string) => {
-        mutateIssuedDocuments(issuedDocuments.filter(d => d.id !== id), false);
+        await updateDoc(doc(db, 'issued_documents', id), { isTrashed: true });
+        mutateIssuedDocuments();
+    };
+
+    const restoreIssuedDocument = async (id: string) => {
+        await updateDoc(doc(db, 'issued_documents', id), { isTrashed: false });
+        mutateIssuedDocuments();
+    };
+
+    const permanentlyDeleteIssuedDocument = async (id: string) => {
         await deleteDoc(doc(db, 'issued_documents', id));
         mutateIssuedDocuments();
     };
@@ -820,7 +946,16 @@ export function useStore() {
     };
 
     const deleteSpotRecipient = async (id: string) => {
-        mutateSpotRecipients(spotRecipients.filter(r => r.id !== id), false);
+        await updateDoc(doc(db, 'spot_recipients', id), { isTrashed: true });
+        mutateSpotRecipients();
+    };
+
+    const restoreSpotRecipient = async (id: string) => {
+        await updateDoc(doc(db, 'spot_recipients', id), { isTrashed: false });
+        mutateSpotRecipients();
+    };
+
+    const permanentlyDeleteSpotRecipient = async (id: string) => {
         await deleteDoc(doc(db, 'spot_recipients', id));
         mutateSpotRecipients();
     };
@@ -845,7 +980,16 @@ export function useStore() {
     };
 
     const deleteChallenge = async (id: string) => {
-        mutateChallenges(challenges.filter(c => c.id !== id), false);
+        await updateDoc(doc(db, 'business_challenges', id), { isTrashed: true });
+        mutateChallenges();
+    };
+
+    const restoreChallenge = async (id: string) => {
+        await updateDoc(doc(db, 'business_challenges', id), { isTrashed: false });
+        mutateChallenges();
+    };
+
+    const permanentlyDeleteChallenge = async (id: string) => {
         await deleteDoc(doc(db, 'business_challenges', id));
         mutateChallenges();
     };
@@ -858,6 +1002,85 @@ export function useStore() {
             updatedAt: serverTimestamp(),
         });
         mutateDailyWeather();
+    };
+
+    // --- Trash Actions ---
+    const moveToTrash = async (originalId: string, collectionName: string, data: any, label: string) => {
+        const newRef = doc(collection(db, "trash"));
+        const trashItem: TrashItem = {
+            id: newRef.id,
+            originalId,
+            collectionName,
+            data,
+            label,
+            deletedAt: new Date().toISOString(),
+        };
+        mutateTrash([trashItem, ...trash], false);
+        await setDoc(newRef, {
+            ...trashItem,
+            deletedAt: serverTimestamp()
+        });
+        mutateTrash();
+    };
+
+    const restoreFromTrash = async (id: string) => {
+        const item = trash.find(t => t.id === id);
+        if (!item) return;
+
+        // Restore to original collection
+        const originalRef = doc(db, item.collectionName, item.originalId);
+        await setDoc(originalRef, item.data);
+
+        // Special handling: Sale/Purchase stock logic
+        if (item.collectionName === 'sales') {
+            const sale = item.data as Sale;
+            for (const sItem of sale.items) {
+                const product = products.find(p => p.id === sItem.productId);
+                if (product) {
+                    if (product.isComposite && product.components) {
+                        for (const comp of product.components) {
+                            const compProduct = products.find(p => p.id === comp.productId);
+                            if (compProduct) {
+                                await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - (comp.quantity * sItem.quantity) });
+                            }
+                        }
+                    } else {
+                        await updateProduct(product.id, { stock: (product.stock || 0) - sItem.quantity });
+                    }
+                }
+            }
+        } else if (item.collectionName === 'inbound_shipments') {
+            const purchase = item.data as Purchase;
+            if (purchase.status === 'completed') {
+                const product = products.find(p => p.id === purchase.productId);
+                if (product) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) + purchase.quantity });
+                }
+            }
+        }
+
+        // Remove from trash
+        mutateTrash(trash.filter(t => t.id !== id), false);
+        await deleteDoc(doc(db, "trash", id));
+        mutateTrash();
+
+        // Mutate affected collections
+        mutateBrands();
+        mutateSuppliers();
+        mutateProducts();
+        mutateRetailStores();
+        mutatePurchases();
+        mutateSales();
+        mutateDailyReports();
+        mutateIssuedDocuments();
+        mutateSpotRecipients();
+        mutateChallenges();
+    };
+
+    const permanentlyDeleteFromTrash = async (id: string) => {
+        mutateTrash(trash.filter(t => t.id !== id), false);
+        await deleteDoc(doc(db, "trash", id));
+        mutateTrash();
     };
 
     return {
@@ -918,5 +1141,38 @@ export function useStore() {
         saveDailyWeather,
         activities,
         logActivity,
+        // Brands
+        restoreBrand,
+        permanentlyDeleteBrand,
+        // Products
+        restoreProduct,
+        permanentlyDeleteProduct,
+        // Suppliers
+        restoreSupplier,
+        permanentlyDeleteSupplier,
+        // Stores
+        restoreRetailStore,
+        permanentlyDeleteRetailStore,
+        // Purchases
+        restorePurchase,
+        permanentlyDeletePurchase,
+        // Sales
+        restoreSale,
+        permanentlyDeleteSale,
+        // Reports
+        restoreDailyReport,
+        permanentlyDeleteDailyReport,
+        // Documents
+        restoreIssuedDocument,
+        permanentlyDeleteIssuedDocument,
+        // Spot Recipients
+        restoreSpotRecipient,
+        permanentlyDeleteSpotRecipient,
+        // Challenges
+        restoreChallenge,
+        permanentlyDeleteChallenge,
+        trash,
+        restoreFromTrash,
+        permanentlyDeleteFromTrash,
     };
 }

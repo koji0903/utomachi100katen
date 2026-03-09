@@ -48,7 +48,7 @@ function ActivityTimeline() {
         });
 
         // Daily Reports as activities
-        dailyReports.forEach(r => {
+        dailyReports.filter(r => !r.isTrashed).forEach(r => {
             items.push({
                 id: r.id,
                 type: 'create',
@@ -60,7 +60,7 @@ function ActivityTimeline() {
         });
 
         // Sales as activities
-        sales.filter(s => s.type === 'daily').forEach(s => {
+        sales.filter(s => s.type === 'daily' && !s.isTrashed).forEach(s => {
             const saleDate = new Date(s.updatedAt || s.period);
             items.push({
                 id: s.id,
@@ -160,24 +160,25 @@ export default function DashboardPage() {
         const now = new Date();
         const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
         return {
-            sales: sales.filter(s => s.period.startsWith(monthPrefix)).reduce((sum, s) => sum + s.totalAmount, 0),
-            reports: dailyReports.filter(r => r.date.startsWith(monthPrefix)).length,
-            purchases: purchases.filter(p => p.orderDate?.startsWith(monthPrefix) || p.arrivalDate?.startsWith(monthPrefix)).length,
+            sales: sales.filter(s => !s.isTrashed && s.period.startsWith(monthPrefix)).reduce((sum, s) => sum + s.totalAmount, 0),
+            reports: dailyReports.filter(r => !r.isTrashed && r.date.startsWith(monthPrefix)).length,
+            purchases: purchases.filter(p => !p.isTrashed && (p.orderDate?.startsWith(monthPrefix) || p.arrivalDate?.startsWith(monthPrefix))).length,
             label: `${now.getMonth() + 1}月の実績`
         };
     }, [sales, dailyReports, purchases]);
 
     // Stats
-    const totalProducts = products.length;
-    const totalBrands = brands.length;
-    const totalStores = retailStores.length;
+    const totalProducts = products.filter(p => !p.isTrashed).length;
+    const totalBrands = brands.filter(b => !b.isTrashed).length;
+    const totalStores = retailStores.filter(s => !s.isTrashed).length;
 
     // Low Stock Items (threshold: per-product or 20, OR predicted to run out within 14 days)
     const lowStockItems = useMemo(() => {
         return products
+            .filter(p => !p.isTrashed)
             .map(p => ({
                 ...p,
-                daysRemaining: calculateDaysRemaining(p, sales)
+                daysRemaining: calculateDaysRemaining(p, sales.filter(s => !s.isTrashed))
             }))
             .filter(p =>
                 p.stock <= (p.alertThreshold ?? 20) ||
