@@ -108,6 +108,37 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         }
     }, [isOpen, initialData, brands, suppliers]);
 
+    // Automatic Store Pricing calculation based on RetailStore rules
+    useEffect(() => {
+        if (!isOpen || !formData.sellingPrice) return;
+
+        setFormData(prev => {
+            let changed = false;
+            const newStorePrices = [...prev.storePrices];
+
+            retailStores.forEach(store => {
+                const pricingRule = store.pricingRule || 0;
+                const calculatedPrice = Math.round(prev.sellingPrice * (1 + pricingRule / 100));
+
+                const idx = newStorePrices.findIndex(sp => sp.storeId === store.id);
+                if (idx >= 0) {
+                    if (newStorePrices[idx].price !== calculatedPrice) {
+                        newStorePrices[idx] = { ...newStorePrices[idx], price: calculatedPrice };
+                        changed = true;
+                    }
+                } else {
+                    newStorePrices.push({ storeId: store.id, price: calculatedPrice });
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                return { ...prev, storePrices: newStorePrices };
+            }
+            return prev;
+        });
+    }, [formData.sellingPrice, retailStores, isOpen]);
+
     const sortedProductsForBOM = useMemo(() => {
         const brandMap = new Map(brands.map(b => [b.id, b.name]));
         return [...products].sort((a, b) => {

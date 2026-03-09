@@ -66,7 +66,9 @@ export interface RetailStore {
     type?: 'A' | 'B'; // A: 委託販売, B: 卸販売
     createdAt?: string | any;
     updatedAt?: string | any;
+    pricingRule?: number; // Percentage offset (e.g., 15 for +15%, -20 for -20%)
 }
+
 
 // 日報
 export interface RestockingItem {

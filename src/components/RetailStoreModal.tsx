@@ -32,6 +32,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         lng: undefined as number | undefined,
         imageUrls: [] as string[],
         type: 'A' as 'A' | 'B',
+        pricingRule: 0,
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -59,10 +60,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     lng: initialData.lng,
                     imageUrls: initialData.imageUrls || [],
                     type: initialData.type || 'A',
+                    pricingRule: initialData.pricingRule ?? 0,
                 });
                 setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A' });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0 });
                 setPreviews([]);
             }
             setImageFiles([]);
@@ -365,6 +367,38 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                 className={`${inputCls} text-right disabled:bg-slate-100 disabled:text-slate-400 transition-colors`} />
                         </div>
 
+                        {/* 販売価格ルール */}
+                        <div className="pt-4 border-t border-slate-100">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                                    <Save className="w-3.5 h-3.5" />
+                                </div>
+                                <label className="text-sm font-bold text-slate-800">販売価格ルール (自動計算用)</label>
+                            </div>
+                            <div className="space-y-2 animate-in slide-in-from-left-2 duration-200">
+                                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                    価格加減率 (%) <span className="text-slate-400 font-normal ml-2">※正の値で値上げ、負の値で値下げ</span>
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        value={formData.pricingRule}
+                                        onChange={e => setFormData({
+                                            ...formData,
+                                            pricingRule: Number(e.target.value)
+                                        })}
+                                        className={`${inputCls} text-right pr-8`}
+                                        placeholder="0"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">%</span>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                                商品管理で「販売価格」を変更した際、この店舗の「店舗別個別価格」を自動計算します。
+                                例: 15なら15%アップ、-20なら20%ダウンされます。
+                            </p>
+                        </div>
+
                         {/* 連絡先 + 担当者 */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -412,7 +446,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                         {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> 保存中...</> : <><Save className="w-4 h-4" /> 保存する</>}
                     </button>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }
