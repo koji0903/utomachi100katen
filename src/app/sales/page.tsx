@@ -32,7 +32,7 @@ function WeatherIcon({ main, size = 4 }: { main?: string; size?: number }) {
 
 // ─── Sales Input Tab ──────────────────────────────────────────────────────────
 function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null; onClearEdit: () => void }) {
-    const { isLoaded, products, retailStores, addSale, updateSale, deleteSale } = useStore();
+    const { isLoaded, products, brands, retailStores, addSale, updateSale, deleteSale } = useStore();
 
     const [selectedStoreId, setSelectedStoreId] = useState<string>("");
     const [inputMode, setInputMode] = useState<'daily' | 'monthly'>('daily');
@@ -65,6 +65,16 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const selectedStore = useMemo(() =>
         retailStores.find(s => s.id === selectedStoreId), [retailStores, selectedStoreId]
     );
+
+    const sortedProducts = useMemo(() => {
+        const brandMap = new Map(brands.map(b => [b.id, b.name]));
+        return [...products].sort((a, b) => {
+            const brandA = brandMap.get(a.brandId) || "";
+            const brandB = brandMap.get(b.brandId) || "";
+            if (brandA !== brandB) return brandA.localeCompare(brandB);
+            return a.name.localeCompare(b.name);
+        });
+    }, [products, brands]);
 
     const handleQuantityChange = (productId: string, value: string) => {
         const qty = parseInt(value) || 0;
@@ -260,14 +270,21 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {products.map(product => {
+                                        {sortedProducts.map(product => {
                                             const qty = salesData[product.id] || 0;
                                             const { price, subtotal, netProfit } = calculateRowDetails(product, qty);
                                             return (
                                                 <tr key={product.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
                                                     <td className="px-6 py-4">
-                                                        <div className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{product.name}</div>
-                                                        <div className="text-[10px] text-slate-400 mt-0.5">{product.id.slice(0, 8)}...</div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">
+                                                                {brands.find(b => b.id === product.brandId)?.name || "不明"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors mt-0.5">{product.name}</div>
+                                                        {product.variantName && (
+                                                            <div className="text-[10px] text-slate-500 font-medium">{product.variantName}</div>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4 text-right"><div className="text-sm font-medium text-slate-600">¥{price.toLocaleString()}</div></td>
                                                     <td className="px-6 py-4">

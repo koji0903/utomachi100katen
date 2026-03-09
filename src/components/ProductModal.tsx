@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle, Plus, HelpCircle, Copy, Check, Instagram, Camera, Share2, Layers, RefreshCw, MessageSquare } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
@@ -108,6 +108,15 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         }
     }, [isOpen, initialData, brands, suppliers]);
 
+    const sortedProductsForBOM = useMemo(() => {
+        const brandMap = new Map(brands.map(b => [b.id, b.name]));
+        return [...products].sort((a, b) => {
+            const brandA = brandMap.get(a.brandId) || "";
+            const brandB = brandMap.get(b.brandId) || "";
+            if (brandA !== brandB) return brandA.localeCompare(brandB);
+            return a.name.localeCompare(b.name);
+        });
+    }, [products, brands]);
 
     if (!isOpen) return null;
 
@@ -551,8 +560,10 @@ JANコード: ${formData.janCode || "なし"}
                                                             className="flex-1 text-xs border border-slate-300 rounded-lg p-2 bg-white"
                                                         >
                                                             <option value="">商品を選択</option>
-                                                            {products.filter(p => p.id !== initialData?.id).map(p => (
-                                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                                            {sortedProductsForBOM.filter(p => p.id !== initialData?.id).map(p => (
+                                                                <option key={p.id} value={p.id}>
+                                                                    {p.name} {p.variantName ? `(${p.variantName})` : ""}
+                                                                </option>
                                                             ))}
                                                         </select>
                                                         <input
