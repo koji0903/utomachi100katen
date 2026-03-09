@@ -71,6 +71,12 @@ export interface RetailStore {
     updatedAt?: string | any;
     pricingRule?: number; // Percentage offset (e.g., 15 for +15%, -20 for -20%)
     activeProductIds?: string[]; // IDs of products carried by this store
+    // 請求先情報（店舗情報と異なる場合）
+    useDifferentBilling?: boolean;
+    billingName?: string;
+    billingZipCode?: string;
+    billingAddress?: string;
+    billingTel?: string;
 }
 
 

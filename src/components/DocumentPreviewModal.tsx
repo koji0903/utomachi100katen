@@ -161,9 +161,15 @@ export function DocumentPreviewModal({
     // Fixed: handle spot recipient name
     const recipient = propRecipientName || (
         (isDeliveryNote || isInvoice)
-            ? (store?.name ?? "（客先名）")
+            ? (store?.useDifferentBilling ? (store.billingName || store.name) : (store?.name ?? "（客先名）"))
             : (supplier?.name ?? "（仕入先名）")
     );
+
+    const recipientAddress = (isDeliveryNote || isInvoice) && store?.useDifferentBilling ? {
+        zipCode: store.billingZipCode,
+        address: store.billingAddress,
+        tel: store.billingTel
+    } : null;
 
     const docTitle = isDeliveryNote ? "納　品　書" : isInvoice ? "請　求　書" : "支 払 明 細 書";
 
@@ -333,6 +339,13 @@ export function DocumentPreviewModal({
 
                         {/* ── Recipient ── */}
                         <div style={{ marginBottom: "28px" }}>
+                            {recipientAddress?.address && (
+                                <div style={{ fontSize: "11px", color: "#555", marginBottom: "4px" }}>
+                                    {recipientAddress.zipCode && `〒${recipientAddress.zipCode}`}<br />
+                                    {recipientAddress.address}
+                                    {recipientAddress.tel && <span style={{ marginLeft: "8px" }}>TEL: {recipientAddress.tel}</span>}
+                                </div>
+                            )}
                             <span style={{ fontSize: "18px", fontWeight: "700", borderBottom: `2px solid #1a1a1a`, paddingBottom: "2px" }}>
                                 {recipient}
                             </span>

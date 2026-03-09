@@ -34,6 +34,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         type: 'A' as 'A' | 'B',
         pricingRule: 0,
         activeProductIds: [] as string[],
+        useDifferentBilling: false,
+        billingName: "",
+        billingZipCode: "",
+        billingAddress: "",
+        billingTel: "",
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -63,10 +68,15 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     type: initialData.type || 'A',
                     pricingRule: initialData.pricingRule ?? 0,
                     activeProductIds: initialData.activeProductIds || [],
+                    useDifferentBilling: initialData.useDifferentBilling || false,
+                    billingName: initialData.billingName || "",
+                    billingZipCode: initialData.billingZipCode || "",
+                    billingAddress: initialData.billingAddress || "",
+                    billingTel: initialData.billingTel || "",
                 });
                 setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [] });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "" });
                 setPreviews([]);
             }
             setImageFiles([]);
@@ -123,6 +133,15 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         setFormData(prev => ({ ...prev, zipCode: formatted, lat: undefined, lng: undefined }));
         lookupZip(digits, ({ full }) => {
             setFormData(prev => ({ ...prev, address: full, lat: undefined, lng: undefined }));
+        });
+    };
+
+    const handleBillingZipChange = (raw: string) => {
+        const digits = raw.replace(/\D/g, "").slice(0, 7);
+        const formatted = digits.length > 3 ? `${digits.slice(0, 3)}-${digits.slice(3)}` : digits;
+        setFormData(prev => ({ ...prev, billingZipCode: formatted }));
+        lookupZip(digits, ({ full }) => {
+            setFormData(prev => ({ ...prev, billingAddress: full }));
         });
     };
 
@@ -433,6 +452,76 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                 className={inputCls} placeholder="store@example.com" />
                         </div>
 
+                        {/* 請求先情報 */}
+                        <div className="pt-4 border-t border-slate-100 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+                                        <Save className="w-3.5 h-3.5" />
+                                    </div>
+                                    <label className="text-sm font-bold text-slate-800">請求先情報</label>
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.useDifferentBilling}
+                                        onChange={e => setFormData({ ...formData, useDifferentBilling: e.target.checked })}
+                                        className="w-4 h-4 rounded text-[#b27f79] focus:ring-[#b27f79] border-slate-300 transition-all"
+                                    />
+                                    <span className="text-xs font-medium text-slate-600">店舗情報と異なる場合のみ入力</span>
+                                </label>
+                            </div>
+
+                            {formData.useDifferentBilling && (
+                                <div className="p-4 bg-amber-50/30 rounded-2xl border border-amber-100/50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div>
+                                        <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">請求先名（会社名等）</label>
+                                        <input
+                                            type="text"
+                                            value={formData.billingName}
+                                            onChange={e => setFormData({ ...formData, billingName: e.target.value })}
+                                            className={inputCls}
+                                            placeholder="例: 株式会社◯◯ 経理部"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">郵便番号</label>
+                                            <input
+                                                type="text"
+                                                value={formData.billingZipCode}
+                                                onChange={e => handleBillingZipChange(e.target.value)}
+                                                className={inputCls}
+                                                placeholder="869-0401"
+                                                maxLength={8}
+                                                inputMode="numeric"
+                                            />
+                                        </div>
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">住所</label>
+                                            <input
+                                                type="text"
+                                                value={formData.billingAddress}
+                                                onChange={e => setFormData({ ...formData, billingAddress: e.target.value })}
+                                                className={inputCls}
+                                                placeholder="請求書の送付先住所"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">電話番号</label>
+                                        <input
+                                            type="tel"
+                                            value={formData.billingTel}
+                                            onChange={e => setFormData({ ...formData, billingTel: e.target.value })}
+                                            className={inputCls}
+                                            placeholder="0964-00-0000"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {/* 備忘録 */}
                         <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1.5">備忘録</label>
@@ -541,8 +630,8 @@ function ProductAssignmentSection({
                             type="button"
                             onClick={() => toggleProduct(product.id)}
                             className={`flex items-start gap-3 p-3 rounded-xl border transition-all text-left ${isSelected
-                                    ? "bg-emerald-50 border-emerald-200 ring-1 ring-emerald-500/20"
-                                    : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50"
+                                ? "bg-emerald-50 border-emerald-200 ring-1 ring-emerald-500/20"
+                                : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50"
                                 }`}
                         >
                             <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${isSelected ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-slate-200"
