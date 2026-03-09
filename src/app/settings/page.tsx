@@ -7,6 +7,9 @@ import {
     Building2, Phone, MapPin, Hash, Calculator,
     Save, CheckCircle2, ChevronDown, Info, FileText, Loader2, CheckCircle, AlertCircle
 } from "lucide-react";
+import { SettingsImageUpload } from "@/components/SettingsImageUpload";
+import { uploadImageWithCompression } from "@/lib/imageUpload";
+import { showNotification } from "@/lib/notifications";
 
 const ROUNDING_OPTIONS = [
     { value: "floor", label: "切り捨て", desc: "例: 消費税 123.7円 → 123円" },
@@ -26,6 +29,12 @@ export default function SettingsPage() {
         invoiceNumber: "",
         roundingMode: "floor",
     });
+
+    const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const [sealFile, setSealFile] = useState<File | null>(null);
+    const [sealPreview, setSealPreview] = useState<string | null>(null);
+
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
 
@@ -33,6 +42,8 @@ export default function SettingsPage() {
     useEffect(() => {
         if (companySettings) {
             setForm(companySettings);
+            setLogoPreview(companySettings.logoUrl || null);
+            setSealPreview(companySettings.sealUrl || null);
         }
     }, [companySettings]);
 
@@ -51,12 +62,62 @@ export default function SettingsPage() {
         });
     };
 
+    const handleLogoSelect = (file: File | null) => {
+        setSaved(false);
+        setLogoFile(file);
+        if (file) {
+            setLogoPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const handleSealSelect = (file: File | null) => {
+        setSaved(false);
+        setSealFile(file);
+        if (file) {
+            setSealPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const handleClearLogo = () => {
+        setSaved(false);
+        setLogoFile(null);
+        setLogoPreview(null);
+        setForm(prev => ({ ...prev, logoUrl: "" }));
+    };
+
+    const handleClearSeal = () => {
+        setSaved(false);
+        setSealFile(null);
+        setSealPreview(null);
+        setForm(prev => ({ ...prev, sealUrl: "" }));
+    };
+
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await saveCompanySettings(form);
+            let updatedSettings = { ...form };
+
+            // Upload logo if changed
+            if (logoFile) {
+                const url = await uploadImageWithCompression(logoFile, "settings");
+                updatedSettings.logoUrl = url;
+            }
+
+            // Upload seal if changed
+            if (sealFile) {
+                const url = await uploadImageWithCompression(sealFile, "settings");
+                updatedSettings.sealUrl = url;
+            }
+
+            await saveCompanySettings(updatedSettings);
             setSaved(true);
+            showNotification("設定を保存しました。");
+            setLogoFile(null);
+            setSealFile(null);
             setTimeout(() => setSaved(false), 3000);
+        } catch (error: any) {
+            console.error("Failed to save settings:", error);
+            showNotification("保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"), "error");
         } finally {
             setIsSaving(false);
         }
@@ -262,32 +323,29 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                {/* ── 5. 印影・ロゴ画像URL ─────────────────────────── */}
+                {/* ── 5. 印影・ロゴ画像 ─────────────────────────── */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
                         <span className="text-sm text-slate-500">🖼</span>
                         <h2 className="font-semibold text-slate-800 text-sm">帳票用画像</h2>
-                        <span className="ml-auto text-[10px] text-slate-400">Firebase Storage URL を貼り付け</span>
                     </div>
-                    <div className="p-6 space-y-4">
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                                ロゴ画像 URL
-                                <span className="ml-2 text-[10px] font-normal text-slate-400">（未入力の場合はデフォルトロゴを使用）</span>
-                            </label>
-                            <input type="url" value={form.logoUrl ?? ""} onChange={e => handleChange("logoUrl", e.target.value)}
-                                placeholder="https://firebasestorage.googleapis.com/..."
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                                印影画像 URL
-                                <span className="ml-2 text-[10px] font-normal text-slate-400">（透過PNG推奨）</span>
-                            </label>
-                            <input type="url" value={form.sealUrl ?? ""} onChange={e => handleChange("sealUrl", e.target.value)}
-                                placeholder="https://firebasestorage.googleapis.com/..."
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
-                        </div>
+                    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <SettingsImageUpload
+                            label="ロゴ画像"
+                            description="（未入力の場合はデフォルトロゴを使用）"
+                            previewUrl={logoPreview}
+                            onFileSelect={handleLogoSelect}
+                            onClear={handleClearLogo}
+                            isUploading={isSaving}
+                        />
+                        <SettingsImageUpload
+                            label="印影画像"
+                            description="（透過PNG推奨）"
+                            previewUrl={sealPreview}
+                            onFileSelect={handleSealSelect}
+                            onClear={handleClearSeal}
+                            isUploading={isSaving}
+                        />
                     </div>
                 </div>
 
