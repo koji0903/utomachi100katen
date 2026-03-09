@@ -184,7 +184,7 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">宛先種別</label>
                         <div className="grid grid-cols-3 gap-2 p-1 bg-slate-100 rounded-xl">
-                            {([["store", "販売店舗", Store], ["supplier", "仕入先", Users], ["spot", "スポット", UserCircle]] as const).map(([type, label, Icon]) => (
+                            {([["store", "販売店舗・事業者", Store], ["supplier", "仕入先", Users], ["spot", "スポット", UserCircle]] as const).map(([type, label, Icon]) => (
                                 <button key={type} onClick={() => setRecipientType(type)}
                                     className={`flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${recipientType === type ? "bg-white shadow-sm text-slate-900" : "text-slate-500"}`}>
                                     <Icon className="w-3.5 h-3.5" />{label}

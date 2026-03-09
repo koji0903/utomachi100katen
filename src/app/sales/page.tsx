@@ -165,7 +165,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             <div className="lg:col-span-1 space-y-6">
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">販売店舗</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">販売店舗・事業者</label>
                         <select value={selectedStoreId} onChange={e => setSelectedStoreId(e.target.value)}
                             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 font-medium">
                             <option value="">店舗を選択してください</option>
@@ -246,7 +246,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                     {!selectedStoreId ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-12 text-slate-400 space-y-4">
                             <div className="p-4 bg-slate-50 rounded-full"><StoreIcon className="w-12 h-12 text-slate-200" /></div>
-                            <p className="font-medium">まずは販売店舗を選択してください</p>
+                            <p className="font-medium">まずは販売店舗・事業者を選択してください</p>
                         </div>
                     ) : (
                         <>

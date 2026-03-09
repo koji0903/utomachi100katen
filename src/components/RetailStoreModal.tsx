@@ -179,7 +179,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                 showNotification("店舗情報を更新しました。");
             } else {
                 await addRetailStore(finalData);
-                showNotification("店舗を登録しました。");
+                showNotification("店舗・事業者を登録しました。");
             }
             onClose();
         } catch (error: any) {
@@ -203,7 +203,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                             <Store className="w-5 h-5" style={{ color: BRAND }} />
                         </div>
                         <h2 className="text-lg font-bold text-slate-900">
-                            {initialData ? "店舗情報を編集" : "新規販売店舗登録"}
+                            {initialData ? "店舗・事業者情報を編集" : "新規販売店舗・事業者登録"}
                         </h2>
                     </div>
                     <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
@@ -217,7 +217,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
 
                         {/* 店舗写真 */}
                         <div className="space-y-3">
-                            <label className="block text-xs font-semibold text-slate-600">店舗写真</label>
+                            <label className="block text-xs font-semibold text-slate-600">店舗・事業者写真</label>
                             <div className="flex flex-wrap gap-3">
                                 {previews.map((p, i) => (
                                     <div key={i} className="w-24 h-24 rounded-xl border border-slate-200 overflow-hidden relative group">
@@ -277,7 +277,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
 
                         {/* 店舗名 */}
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">店舗名 <span className="text-red-400">*</span></label>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">店舗・事業者名 <span className="text-red-400">*</span></label>
                             <input type="text" required value={formData.name}
                                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                                 className={inputCls} placeholder="例: 道の駅 宇土マリーナ" />

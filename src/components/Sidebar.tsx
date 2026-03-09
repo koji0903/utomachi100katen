@@ -44,7 +44,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       label: "マスタ・設定",
       items: [
         { name: "ブランド管理", href: "/brands", icon: Tag },
-        { name: "店舗管理", href: "/retail-stores", icon: Store },
+        { name: "販売管理", href: "/retail-stores", icon: Store },
         { name: "仕入先管理", href: "/suppliers", icon: Users },
         { name: "設定", href: "/settings", icon: Settings },
       ]

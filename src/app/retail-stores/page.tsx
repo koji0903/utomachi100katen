@@ -262,9 +262,9 @@ export default function RetailStoresPage() {
     const handleEdit = (store: RetailStore) => { setEditingStore(store); setIsModalOpen(true); };
     const handleCreate = () => { setEditingStore(null); setIsModalOpen(true); };
     const handleDelete = (id: string) => {
-        if (window.confirm("この店舗を削除してもよろしいですか？")) {
+        if (window.confirm("この店舗・事業者を削除してもよろしいですか？")) {
             deleteRetailStore(id);
-            showNotification("店舗を削除しました。");
+            showNotification("店舗・事業者を削除しました。");
         }
     };
 
@@ -277,8 +277,8 @@ export default function RetailStoresPage() {
                         <Store className="w-6 h-6" style={{ color: BRAND }} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">販売店舗管理</h1>
-                        <p className="text-slate-500 text-sm mt-0.5">各店舗の情報と現在の天気をリアルタイムで確認できます</p>
+                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">販売管理</h1>
+                        <p className="text-slate-500 text-sm mt-0.5">各店舗・事業者の情報と現在の天気をリアルタイムで確認できます</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -295,7 +295,7 @@ export default function RetailStoresPage() {
                         style={{ backgroundColor: BRAND }}
                     >
                         <Plus className="w-4 h-4" />
-                        店舗登録
+                        店舗・事業者登録
                     </button>
                 </div>
             </div>
@@ -305,7 +305,7 @@ export default function RetailStoresPage() {
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <input
                     type="text"
-                    placeholder="店舗名・担当者名で検索..."
+                    placeholder="店舗・事業者名・担当者名で検索..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white"
@@ -316,7 +316,7 @@ export default function RetailStoresPage() {
             {/* Stats bar */}
             <div className="flex items-center gap-4 mb-6">
                 <div className="text-sm text-slate-500">
-                    <span className="font-bold text-slate-900">{retailStores.length}</span> 店舗登録済み
+                    <span className="font-bold text-slate-900">{retailStores.length}</span> 店舗・事業者登録済み
                     {retailStores.filter(s => s.lat && s.lng).length > 0 && (
                         <span className="ml-3 text-xs text-slate-400">
                             📍 天気表示対応: {retailStores.filter(s => s.lat && s.lng).length}店舗
@@ -353,7 +353,7 @@ export default function RetailStoresPage() {
                         <button onClick={handleCreate}
                             className="flex items-center gap-2 px-5 py-2.5 text-white font-medium rounded-xl"
                             style={{ backgroundColor: BRAND }}>
-                            <Plus className="w-4 h-4" /> 最初の店舗を登録
+                            <Plus className="w-4 h-4" /> 最初の店舗・事業者を登録
                         </button>
                     )}
                 </div>
