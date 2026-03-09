@@ -33,6 +33,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const geocodeAbortControllerRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -56,6 +57,15 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         }
     }, [isOpen, initialData]);
 
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (geocodeAbortControllerRef.current) {
+                geocodeAbortControllerRef.current.abort();
+            }
+        };
+    }, []);
+
     if (!isOpen) return null;
 
     // When zip changes and reaches 7 digits, auto-fill address
@@ -69,7 +79,6 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         });
     };
 
-    const geocodeAbortControllerRef = useRef<AbortController | null>(null);
 
     const handleGeocode = async () => {
         const addr = formData.address.trim();
@@ -104,14 +113,6 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         }
     };
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (geocodeAbortControllerRef.current) {
-                geocodeAbortControllerRef.current.abort();
-            }
-        };
-    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

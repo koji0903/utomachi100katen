@@ -45,13 +45,19 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
         }
 
         const controller = new AbortController();
+        let isCurrent = true;
 
-        setState({ status: "loading" });
-        fetch(`/api/weather?lat=${store.lat}&lon=${store.lng}`, {
-            signal: controller.signal
-        })
-            .then(r => r.json())
-            .then(data => {
+        const fetchData = async () => {
+            setState({ status: "loading" });
+            try {
+                const res = await fetch(`/api/weather?lat=${store.lat}&lon=${store.lng}`, {
+                    signal: controller.signal
+                });
+                if (!res.ok) throw new Error("Weather API failed");
+                const data = await res.json();
+
+                if (!isCurrent) return;
+
                 if (data.error === "OPENWEATHER_API_KEY not configured") {
                     setState({ status: "no_key" });
                 } else if (data.error) {
@@ -59,14 +65,22 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
                 } else {
                     setState({ status: "ok", data });
                 }
-            })
-            .catch((err) => {
-                if (err.name === 'AbortError') return;
+            } catch (err: any) {
+                if (err.name === 'AbortError' || !isCurrent) return;
+                console.error("WeatherWidget fetch error:", err);
                 setState({ status: "error" });
-            });
+            }
+        };
+
+        fetchData();
 
         return () => {
-            controller.abort();
+            isCurrent = false;
+            try {
+                controller.abort();
+            } catch (e) {
+                // Ignore abort errors
+            }
         };
     }, [store.lat, store.lng, refresh]);
 

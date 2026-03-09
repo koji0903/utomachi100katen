@@ -62,6 +62,8 @@ export interface RetailStore {
     commissionRate?: number; // In percentage (e.g., 15)
     lat?: number;   // 緯度（OpenWeatherMap 連携用）
     lng?: number;   // 経度
+    createdAt?: string | any;
+    updatedAt?: string | any;
 }
 
 // 日報
@@ -399,18 +401,24 @@ export function useStore() {
     };
 
     // --- RetailStore Actions ---
-    const addRetailStore = async (storeData: Omit<RetailStore, "id">) => {
+    const addRetailStore = async (storeData: Omit<RetailStore, "id" | "createdAt" | "updatedAt">) => {
         const newRef = doc(collection(db, "retailStores"));
-        const newStore = { id: newRef.id, ...storeData };
-        mutateRetailStores([...retailStores, newStore], false);
-        await setDoc(newRef, storeData);
+        const newStore = { id: newRef.id, ...storeData, createdAt: new Date().toISOString() };
+        mutateRetailStores([...retailStores, newStore as RetailStore], false);
+        await setDoc(newRef, {
+            ...storeData,
+            createdAt: serverTimestamp(),
+        });
         mutateRetailStores();
     };
 
-    const updateRetailStore = async (id: string, storeUpdate: Partial<Omit<RetailStore, "id">>) => {
+    const updateRetailStore = async (id: string, storeUpdate: Partial<Omit<RetailStore, "id" | "updatedAt">>) => {
         mutateRetailStores(retailStores.map((s) => (s.id === id ? { ...s, ...storeUpdate } : s)), false);
         const docRef = doc(db, "retailStores", id);
-        await updateDoc(docRef, storeUpdate);
+        await updateDoc(docRef, {
+            ...storeUpdate,
+            updatedAt: serverTimestamp(),
+        });
         mutateRetailStores();
     };
 
