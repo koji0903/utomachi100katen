@@ -27,6 +27,7 @@ interface DocumentPreviewModalProps {
     customDetails?: IssuedDocument['details'];
     customAdjustments?: IssuedDocument['adjustments'];
     customTaxRate?: IssuedDocument['taxRate'];
+    hidePrices?: boolean;
     onClose: () => void;
 }
 
@@ -49,6 +50,7 @@ export function DocumentPreviewModal({
     customDetails,
     customAdjustments,
     customTaxRate,
+    hidePrices: propHidePrices,
     onClose,
 }: DocumentPreviewModalProps) {
     const { companySettings, sales, products, retailStores, purchases, suppliers, isLoaded, spotRecipients } = useStore();
@@ -65,6 +67,7 @@ export function DocumentPreviewModal({
     const isDeliveryNote = type === "delivery_note";
     const isInvoice = type === "invoice";
     const isPaymentSummary = type === "payment_summary";
+    const hidePrices = propHidePrices ?? false;
 
     // --- Line Items (Delivery Note & Invoice): aggregate sales items for store+period ---
     type LineItem = { name: string; qty: number; unitPrice: number; subtotal: number; taxRate: "standard" | "reduced" };
@@ -76,7 +79,7 @@ export function DocumentPreviewModal({
                 qty: d.quantity,
                 unitPrice: d.unitPrice,
                 subtotal: d.subtotal,
-                taxRate: 'standard'
+                taxRate: d.taxRate || (customTaxRate === 8 ? 'reduced' : 'standard')
             }));
         }
 
@@ -372,10 +375,14 @@ export function DocumentPreviewModal({
                                     </th>
                                     <th style={{ ...thStyle, width: "8%", textAlign: "center" }}>税率</th>
                                     <th style={{ ...thStyle, width: "12%", textAlign: "right" }}>数量</th>
-                                    <th style={{ ...thStyle, width: "18%", textAlign: "right" }}>
-                                        {isDeliveryNote || isInvoice ? "単価" : "仕入単価"}
-                                    </th>
-                                    <th style={{ ...thStyle, width: "22%", textAlign: "right" }}>小計（税抜）</th>
+                                    {!hidePrices && (
+                                        <>
+                                            <th style={{ ...thStyle, width: "18%", textAlign: "right" }}>
+                                                {isDeliveryNote || isInvoice ? "単価" : "仕入単価"}
+                                            </th>
+                                            <th style={{ ...thStyle, width: "22%", textAlign: "right" }}>小計（税抜）</th>
+                                        </>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody>
@@ -388,8 +395,12 @@ export function DocumentPreviewModal({
                                                     {item.taxRate === "reduced" ? "8%★" : "10%"}
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: "right" }}>{item.qty}</td>
-                                                <td style={{ ...tdStyle, textAlign: "right" }}>{fmtMoney(item.unitPrice)}</td>
-                                                <td style={{ ...tdStyle, textAlign: "right" }}>{fmtMoney(item.subtotal)}</td>
+                                                {!hidePrices && (
+                                                    <>
+                                                        <td style={{ ...tdStyle, textAlign: "right" }}>{fmtMoney(item.unitPrice)}</td>
+                                                        <td style={{ ...tdStyle, textAlign: "right" }}>{fmtMoney(item.subtotal)}</td>
+                                                    </>
+                                                )}
                                             </tr>
                                         ))
                                         : <tr><td colSpan={5} style={{ ...tdStyle, textAlign: "center", color: "#888" }}>対象期間の売上データがありません</td></tr>
@@ -414,48 +425,50 @@ export function DocumentPreviewModal({
                         </table>
 
                         {/* ── Tax Summary ── */}
-                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
-                            <table style={{ borderCollapse: "collapse", fontSize: "12px", minWidth: "320px" }}>
-                                <tbody>
-                                    {taxSummary.reduced.subtotal > 0 && (<>
+                        {!hidePrices && (
+                            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
+                                <table style={{ borderCollapse: "collapse", fontSize: "12px", minWidth: "320px" }}>
+                                    <tbody>
+                                        {taxSummary.reduced.subtotal > 0 && (<>
+                                            <tr>
+                                                <td style={summaryLabelStyle}>8%対象（軽減税率★）</td>
+                                                <td style={{ ...summaryValueStyle }}>{fmtMoney(taxSummary.reduced.subtotal)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style={summaryLabelStyle}>　消費税（8%）</td>
+                                                <td style={summaryValueStyle}>{fmtMoney(taxSummary.reduced.taxAmount)}</td>
+                                            </tr>
+                                        </>)}
+                                        {taxSummary.standard.subtotal > 0 && (<>
+                                            <tr>
+                                                <td style={summaryLabelStyle}>10%対象（標準税率）</td>
+                                                <td style={summaryValueStyle}>{fmtMoney(taxSummary.standard.subtotal)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style={summaryLabelStyle}>　消費税（10%）</td>
+                                                <td style={summaryValueStyle}>{fmtMoney(taxSummary.standard.taxAmount)}</td>
+                                            </tr>
+                                        </>)}
                                         <tr>
-                                            <td style={summaryLabelStyle}>8%対象（軽減税率★）</td>
-                                            <td style={{ ...summaryValueStyle }}>{fmtMoney(taxSummary.reduced.subtotal)}</td>
+                                            <td style={{ ...summaryLabelStyle, fontWeight: 700, fontSize: "14px", backgroundColor: BRAND_LIGHT, color: BRAND_DARK, borderTop: `2px solid ${BRAND}` }}>
+                                                合計（税込）
+                                            </td>
+                                            <td style={{ ...summaryValueStyle, fontWeight: 700, fontSize: "14px", backgroundColor: BRAND_LIGHT, color: BRAND_DARK, borderTop: `2px solid ${BRAND}` }}>
+                                                {fmtMoney(taxSummary.grandTotal)}
+                                            </td>
                                         </tr>
-                                        <tr>
-                                            <td style={summaryLabelStyle}>　消費税（8%）</td>
-                                            <td style={summaryValueStyle}>{fmtMoney(taxSummary.reduced.taxAmount)}</td>
-                                        </tr>
-                                    </>)}
-                                    {taxSummary.standard.subtotal > 0 && (<>
-                                        <tr>
-                                            <td style={summaryLabelStyle}>10%対象（標準税率）</td>
-                                            <td style={summaryValueStyle}>{fmtMoney(taxSummary.standard.subtotal)}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style={summaryLabelStyle}>　消費税（10%）</td>
-                                            <td style={summaryValueStyle}>{fmtMoney(taxSummary.standard.taxAmount)}</td>
-                                        </tr>
-                                    </>)}
-                                    <tr>
-                                        <td style={{ ...summaryLabelStyle, fontWeight: 700, fontSize: "14px", backgroundColor: BRAND_LIGHT, color: BRAND_DARK, borderTop: `2px solid ${BRAND}` }}>
-                                            合計（税込）
-                                        </td>
-                                        <td style={{ ...summaryValueStyle, fontWeight: 700, fontSize: "14px", backgroundColor: BRAND_LIGHT, color: BRAND_DARK, borderTop: `2px solid ${BRAND}` }}>
-                                            {fmtMoney(taxSummary.grandTotal)}
-                                        </td>
-                                    </tr>
 
-                                    {/* Adjustments row in preview if exists */}
-                                    {customAdjustments && customAdjustments.map((adj: any) => (
-                                        <tr key={adj.id}>
-                                            <td style={{ ...summaryLabelStyle, color: BRAND_DARK, fontSize: '11px' }}>調整：{adj.label}</td>
-                                            <td style={{ ...summaryValueStyle, color: BRAND_DARK, fontSize: '11px' }}>{adj.amount > 0 ? "+" : ""}{fmtMoney(adj.amount)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                        {/* Adjustments row in preview if exists */}
+                                        {customAdjustments && customAdjustments.map((adj: any) => (
+                                            <tr key={adj.id}>
+                                                <td style={{ ...summaryLabelStyle, color: BRAND_DARK, fontSize: '11px' }}>調整：{adj.label}</td>
+                                                <td style={{ ...summaryValueStyle, color: BRAND_DARK, fontSize: '11px' }}>{adj.amount > 0 ? "+" : ""}{fmtMoney(adj.amount)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
 
                         {/* ── Bank info (for payments & invoices) ── */}
                         {(isPaymentSummary || isInvoice) && (companySettings?.bankName || companySettings?.bankAccountNumber) && (

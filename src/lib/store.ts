@@ -204,6 +204,7 @@ export interface IssuedDocument {
     details?: InvoiceItem[];
     adjustments?: InvoiceAdjustment[];
     finalAdjustment?: number;
+    hidePrices?: boolean;
     memo?: string;
     createdAt?: string | any;
 }

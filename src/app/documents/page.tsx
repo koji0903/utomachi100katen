@@ -58,17 +58,18 @@ function TypeBadge({ type }: { type: IssuedDocument["type"] }) {
 }
 
 // ─── New Document Form Modal ──────────────────────────────────────────────────
-function NewDocumentModal({ onClose }: { onClose: () => void }) {
-    const { retailStores, suppliers, saveIssuedDocument, generateDocNumber } = useStore();
-    const [docType, setDocType] = useState<IssuedDocument["type"]>("delivery_note");
-    const [recipientType, setRecipientType] = useState<"store" | "supplier" | "spot">("store");
-    const [storeId, setStoreId] = useState("");
-    const [supplierId, setSupplierId] = useState("");
+function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editingDoc?: IssuedDocument }) {
+    const { retailStores, suppliers, saveIssuedDocument, updateIssuedDocument, generateDocNumber } = useStore();
+    const [docType, setDocType] = useState<IssuedDocument["type"]>(editingDoc?.type ?? "delivery_note");
+    const [recipientType, setRecipientType] = useState<"store" | "supplier" | "spot">(editingDoc?.recipientType ?? "store");
+    const [storeId, setStoreId] = useState(editingDoc?.storeId ?? "");
+    const [supplierId, setSupplierId] = useState(editingDoc?.supplierId ?? "");
     const [spotRecipient, setSpotRecipient] = useState<SpotRecipient | null>(null);
-    const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
-    const [periodMode, setPeriodMode] = useState<"month" | "day">("month");
+    const [period, setPeriod] = useState(editingDoc?.period ?? new Date().toISOString().slice(0, 7));
+    const [periodMode, setPeriodMode] = useState<"month" | "day">(editingDoc?.period.length === 10 ? "day" : "month");
     const [isSaving, setIsSaving] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
+    const [hidePrices, setHidePrices] = useState(editingDoc?.hidePrices ?? false);
 
     const recipientName = useMemo(() => {
         if (recipientType === "store") return retailStores.find(s => s.id === storeId)?.name ?? "";
@@ -76,17 +77,29 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
         return spotRecipient?.name ?? "";
     }, [recipientType, storeId, supplierId, spotRecipient, retailStores, suppliers]);
 
-    // Edit states for Invoice
-    const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
-    const [invoiceAdjustments, setInvoiceAdjustments] = useState<InvoiceAdjustment[]>([]);
-    const [taxRate, setTaxRate] = useState<8 | 10>(10);
-    const [finalAdjustment, setFinalAdjustment] = useState(0);
-    const [totalAmountState, setTotalAmountState] = useState(0);
+    // Edit states for Invoice / Delivery Note
+    const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>(editingDoc?.details ?? []);
+    const [invoiceAdjustments, setInvoiceAdjustments] = useState<InvoiceAdjustment[]>(editingDoc?.adjustments ?? []);
+    const [taxRate, setTaxRate] = useState<8 | 10>((editingDoc?.taxRate as 8 | 10) ?? 8);
+    const [finalAdjustment, setFinalAdjustment] = useState(editingDoc?.finalAdjustment ?? 0);
+    const [totalAmountState, setTotalAmountState] = useState(editingDoc?.totalAmount ?? 0);
 
-    // Effect to initialize items for Invoice
-    const { sales, products } = useStore();
+    // Effect to initialize items for Invoice or Delivery Note
+    const { sales, products, spotRecipients } = useStore();
+
+    // Initialize spot recipient if editing
     useEffect(() => {
-        if (docType === "invoice" && recipientName && period) {
+        if (editingDoc?.spotRecipientId) {
+            const spot = spotRecipients.find(r => r.id === editingDoc.spotRecipientId);
+            if (spot) setSpotRecipient(spot);
+        }
+    }, [editingDoc, spotRecipients]);
+
+    useEffect(() => {
+        // Skip auto-initialization if already editing a doc with items
+        if (editingDoc) return;
+
+        if ((docType === "invoice" || docType === "delivery_note") && recipientName && period) {
             // スポット宛先の場合は自動集計を行わず、空の状態で開始する（ユーザーの自由な入力を優先）
             if (recipientType === "spot") {
                 setInvoiceItems([]);
@@ -132,13 +145,9 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
         if (!recipientName || !period) return;
         setIsSaving(true);
         try {
-            const docNumber = generateDocNumber(docType, year);
-            const totalAmount = docType === "invoice" ? totalAmountState : 0;
-            await saveIssuedDocument({
+            const totalAmount = (docType === "invoice" || docType === "delivery_note") ? totalAmountState : 0;
+            const payload = {
                 type: docType,
-                docNumber,
-                status,
-                issuedDate: today(),
                 period,
                 recipientType,
                 storeId: recipientType === "store" ? storeId : undefined,
@@ -146,12 +155,25 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
                 spotRecipientId: recipientType === "spot" ? spotRecipient?.id : undefined,
                 recipientName,
                 totalAmount,
-                taxRate: docType === "invoice" ? taxRate : undefined,
-                details: docType === "invoice" ? invoiceItems : undefined,
-                adjustments: docType === "invoice" ? invoiceAdjustments : undefined,
-                finalAdjustment: docType === "invoice" ? finalAdjustment : undefined,
-                memo: "",
-            });
+                taxRate: (docType === "invoice" || docType === "delivery_note") ? taxRate : undefined,
+                details: (docType === "invoice" || docType === "delivery_note") ? invoiceItems : undefined,
+                adjustments: (docType === "invoice" || docType === "delivery_note") ? invoiceAdjustments : undefined,
+                finalAdjustment: (docType === "invoice" || docType === "delivery_note") ? finalAdjustment : undefined,
+                hidePrices: docType === "delivery_note" ? hidePrices : undefined,
+                memo: editingDoc?.memo ?? "",
+            };
+
+            if (editingDoc) {
+                await updateIssuedDocument(editingDoc.id, payload);
+            } else {
+                const docNumber = generateDocNumber(docType, year);
+                await saveIssuedDocument({
+                    ...payload,
+                    docNumber,
+                    status,
+                    issuedDate: today(),
+                });
+            }
             onClose(); // Automatically close after save
         } catch (err) {
             console.error("Save failed:", err);
@@ -169,7 +191,7 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
                         <div className="p-2 rounded-lg" style={{ backgroundColor: BRAND_LIGHT }}>
                             <Plus className="w-4 h-4" style={{ color: BRAND }} />
                         </div>
-                        <div className="font-bold text-slate-900">新規帳票を作成</div>
+                        <div className="font-bold text-slate-900">{editingDoc ? "帳票を編集" : "新規帳票を作成"}</div>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400"><X className="w-4 h-4" /></button>
                 </div>
@@ -239,8 +261,24 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
                         </div>
                     </div>
 
-                    {/* Invoice Editor */}
-                    {docType === "invoice" && recipientName && period && (
+                    {/* Delivery Note Price Visibility Option */}
+                    {docType === "delivery_note" && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+                            <input
+                                type="checkbox"
+                                id="hidePrices"
+                                checked={hidePrices}
+                                onChange={e => setHidePrices(e.target.checked)}
+                                className="w-4 h-4 rounded text-rose-500 focus:ring-rose-400"
+                            />
+                            <label htmlFor="hidePrices" className="text-sm font-bold text-slate-700 cursor-pointer">
+                                納品書に価格を表示しない
+                            </label>
+                        </div>
+                    )}
+
+                    {/* Invoice / Delivery Note Editor */}
+                    {(docType === "invoice" || docType === "delivery_note") && recipientName && period && (
                         <div className="pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300">
                             <InvoiceEditor
                                 items={invoiceItems}
@@ -281,9 +319,10 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
                     supplierId={recipientType === "supplier" ? supplierId : undefined}
                     period={(docType === "delivery_note" || docType === "invoice") ? period : undefined}
                     month={docType === "payment_summary" ? period : undefined}
-                    customDetails={docType === "invoice" ? invoiceItems : undefined}
-                    customAdjustments={docType === "invoice" ? invoiceAdjustments : undefined}
-                    customTaxRate={docType === "invoice" ? taxRate : undefined}
+                    customDetails={(docType === "invoice" || docType === "delivery_note") ? invoiceItems : undefined}
+                    customAdjustments={(docType === "invoice" || docType === "delivery_note") ? invoiceAdjustments : undefined}
+                    customTaxRate={(docType === "invoice" || docType === "delivery_note") ? taxRate : undefined}
+                    hidePrices={docType === "delivery_note" ? hidePrices : false}
                     onClose={() => setShowPreview(false)}
                 />
             )}
@@ -300,6 +339,7 @@ export default function DocumentsPage() {
     const [filterType, setFilterType] = useState<DocType>("all");
     const [sortDesc, setSortDesc] = useState(true);
     const [showNewModal, setShowNewModal] = useState(false);
+    const [editingDoc, setEditingDoc] = useState<IssuedDocument | null>(null);
     const [previewDoc, setPreviewDoc] = useState<IssuedDocument | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
@@ -493,6 +533,11 @@ export default function DocumentsPage() {
                                                         className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
                                                         <Eye className="w-4 h-4" />
                                                     </button>
+                                                    <button onClick={() => setEditingDoc(doc)}
+                                                        title="編集"
+                                                        className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-500 hover:text-amber-600 transition-colors">
+                                                        <Pencil className="w-4 h-4" />
+                                                    </button>
                                                     <button onClick={() => handleDuplicate(doc.id)}
                                                         disabled={duplicatingId === doc.id}
                                                         title="複製（枝番付与）"
@@ -526,6 +571,7 @@ export default function DocumentsPage() {
 
             {/* Modals */}
             {showNewModal && <NewDocumentModal onClose={() => setShowNewModal(false)} />}
+            {editingDoc && <NewDocumentModal editingDoc={editingDoc} onClose={() => setEditingDoc(null)} />}
             {previewDoc && (
                 <DocumentPreviewModal
                     type={previewDoc.type}
@@ -538,6 +584,7 @@ export default function DocumentsPage() {
                     customDetails={previewDoc.details}
                     customAdjustments={previewDoc.adjustments}
                     customTaxRate={previewDoc.taxRate}
+                    hidePrices={previewDoc.hidePrices}
                     onClose={() => setPreviewDoc(null)}
                 />
             )}
