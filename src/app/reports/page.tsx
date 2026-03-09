@@ -10,7 +10,7 @@ import {
     Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy, Video
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
-import { uploadImageWithCompression } from "@/lib/imageUpload";
+import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -166,32 +166,43 @@ function ReportForm({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [storeId, selectedStore?.lat, selectedStore?.lng]);
 
-    const handleBeforeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        if (files.length === 0) return;
+    const handleBeforeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFiles = Array.from(e.target.files || []);
+        if (selectedFiles.length === 0) return;
 
-        const newFiles = [...beforeFiles, ...files];
+        const processedFiles: File[] = [];
+        for (const file of selectedFiles) {
+            const processed = await ensureProcessableImage(file);
+            processedFiles.push(processed);
+        }
+
+        const newFiles = [...beforeFiles, ...processedFiles];
         setBeforeFiles(newFiles);
 
-        const newPreviews = files.map((file, i) => ({
+        const newPreviews = processedFiles.map((file, i) => ({
             url: URL.createObjectURL(file),
             fileIndex: beforeFiles.length + i,
             isExisting: false
         }));
         setBeforePreviews([...beforePreviews, ...newPreviews]);
 
-        // Reset input value to allow selecting same file again
         if (beforeInputRef.current) beforeInputRef.current.value = "";
     };
 
-    const handleAfterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        if (files.length === 0) return;
+    const handleAfterChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFiles = Array.from(e.target.files || []);
+        if (selectedFiles.length === 0) return;
 
-        const newFiles = [...afterFiles, ...files];
+        const processedFiles: File[] = [];
+        for (const file of selectedFiles) {
+            const processed = await ensureProcessableImage(file);
+            processedFiles.push(processed);
+        }
+
+        const newFiles = [...afterFiles, ...processedFiles];
         setAfterFiles(newFiles);
 
-        const newPreviews = files.map((file, i) => ({
+        const newPreviews = processedFiles.map((file, i) => ({
             url: URL.createObjectURL(file),
             fileIndex: afterFiles.length + i,
             isExisting: false

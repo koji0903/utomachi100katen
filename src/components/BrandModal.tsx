@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Save, Tag, Image as ImageIcon, UploadCloud } from "lucide-react";
 import { useStore, Brand } from "@/lib/store";
-import { uploadImageWithCompression } from "@/lib/imageUpload";
+import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
 
 interface BrandModalProps {
@@ -38,11 +38,12 @@ export function BrandModal({ isOpen, onClose, initialData }: BrandModalProps) {
 
     if (!isOpen) return null;
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            setImageFile(file);
-            setImagePreview(URL.createObjectURL(file));
+            const processed = await ensureProcessableImage(file);
+            setImageFile(processed);
+            setImagePreview(URL.createObjectURL(processed));
         }
     };
 

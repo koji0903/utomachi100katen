@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { X, Sparkles, Copy, Check, ChevronRight, BookOpen, ShoppingBag, Share2, AlertCircle, UploadCloud, Image as ImageIcon, Printer, Download, Video } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
-import { uploadImageWithCompression } from "@/lib/imageUpload";
+import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { QRCodeSVG } from "qrcode.react";
 import { POP_STYLES, POPStyle } from "@/lib/popStyles";
 import html2canvas from "html2canvas";
@@ -143,11 +143,12 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleStoryImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleStoryImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            setStoryImageFile(file);
-            setStoryImagePreview(URL.createObjectURL(file));
+            const processed = await ensureProcessableImage(file);
+            setStoryImageFile(processed);
+            setStoryImagePreview(URL.createObjectURL(processed));
         }
     };
 
@@ -283,7 +284,7 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                                             <p className="text-xs">生産者・風景写真をアップロード</p>
                                         </div>
                                     )}
-                                    <input type="file" ref={storyImageInputRef} onChange={handleStoryImageChange} accept="image/*" className="hidden" />
+                                    <input type="file" ref={storyImageInputRef} onChange={handleStoryImageChange} accept="image/*,.heic,.heif" className="hidden" />
                                 </div>
                             </div>
 

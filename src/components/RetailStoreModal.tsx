@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Image as ImageIcon, UploadCloud } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
-import { uploadImageWithCompression } from "@/lib/imageUpload";
+import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
 
 interface RetailStoreModalProps {
@@ -81,14 +81,21 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
 
     if (!isOpen) return null;
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        if (files.length === 0) return;
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFiles = Array.from(e.target.files || []);
+        if (selectedFiles.length === 0) return;
 
-        const newFiles = [...imageFiles, ...files];
+        // Process files (convert HEIC if necessary)
+        const processedFiles: File[] = [];
+        for (const file of selectedFiles) {
+            const processed = await ensureProcessableImage(file);
+            processedFiles.push(processed);
+        }
+
+        const newFiles = [...imageFiles, ...processedFiles];
         setImageFiles(newFiles);
 
-        const newPreviews = files.map((file, i) => ({
+        const newPreviews = processedFiles.map((file, i) => ({
             url: URL.createObjectURL(file),
             fileIndex: imageFiles.length + i,
             isExisting: false
@@ -233,7 +240,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                     <span className="text-[10px] font-bold">写真を追加</span>
                                 </button>
                             </div>
-                            <input type="file" multiple ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
+                            <input type="file" multiple ref={fileInputRef} onChange={handleImageChange} accept="image/*,.heic,.heif" className="hidden" />
                             <p className="text-[10px] text-slate-400">
                                 店舗の外観や内装の写真を複数登録できます。一覧画面には1枚目が表示されます。
                             </p>

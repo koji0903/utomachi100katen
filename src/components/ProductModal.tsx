@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle, Plus, HelpCircle, Copy, Check, Instagram, Camera, Share2, Layers, RefreshCw, MessageSquare } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
-import { uploadImageWithCompression } from "@/lib/imageUpload";
+import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
 
 interface ProductModalProps {
@@ -179,11 +179,12 @@ JANコード: ${formData.janCode || "なし"}
         }
     };
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            setImageFile(file);
-            setImagePreview(URL.createObjectURL(file));
+            const processed = await ensureProcessableImage(file);
+            setImageFile(processed);
+            setImagePreview(URL.createObjectURL(processed));
         }
     };
 
