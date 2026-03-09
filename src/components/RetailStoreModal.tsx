@@ -39,6 +39,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         billingZipCode: "",
         billingAddress: "",
         billingTel: "",
+        dailySalesGoal: 0,
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -73,10 +74,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     billingZipCode: initialData.billingZipCode || "",
                     billingAddress: initialData.billingAddress || "",
                     billingTel: initialData.billingTel || "",
+                    dailySalesGoal: initialData.dailySalesGoal || 0,
                 });
                 setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "" });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0 });
                 setPreviews([]);
             }
             setImageFiles([]);
@@ -386,6 +388,24 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                 disabled={formData.type === 'B'}
                                 onChange={e => setFormData({ ...formData, commissionRate: Number(e.target.value) })}
                                 className={`${inputCls} text-right disabled:bg-slate-100 disabled:text-slate-400 transition-colors`} />
+                        </div>
+
+                        {/* 1日の売上目標額 */}
+                        <div className="animate-in slide-in-from-left-2 duration-300">
+                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                                1日の売上目標額 (円)
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={formData.dailySalesGoal}
+                                onChange={e => setFormData({ ...formData, dailySalesGoal: Number(e.target.value) })}
+                                className={`${inputCls} text-right`}
+                                placeholder="例: 50000"
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                                この店舗の「売上管理」画面にて、月の累計目標の達成率を計算するために使用されます。
+                            </p>
                         </div>
 
                         {/* 販売価格ルール */}

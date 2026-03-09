@@ -77,6 +77,7 @@ export interface RetailStore extends BaseEntity {
     billingZipCode?: string;
     billingAddress?: string;
     billingTel?: string;
+    dailySalesGoal?: number; // 1日の売上目標額
 }
 
 

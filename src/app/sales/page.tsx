@@ -13,7 +13,7 @@ import {
     CloudSun, Cloud, CloudRain, CloudSnow,
     Thermometer, Wind, Package, ChevronLeft,
     Sparkles, Edit2, Trash2, RotateCcw,
-    ArrowUpDown, ChevronUp, ChevronDown
+    ArrowUpDown, ChevronUp, ChevronDown, Target
 } from "lucide-react";
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
@@ -547,13 +547,44 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
             });
         });
 
+        // Calculate days in period for average
+        const now = new Date();
+        const currentYearMonth = now.toISOString().slice(0, 7); // YYYY-MM
+        const todayDay = now.getDate();
+
+        let daysInPeriod = 1;
+        if (logType === 'daily') {
+            if (filterMonth === currentYearMonth) {
+                daysInPeriod = todayDay;
+            } else {
+                const [y, m] = filterMonth.split('-').map(Number);
+                daysInPeriod = new Date(y, m, 0).getDate();
+            }
+        } else {
+            // monthly view - could be year or selective
+            daysInPeriod = 30; // rough average or actual months? Let's use 1 for now if not daily
+        }
+
+        const avgDailySales = totalAmt / daysInPeriod;
+
+        // Achievement rate if store selected
+        let achievementRate = 0;
+        let storeGoal = 0;
+        if (filterStoreId) {
+            const store = retailStores.find(s => s.id === filterStoreId);
+            storeGoal = store?.dailySalesGoal || 0;
+            if (storeGoal > 0) {
+                achievementRate = (totalAmt / (storeGoal * daysInPeriod)) * 100;
+            }
+        }
+
         // Convert to array and sort by quantity desc
         const sortedProductStats = Object.entries(productStats)
             .map(([id, qty]) => ({ id, name: productMap[id] || id, qty }))
             .sort((a, b) => b.qty - a.qty);
 
-        return { totalAmt, totalQty, sortedProductStats };
-    }, [filteredSales, productMap]);
+        return { totalAmt, totalQty, sortedProductStats, avgDailySales, achievementRate, storeGoal, daysInPeriod };
+    }, [filteredSales, productMap, logType, filterMonth, filterStoreId, retailStores]);
 
     const requestSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
@@ -637,29 +668,67 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
             </div>
 
             {/* Summary Dashboard */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">期間売上総額</div>
-                    <div className="text-2xl font-black" style={{ color: BRAND }}>
+                    <div className="text-2xl font-black mb-1" style={{ color: BRAND }}>
                         ¥{summary.totalAmt.toLocaleString()}
                     </div>
+                    <div className="text-[10px] text-slate-400 font-bold border-t border-slate-50 pt-1.5 flex justify-between">
+                        <span>平均売上（日）</span>
+                        <span className="text-slate-600">¥{Math.round(summary.avgDailySales).toLocaleString()}</span>
+                    </div>
                 </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">目標達成状況</div>
+                    {summary.storeGoal > 0 ? (
+                        <>
+                            <div className="flex items-end justify-between mb-1.5">
+                                <div className="text-2xl font-black text-slate-800">
+                                    {Math.round(summary.achievementRate)}<small className="ml-1 text-xs text-slate-400">%</small>
+                                </div>
+                                <div className="text-[10px] font-bold text-slate-400 pb-1">目標: ¥{summary.storeGoal.toLocaleString()}/日</div>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full rounded-full transition-all duration-1000"
+                                    style={{
+                                        width: `${Math.min(summary.achievementRate, 100)}%`,
+                                        backgroundColor: summary.achievementRate >= 100 ? '#10b981' : BRAND
+                                    }}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full pt-1 opacity-40">
+                            <Target className="w-5 h-5 text-slate-300 mb-1" />
+                            <span className="text-[10px] font-bold text-slate-400">目標未設定</span>
+                        </div>
+                    )}
+                </div>
+
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">期間販売合計</div>
                     <div className="text-2xl font-black text-slate-800">
                         {summary.totalQty.toLocaleString()}<small className="ml-1 text-xs text-slate-400">個</small>
                     </div>
+                    <div className="text-[10px] text-slate-400 font-bold border-t border-slate-50 pt-1.5 flex justify-between">
+                        <span>日平均</span>
+                        <span className="text-slate-600">{(summary.totalQty / summary.daysInPeriod).toFixed(1)}個</span>
+                    </div>
                 </div>
+
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">商品別売上（上位）</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">売上上位</div>
                     <div className="flex flex-wrap gap-2">
-                        {summary.sortedProductStats.slice(0, 5).map(stat => (
-                            <div key={stat.id} className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-2 py-1 rounded-lg">
-                                <span className="text-[10px] font-bold text-slate-700 truncate max-w-[80px]">{stat.name}</span>
+                        {summary.sortedProductStats.slice(0, 4).map(stat => (
+                            <div key={stat.id} className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-lg">
+                                <span className="text-[10px] font-bold text-slate-700 truncate max-w-[60px]">{stat.name}</span>
                                 <span className="text-[11px] font-black text-blue-600">{stat.qty}</span>
                             </div>
                         ))}
-                        {summary.sortedProductStats.length === 0 && <span className="text-[10px] text-slate-300">データなし</span>}
+                        {summary.sortedProductStats.length === 0 && <span className="text-[10px] text-slate-300">なし</span>}
                     </div>
                 </div>
             </div>
