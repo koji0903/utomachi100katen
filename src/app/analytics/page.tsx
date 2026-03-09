@@ -4,11 +4,12 @@ import { useState, useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
 import {
-    BarChart, Bar, PieChart, Pie, Cell,
+    BarChart, Bar, Line, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     type PieLabelRenderProps,
 } from "recharts";
-import { TrendingUp, DollarSign, Percent, ShoppingBag, Store, Filter, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { TrendingUp, DollarSign, Percent, ShoppingBag, Store, Filter, ChevronLeft, ChevronRight, FileText, BarChart3, PieChart as PieIcon, ListFilter } from "lucide-react";
+import { showNotification } from "@/lib/notifications";
 
 type ViewMode = "monthly" | "daily";
 
@@ -27,6 +28,8 @@ export default function AnalyticsPage() {
     const [selectedMonth, setSelectedMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
     const [selectedStoreId, setSelectedStoreId] = useState("all");
     const [pdfModal, setPdfModal] = useState(false);
+    const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+    const [showYoY, setShowYoY] = useState(false);
 
     // Filter sales by store
     const storeSales = useMemo(() => {
@@ -69,13 +72,13 @@ export default function AnalyticsPage() {
 
     // ─── Trend Chart Data ───
     const trendData = useMemo(() => {
-        const buckets: Record<string, { label: string; revenue: number; grossProfit: number; netProfit: number }> = {};
+        const buckets: Record<string, { key: string; label: string; revenue: number; grossProfit: number; netProfit: number; prevRevenue: number }> = {};
 
         if (viewMode === "monthly") {
             // All 12 months of the selected year
             for (let m = 1; m <= 12; m++) {
                 const key = `${selectedYear}-${String(m).padStart(2, "0")}`;
-                buckets[key] = { label: `${m}月`, revenue: 0, grossProfit: 0, netProfit: 0 };
+                buckets[key] = { key, label: `${m}月`, revenue: 0, grossProfit: 0, netProfit: 0, prevRevenue: 0 };
             }
         } else {
             // All days in the selected month
@@ -83,7 +86,7 @@ export default function AnalyticsPage() {
             const daysInMonth = new Date(y, mo, 0).getDate();
             for (let d = 1; d <= daysInMonth; d++) {
                 const key = `${selectedMonth}-${String(d).padStart(2, "0")}`;
-                buckets[key] = { label: `${d}日`, revenue: 0, grossProfit: 0, netProfit: 0 };
+                buckets[key] = { key, label: `${d}日`, revenue: 0, grossProfit: 0, netProfit: 0, prevRevenue: 0 };
             }
         }
 
@@ -96,8 +99,68 @@ export default function AnalyticsPage() {
                 buckets[key].netProfit += sale.totalNetProfit;
             }
         }
+
+        // Previous year comparison
+        if (showYoY) {
+            const prevPeriodSales = storeSales.filter(s => {
+                if (viewMode === "monthly") {
+                    const prevYear = (Number(selectedYear) - 1).toString();
+                    return s.period.startsWith(prevYear);
+                } else {
+                    const [y, m] = selectedMonth.split("-");
+                    const prevYearMonth = `${Number(y) - 1}-${m}`;
+                    return s.period.startsWith(prevYearMonth);
+                }
+            });
+
+            prevPeriodSales.forEach(sale => {
+                const parts = sale.period.split("-");
+                // Key construction for mapping (e.g., 2024-03 -> 2025-03 mapping)
+                const currentYear = viewMode === "monthly" ? selectedYear : selectedMonth.split("-")[0];
+                const key = viewMode === "monthly"
+                    ? `${currentYear}-${parts[1]}`
+                    : `${selectedMonth}-${parts[2]}`;
+
+                if (buckets[key]) {
+                    buckets[key].prevRevenue = (buckets[key].prevRevenue || 0) + sale.totalAmount;
+                }
+            });
+        }
+
         return Object.values(buckets);
-    }, [periodSales, viewMode, selectedYear, selectedMonth, productCostMap]);
+    }, [periodSales, storeSales, viewMode, selectedYear, selectedMonth, productCostMap, showYoY]);
+
+    // ─── ABC Analysis Data ───
+    const abcData = useMemo(() => {
+        const productStats: Record<string, { id: string; name: string; revenue: number }> = {};
+        periodSales.forEach(sale => {
+            sale.items.forEach(item => {
+                if (!productStats[item.productId]) {
+                    const p = products.find(p => p.id === item.productId);
+                    productStats[item.productId] = {
+                        id: item.productId,
+                        name: p ? `${p.name}${p.variantName ? ` (${p.variantName})` : ""}` : "不明",
+                        revenue: 0
+                    };
+                }
+                productStats[item.productId].revenue += item.subtotal;
+            });
+        });
+
+        const sorted = Object.values(productStats).sort((a, b) => b.revenue - a.revenue);
+        const totalRevenue = sorted.reduce((sum, p) => sum + p.revenue, 0);
+
+        let cumulative = 0;
+        return sorted.map(p => {
+            cumulative += p.revenue;
+            const ratio = totalRevenue > 0 ? (cumulative / totalRevenue) * 100 : 0;
+            let group: "A" | "B" | "C" = "C";
+            if (ratio <= 70) group = "A";
+            else if (ratio <= 90) group = "B";
+
+            return { ...p, cumulativeRatio: ratio, group };
+        });
+    }, [periodSales, products]);
 
     // ─── Store Share Pie Data ───
     const storePieData = useMemo(() => {
@@ -213,6 +276,24 @@ export default function AnalyticsPage() {
         setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
     };
 
+    const handleLegendClick = (data: any) => {
+        const { dataKey } = data;
+        setHiddenSeries(prev => {
+            const next = new Set(prev);
+            if (next.has(dataKey)) next.delete(dataKey);
+            else next.add(dataKey);
+            return next;
+        });
+    };
+
+    const handleBarClick = (data: any) => {
+        if (viewMode === "monthly" && data?.key) {
+            setSelectedMonth(data.key);
+            setViewMode("daily");
+            showNotification(`${data.label}の日次データにドリルダウンしました。`);
+        }
+    };
+
     const kpiCards = [
         {
             label: "売上高",
@@ -316,6 +397,15 @@ export default function AnalyticsPage() {
                             </select>
                         </div>
 
+                        {/* YoY Toggle */}
+                        <button
+                            onClick={() => setShowYoY(!showYoY)}
+                            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-all ${showYoY ? "bg-orange-100 text-orange-700 border border-orange-200 shadow-sm" : "bg-white text-slate-600 border border-slate-200"}`}
+                        >
+                            <TrendingUp className="w-4 h-4" />
+                            前年比較
+                        </button>
+
                         {/* PDF Button */}
                         {selectedStoreId !== "all" && (
                             <button
@@ -350,32 +440,52 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* Charts Row 1: Trend */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                    <h2 className="font-bold text-slate-800 mb-4 text-sm">売上・利益の推移</h2>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 relative">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <BarChart3 className="w-4 h-4 text-slate-400" />
+                            <h2 className="font-bold text-slate-800 text-sm">売上・利益の推移</h2>
+                        </div>
+                        {viewMode === "monthly" && (
+                            <span className="text-[10px] text-slate-400 font-medium bg-slate-50 px-2 py-1 rounded-md">
+                                💡 グラフをクリックして日次へドリルダウン
+                            </span>
+                        )}
+                    </div>
                     {trendData.some(d => d.revenue > 0) ? (
-                        <ResponsiveContainer width="100%" height={280}>
-                            <BarChart data={trendData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={trendData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }} onClick={(e: any) => e && handleBarClick(e.activePayload?.[0]?.payload)}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} />
                                 <YAxis tickFormatter={v => `¥${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                                <Tooltip content={customTooltip} />
-                                <Legend wrapperStyle={{ fontSize: 11 }} />
-                                <Bar dataKey="revenue" name="売上高" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="grossProfit" name="粗利益" fill="#10b981" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="netProfit" name="純利益" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                                <Tooltip content={customTooltip} cursor={{ fill: "#f8fafc" }} />
+                                <Legend
+                                    wrapperStyle={{ fontSize: 11, paddingTop: 10 }}
+                                    onClick={handleLegendClick}
+                                    cursor="pointer"
+                                />
+                                <Bar dataKey="revenue" name="売上高" fill="#3b82f6" hide={hiddenSeries.has("revenue")} radius={[4, 4, 0, 0]} barSize={24} />
+                                <Bar dataKey="grossProfit" name="粗利益" fill="#10b981" hide={hiddenSeries.has("grossProfit")} radius={[4, 4, 0, 0]} barSize={24} />
+                                <Bar dataKey="netProfit" name="純利益" fill="#8b5cf6" hide={hiddenSeries.has("netProfit")} radius={[4, 4, 0, 0]} barSize={24} />
+                                {showYoY && (
+                                    <Line type="monotone" dataKey="prevRevenue" name="前年売上" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="5 5" />
+                                )}
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
-                        <div className="h-[280px] flex items-center justify-center text-slate-300 flex-col gap-2">
+                        <div className="h-[300px] flex items-center justify-center text-slate-300 flex-col gap-2">
                             <TrendingUp className="w-12 h-12" />
                             <p className="text-sm">この期間の売上データがありません</p>
                         </div>
                     )}
                 </div>
 
-                {/* Charts Row 2: Brand Profitability */}
+                {/* Brands Profit Ranking */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                    <h2 className="font-bold text-slate-800 mb-4 text-sm">ブランド別利益ランキング（TOP 5）</h2>
+                    <div className="flex items-center gap-2 mb-4">
+                        <TrendingUp className="w-4 h-4 text-slate-400" />
+                        <h2 className="font-bold text-slate-800 text-sm">ブランド別利益ランキング（TOP 5）</h2>
+                    </div>
                     {brandProfitData.length > 0 ? (
                         <ResponsiveContainer width="100%" height={280}>
                             <BarChart data={brandProfitData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
@@ -384,8 +494,8 @@ export default function AnalyticsPage() {
                                 <YAxis tickFormatter={v => `¥${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: "#94a3b8" }} />
                                 <Tooltip content={customTooltip} />
                                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                                <Bar dataKey="revenue" name="売上高" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="netProfit" name="純利益" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="revenue" name="売上高" fill="#cbd5e1" radius={[4, 4, 0, 0]} barSize={32} />
+                                <Bar dataKey="netProfit" name="純利益" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={32} />
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
@@ -396,11 +506,81 @@ export default function AnalyticsPage() {
                     )}
                 </div>
 
+                {/* ABC Analysis Section */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
+                        <ListFilter className="w-4 h-4 text-slate-500" />
+                        <h2 className="font-bold text-slate-800 text-sm">商品貢献度分析 (ABC分析)</h2>
+                        <span className="ml-auto text-[10px] text-slate-400">売上上位 70%(A) / 90%(B) / その他(C)</span>
+                    </div>
+                    <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            {(["A", "B", "C"] as const).map(group => {
+                                const groupItems = abcData.filter(d => d.group === group);
+                                const groupRevenue = groupItems.reduce((sum, item) => sum + item.revenue, 0);
+                                const totalRevenue = abcData.reduce((sum, item) => sum + item.revenue, 0);
+                                const share = totalRevenue > 0 ? (groupRevenue / totalRevenue) * 100 : 0;
+
+                                const colors = {
+                                    A: "border-blue-200 bg-blue-50 text-blue-700",
+                                    B: "border-emerald-200 bg-emerald-50 text-emerald-700",
+                                    C: "border-slate-200 bg-slate-50 text-slate-700"
+                                };
+
+                                return (
+                                    <div key={group} className={`p-4 rounded-xl border ${colors[group]}`}>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-xl font-black">{group}</span>
+                                            <span className="text-xs font-bold">{fmtPct(share)} share</span>
+                                        </div>
+                                        <div className="text-sm font-bold">{fmtYen(groupRevenue)}</div>
+                                        <div className="text-[10px] mt-1 opacity-70 cursor-default" title={groupItems.map(i => i.name).join("\n")}>
+                                            {groupItems.length} 商品
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="hidden sm:block overflow-x-auto">
+                            <table className="w-full text-[11px]">
+                                <thead>
+                                    <tr className="text-slate-400 border-b border-slate-100">
+                                        <th className="px-2 py-2 text-left">ランク</th>
+                                        <th className="px-2 py-2 text-left">商品名</th>
+                                        <th className="px-2 py-2 text-right">売上高</th>
+                                        <th className="px-2 py-2 text-right">累計構成比</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {abcData.slice(0, 10).map((p, i) => (
+                                        <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
+                                            <td className="px-2 py-2 font-bold text-slate-400">{i + 1}</td>
+                                            <td className="px-2 py-2 text-slate-700 font-medium truncate max-w-[200px]">{p.name}</td>
+                                            <td className="px-2 py-2 text-right font-bold text-slate-900">{fmtYen(p.revenue)}</td>
+                                            <td className="px-2 py-2 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full ${p.group === 'A' ? 'bg-blue-500' : p.group === 'B' ? 'bg-emerald-500' : 'bg-slate-400'}`} style={{ width: `${p.cumulativeRatio}%` }} />
+                                                    </div>
+                                                    <span className="w-8 font-mono">{Math.round(p.cumulativeRatio)}%</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Charts Row 3: Pie + Ranking */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                     {/* Store Share Pie */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                        <h2 className="font-bold text-slate-800 mb-4 text-sm">店舗別売上シェア</h2>
+                        <div className="flex items-center gap-2 mb-4">
+                            <PieIcon className="w-4 h-4 text-slate-400" />
+                            <h2 className="font-bold text-slate-800 text-sm">店舗別売上シェア</h2>
+                        </div>
                         {storePieData.length > 0 ? (
                             <ResponsiveContainer width="100%" height={240}>
                                 <PieChart>
@@ -408,7 +588,7 @@ export default function AnalyticsPage() {
                                         label={(props: PieLabelRenderProps) => `${props.name ?? ""} ${(((props.percent ?? 0)) * 100).toFixed(0)}%`}
                                         labelLine={false}>
                                         {storePieData.map((_, i) => (
-                                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="white" strokeWidth={2} />
                                         ))}
                                     </Pie>
                                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -425,15 +605,17 @@ export default function AnalyticsPage() {
 
                     {/* Product Ranking */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                        <h2 className="font-bold text-slate-800 mb-4 text-sm">商品別販売数ランキング（TOP 8）</h2>
+                        <div className="flex items-center gap-2 mb-4">
+                            <BarChart3 className="w-4 h-4 text-slate-400" />
+                            <h2 className="font-bold text-slate-800 text-sm">商品別販売数ランキング（TOP 8）</h2>
+                        </div>
                         {productRankData.length > 0 ? (
                             <ResponsiveContainer width="100%" height={240}>
                                 <BarChart data={productRankData} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                                     <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} />
                                     <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "#64748b" }} width={100} />
-                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                    <Tooltip formatter={(v: any) => [`${v}個`, "販売数"]} />
+                                    <Tooltip formatter={(v: any) => [`${v}個`, "販売数"]} cursor={{ fill: "#f8fafc" }} />
                                     <Bar dataKey="qty" name="販売数" fill="#f59e0b" radius={[0, 4, 4, 0]}>
                                         {productRankData.map((_, i) => (
                                             <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
@@ -452,7 +634,7 @@ export default function AnalyticsPage() {
 
                 {/* Summary Table */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100">
+                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
                         <h2 className="font-bold text-slate-800 text-sm">
                             {viewMode === "monthly" ? `${selectedYear}年 月次明細` : `${selectedMonth.replace("-", "年")}月 店舗別明細`}
                         </h2>
