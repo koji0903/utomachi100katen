@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Image as ImageIcon, UploadCloud } from "lucide-react";
-import { useStore, RetailStore } from "@/lib/store";
+import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Image as ImageIcon, UploadCloud, Search, Check } from "lucide-react";
+import { useStore, RetailStore, Product } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
@@ -33,6 +33,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         imageUrls: [] as string[],
         type: 'A' as 'A' | 'B',
         pricingRule: 0,
+        activeProductIds: [] as string[],
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -61,10 +62,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     imageUrls: initialData.imageUrls || [],
                     type: initialData.type || 'A',
                     pricingRule: initialData.pricingRule ?? 0,
+                    activeProductIds: initialData.activeProductIds || [],
                 });
                 setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0 });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [] });
                 setPreviews([]);
             }
             setImageFiles([]);
@@ -399,6 +401,14 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                             </p>
                         </div>
 
+                        {/* 取扱商品設定 */}
+                        <div className="pt-4 border-t border-slate-100">
+                            <ProductAssignmentSection
+                                activeProductIds={formData.activeProductIds}
+                                onChange={(ids) => setFormData({ ...formData, activeProductIds: ids })}
+                            />
+                        </div>
+
                         {/* 連絡先 + 担当者 */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -448,5 +458,122 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                 </div>
             </div >
         </div >
+    );
+}
+
+function ProductAssignmentSection({
+    activeProductIds,
+    onChange
+}: {
+    activeProductIds: string[];
+    onChange: (ids: string[]) => void;
+}) {
+    const { products, brands } = useStore();
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const brandMap = new Map(brands.map(b => [b.id, b.name]));
+
+    const filteredProducts = products.filter(p => {
+        if (!searchQuery) return true;
+        const q = searchQuery.toLowerCase();
+        return p.name.toLowerCase().includes(q) ||
+            p.variantName?.toLowerCase().includes(q) ||
+            brandMap.get(p.brandId)?.toLowerCase().includes(q);
+    }).sort((a, b) => {
+        const brandA = brandMap.get(a.brandId) || "";
+        const brandB = brandMap.get(b.brandId) || "";
+        if (brandA !== brandB) return brandA.localeCompare(brandB);
+        return a.name.localeCompare(b.name);
+    });
+
+    const toggleProduct = (id: string) => {
+        if (activeProductIds.includes(id)) {
+            onChange(activeProductIds.filter(v => v !== id));
+        } else {
+            onChange([...activeProductIds, id]);
+        }
+    };
+
+    const toggleAll = () => {
+        if (activeProductIds.length === products.length) {
+            onChange([]);
+        } else {
+            onChange(products.map(p => p.id));
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                    </div>
+                    <label className="text-sm font-bold text-slate-800">取扱商品設定</label>
+                </div>
+                <button
+                    type="button"
+                    onClick={toggleAll}
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                >
+                    {activeProductIds.length === products.length ? "すべて解除" : "すべて選択"}
+                </button>
+            </div>
+
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="商品名やブランドで検索..."
+                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all"
+                />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                {filteredProducts.map(product => {
+                    const isSelected = activeProductIds.includes(product.id);
+                    const brandName = brandMap.get(product.brandId) || "不明";
+                    return (
+                        <button
+                            key={product.id}
+                            type="button"
+                            onClick={() => toggleProduct(product.id)}
+                            className={`flex items-start gap-3 p-3 rounded-xl border transition-all text-left ${isSelected
+                                    ? "bg-emerald-50 border-emerald-200 ring-1 ring-emerald-500/20"
+                                    : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50"
+                                }`}
+                        >
+                            <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${isSelected ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-slate-200"
+                                }`}>
+                                {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </div>
+                            <div className="min-w-0">
+                                <div className="text-[10px] font-bold text-slate-400 truncate mb-0.5">
+                                    {brandName}
+                                </div>
+                                <div className={`text-xs font-bold truncate ${isSelected ? "text-emerald-900" : "text-slate-700"}`}>
+                                    {product.name}
+                                </div>
+                                {product.variantName && (
+                                    <div className="text-[10px] text-slate-400 truncate font-medium">
+                                        {product.variantName}
+                                    </div>
+                                )}
+                            </div>
+                        </button>
+                    );
+                })}
+            </div>
+            {filteredProducts.length === 0 && (
+                <div className="text-center py-8 text-slate-400 text-xs font-medium">
+                    商品が見つかりませんでした
+                </div>
+            )}
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+                ここで選択した商品のみが売上入力画面や日報画面に表示されます。未設定の場合は全商品が表示されます。
+            </p>
+        </div>
     );
 }

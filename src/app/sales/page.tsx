@@ -85,7 +85,14 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
     const sortedProducts = useMemo(() => {
         const brandMap = new Map(brands.map(b => [b.id, b.name]));
-        const base = [...products].sort((a, b) => {
+
+        // Filter products based on store assignment
+        let filteredProducts = [...products];
+        if (selectedStore?.activeProductIds && selectedStore.activeProductIds.length > 0) {
+            filteredProducts = products.filter(p => selectedStore.activeProductIds?.includes(p.id));
+        }
+
+        const base = filteredProducts.sort((a, b) => {
             const brandA = brandMap.get(a.brandId) || "";
             const brandB = brandMap.get(b.brandId) || "";
             if (brandA !== brandB) return brandA.localeCompare(brandB);

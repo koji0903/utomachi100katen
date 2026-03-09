@@ -565,15 +565,20 @@ function ReportForm({
                                     </button>
                                 ) : (
                                     <div className="space-y-2">
-                                        {restocking.map((item, i) => (
-                                            <RestockingRow
-                                                key={i}
-                                                item={item}
-                                                products={products}
-                                                onChange={v => setRestocking(prev => prev.map((x, j) => j === i ? v : x))}
-                                                onRemove={() => setRestocking(prev => prev.filter((_, j) => j !== i))}
-                                            />
-                                        ))}
+                                        {restocking.map((item, i) => {
+                                            const filteredProducts = (selectedStore?.activeProductIds && selectedStore.activeProductIds.length > 0)
+                                                ? products.filter(p => selectedStore.activeProductIds?.includes(p.id))
+                                                : products;
+                                            return (
+                                                <RestockingRow
+                                                    key={i}
+                                                    item={item}
+                                                    products={filteredProducts}
+                                                    onChange={v => setRestocking(prev => prev.map((x, j) => j === i ? v : x))}
+                                                    onRemove={() => setRestocking(prev => prev.filter((_, j) => j !== i))}
+                                                />
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>

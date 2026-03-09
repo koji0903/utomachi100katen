@@ -70,6 +70,7 @@ export interface RetailStore {
     createdAt?: string | any;
     updatedAt?: string | any;
     pricingRule?: number; // Percentage offset (e.g., 15 for +15%, -20 for -20%)
+    activeProductIds?: string[]; // IDs of products carried by this store
 }
 
 
