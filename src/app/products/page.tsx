@@ -68,6 +68,7 @@ export default function ProductsPage() {
       在庫数: p.stock,
       アラート閾値: p.alertThreshold || 20,
       JANコード: p.janCode || "",
+      税率: p.taxRate === 'reduced' ? '8%' : '10%',
     }));
 
     const csvContent = convertToCSV(exportData);
@@ -100,6 +101,7 @@ export default function ProductsPage() {
             stock: Number(row["在庫数"]),
             alertThreshold: Number(row["アラート閾値"]),
             janCode: row["JANコード"],
+            taxRate: row["税率"]?.includes("8") || row["税率"]?.includes("軽減") ? 'reduced' : 'standard',
           };
 
           if (row["ID"] && products.find(p => p.id === row["ID"])) {
@@ -237,6 +239,7 @@ export default function ProductsPage() {
                 <th className="p-5 font-semibold whitespace-nowrap">ブランド</th>
                 <th className="p-5 font-semibold whitespace-nowrap">仕入先</th>
                 <th className="p-5 font-semibold text-right whitespace-nowrap">価格 (税込)</th>
+                <th className="p-5 font-semibold text-center whitespace-nowrap">税率</th>
                 <th className="p-5 font-semibold text-right whitespace-nowrap">在庫</th>
                 <th className="p-5 font-semibold text-right whitespace-nowrap">操作</th>
               </tr>
@@ -284,6 +287,11 @@ export default function ProductsPage() {
                           店舗別価格あり
                         </div>
                       )}
+                    </td>
+                    <td className="p-5 text-center">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${product.taxRate === 'reduced' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
+                        {product.taxRate === 'reduced' ? '8%' : '10%'}
+                      </span>
                     </td>
                     <td className="p-5 text-right">
                       <div className="flex flex-col items-end gap-1">
@@ -377,6 +385,9 @@ export default function ProductsPage() {
                       {brand?.name || "不明"}
                     </span>
                     <span className="text-xs text-slate-500">{supplier?.name || "不明"}</span>
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${product.taxRate === 'reduced' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
+                      {product.taxRate === 'reduced' ? '8%' : '10%'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <div className="font-bold text-slate-900">¥{product.sellingPrice.toLocaleString()}</div>

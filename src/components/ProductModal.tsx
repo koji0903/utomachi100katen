@@ -34,7 +34,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         regionBackground: "",
         servingSuggestion: "",
         imageUrl: "",
-        taxRate: 'standard' as 'standard' | 'reduced',
+        taxRate: 'reduced' as 'standard' | 'reduced',
         alertThreshold: 20,
         janCode: "",
         isComposite: false,
@@ -75,7 +75,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     regionBackground: initialData.regionBackground || "",
                     servingSuggestion: initialData.servingSuggestion || "",
                     imageUrl: initialData.imageUrl || "",
-                    taxRate: initialData.taxRate || 'standard',
+                    taxRate: initialData.taxRate || 'reduced',
                     alertThreshold: initialData.alertThreshold ?? 20,
                     janCode: initialData.janCode || "",
                     isComposite: initialData.isComposite || false,
@@ -489,6 +489,21 @@ JANコード: ${formData.janCode || "なし"}
                                                 onChange={(e) => setFormData({ ...formData, sellingPrice: Number(e.target.value) })}
                                                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right"
                                             />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-slate-700 block text-xs uppercase tracking-wider">税区分</label>
+                                            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                                                {(['reduced', 'standard'] as const).map((rate) => (
+                                                    <button
+                                                        key={rate}
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, taxRate: rate })}
+                                                        className={`py-2 text-xs font-bold rounded-lg transition-all ${formData.taxRate === rate ? 'bg-white text-[#1e3a8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                                    >
+                                                        {rate === 'reduced' ? '軽減税率 (8%)' : '標準税率 (10%)'}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
 
                                         <div className="space-y-2">
