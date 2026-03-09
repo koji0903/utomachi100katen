@@ -126,7 +126,7 @@ export function BrandModal({ isOpen, onClose, initialData }: BrandModalProps) {
                                     type="file"
                                     ref={fileInputRef}
                                     onChange={handleImageChange}
-                                    accept="image/*"
+                                    accept="image/*,.heic,.heif"
                                     className="hidden"
                                 />
                             </div>

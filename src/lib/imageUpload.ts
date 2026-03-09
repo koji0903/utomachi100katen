@@ -10,6 +10,35 @@ export const uploadImageWithCompression = async (
     });
 
     const uploadLogic = async (): Promise<string> => {
+        let fileToUpload: File | Blob = file;
+        const isHEIC = file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
+
+        // 0. HEIC Conversion (if needed)
+        if (isHEIC) {
+            try {
+                console.log(`[Upload] HEIC detected, converting...: ${file.name}`);
+                const heic2any = (await import("heic2any")).default;
+                const convertedBlob = await heic2any({
+                    blob: file,
+                    toType: "image/jpeg",
+                    quality: 0.8
+                });
+
+                // heic2any can return an array if multiple images are in one HEIC, take the first one
+                const finalBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+
+                // Create a new File object from the blob to maintain similar structure
+                fileToUpload = new File([finalBlob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), {
+                    type: "image/jpeg",
+                    lastModified: Date.now()
+                });
+                console.log(`[Upload] HEIC conversion successful: ${(fileToUpload as File).name}`);
+            } catch (heicError) {
+                console.error("[Upload] HEIC conversion failed:", heicError);
+                // Fallback to original file, browser-image-compression might still handle some things or fail gracefully
+            }
+        }
+
         // 1. Compression options
         const options = {
             maxSizeMB: 0.5, // 500KB max size
@@ -17,11 +46,11 @@ export const uploadImageWithCompression = async (
             useWebWorker: false,
         };
 
-        let fileToUpload: File | Blob = file;
         const isVideo = file.type.startsWith("video/");
 
         try {
-            console.log(`[Upload] Starting process for: ${file.name} (Type: ${file.type}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+            const fileName = fileToUpload instanceof File ? fileToUpload.name : (file.name.replace(/\.(heic|heif)$/i, ".jpg"));
+            console.log(`[Upload] Starting process for: ${fileName} (Type: ${fileToUpload.type}, Size: ${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB)`);
 
             // 2. Try compression locally (Images only)
             if (!isVideo) {

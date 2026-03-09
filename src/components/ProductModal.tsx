@@ -364,14 +364,14 @@ JANコード: ${formData.janCode || "なし"}
                                                 <div className="flex flex-col items-center text-slate-400 p-4 text-center">
                                                     <ImageIcon className="w-10 h-10 mb-3 text-slate-300" />
                                                     <p className="text-sm font-medium text-slate-600">クリックして画像をアップロード</p>
-                                                    <p className="text-xs mt-1">JPEG, PNG等 (自動で圧縮されます)</p>
+                                                    <p className="text-xs mt-1">JPEG, PNG, HEIC等 (自動で圧縮されます)</p>
                                                 </div>
                                             )}
                                             <input
                                                 type="file"
                                                 ref={fileInputRef}
                                                 onChange={handleImageChange}
-                                                accept="image/*"
+                                                accept="image/*,.heic,.heif"
                                                 className="hidden"
                                             />
                                         </div>

@@ -593,7 +593,7 @@ function ReportForm({
                                                 <span className="text-[10px] font-medium">追加</span>
                                             </button>
                                         </div>
-                                        <input type="file" multiple ref={beforeInputRef} onChange={handleBeforeChange} accept="image/*" className="hidden" />
+                                        <input type="file" multiple ref={beforeInputRef} onChange={handleBeforeChange} accept="image/*,.heic,.heif" className="hidden" />
                                     </div>
 
                                     {/* After Section */}
@@ -621,7 +621,7 @@ function ReportForm({
                                                 <span className="text-[10px] font-medium">追加</span>
                                             </button>
                                         </div>
-                                        <input type="file" multiple ref={afterInputRef} onChange={handleAfterChange} accept="image/*" className="hidden" />
+                                        <input type="file" multiple ref={afterInputRef} onChange={handleAfterChange} accept="image/*,.heic,.heif" className="hidden" />
                                     </div>
                                 </div>
 
@@ -682,7 +682,7 @@ function ReportForm({
                                 type="file"
                                 ref={activityInputRef}
                                 onChange={handleActivityImageChange}
-                                accept="image/*,video/*"
+                                accept="image/*,.heic,.heif,video/*"
                                 className="hidden"
                                 id="activity-image-input"
                                 name="activity-image-input"

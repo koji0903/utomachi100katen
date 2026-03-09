@@ -556,6 +556,30 @@ export function useStore() {
     };
 
     const deleteSale = async (id: string) => {
+        const sale = sales.find(s => s.id === id);
+        if (!sale) return;
+
+        // Reverse stock adjustments
+        for (const item of sale.items) {
+            const product = products.find(p => p.id === item.productId);
+            if (!product) continue;
+
+            if (product.isComposite && product.components) {
+                // Reverse components
+                for (const comp of product.components) {
+                    const compProduct = products.find(p => p.id === comp.productId);
+                    if (compProduct) {
+                        const restoredStock = (compProduct.stock || 0) + (comp.quantity * item.quantity);
+                        await updateProduct(compProduct.id, { stock: restoredStock });
+                    }
+                }
+            } else {
+                // Reverse simple product
+                const restoredStock = (product.stock || 0) + item.quantity;
+                await updateProduct(product.id, { stock: restoredStock });
+            }
+        }
+
         mutateSales(sales.filter((s) => s.id !== id), false);
         const docRef = doc(db, "sales", id);
         await deleteDoc(docRef);

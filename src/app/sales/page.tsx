@@ -12,7 +12,7 @@ import {
     BarChart3,
     CloudSun, Cloud, CloudRain, CloudSnow,
     Thermometer, Wind, Package, ChevronDown, ChevronLeft,
-    Sparkles, Edit2,
+    Sparkles, Edit2, Trash2,
 } from "lucide-react";
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
 import { SalesAnalysisTab } from "@/components/SalesAnalysisTab";
@@ -32,7 +32,7 @@ function WeatherIcon({ main, size = 4 }: { main?: string; size?: number }) {
 
 // ─── Sales Input Tab ──────────────────────────────────────────────────────────
 function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null; onClearEdit: () => void }) {
-    const { isLoaded, products, retailStores, addSale, updateSale } = useStore();
+    const { isLoaded, products, retailStores, addSale, updateSale, deleteSale } = useStore();
 
     const [selectedStoreId, setSelectedStoreId] = useState<string>("");
     const [inputMode, setInputMode] = useState<'daily' | 'monthly'>('daily');
@@ -131,6 +131,22 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
         } finally { setIsSaving(false); }
     };
 
+    const handleDelete = async () => {
+        if (!editingSale) return;
+        if (!window.confirm("この売上データを削除してもよろしいですか？在庫数も自動的に差し戻されます。")) return;
+
+        setIsSaving(true);
+        try {
+            await deleteSale(editingSale.id);
+            onClearEdit();
+        } catch (error) {
+            console.error("Delete error:", error);
+            alert("削除に失敗しました。");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
     return (
@@ -200,9 +216,16 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                         {isSaving ? "保存中..." : (editingSale ? "データを更新する" : "データを保存する")}
                     </button>
                     {editingSale && (
-                        <button onClick={onClearEdit} className="w-full mt-2 py-2 text-xs font-bold text-blue-100 hover:text-white transition-colors underline decoration-blue-400">
-                            編集をキャンセルして新規入力に戻る
-                        </button>
+                        <div className="space-y-2 mt-4">
+                            <button onClick={onClearEdit} className="w-full py-2 text-xs font-bold text-blue-100 hover:text-white transition-colors underline decoration-blue-400">
+                                編集をキャンセルして新規入力に戻る
+                            </button>
+                            <button onClick={handleDelete} disabled={isSaving}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-red-100 hover:text-white hover:bg-red-500/20 transition-all border border-red-400/30 text-xs">
+                                <Trash2 className="w-4 h-4" />
+                                この売上データを削除する
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -271,7 +294,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
 // ─── Daily Log Tab ────────────────────────────────────────────────────────────
 function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, filterDate?: string }) {
-    const { sales, products, retailStores, dailyReports } = useStore();
+    const { sales, products, retailStores, dailyReports, deleteSale } = useStore();
 
     // Filter controls
     const [logType, setLogType] = useState<'daily' | 'monthly'>('daily');
@@ -491,6 +514,22 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                     title="編集"
                                                 >
                                                     <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (window.confirm("この売上データを削除してもよろしいですか？在庫数も自動的に差し戻されます。")) {
+                                                            try {
+                                                                await deleteSale(sale.id);
+                                                            } catch (error) {
+                                                                console.error("Delete error:", error);
+                                                                alert("削除に失敗しました。");
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                                                    title="削除"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </td>
                                         </tr>
