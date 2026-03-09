@@ -720,9 +720,9 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                 </div>
 
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">売上上位</div>
-                    <div className="flex flex-wrap gap-2">
-                        {summary.sortedProductStats.slice(0, 4).map(stat => (
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">商品別売上</div>
+                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                        {summary.sortedProductStats.map(stat => (
                             <div key={stat.id} className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-lg">
                                 <span className="text-[10px] font-bold text-slate-700 truncate max-w-[60px]">{stat.name}</span>
                                 <span className="text-[11px] font-black text-blue-600">{stat.qty}</span>
