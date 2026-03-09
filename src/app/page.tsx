@@ -17,12 +17,136 @@ import {
     Search,
     BookOpen,
     ShoppingCart,
-    ShoppingBag
+    ShoppingBag,
+    History,
+    RefreshCw,
+    Clock,
+    Database
 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
-import { useStore } from "@/lib/store";
+import { useStore, type Activity } from "@/lib/store";
 import { CalendarView } from "@/components/CalendarView";
 import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
+
+function ActivityTimeline() {
+    const { activities, dailyReports, sales, purchases } = useStore();
+
+    const allActivities = useMemo(() => {
+        const items: any[] = [];
+
+        // Add explicit activities
+        activities.forEach((a: Activity) => {
+            const dateStr = typeof a.createdAt === 'string' ? a.createdAt : a.createdAt?.toDate?.()?.toISOString() || new Date().toISOString();
+            items.push({
+                id: a.id,
+                type: a.type,
+                category: a.category,
+                title: a.title,
+                detail: a.detail,
+                date: new Date(dateStr)
+            });
+        });
+
+        // Daily Reports as activities
+        dailyReports.forEach(r => {
+            items.push({
+                id: r.id,
+                type: 'create',
+                category: 'report',
+                title: `日報「${r.title || '無題'}」`,
+                detail: `担当: ${r.worker}`,
+                date: new Date(r.createdAt || r.date)
+            });
+        });
+
+        // Sales as activities
+        sales.filter(s => s.type === 'daily').forEach(s => {
+            const saleDate = new Date(s.updatedAt || s.period);
+            items.push({
+                id: s.id,
+                type: 'create',
+                category: 'sale',
+                title: `売上実績入力`,
+                detail: `${s.period} / ¥${s.totalAmount.toLocaleString()}`,
+                date: isNaN(saleDate.getTime()) ? new Date() : saleDate
+            });
+        });
+
+        return items
+            .filter(item => !isNaN(item.date.getTime()))
+            .sort((a, b) => b.date.getTime() - a.date.getTime())
+            .slice(0, 10);
+    }, [activities, dailyReports, sales]);
+
+    if (allActivities.length === 0) return null;
+
+    const getIcon = (category: string) => {
+        switch (category) {
+            case 'sale': return <BarChart3 className="w-3.5 h-3.5" />;
+            case 'report': return <FileText className="w-3.5 h-3.5" />;
+            case 'product': return <Package className="w-3.5 h-3.5" />;
+            case 'store': return <Store className="w-3.5 h-3.5" />;
+            case 'purchase': return <ShoppingBag className="w-3.5 h-3.5" />;
+            default: return <RefreshCw className="w-3.5 h-3.5" />;
+        }
+    };
+
+    const getColors = (category: string) => {
+        switch (category) {
+            case 'sale': return 'bg-blue-50 text-blue-600 border-blue-100';
+            case 'report': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
+            case 'product': return 'bg-indigo-50 text-indigo-600 border-indigo-100';
+            case 'store': return 'bg-pink-50 text-pink-600 border-pink-100';
+            default: return 'bg-slate-50 text-slate-600 border-slate-100';
+        }
+    };
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+                <History className="w-4 h-4 text-slate-400" />
+                最近のアクティビティ
+            </h3>
+            <div className="space-y-6 relative">
+                {/* Vertical line connecting dots */}
+                <div className="absolute left-[11px] top-2 bottom-2 w-px bg-slate-100" />
+
+                {allActivities.map((item, idx) => (
+                    <div key={item.id + idx} className="relative pl-8 group">
+                        {/* Dot */}
+                        <div className={`absolute left-0 top-1 w-6 h-6 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 transition-transform group-hover:scale-110 ${getColors(item.category)}`}>
+                            {getIcon(item.category)}
+                        </div>
+
+                        <div>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className={`text-[10px] font-black uppercase tracking-tighter ${getColors(item.category).split(' ')[1]}`}>
+                                    {item.category}
+                                </span>
+                                <span className="text-[9px] font-medium text-slate-400">
+                                    {item.date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })} {item.date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                            </div>
+                            <h4 className="text-xs font-bold text-slate-800 mt-0.5 group-hover:text-blue-600 transition-colors">
+                                {item.title}
+                            </h4>
+                            {item.detail && (
+                                <p className="text-[10px] text-slate-400 mt-1 font-medium leading-relaxed">
+                                    {item.detail}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <div className="mt-8 pt-6 border-t border-slate-50 text-center">
+                <Link href="/analytics" className="text-[10px] font-black uppercase tracking-widest text-[#1e3a8a] hover:underline">
+                    All Activities <ArrowRight className="inline w-3 h-3 ml-1" />
+                </Link>
+            </div>
+        </div>
+    );
+}
 
 export default function DashboardPage() {
     const { isLoaded, products, brands, retailStores, sales, dailyReports, purchases } = useStore();
@@ -311,7 +435,7 @@ export default function DashboardPage() {
                         <Sparkles className="absolute -bottom-4 -right-4 w-32 h-32 text-white/5" />
                     </div>
 
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm overflow-hidden">
                         <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                             <Plus className="w-4 h-4 text-blue-600" />
                             新規登録
@@ -335,6 +459,9 @@ export default function DashboardPage() {
                             </Link>
                         </div>
                     </div>
+
+                    {/* Activity Timeline */}
+                    <ActivityTimeline />
                 </div>
             </div>
 

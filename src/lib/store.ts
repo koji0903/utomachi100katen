@@ -267,6 +267,17 @@ export interface StockConversion {
     createdAt?: string | any;
 }
 
+export interface Activity {
+    id: string;
+    type: 'create' | 'update' | 'delete' | 'system';
+    category: 'product' | 'brand' | 'store' | 'sale' | 'report' | 'purchase' | 'other';
+    title: string;
+    detail?: string;
+    userId?: string;
+    userName?: string;
+    createdAt: string | any;
+}
+
 export interface Product {
     id: string;
     name: string;
@@ -328,6 +339,7 @@ export function useStore() {
     const { data: spotRecipients = [], mutate: mutateSpotRecipients } = useSWR<SpotRecipient[]>("spot_recipients", () => fetcher<SpotRecipient>("spot_recipients"), swrConfig);
     const { data: challenges = [], mutate: mutateChallenges } = useSWR<BusinessChallenge[]>("business_challenges", () => fetcher<BusinessChallenge>("business_challenges"), swrConfig);
     const { data: stockConversions = [], mutate: mutateStockConversions } = useSWR<StockConversion[]>("stock_conversions", () => fetcher<StockConversion>("stock_conversions"), swrConfig);
+    const { data: activities = [], mutate: mutateActivities } = useSWR<Activity[]>("activities", () => fetcher<Activity>("activities"), swrConfig);
 
     // Company Settings — fetched once from Firestore doc (not a collection)
     const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings } = useSWR<CompanySettings>(
@@ -341,6 +353,22 @@ export function useStore() {
     );
 
     const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports;
+
+    // --- Activity Logging Helper ---
+    const logActivity = async (activity: Omit<Activity, "id" | "createdAt">) => {
+        const newRef = doc(collection(db, "activities"));
+        const newActivity = {
+            id: newRef.id,
+            ...activity,
+            createdAt: new Date().toISOString()
+        };
+        mutateActivities([newActivity, ...activities], false);
+        await setDoc(newRef, {
+            ...activity,
+            createdAt: serverTimestamp()
+        });
+        mutateActivities();
+    };
 
     // --- Brand Actions ---
     const addBrand = async (brandData: Omit<Brand, "id">) => {
@@ -379,6 +407,12 @@ export function useStore() {
             ...productData,
             createdAt: serverTimestamp(),
         });
+        logActivity({
+            type: 'create',
+            category: 'product',
+            title: `商品「${productData.name}」を追加しました`,
+            detail: `価格: ¥${productData.sellingPrice.toLocaleString()}`
+        });
         mutateProducts();
     };
 
@@ -387,13 +421,26 @@ export function useStore() {
 
         const docRef = doc(db, "products", id);
         await updateDoc(docRef, productUpdate);
+        logActivity({
+            type: 'update',
+            category: 'product',
+            title: `商品情報を更新しました`,
+            detail: productUpdate.name || id
+        });
         mutateProducts();
     };
 
     const deleteProduct = async (id: string) => {
+        const product = products.find(p => p.id === id);
         mutateProducts(products.filter((p) => p.id !== id), false);
         const docRef = doc(db, "products", id);
         await deleteDoc(docRef);
+        logActivity({
+            type: 'delete',
+            category: 'product',
+            title: `商品を削除しました`,
+            detail: product?.name || id
+        });
         mutateProducts();
     };
 
@@ -429,6 +476,11 @@ export function useStore() {
             ...storeData,
             createdAt: serverTimestamp(),
         });
+        logActivity({
+            type: 'create',
+            category: 'store',
+            title: `店舗「${storeData.name}」を登録しました`,
+        });
         mutateRetailStores();
     };
 
@@ -438,6 +490,12 @@ export function useStore() {
         await updateDoc(docRef, {
             ...storeUpdate,
             updatedAt: serverTimestamp(),
+        });
+        logActivity({
+            type: 'update',
+            category: 'store',
+            title: `店舗情報を更新しました`,
+            detail: retailStores.find(s => s.id === id)?.name
         });
         mutateRetailStores();
     };
@@ -535,6 +593,12 @@ export function useStore() {
         await setDoc(newRef, {
             ...saleData,
             updatedAt: serverTimestamp(),
+        });
+        logActivity({
+            type: 'create',
+            category: 'sale',
+            title: `売上を記録しました`,
+            detail: `${retailStores.find(s => s.id === saleData.storeId)?.name} / ¥${saleData.totalAmount.toLocaleString()}`
         });
         mutateSales();
     };
@@ -644,6 +708,12 @@ export function useStore() {
         const newReport: DailyReport = { id: newRef.id, ...reportData, createdAt: new Date().toISOString() };
         mutateDailyReports([newReport, ...(dailyReports ?? [])], false);
         await setDoc(newRef, { ...reportData, createdAt: serverTimestamp() });
+        logActivity({
+            type: 'create',
+            category: 'report',
+            title: `業務日報「${reportData.title || '無題'}」を提出しました`,
+            detail: `担当: ${reportData.worker}`
+        });
         mutateDailyReports();
     };
 
@@ -837,5 +907,7 @@ export function useStore() {
         // Daily Weather
         dailyWeather,
         saveDailyWeather,
+        activities,
+        logActivity,
     };
 }
