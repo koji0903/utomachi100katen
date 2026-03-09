@@ -322,7 +322,7 @@ export function useStore() {
         { ...swrConfig, revalidateOnFocus: false }
     );
 
-    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments;
+    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports;
 
     // --- Brand Actions ---
     const addBrand = async (brandData: Omit<Brand, "id">) => {

@@ -308,10 +308,13 @@ export default function DocumentsPage() {
                     d.period.includes(q);
                 return matchType && matchStatus && matchSearch;
             })
-            .sort((a, b) => sortDesc
-                ? (b.createdAt || "").localeCompare(a.createdAt || "")
-                : (a.createdAt || "").localeCompare(b.createdAt || "")
-            );
+            .sort((a, b) => {
+                const dateA = a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000) : new Date(a.createdAt || 0);
+                const dateB = b.createdAt?.seconds ? new Date(b.createdAt.seconds * 1000) : new Date(b.createdAt || 0);
+                return sortDesc
+                    ? dateB.getTime() - dateA.getTime()
+                    : dateA.getTime() - dateB.getTime();
+            });
     }, [issuedDocuments, filterStatus, filterType, searchQuery, sortDesc, isLoaded]);
 
     const stats = useMemo(() => {
