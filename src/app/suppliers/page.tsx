@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Edit2, Trash2, Search, Users, Building2, Wheat } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Edit2, Trash2, Search, Users, Building2, Wheat, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { useStore, Supplier } from "@/lib/store";
 import { SupplierModal } from "@/components/SupplierModal";
 import { showNotification } from "@/lib/notifications";
@@ -11,15 +11,64 @@ export default function SuppliersPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+    const filteredSuppliers = useMemo(() => {
+        return suppliers.filter((supplier) =>
+            supplier.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            supplier.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            supplier.tel?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            supplier.pic?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [suppliers, searchQuery]);
+
+    const sortedSuppliers = useMemo(() => {
+        if (!sortConfig) return filteredSuppliers;
+
+        return [...filteredSuppliers].sort((a, b) => {
+            let aValue: any;
+            let bValue: any;
+
+            switch (sortConfig.key) {
+                case 'name':
+                    aValue = a.name;
+                    bValue = b.name;
+                    break;
+                case 'category':
+                    aValue = a.category || "";
+                    bValue = b.category || "";
+                    break;
+                case 'pic':
+                    aValue = a.pic || "";
+                    bValue = b.pic || "";
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [filteredSuppliers, sortConfig]);
 
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
-    const filteredSuppliers = suppliers.filter((supplier) =>
-        supplier.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        supplier.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        supplier.tel?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        supplier.pic?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        } else if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') {
+            setSortConfig(null);
+            return;
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortIcon = (key: string) => {
+        if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown className="w-3 h-3 text-slate-300" />;
+        return sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 text-indigo-600" /> : <ChevronDown className="w-3 h-3 text-indigo-600" />;
+    };
 
     const handleEdit = (supplier: Supplier) => {
         setEditingSupplier(supplier);
@@ -77,15 +126,36 @@ export default function SuppliersPage() {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b border-slate-200 text-slate-500 text-sm bg-white">
-                                <th className="p-5 font-semibold">仕入先名</th>
-                                <th className="p-5 font-semibold">カテゴリー</th>
-                                <th className="p-5 font-semibold">担当者</th>
+                                <th
+                                    className="p-5 font-semibold cursor-pointer hover:bg-slate-50 transition-colors"
+                                    onClick={() => requestSort('name')}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        仕入先名 {getSortIcon('name')}
+                                    </div>
+                                </th>
+                                <th
+                                    className="p-5 font-semibold cursor-pointer hover:bg-slate-50 transition-colors"
+                                    onClick={() => requestSort('category')}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        カテゴリー {getSortIcon('category')}
+                                    </div>
+                                </th>
+                                <th
+                                    className="p-5 font-semibold cursor-pointer hover:bg-slate-50 transition-colors"
+                                    onClick={() => requestSort('pic')}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        担当者 {getSortIcon('pic')}
+                                    </div>
+                                </th>
                                 <th className="p-5 font-semibold">電話番号</th>
                                 <th className="p-5 font-semibold text-right">操作</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredSuppliers.map((supplier) => (
+                            {sortedSuppliers.map((supplier) => (
                                 <tr key={supplier.id} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors group">
                                     <td className="p-5">
                                         <div className="font-medium text-slate-900 group-hover:text-indigo-600 transition-colors">

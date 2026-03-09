@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
 import {
     BarChart, Bar, Line, PieChart, Pie, Cell,
+    ScatterChart, Scatter, ZAxis, ReferenceLine,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     type PieLabelRenderProps,
 } from "recharts";
@@ -218,6 +219,37 @@ export default function AnalyticsPage() {
 
         return Object.values(map).sort((a, b) => b.netProfit - a.netProfit || b.revenue - a.revenue).slice(0, 5);
     }, [periodSales, products, brands, productCostMap]);
+
+    // ─── Store Quadrant Data ───
+    const storeQuadrantData = useMemo(() => {
+        const map: Record<string, { name: string; revenue: number; netProfit: number }> = {};
+        periodSales.forEach(sale => {
+            if (!map[sale.storeId]) {
+                map[sale.storeId] = {
+                    name: retailStores.find(s => s.id === sale.storeId)?.name ?? "不明",
+                    revenue: 0,
+                    netProfit: 0
+                };
+            }
+            map[sale.storeId].revenue += sale.totalAmount;
+            map[sale.storeId].netProfit += sale.totalNetProfit;
+        });
+
+        return Object.values(map).map(s => ({
+            ...s,
+            margin: s.revenue > 0 ? (s.netProfit / s.revenue) * 100 : 0
+        })).filter(s => s.revenue > 0);
+    }, [periodSales, retailStores]);
+
+    const quadrantStats = useMemo(() => {
+        if (storeQuadrantData.length === 0) return { avgRevenue: 0, avgMargin: 0 };
+        const totalRev = storeQuadrantData.reduce((sum, s) => sum + s.revenue, 0);
+        const totalMargin = storeQuadrantData.reduce((sum, s) => sum + s.margin, 0);
+        return {
+            avgRevenue: totalRev / storeQuadrantData.length,
+            avgMargin: totalMargin / storeQuadrantData.length
+        };
+    }, [storeQuadrantData]);
 
     // ─── Summary Table Data ───
     const tableRows = useMemo(() => {
@@ -502,6 +534,84 @@ export default function AnalyticsPage() {
                         <div className="h-[280px] flex items-center justify-center text-slate-300 flex-col gap-2">
                             <TrendingUp className="w-12 h-12" />
                             <p className="text-sm">データなし</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Store Quadrant Analysis */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <Store className="w-4 h-4 text-slate-400" />
+                            <h2 className="font-bold text-slate-800 text-sm">店舗別パフォーマンス・クアドラント</h2>
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-medium">
+                            横軸: 売上高 / 縦軸: 利益率
+                        </div>
+                    </div>
+                    {storeQuadrantData.length > 0 ? (
+                        <div className="relative">
+                            <ResponsiveContainer width="100%" height={320}>
+                                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                    <XAxis
+                                        type="number"
+                                        dataKey="revenue"
+                                        name="売上高"
+                                        unit="円"
+                                        tickFormatter={v => `¥${(v / 1000).toFixed(0)}k`}
+                                        tick={{ fontSize: 11, fill: "#94a3b8" }}
+                                    />
+                                    <YAxis
+                                        type="number"
+                                        dataKey="margin"
+                                        name="利益率"
+                                        unit="%"
+                                        tick={{ fontSize: 11, fill: "#94a3b8" }}
+                                    />
+                                    <ZAxis type="number" range={[60, 400]} />
+                                    <Tooltip
+                                        cursor={{ strokeDasharray: '3 3' }}
+                                        content={({ active, payload }: any) => {
+                                            if (!active || !payload?.length) return null;
+                                            const data = payload[0].payload;
+                                            return (
+                                                <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-3 text-xs min-w-[150px]">
+                                                    <div className="font-bold text-slate-700 mb-2 border-b border-slate-100 pb-1">{data.name}</div>
+                                                    <div className="space-y-1">
+                                                        <div className="flex justify-between">
+                                                            <span className="text-slate-500">売上高:</span>
+                                                            <span className="font-bold">{fmtYen(data.revenue)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-slate-500">純利益:</span>
+                                                            <span className="font-bold">{fmtYen(data.netProfit)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-slate-500">利益率:</span>
+                                                            <span className="font-bold text-blue-600">{fmtPct(data.margin)}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }}
+                                    />
+                                    <ReferenceLine x={quadrantStats.avgRevenue} stroke="#94a3b8" strokeDasharray="3 3" label={{ position: 'top', value: '平均売上', fill: '#94a3b8', fontSize: 10 }} />
+                                    <ReferenceLine y={quadrantStats.avgMargin} stroke="#94a3b8" strokeDasharray="3 3" label={{ position: 'right', value: '平均利益率', fill: '#94a3b8', fontSize: 10 }} />
+                                    <Scatter name="Stores" data={storeQuadrantData} fill="#3b82f6" />
+                                </ScatterChart>
+                            </ResponsiveContainer>
+
+                            {/* quadrant labels */}
+                            <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">Efficiency Stars</div>
+                            <div className="absolute bottom-0 right-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">Volume Drivers</div>
+                            <div className="absolute top-0 left-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">Niche Luxury</div>
+                            <div className="absolute bottom-0 left-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">Low Performers</div>
+                        </div>
+                    ) : (
+                        <div className="h-[320px] flex items-center justify-center text-slate-300 flex-col gap-2">
+                            <Store className="w-12 h-12" />
+                            <p className="text-sm">十分なデータがありません</p>
                         </div>
                     )}
                 </div>

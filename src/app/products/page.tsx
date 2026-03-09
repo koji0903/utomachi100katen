@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { useStore, Product, Brand, Supplier } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
@@ -19,20 +19,90 @@ export default function ProductsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [brandingProduct, setBrandingProduct] = useState<Product | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  // Note: The instruction provided a `filteredProducts` definition that uses `selectedBrands`
+  // and a different filtering logic. To maintain syntactic correctness and align with the
+  // existing `selectedBrandId` state, the `filteredProducts` logic is adapted to use
+  // `selectedBrandId` and the original search criteria, while still being wrapped in `useMemo`
+  // and moved as requested.
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      // Get the supplier and brand names for searching
+      const supplier = suppliers.find(s => s.id === product.supplierId);
+      const brand = brands.find(b => b.id === product.brandId);
+      const searchTarget = `${product.name} ${product.variantName || ""} ${supplier?.name || ""} ${brand?.name || ""}`.toLowerCase();
+
+      const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
+      const matchesBrand = selectedBrandId === "all" || product.brandId === selectedBrandId;
+
+      return matchesSearch && matchesBrand;
+    });
+  }, [products, searchQuery, selectedBrandId, brands, suppliers]);
+
+  const sortedProducts = useMemo(() => {
+    if (!sortConfig) return filteredProducts;
+
+    return [...filteredProducts].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortConfig.key) {
+        case 'name':
+          aValue = a.name;
+          bValue = b.name;
+          break;
+        case 'brand':
+          aValue = brands.find(brand => brand.id === a.brandId)?.name || "";
+          bValue = brands.find(brand => brand.id === b.brandId)?.name || "";
+          break;
+        case 'supplier':
+          aValue = suppliers.find(s => s.id === a.supplierId)?.name || "";
+          bValue = suppliers.find(s => s.id === b.supplierId)?.name || "";
+          break;
+        case 'price':
+          aValue = a.sellingPrice;
+          bValue = b.sellingPrice;
+          break;
+        case 'stock':
+          aValue = a.stock;
+          bValue = b.stock;
+          break;
+        case 'tax':
+          aValue = a.taxRate === 'reduced' ? 8 : 10;
+          bValue = b.taxRate === 'reduced' ? 8 : 10;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [filteredProducts, sortConfig, brands, suppliers]);
 
   if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
-  const filteredProducts = products.filter((product) => {
-    // Get the supplier and brand names for searching
-    const supplier = suppliers.find(s => s.id === product.supplierId);
-    const brand = brands.find(b => b.id === product.brandId);
-    const searchTarget = `${product.name} ${supplier?.name || ""} ${brand?.name || ""}`.toLowerCase();
+  const requestSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    } else if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') {
+      setSortConfig(null);
+      return;
+    }
+    setSortConfig({ key, direction });
+  };
 
-    const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
-    const matchesBrand = selectedBrandId === "all" || product.brandId === selectedBrandId;
-
-    return matchesSearch && matchesBrand;
-  });
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown className="w-3 h-3 text-slate-300" />;
+    return sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />;
+  };
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
@@ -235,17 +305,59 @@ export default function ProductsPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 text-sm bg-white">
-                <th className="p-5 font-semibold whitespace-nowrap">商品名</th>
-                <th className="p-5 font-semibold whitespace-nowrap">ブランド</th>
-                <th className="p-5 font-semibold whitespace-nowrap">仕入先</th>
-                <th className="p-5 font-semibold text-right whitespace-nowrap">価格 (税込)</th>
-                <th className="p-5 font-semibold text-center whitespace-nowrap">税率</th>
-                <th className="p-5 font-semibold text-right whitespace-nowrap">在庫</th>
+                <th
+                  className="p-5 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-50 transition-colors"
+                  onClick={() => requestSort('name')}
+                >
+                  <div className="flex items-center gap-2">
+                    商品名 {getSortIcon('name')}
+                  </div>
+                </th>
+                <th
+                  className="p-5 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-50 transition-colors"
+                  onClick={() => requestSort('brand')}
+                >
+                  <div className="flex items-center gap-2">
+                    ブランド {getSortIcon('brand')}
+                  </div>
+                </th>
+                <th
+                  className="p-5 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-50 transition-colors"
+                  onClick={() => requestSort('supplier')}
+                >
+                  <div className="flex items-center gap-2">
+                    仕入先 {getSortIcon('supplier')}
+                  </div>
+                </th>
+                <th
+                  className="p-5 font-semibold text-right whitespace-nowrap cursor-pointer hover:bg-slate-50 transition-colors"
+                  onClick={() => requestSort('price')}
+                >
+                  <div className="flex items-center justify-end gap-2">
+                    価格 (税込) {getSortIcon('price')}
+                  </div>
+                </th>
+                <th
+                  className="p-5 font-semibold text-center whitespace-nowrap cursor-pointer hover:bg-slate-50 transition-colors"
+                  onClick={() => requestSort('tax')}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    税率 {getSortIcon('tax')}
+                  </div>
+                </th>
+                <th
+                  className="p-5 font-semibold text-right whitespace-nowrap cursor-pointer hover:bg-slate-50 transition-colors"
+                  onClick={() => requestSort('stock')}
+                >
+                  <div className="flex items-center justify-end gap-2">
+                    在庫 {getSortIcon('stock')}
+                  </div>
+                </th>
                 <th className="p-5 font-semibold text-right whitespace-nowrap">操作</th>
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map((product) => {
+              {sortedProducts.map((product) => {
                 const brand = brands.find(b => b.id === product.brandId);
                 const supplier = suppliers.find(s => s.id === product.supplierId);
 
@@ -359,9 +471,8 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Mobile Card List */}
       <div className="sm:hidden space-y-3 mt-4">
-        {filteredProducts.map((product) => {
+        {sortedProducts.map((product) => {
           const brand = brands.find(b => b.id === product.brandId);
           const supplier = suppliers.find(s => s.id === product.supplierId);
           return (

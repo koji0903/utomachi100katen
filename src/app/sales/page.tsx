@@ -11,8 +11,9 @@ import {
     CheckCircle2,
     BarChart3,
     CloudSun, Cloud, CloudRain, CloudSnow,
-    Thermometer, Wind, Package, ChevronDown, ChevronLeft,
+    Thermometer, Wind, Package, ChevronLeft,
     Sparkles, Edit2, Trash2,
+    ArrowUpDown, ChevronUp, ChevronDown
 } from "lucide-react";
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
 import { SalesAnalysisTab } from "@/components/SalesAnalysisTab";
@@ -41,6 +42,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const [salesData, setSalesData] = useState<Record<string, number>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
     useEffect(() => {
         if (editingSale) {
@@ -68,13 +70,63 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
     const sortedProducts = useMemo(() => {
         const brandMap = new Map(brands.map(b => [b.id, b.name]));
-        return [...products].sort((a, b) => {
+        const base = [...products].sort((a, b) => {
             const brandA = brandMap.get(a.brandId) || "";
             const brandB = brandMap.get(b.brandId) || "";
             if (brandA !== brandB) return brandA.localeCompare(brandB);
             return a.name.localeCompare(b.name);
         });
-    }, [products, brands]);
+
+        if (!sortConfig) return base;
+
+        return [...base].sort((a, b) => {
+            let aValue: any;
+            let bValue: any;
+
+            switch (sortConfig.key) {
+                case 'name':
+                    aValue = a.name;
+                    bValue = b.name;
+                    break;
+                case 'brand':
+                    aValue = brandMap.get(a.brandId) || "";
+                    bValue = brandMap.get(b.brandId) || "";
+                    break;
+                case 'price':
+                    const storePriceA = a.storePrices?.find(sp => sp.storeId === selectedStoreId)?.price ?? a.sellingPrice;
+                    const storePriceB = b.storePrices?.find(sp => sp.storeId === selectedStoreId)?.price ?? b.sellingPrice;
+                    aValue = storePriceA;
+                    bValue = storePriceB;
+                    break;
+                case 'quantity':
+                    aValue = salesData[a.id] || 0;
+                    bValue = salesData[b.id] || 0;
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [products, brands, sortConfig, salesData, selectedStoreId]);
+
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        } else if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') {
+            setSortConfig(null);
+            return;
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortIcon = (key: string) => {
+        if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown className="w-3 h-3 text-slate-300" />;
+        return sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />;
+    };
 
     const handleQuantityChange = (productId: string, value: string) => {
         const qty = parseInt(value) || 0;
@@ -262,9 +314,30 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-white text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                            <th className="px-6 py-4">商品名</th>
-                                            <th className="px-6 py-4 text-right">単価 (税込)</th>
-                                            <th className="px-6 py-4 text-center w-32">売上個数</th>
+                                            <th
+                                                className="px-6 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
+                                                onClick={() => requestSort('name')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    商品名 {getSortIcon('name')}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="px-6 py-4 text-right cursor-pointer hover:bg-slate-50 transition-colors"
+                                                onClick={() => requestSort('price')}
+                                            >
+                                                <div className="flex items-center justify-end gap-2 text-right">
+                                                    単価 {getSortIcon('price')}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="px-6 py-4 text-center w-32 cursor-pointer hover:bg-slate-50 transition-colors"
+                                                onClick={() => requestSort('quantity')}
+                                            >
+                                                <div className="flex items-center justify-center gap-2">
+                                                    売上個数 {getSortIcon('quantity')}
+                                                </div>
+                                            </th>
                                             <th className="px-6 py-4 text-right">小計</th>
                                             <th className="px-6 py-4 text-right">入金額 (純利)</th>
                                         </tr>
@@ -318,6 +391,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     const [filterStoreId, setFilterStoreId] = useState<string>("");
     const [filterMonth, setFilterMonth] = useState<string>(new Date().toISOString().slice(0, 7));
     const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
     useEffect(() => {
         if (filterDate) {
@@ -353,9 +427,48 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                 } else {
                     return s.period.startsWith(filterYear);
                 }
-            })
-            .sort((a, b) => b.period.localeCompare(a.period));
+            });
     }, [sales, logType, filterStoreId, filterMonth, filterYear, filterDate]);
+
+    const sortedSales = useMemo(() => {
+        const base = [...filteredSales].sort((a, b) => b.period.localeCompare(a.period));
+
+        if (!sortConfig) return base;
+
+        return [...filteredSales].sort((a, b) => {
+            let aValue: any;
+            let bValue: any;
+
+            switch (sortConfig.key) {
+                case 'period':
+                    aValue = a.period;
+                    bValue = b.period;
+                    break;
+                case 'store':
+                    aValue = storeMap[a.storeId] || "";
+                    bValue = storeMap[b.storeId] || "";
+                    break;
+                case 'totalQuantity':
+                    aValue = a.totalQuantity;
+                    bValue = b.totalQuantity;
+                    break;
+                case 'totalAmount':
+                    aValue = a.totalAmount;
+                    bValue = b.totalAmount;
+                    break;
+                case 'totalNetProfit':
+                    aValue = a.totalNetProfit;
+                    bValue = b.totalNetProfit;
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [filteredSales, sortConfig, storeMap]);
 
     // Build weather lookup: key = "YYYY-MM-DD|storeId"
     const weatherMap = useMemo(() => {
@@ -375,6 +488,22 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
         filteredSales.forEach(s => s.items.forEach(item => ids.add(item.productId)));
         return [...ids].sort((a, b) => (productMap[a] ?? a).localeCompare(productMap[b] ?? b));
     }, [filteredSales, productMap]);
+
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        } else if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') {
+            setSortConfig(null);
+            return;
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortIcon = (key: string) => {
+        if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown className="w-3 h-3 text-slate-300" />;
+        return sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />;
+    };
 
     if (filteredSales.length === 0 && sales.length === 0) {
         return (
@@ -442,24 +571,57 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                             <thead>
                                 {/* Row 1: date / store / weather + product group header */}
                                 <tr className="bg-slate-50 border-b border-slate-200">
-                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-28">
-                                        {logType === 'daily' ? '日付' : '対象月'}
+                                    <th
+                                        className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-28 cursor-pointer hover:bg-slate-100 transition-colors"
+                                        onClick={() => requestSort('period')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            {logType === 'daily' ? '日付' : '対象月'} {getSortIcon('period')}
+                                        </div>
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">店舗</th>
+                                    <th
+                                        className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
+                                        onClick={() => requestSort('store')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            店舗 {getSortIcon('store')}
+                                        </div>
+                                    </th>
                                     {logType === 'daily' && <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-40">天気</th>}
                                     {usedProductIds.map(pid => (
                                         <th key={pid} className="px-3 py-3 text-center text-xs font-bold text-slate-600 whitespace-nowrap min-w-[90px]">
                                             {productMap[pid] ?? pid.slice(0, 8)}
                                         </th>
                                     ))}
-                                    <th className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">合計個数</th>
-                                    <th className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">売上額</th>
-                                    <th className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">入金額</th>
+                                    <th
+                                        className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
+                                        onClick={() => requestSort('totalQuantity')}
+                                    >
+                                        <div className="flex items-center justify-end gap-2">
+                                            合計個数 {getSortIcon('totalQuantity')}
+                                        </div>
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
+                                        onClick={() => requestSort('totalAmount')}
+                                    >
+                                        <div className="flex items-center justify-end gap-2">
+                                            売上額 {getSortIcon('totalAmount')}
+                                        </div>
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
+                                        onClick={() => requestSort('totalNetProfit')}
+                                    >
+                                        <div className="flex items-center justify-end gap-2">
+                                            入金額 {getSortIcon('totalNetProfit')}
+                                        </div>
+                                    </th>
                                     <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-20">操作</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredSales.map((sale, idx) => {
+                                {sortedSales.map((sale, idx) => {
                                     const weatherKey = `${sale.period}|${sale.storeId}`;
                                     const w = weatherMap[weatherKey];
                                     // Build item map for this sale
@@ -579,7 +741,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                         ¥{filteredSales.reduce((s, r) => s + r.totalAmount, 0).toLocaleString()}
                                     </td>
                                     <td className="px-4 py-3 text-right font-black" style={{ color: BRAND }}>
-                                        ¥{filteredSales.reduce((s, r) => s + r.totalNetProfit, 0).toLocaleString()}
+                                        ¥{sortedSales.reduce((s, r) => s + r.totalNetProfit, 0).toLocaleString()}
                                     </td>
                                     <td className="bg-slate-50"></td>
                                 </tr>

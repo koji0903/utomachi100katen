@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon, ArrowUpDown } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { RetailStoreModal } from "@/components/RetailStoreModal";
 import { showNotification } from "@/lib/notifications";
@@ -252,12 +252,44 @@ export default function RetailStoresPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStore, setEditingStore] = useState<RetailStore | null>(null);
     const [refresh, setRefresh] = useState(0);
+    const [sortBy, setSortBy] = useState<'name' | 'type' | 'commission'>('name');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+    const filtered = useMemo(() => {
+        return retailStores.filter(s =>
+            `${s.name} ${s.pic ?? ""} ${s.address ?? ""} ${s.tel ?? ""}`.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [retailStores, searchQuery]);
+
+    const sorted = useMemo(() => {
+        return [...filtered].sort((a, b) => {
+            let aValue: any;
+            let bValue: any;
+
+            switch (sortBy) {
+                case 'name':
+                    aValue = a.name;
+                    bValue = b.name;
+                    break;
+                case 'type':
+                    aValue = a.type;
+                    bValue = b.type;
+                    break;
+                case 'commission':
+                    aValue = a.commissionRate ?? 0;
+                    bValue = b.commissionRate ?? 0;
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [filtered, sortBy, sortOrder]);
 
     if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
-
-    const filtered = retailStores.filter(s =>
-        `${s.name} ${s.pic ?? ""} ${s.address ?? ""} ${s.tel ?? ""}`.toLowerCase().includes(searchQuery.toLowerCase())
-    );
 
     const handleEdit = (store: RetailStore) => { setEditingStore(store); setIsModalOpen(true); };
     const handleCreate = () => { setEditingStore(null); setIsModalOpen(true); };
@@ -300,17 +332,39 @@ export default function RetailStoresPage() {
                 </div>
             </div>
 
-            {/* Search */}
-            <div className="relative max-w-md mb-6">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                    type="text"
-                    placeholder="店舗・事業者名・担当者名で検索..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white"
-                    style={{ "--tw-ring-color": BRAND } as React.CSSProperties}
-                />
+            {/* Search & Sort */}
+            <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
+                <div className="relative max-w-md flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <input
+                        type="text"
+                        placeholder="店舗・事業者名・担当者名で検索..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white"
+                        style={{ "--tw-ring-color": BRAND } as React.CSSProperties}
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                        <select
+                            value={sortBy}
+                            onChange={e => setSortBy(e.target.value as any)}
+                            className="bg-transparent text-xs font-bold text-slate-600 px-2 py-1.5 focus:outline-none border-none cursor-pointer"
+                        >
+                            <option value="name">店名順</option>
+                            <option value="type">区分順</option>
+                            <option value="commission">手数料順</option>
+                        </select>
+                        <button
+                            onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                            className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-500 hover:text-blue-600"
+                            title={sortOrder === 'asc' ? '昇順' : '降順'}
+                        >
+                            <ArrowUpDown className={`w-3.5 h-3.5 transition-transform duration-300 ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* Stats bar */}
@@ -326,9 +380,9 @@ export default function RetailStoresPage() {
             </div>
 
             {/* Card Grid */}
-            {filtered.length > 0 ? (
+            {sorted.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {filtered.map(store => (
+                    {sorted.map(store => (
                         <StoreCard
                             key={store.id}
                             store={store}
