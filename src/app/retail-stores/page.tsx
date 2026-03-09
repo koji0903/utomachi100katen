@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { RetailStoreModal } from "@/components/RetailStoreModal";
 import { showNotification } from "@/lib/notifications";
@@ -155,10 +155,19 @@ function StoreCard({
 
     return (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden group">
-            {/* Card header stripe */}
-            <div className="h-1.5" style={{ backgroundColor: BRAND }} />
-
             <div className="p-5">
+                {/* Store Image */}
+                <div className="mb-4 aspect-video rounded-xl overflow-hidden bg-slate-100 border border-slate-200 relative group/img">
+                    {store.imageUrls && store.imageUrls.length > 0 ? (
+                        <img src={store.imageUrls[0]} alt={store.name} className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105" />
+                    ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                            <ImageIcon className="w-10 h-10 mb-2 opacity-50" />
+                            <span className="text-[10px] font-medium tracking-wider uppercase">No Image</span>
+                        </div>
+                    )}
+                </div>
+
                 {/* Store name + actions */}
                 <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2.5 min-w-0">

@@ -62,6 +62,7 @@ export interface RetailStore {
     commissionRate?: number; // In percentage (e.g., 15)
     lat?: number;   // 緯度（OpenWeatherMap 連携用）
     lng?: number;   // 経度
+    imageUrls?: string[]; // 店舗写真
     createdAt?: string | any;
     updatedAt?: string | any;
 }

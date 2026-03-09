@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Image as ImageIcon, UploadCloud } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
+import { uploadImageWithCompression } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
 
 interface RetailStoreModalProps {
@@ -29,11 +30,17 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         commissionRate: 15,
         lat: undefined as number | undefined,
         lng: undefined as number | undefined,
+        imageUrls: [] as string[],
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const geocodeAbortControllerRef = useRef<AbortController | null>(null);
+
+    // Image handling
+    const [imageFiles, setImageFiles] = useState<File[]>([]);
+    const [previews, setPreviews] = useState<{ url: string; fileIndex?: number; isExisting?: boolean }[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -49,10 +56,14 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     commissionRate: initialData.commissionRate ?? 15,
                     lat: initialData.lat,
                     lng: initialData.lng,
+                    imageUrls: initialData.imageUrls || [],
                 });
+                setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [] });
+                setPreviews([]);
             }
+            setImageFiles([]);
             setGeoResult(null);
         }
     }, [isOpen, initialData]);
@@ -67,6 +78,29 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
     }, []);
 
     if (!isOpen) return null;
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        const newFiles = [...imageFiles, ...files];
+        setImageFiles(newFiles);
+
+        const newPreviews = files.map((file, i) => ({
+            url: URL.createObjectURL(file),
+            fileIndex: imageFiles.length + i,
+            isExisting: false
+        }));
+        setPreviews([...previews, ...newPreviews]);
+
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    const removeImage = (index: number) => {
+        const nextPreviews = [...previews];
+        nextPreviews.splice(index, 1);
+        setPreviews(nextPreviews);
+    };
 
     // When zip changes and reaches 7 digits, auto-fill address
     const handleZipChange = (raw: string) => {
@@ -118,17 +152,30 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         e.preventDefault();
         setIsSaving(true);
         try {
+            // Upload new images
+            const finalImageUrls: string[] = [];
+            for (const p of previews) {
+                if (p.isExisting) {
+                    finalImageUrls.push(p.url);
+                } else if (p.fileIndex !== undefined) {
+                    const url = await uploadImageWithCompression(imageFiles[p.fileIndex], "stores");
+                    finalImageUrls.push(url);
+                }
+            }
+
+            const finalData = { ...formData, imageUrls: finalImageUrls };
+
             if (initialData) {
-                await updateRetailStore(initialData.id, formData);
+                await updateRetailStore(initialData.id, finalData);
                 showNotification("店舗情報を更新しました。");
             } else {
-                await addRetailStore(formData);
+                await addRetailStore(finalData);
                 showNotification("店舗を登録しました。");
             }
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save store:", error);
-            showNotification("保存に失敗しました。", "error");
+            showNotification("保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"), "error");
         } finally {
             setIsSaving(false);
         }
@@ -158,6 +205,37 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                 {/* Form */}
                 <div className="flex-1 overflow-y-auto p-6">
                     <form id="retailstore-form" onSubmit={handleSubmit} className="space-y-5">
+
+                        {/* 店舗写真 */}
+                        <div className="space-y-3">
+                            <label className="block text-xs font-semibold text-slate-600">店舗写真</label>
+                            <div className="flex flex-wrap gap-3">
+                                {previews.map((p, i) => (
+                                    <div key={i} className="w-24 h-24 rounded-xl border border-slate-200 overflow-hidden relative group">
+                                        <img src={p.url} alt={`Store ${i}`} className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeImage(i)}
+                                            className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/50 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-24 h-24 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                                >
+                                    <Plus className="w-6 h-6 mb-1" />
+                                    <span className="text-[10px] font-bold">写真を追加</span>
+                                </button>
+                            </div>
+                            <input type="file" multiple ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
+                            <p className="text-[10px] text-slate-400">
+                                店舗の外観や内装の写真を複数登録できます。一覧画面には1枚目が表示されます。
+                            </p>
+                        </div>
 
                         {/* 店舗名 */}
                         <div>

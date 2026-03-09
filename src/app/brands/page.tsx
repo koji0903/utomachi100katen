@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Edit2, Trash2, Sparkles } from "lucide-react";
+import { Plus, Edit2, Trash2, Sparkles, Image as ImageIcon } from "lucide-react";
 import { useStore, Brand } from "@/lib/store";
 import { BrandModal } from "@/components/BrandModal";
 import { BrandBrandingHub } from "@/components/BrandBrandingHub";
@@ -53,6 +53,7 @@ export default function BrandsPage() {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b border-slate-200 text-slate-500 text-sm bg-white">
+                                <th className="p-5 font-semibold whitespace-nowrap w-20">イメージ</th>
                                 <th className="p-5 font-semibold whitespace-nowrap">ブランド名称</th>
                                 <th className="p-5 font-semibold whitespace-nowrap text-right">操作</th>
                             </tr>
@@ -60,6 +61,17 @@ export default function BrandsPage() {
                         <tbody>
                             {brands.map((brand) => (
                                 <tr key={brand.id} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors group">
+                                    <td className="p-5 w-20">
+                                        {brand.imageUrl ? (
+                                            <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-100 shadow-sm">
+                                                <img src={brand.imageUrl} alt={brand.name} className="w-full h-full object-cover" />
+                                            </div>
+                                        ) : (
+                                            <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                                <ImageIcon className="w-5 h-5 text-slate-300" />
+                                            </div>
+                                        )}
+                                    </td>
                                     <td className="p-5">
                                         <div className="font-medium text-slate-900">{brand.name}</div>
                                     </td>
@@ -92,7 +104,7 @@ export default function BrandsPage() {
                             ))}
                             {brands.length === 0 && (
                                 <tr>
-                                    <td colSpan={2} className="p-12 text-center text-slate-500">
+                                    <td colSpan={3} className="p-12 text-center text-slate-500">
                                         ブランドが登録されていません。
                                     </td>
                                 </tr>
