@@ -63,6 +63,7 @@ export interface RetailStore {
     lat?: number;   // 緯度（OpenWeatherMap 連携用）
     lng?: number;   // 経度
     imageUrls?: string[]; // 店舗写真
+    type?: 'A' | 'B'; // A: 委託販売, B: 卸販売
     createdAt?: string | any;
     updatedAt?: string | any;
 }

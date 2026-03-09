@@ -79,7 +79,7 @@ function ReportForm({
     onSaved: () => void;
     editData?: DailyReport;
 }) {
-    const { retailStores, products, addDailyReport, updateDailyReport } = useStore();
+    const { retailStores, products, addDailyReport, updateDailyReport, addSale } = useStore();
     const isEdit = !!editData;
 
     const [type, setType] = useState<"office" | "store" | "activity">(editData?.type ?? "store");
@@ -319,6 +319,43 @@ function ReportForm({
                         : {}
                 ),
             };
+
+            // NEW: Automatic sale for Wholesale (B) stores
+            // Only for new reports of type 'store' with restocking items
+            if (!isEdit && type === "store" && selectedStore?.type === 'B' && restocking.length > 0) {
+                const saleItems = restocking
+                    .filter(r => r.productId)
+                    .map(r => {
+                        const p = products.find(prod => prod.id === r.productId);
+                        const price = p?.sellingPrice || 0;
+                        const subtotal = price * r.qty;
+                        return {
+                            productId: r.productId,
+                            quantity: r.qty,
+                            priceAtSale: price,
+                            subtotal: subtotal,
+                            commission: 0, // 卸販売のため手数料なし
+                            netProfit: subtotal
+                        };
+                    });
+
+                if (saleItems.length > 0) {
+                    const totalAmount = saleItems.reduce((acc, item) => acc + item.subtotal, 0);
+                    const totalQuantity = saleItems.reduce((acc, item) => acc + item.quantity, 0);
+
+                    await addSale({
+                        storeId: selectedStore.id,
+                        type: 'daily',
+                        period: date,
+                        items: saleItems,
+                        totalQuantity,
+                        totalAmount,
+                        totalCommission: 0,
+                        totalNetProfit: totalAmount
+                    });
+                }
+            }
+
             if (isEdit && editData) {
                 await updateDailyReport(editData.id, payload);
             } else {

@@ -31,6 +31,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         lat: undefined as number | undefined,
         lng: undefined as number | undefined,
         imageUrls: [] as string[],
+        type: 'A' as 'A' | 'B',
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -57,10 +58,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     lat: initialData.lat,
                     lng: initialData.lng,
                     imageUrls: initialData.imageUrls || [],
+                    type: initialData.type || 'A',
                 });
                 setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [] });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A' });
                 setPreviews([]);
             }
             setImageFiles([]);
@@ -237,6 +239,35 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                             </p>
                         </div>
 
+                        {/* 店舗種別 */}
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">店舗種別 <span className="text-red-400">*</span></label>
+                            <div className="flex gap-4">
+                                {(['A', 'B'] as const).map(t => (
+                                    <label key={t} className="flex items-center gap-2 cursor-pointer group">
+                                        <div className="relative flex items-center justify-center">
+                                            <input
+                                                type="radio"
+                                                name="storeType"
+                                                checked={formData.type === t}
+                                                onChange={() => setFormData({ ...formData, type: t })}
+                                                className="peer appearance-none w-5 h-5 border-2 border-slate-200 rounded-full checked:border-[#b27f79] transition-all"
+                                            />
+                                            <div className="absolute w-2.5 h-2.5 bg-[#b27f79] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                                        </div>
+                                        <span className={`text-sm font-medium transition-colors ${formData.type === t ? "text-slate-900" : "text-slate-500 group-hover:text-slate-700"}`}>
+                                            {t === 'A' ? "委託販売 (A)" : "卸販売 (B)"}
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                                {formData.type === 'A'
+                                    ? "売上発生時に販売手数料が計算されます。"
+                                    : "日報で商品を補充した時点で売上（手数料 0%）として計上されます。"}
+                            </p>
+                        </div>
+
                         {/* 店舗名 */}
                         <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1.5">店舗名 <span className="text-red-400">*</span></label>
@@ -317,10 +348,14 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
 
                         {/* 手数料 */}
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">手数料率 (%) <span className="text-red-400">*</span></label>
-                            <input type="number" required min="0" max="100" value={formData.commissionRate}
+                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                                {formData.type === 'A' ? "販売手数料率 (%)" : "卸売時は 0% 固定"} <span className="text-red-400">*</span>
+                            </label>
+                            <input type="number" required min="0" max="100"
+                                value={formData.type === 'A' ? formData.commissionRate : 0}
+                                disabled={formData.type === 'B'}
                                 onChange={e => setFormData({ ...formData, commissionRate: Number(e.target.value) })}
-                                className={`${inputCls} text-right`} />
+                                className={`${inputCls} text-right disabled:bg-slate-100 disabled:text-slate-400 transition-colors`} />
                         </div>
 
                         {/* 連絡先 + 担当者 */}

@@ -176,9 +176,14 @@ function StoreCard({
                         </div>
                         <div className="min-w-0">
                             <h3 className="font-bold text-slate-900 truncate">{store.name}</h3>
-                            <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND }}>
-                                手数料 {store.commissionRate ?? 0}%
-                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${store.type === 'B' ? "bg-indigo-500 text-white" : "bg-emerald-500 text-white"}`}>
+                                    {store.type === 'B' ? "卸 (B)" : "委託 (A)"}
+                                </span>
+                                <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND }}>
+                                    手数料 {store.type === 'B' ? 0 : (store.commissionRate ?? 0)}%
+                                </span>
+                            </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
