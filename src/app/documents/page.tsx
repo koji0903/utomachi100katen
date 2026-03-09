@@ -80,12 +80,19 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
     const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
     const [invoiceAdjustments, setInvoiceAdjustments] = useState<InvoiceAdjustment[]>([]);
     const [taxRate, setTaxRate] = useState<8 | 10>(10);
+    const [finalAdjustment, setFinalAdjustment] = useState(0);
     const [totalAmountState, setTotalAmountState] = useState(0);
 
     // Effect to initialize items for Invoice
     const { sales, products } = useStore();
     useEffect(() => {
         if (docType === "invoice" && recipientName && period) {
+            // スポット宛先の場合は自動集計を行わず、空の状態で開始する（ユーザーの自由な入力を優先）
+            if (recipientType === "spot") {
+                setInvoiceItems([]);
+                return;
+            }
+
             // Logic to fetch initial items (aggregate from sales similar to preview)
             const filtered = (sales || []).filter(s => {
                 const matchStore = recipientType === "store" ? s.storeId === storeId : true;
@@ -142,6 +149,7 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
                 taxRate: docType === "invoice" ? taxRate : undefined,
                 details: docType === "invoice" ? invoiceItems : undefined,
                 adjustments: docType === "invoice" ? invoiceAdjustments : undefined,
+                finalAdjustment: docType === "invoice" ? finalAdjustment : undefined,
                 memo: "",
             });
             onClose(); // Automatically close after save
@@ -243,7 +251,9 @@ function NewDocumentModal({ onClose }: { onClose: () => void }) {
                                     setInvoiceAdjustments(data.adjustments);
                                     setTaxRate(data.taxRate);
                                     setTotalAmountState(data.totalAmount);
+                                    setFinalAdjustment(data.finalAdjustment || 0);
                                 }}
+                                finalAdjustment={finalAdjustment}
                             />
                         </div>
                     )}

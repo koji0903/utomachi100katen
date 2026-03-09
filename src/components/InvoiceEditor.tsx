@@ -11,10 +11,11 @@ interface InvoiceEditorProps {
     items: InvoiceItem[];
     adjustments: InvoiceAdjustment[];
     taxRate: 8 | 10;
-    onChange: (data: { items: InvoiceItem[]; adjustments: InvoiceAdjustment[]; taxRate: 8 | 10; totalAmount: number }) => void;
+    finalAdjustment?: number;
+    onChange: (data: { items: InvoiceItem[]; adjustments: InvoiceAdjustment[]; taxRate: 8 | 10; totalAmount: number; finalAdjustment?: number }) => void;
 }
 
-export function InvoiceEditor({ items, adjustments, taxRate, onChange }: InvoiceEditorProps) {
+export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdjustment = 0 }: InvoiceEditorProps) {
     const { products } = useStore();
     const [searchQuery, setSearchQuery] = useState("");
     const [showProductSearch, setShowProductSearch] = useState(false);
@@ -37,8 +38,8 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange }: Invoice
 
     // Trigger onChange when something changes
     useEffect(() => {
-        onChange({ items, adjustments, taxRate, totalAmount: grandTotal });
-    }, [items, adjustments, taxRate, grandTotal]);
+        onChange({ items, adjustments, taxRate, totalAmount: grandTotal + finalAdjustment, finalAdjustment });
+    }, [items, adjustments, taxRate, grandTotal, finalAdjustment]);
 
     // Handlers
     const addItem = (product?: Product) => {
@@ -206,7 +207,7 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange }: Invoice
                     onClick={() => addItem()}
                     className="px-4 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-xs font-bold hover:border-slate-300 hover:text-slate-500 transition-all shrink-0"
                 >
-                    空の行を追加
+                    未登録商品を追加
                 </button>
             </div>
 
@@ -251,16 +252,20 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange }: Invoice
                         <span className="flex items-center gap-1"><Percent className="w-3 h-3" /> 消費税（{taxRate}%）</span>
                         <span>¥{taxAmount.toLocaleString()}</span>
                     </div>
-                    {adjustments.length > 0 && (
-                        <div className="flex justify-between text-xs text-rose-400 font-medium">
-                            <span>調整合計</span>
-                            <span>{adjustmentsTotal > 0 ? "+" : ""} ¥{adjustmentsTotal.toLocaleString()}</span>
-                        </div>
-                    )}
+                    <div className="flex justify-between text-xs text-slate-400 font-medium pt-2 border-t border-white/5">
+                        <span className="flex items-center gap-1">最終調整（端数・値引き等）</span>
+                        <input
+                            type="number"
+                            value={finalAdjustment}
+                            onChange={e => onChange({ items, adjustments, taxRate, totalAmount: grandTotal + Number(e.target.value), finalAdjustment: Number(e.target.value) })}
+                            className="w-24 bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-bold text-white placeholder:text-slate-700"
+                            placeholder="0"
+                        />
+                    </div>
                 </div>
                 <div className="flex justify-between items-baseline pt-4 border-t border-white/10">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">最終請求額（税込）</span>
-                    <span className="text-3xl font-black tabular-nums">¥{grandTotal.toLocaleString()}</span>
+                    <span className="text-3xl font-black tabular-nums">¥{(grandTotal + finalAdjustment).toLocaleString()}</span>
                 </div>
             </div>
         </div>

@@ -203,6 +203,7 @@ export interface IssuedDocument {
     taxRate?: 8 | 10;
     details?: InvoiceItem[];
     adjustments?: InvoiceAdjustment[];
+    finalAdjustment?: number;
     memo?: string;
     createdAt?: string | any;
 }

@@ -64,7 +64,11 @@ export function SpotRecipientInput({ value, onChange, className = "" }: SpotReci
     // Filtered suggestions
     const suggestions = spotRecipients
         .filter(r => !query || r.name.includes(query) || r.address?.includes(query))
-        .sort((a, b) => (b.lastUsedAt ?? "").localeCompare(a.lastUsedAt ?? ""))
+        .sort((a, b) => {
+            const dateA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+            const dateB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+            return dateB - dateA;
+        })
         .slice(0, 8);
 
     // Close dropdown on outside click
