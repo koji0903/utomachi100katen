@@ -33,7 +33,7 @@ function WeatherIcon({ main, size = 4 }: { main?: string; size?: number }) {
 
 // ─── Sales Input Tab ──────────────────────────────────────────────────────────
 function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null; onClearEdit: () => void }) {
-    const { isLoaded, products, brands, retailStores, addSale, updateSale, deleteSale } = useStore();
+    const { isLoaded, products, brands, retailStores, dailyWeather, dailyReports, addSale, updateSale, deleteSale } = useStore();
 
     const [selectedStoreId, setSelectedStoreId] = useState<string>("");
     const [inputMode, setInputMode] = useState<'daily' | 'monthly'>('daily');
@@ -67,6 +67,20 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const selectedStore = useMemo(() =>
         retailStores.find(s => s.id === selectedStoreId), [retailStores, selectedStoreId]
     );
+
+    const weatherInfo = useMemo(() => {
+        if (!selectedStoreId || inputMode !== 'daily') return null;
+        // Priority: 1. Daily Report, 2. Automated Daily Weather
+        const report = dailyReports.find(r => r.storeId === selectedStoreId && r.date === targetDate);
+        if (report?.temperature !== undefined) {
+            return { temp: report.temperature, weather: report.weather, weatherMain: report.weatherMain };
+        }
+        const auto = dailyWeather.find(w => w.storeId === selectedStoreId && w.date === targetDate);
+        if (auto) {
+            return { temp: auto.temp, weather: auto.weather, weatherMain: auto.weatherMain };
+        }
+        return null;
+    }, [selectedStoreId, targetDate, inputMode, dailyReports, dailyWeather]);
 
     const sortedProducts = useMemo(() => {
         const brandMap = new Map(brands.map(b => [b.id, b.name]));
@@ -307,7 +321,16 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                     <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                         <StoreIcon className="w-5 h-5 text-blue-500" />{selectedStore?.name}
                                     </h3>
-                                    <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200">{products.length} 商品が登録されています</div>
+                                    <div className="flex items-center gap-4">
+                                        {weatherInfo && (
+                                            <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-slate-200">
+                                                <WeatherIcon main={weatherInfo.weatherMain} size={4} />
+                                                <span className="text-xs font-bold text-slate-700">{weatherInfo.temp}°C</span>
+                                                <span className="text-[10px] text-slate-500">{weatherInfo.weather}</span>
+                                            </div>
+                                        )}
+                                        <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200">{products.length} 商品が登録されています</div>
+                                    </div>
                                 </div>
                             </div>
                             <div className="overflow-x-auto flex-1">
@@ -384,7 +407,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
 // ─── Daily Log Tab ────────────────────────────────────────────────────────────
 function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, filterDate?: string }) {
-    const { sales, products, retailStores, dailyReports, deleteSale } = useStore();
+    const { sales, products, retailStores, dailyReports, dailyWeather, deleteSale } = useStore();
 
     // Filter controls
     const [logType, setLogType] = useState<'daily' | 'monthly'>('daily');
@@ -473,14 +496,20 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     // Build weather lookup: key = "YYYY-MM-DD|storeId"
     const weatherMap = useMemo(() => {
         const m: Record<string, { temp?: number; weather?: string; weatherMain?: string; humidity?: number; windSpeed?: number }> = {};
+        // 1. Process dailyWeather (Automated)
+        dailyWeather.forEach(w => {
+            const key = `${w.date}|${w.storeId}`;
+            m[key] = { temp: w.temp, weather: w.weather, weatherMain: w.weatherMain, humidity: w.humidity, windSpeed: w.windSpeed };
+        });
+        // 2. Process dailyReports (Manual entry - overrides automated if exists)
         dailyReports.filter(r => r.type === 'store' && r.storeId && r.date).forEach(r => {
             const key = `${r.date}|${r.storeId}`;
-            if (!m[key] && r.temperature !== undefined) {
+            if (r.temperature !== undefined) {
                 m[key] = { temp: r.temperature, weather: r.weather, weatherMain: r.weatherMain, humidity: r.humidity, windSpeed: r.windSpeed };
             }
         });
         return m;
-    }, [dailyReports]);
+    }, [dailyReports, dailyWeather]);
 
     // All product IDs that appear in filtered sales (for column headers)
     const usedProductIds = useMemo(() => {

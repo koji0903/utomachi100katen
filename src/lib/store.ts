@@ -34,6 +34,8 @@ export interface CompanySettings {
     // ブランド資産
     logoUrl?: string;        // ロゴ画像 URL
     sealUrl?: string;        // 印影画像 URL
+    // 天気自動取得設定
+    weatherFetchTime?: string; // e.g. "14:00"
 }
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
@@ -48,6 +50,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     bankAccountType: '普通',
     bankAccountNumber: '',
     bankAccountHolder: '',
+    weatherFetchTime: '14:00',
 };
 
 export interface RetailStore {
@@ -139,6 +142,18 @@ export interface Purchase {
     unitCost: number;
     totalCost: number;
     createdAt?: string | any;
+}
+
+export interface DailyWeather {
+    id: string;      // storeId_YYYY-MM-DD
+    storeId: string;
+    date: string;     // YYYY-MM-DD
+    weather: string;
+    weatherMain: string;
+    temp: number;
+    humidity: number;
+    windSpeed: number;
+    updatedAt?: string | any;
 }
 
 export interface Brand {
@@ -309,6 +324,7 @@ export function useStore() {
     const { data: paymentRecords = [], mutate: mutatePaymentRecords, isLoading: loadingPayments } = useSWR<PaymentRecord[]>("payment_records", () => fetcher<PaymentRecord>("payment_records"), swrConfig);
     const { data: dailyReports = [], mutate: mutateDailyReports, isLoading: loadingReports } = useSWR<DailyReport[]>("daily_reports", () => fetcher<DailyReport>("daily_reports"), swrConfig);
     const { data: issuedDocuments = [], mutate: mutateIssuedDocuments } = useSWR<IssuedDocument[]>("issued_documents", () => fetcher<IssuedDocument>("issued_documents"), swrConfig);
+    const { data: dailyWeather = [], mutate: mutateDailyWeather } = useSWR<DailyWeather[]>("daily_weather", () => fetcher<DailyWeather>("daily_weather"), swrConfig);
     const { data: spotRecipients = [], mutate: mutateSpotRecipients } = useSWR<SpotRecipient[]>("spot_recipients", () => fetcher<SpotRecipient>("spot_recipients"), swrConfig);
     const { data: challenges = [], mutate: mutateChallenges } = useSWR<BusinessChallenge[]>("business_challenges", () => fetcher<BusinessChallenge>("business_challenges"), swrConfig);
     const { data: stockConversions = [], mutate: mutateStockConversions } = useSWR<StockConversion[]>("stock_conversions", () => fetcher<StockConversion>("stock_conversions"), swrConfig);
@@ -755,6 +771,16 @@ export function useStore() {
         mutateChallenges();
     };
 
+    // --- Daily Weather Actions ---
+    const saveDailyWeather = async (data: Omit<DailyWeather, "updatedAt">) => {
+        const docRef = doc(db, "daily_weather", data.id);
+        await setDoc(docRef, {
+            ...data,
+            updatedAt: serverTimestamp(),
+        });
+        mutateDailyWeather();
+    };
+
     return {
         isLoaded,
         companySettings,
@@ -808,5 +834,8 @@ export function useStore() {
         // Stock Conversions
         stockConversions,
         addStockConversion,
+        // Daily Weather
+        dailyWeather,
+        saveDailyWeather,
     };
 }
