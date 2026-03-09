@@ -61,12 +61,19 @@ export function SpotRecipientInput({ value, onChange, className = "" }: SpotReci
     const inputRef = useRef<HTMLInputElement>(null);
     const dropRef = useRef<HTMLDivElement>(null);
 
-    // Filtered suggestions
-    const suggestions = spotRecipients
-        .filter(r => !query || r.name.includes(query) || r.address?.includes(query))
+    // Filtered suggestions with robust null checks
+    const suggestions = (spotRecipients || [])
+        .filter(r => {
+            if (!r || !r.name) return false;
+            if (!query) return true;
+            const q = query.toLowerCase();
+            const nameMatch = r.name?.toLowerCase().includes(q);
+            const addressMatch = r.address?.toLowerCase().includes(q);
+            return nameMatch || addressMatch;
+        })
         .sort((a, b) => {
-            const dateA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
-            const dateB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+            const dateA = a.lastUsedAt ? (typeof a.lastUsedAt === 'string' ? new Date(a.lastUsedAt).getTime() : ((a.lastUsedAt as any).toDate ? (a.lastUsedAt as any).toDate().getTime() : 0)) : 0;
+            const dateB = b.lastUsedAt ? (typeof b.lastUsedAt === 'string' ? new Date(b.lastUsedAt).getTime() : ((b.lastUsedAt as any).toDate ? (b.lastUsedAt as any).toDate().getTime() : 0)) : 0;
             return dateB - dateA;
         })
         .slice(0, 8);
