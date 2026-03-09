@@ -277,13 +277,15 @@ export function DocumentPreviewModal({
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "32px" }}>
                             {/* Left: Logo area */}
                             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                                {companySettings?.logoUrl ? (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img src={companySettings.logoUrl} alt="logo" style={{ maxHeight: "70px", maxWidth: "200px", objectFit: "contain" }} />
-                                ) : (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img src="/logo.png" alt="UTOMACHI 100 KATEN" style={{ maxHeight: "70px", maxWidth: "180px", objectFit: "contain" }} />
-                                )}
+                                <div style={{ height: "70px", width: "200px", display: "flex", alignItems: "flex-start", justifyContent: "flex-start" }}>
+                                    {companySettings?.logoUrl ? (
+                                        /* eslint-disable-next-line @next/next/no-img-element */
+                                        <img src={companySettings.logoUrl} alt="logo" style={{ maxHeight: "100%", maxWidth: "100%", width: "auto", height: "auto" }} />
+                                    ) : (
+                                        /* eslint-disable-next-line @next/next/no-img-element */
+                                        <img src="/logo.png" alt="UTOMACHI 100 KATEN" style={{ maxHeight: "100%", maxWidth: "100%", width: "auto", height: "auto" }} />
+                                    )}
+                                </div>
                                 <div style={{ fontSize: "10px", color: "#666", marginTop: "6px", lineHeight: "1.7" }}>
                                     〒{companySettings?.zipCode}<br />
                                     {companySettings?.address}<br />
@@ -310,11 +312,11 @@ export function DocumentPreviewModal({
                                     {periodLabel && <div>対象期間: {periodLabel}</div>}
                                 </div>
                                 {/* Seal placeholder */}
-                                <div style={{ position: "relative", width: "64px", height: "64px", marginTop: "4px" }}>
+                                <div style={{ position: "relative", width: "64px", height: "64px", marginTop: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                     {companySettings?.sealUrl ? (
                                         /* eslint-disable-next-line @next/next/no-img-element */
                                         <img src={companySettings.sealUrl} alt="seal"
-                                            style={{ width: "64px", height: "64px", opacity: 0.85, objectFit: "contain" }} />
+                                            style={{ maxHeight: "100%", maxWidth: "100%", width: "auto", height: "auto", opacity: 0.85 }} />
                                     ) : (
                                         <div style={{
                                             width: "64px", height: "64px", borderRadius: "50%",
