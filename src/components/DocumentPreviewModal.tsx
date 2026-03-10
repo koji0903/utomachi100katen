@@ -374,47 +374,56 @@ export function DocumentPreviewModal({
                         </div>
 
                         {/* ── Header: Row 3 (Sender Info) ── */}
-                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "20px" }}>
-                            <div style={{ position: "relative", minWidth: "300px", textAlign: "right", paddingRight: "50px" }}>
-
-                                {/* Logo area */}
-                                <div style={{ height: "40px", marginBottom: "4px", display: "flex", justifyContent: "flex-end" }}>
+                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+                            <div style={{
+                                display: "flex",
+                                alignItems: "flex-end",
+                                gap: "20px",
+                                position: "relative",
+                                textAlign: "right",
+                                paddingRight: "50px"
+                            }}>
+                                {/* Logo area (Left of text) */}
+                                <div style={{ height: "44px", display: "flex", alignItems: "flex-end" }}>
                                     {companySettings?.logoUrl ? (
                                         /* eslint-disable-next-line @next/next/no-img-element */
-                                        <img src={companySettings.logoUrl} alt="logo" style={{ maxHeight: "100%", maxWidth: "140px" }} />
+                                        <img src={companySettings.logoUrl} alt="logo" style={{ maxHeight: "100%", maxWidth: "120px" }} />
                                     ) : (
                                         /* eslint-disable-next-line @next/next/no-img-element */
                                         <img src="/logo.png" alt="logo" style={{ maxHeight: "100%", opacity: 0.8 }} />
                                     )}
                                 </div>
 
-                                {/* Company Name and PIC */}
-                                <div style={{ textAlign: "right", marginBottom: "4px" }}>
-                                    <div style={{ fontSize: "15px", fontWeight: "700", letterSpacing: "0.05em", color: "#1a1a1a", marginBottom: "1px" }}>
-                                        {companySettings?.companyName || "ウトマチ百貨店"}
-                                    </div>
-                                    {companySettings?.picName && (
-                                        <div style={{ fontSize: "10px", color: "#444" }}>
-                                            担当者：{companySettings.picTitle}　{companySettings.picName}
+                                {/* Text info area (Right of logo) */}
+                                <div>
+                                    {/* Company Name and PIC */}
+                                    <div style={{ marginBottom: "2px" }}>
+                                        <div style={{ fontSize: "15px", fontWeight: "700", letterSpacing: "0.05em", color: "#1a1a1a", marginBottom: "1px" }}>
+                                            {companySettings?.companyName || "ウトマチ百貨店"}
                                         </div>
-                                    )}
+                                        {companySettings?.picName && (
+                                            <div style={{ fontSize: "10px", color: "#444" }}>
+                                                担当者：{companySettings.picTitle}　{companySettings.picName}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Company Details */}
+                                    <div style={{ fontSize: "9px", color: "#555", lineHeight: "1.3" }}>
+                                        〒{companySettings?.zipCode}　{companySettings?.address}<br />
+                                        TEL: {companySettings?.tel}
+                                        {companySettings?.fax && <span style={{ marginLeft: "8px" }}>FAX: {companySettings.fax}</span>}<br />
+                                        {companySettings?.invoiceNumber && (
+                                            <span style={{ fontWeight: 500 }}>登録番号: {companySettings.invoiceNumber}</span>
+                                        )}
+                                    </div>
                                 </div>
 
-                                {/* Company Details */}
-                                <div style={{ fontSize: "9px", color: "#555", lineHeight: "1.4", textAlign: "right" }}>
-                                    〒{companySettings?.zipCode}　{companySettings?.address}<br />
-                                    TEL: {companySettings?.tel}
-                                    {companySettings?.fax && <span style={{ marginLeft: "8px" }}>FAX: {companySettings.fax}</span>}<br />
-                                    {companySettings?.invoiceNumber && (
-                                        <span style={{ fontWeight: 500 }}>登録番号: {companySettings.invoiceNumber}</span>
-                                    )}
-                                </div>
-
-                                {/* Seal Overlay */}
+                                {/* Seal Overlay - Positioned relative to the text block */}
                                 <div style={{
                                     position: "absolute",
                                     right: "0px",
-                                    top: "44px",
+                                    bottom: "4px",
                                     width: "40px",
                                     height: "40px",
                                     zIndex: 10,
@@ -426,7 +435,7 @@ export function DocumentPreviewModal({
                                             style={{ width: "100%", height: "100%", objectFit: "contain", opacity: 0.8 }} />
                                     ) : (
                                         <div style={{
-                                            width: "44px", height: "44px", borderRadius: "50%",
+                                            width: "40px", height: "40px", borderRadius: "50%",
                                             border: `1.5px solid ${BRAND}`, color: BRAND, fontSize: "9px",
                                             display: "flex", alignItems: "center", justifyContent: "center",
                                             textAlign: "center", opacity: 0.4, lineHeight: "1.2"

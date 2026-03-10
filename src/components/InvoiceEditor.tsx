@@ -22,12 +22,12 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
 
     // Filtering products for search
     const filteredProducts = useMemo(() => {
-        if (!searchQuery) return products.slice(0, 10);
         const q = searchQuery.toLowerCase();
+        if (!q) return products;
         return products.filter(p =>
             p.name.toLowerCase().includes(q) ||
             p.variantName?.toLowerCase().includes(q)
-        ).slice(0, 10);
+        );
     }, [products, searchQuery]);
 
     // Calculation Logic
@@ -136,16 +136,18 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
                                     <input
                                         type="number"
                                         value={item.unitPrice}
+                                        onFocus={e => e.target.select()}
                                         onChange={e => updateItem(item.id, { unitPrice: Number(e.target.value) })}
-                                        className="w-full bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-medium text-slate-700"
+                                        className="w-full bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-medium text-slate-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
                                 </td>
                                 <td className="py-2 px-2 text-right">
                                     <input
                                         type="number"
                                         value={item.quantity}
+                                        onFocus={e => e.target.select()}
                                         onChange={e => updateItem(item.id, { quantity: Number(e.target.value) })}
-                                        className="w-full bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-medium text-slate-700"
+                                        className="w-full bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-medium text-slate-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
                                 </td>
                                 <td className="py-2 px-2 text-right">
@@ -231,8 +233,9 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
                         <input
                             type="number"
                             value={adj.amount}
+                            onFocus={e => e.target.select()}
                             onChange={e => updateAdjustment(adj.id, { amount: Number(e.target.value) })}
-                            className="w-24 bg-transparent border-none focus:ring-0 p-0 text-right text-xs font-mono font-bold text-rose-600"
+                            className="w-24 bg-transparent border-none focus:ring-0 p-0 text-right text-xs font-mono font-bold text-rose-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         <button onClick={() => removeAdjustment(adj.id)} className="p-1 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all">
                             <Trash2 className="w-3 h-3" />
@@ -257,8 +260,9 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
                         <input
                             type="number"
                             value={finalAdjustment}
+                            onFocus={e => e.target.select()}
                             onChange={e => onChange({ items, adjustments, taxRate, totalAmount: grandTotal + Number(e.target.value), finalAdjustment: Number(e.target.value) })}
-                            className="w-24 bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-bold text-white placeholder:text-slate-700"
+                            className="w-24 bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-bold text-white placeholder:text-slate-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             placeholder="0"
                         />
                     </div>

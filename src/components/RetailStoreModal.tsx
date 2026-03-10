@@ -386,8 +386,9 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                             <input type="number" required min="0" max="100"
                                 value={formData.type === 'A' ? formData.commissionRate : 0}
                                 disabled={formData.type === 'B'}
+                                onFocus={e => e.target.select()}
                                 onChange={e => setFormData({ ...formData, commissionRate: Number(e.target.value) })}
-                                className={`${inputCls} text-right disabled:bg-slate-100 disabled:text-slate-400 transition-colors`} />
+                                className={`${inputCls} text-right disabled:bg-slate-100 disabled:text-slate-400 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} />
                         </div>
 
                         {/* 1日の売上目標額 */}
@@ -399,8 +400,9 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                 type="number"
                                 min="0"
                                 value={formData.dailySalesGoal}
+                                onFocus={e => e.target.select()}
                                 onChange={e => setFormData({ ...formData, dailySalesGoal: Number(e.target.value) })}
-                                className={`${inputCls} text-right`}
+                                className={`${inputCls} text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                                 placeholder="例: 50000"
                             />
                             <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
@@ -424,11 +426,12 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                     <input
                                         type="number"
                                         value={formData.pricingRule}
+                                        onFocus={e => e.target.select()}
                                         onChange={e => setFormData({
                                             ...formData,
                                             pricingRule: Number(e.target.value)
                                         })}
-                                        className={`${inputCls} text-right pr-8`}
+                                        className={`${inputCls} text-right pr-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                                         placeholder="0"
                                     />
                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">%</span>

@@ -475,8 +475,9 @@ JANコード: ${formData.janCode || "なし"}
                                                 required
                                                 min="0"
                                                 value={formData.costPrice || ""}
+                                                onFocus={e => e.target.select()}
                                                 onChange={(e) => setFormData({ ...formData, costPrice: Number(e.target.value) })}
-                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right"
+                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -486,8 +487,9 @@ JANコード: ${formData.janCode || "なし"}
                                                 required
                                                 min="0"
                                                 value={formData.sellingPrice || ""}
+                                                onFocus={e => e.target.select()}
                                                 onChange={(e) => setFormData({ ...formData, sellingPrice: Number(e.target.value) })}
-                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right"
+                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -513,8 +515,9 @@ JANコード: ${formData.janCode || "なし"}
                                                 required
                                                 min="0"
                                                 value={formData.stock || ""}
+                                                onFocus={e => e.target.select()}
                                                 onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
-                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right font-bold"
+                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -524,8 +527,9 @@ JANコード: ${formData.janCode || "なし"}
                                             <input
                                                 type="number"
                                                 value={formData.alertThreshold}
+                                                onFocus={e => e.target.select()}
                                                 onChange={(e) => setFormData({ ...formData, alertThreshold: Number(e.target.value) })}
-                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-amber-50/30 text-right"
+                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-amber-50/30 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             />
                                         </div>
                                     </div>
@@ -544,8 +548,9 @@ JANコード: ${formData.janCode || "なし"}
                                                         <input
                                                             type="number"
                                                             value={storePrice || ""}
+                                                            onFocus={e => e.target.select()}
                                                             onChange={(e) => handleStorePriceChange(store.id, Number(e.target.value))}
-                                                            className="w-20 px-2 py-1.5 text-xs text-right border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/10"
+                                                            className="w-20 px-2 py-1.5 text-xs text-right border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                             placeholder="個別価格"
                                                         />
                                                     </div>
@@ -615,12 +620,13 @@ JANコード: ${formData.janCode || "なし"}
                                                         <input
                                                             type="number"
                                                             value={comp.quantity}
+                                                            onFocus={e => e.target.select()}
                                                             onChange={(e) => {
                                                                 const next = [...formData.components];
                                                                 next[idx].quantity = Number(e.target.value);
                                                                 setFormData({ ...formData, components: next });
                                                             }}
-                                                            className="w-16 text-xs border border-slate-300 rounded-lg p-2 text-right"
+                                                            className="w-16 text-xs border border-slate-300 rounded-lg p-2 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                         />
                                                         <button onClick={() => setFormData({ ...formData, components: formData.components.filter((_, i) => i !== idx) })}
                                                             className="p-2 text-slate-400 hover:text-red-500"><X className="w-4 h-4" /></button>
@@ -689,8 +695,10 @@ JANコード: ${formData.janCode || "なし"}
                                             <div className="grid grid-cols-3 gap-3">
                                                 {(['height', 'width', 'depth'] as const).map(dim => (
                                                     <input key={dim} type="number" placeholder={dim === 'height' ? '縦' : dim === 'width' ? '横' : '奥'}
-                                                        value={formData.dimensions[dim]} onChange={(e) => setFormData({ ...formData, dimensions: { ...formData.dimensions, [dim]: Number(e.target.value) } })}
-                                                        className="p-3 text-sm border border-slate-200 rounded-xl" />
+                                                        value={formData.dimensions[dim]}
+                                                        onFocus={e => e.target.select()}
+                                                        onChange={(e) => setFormData({ ...formData, dimensions: { ...formData.dimensions, [dim]: Number(e.target.value) } })}
+                                                        className="p-3 text-sm border border-slate-200 rounded-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                                 ))}
                                             </div>
                                         </div>
