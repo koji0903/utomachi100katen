@@ -42,11 +42,20 @@ function StatusBadge({ status }: { status: "draft" | "issued" }) {
 function TypeBadge({ doc, allDocs }: { doc: IssuedDocument, allDocs: IssuedDocument[] }) {
     const { type, sourceDocId } = doc;
     const sourceDoc = sourceDocId ? allDocs.find(d => d.id === sourceDocId) : null;
+    const hasLinkedInvoice = type === "delivery_note" && allDocs.some(d => d.type === "invoice" && d.sourceDocId === doc.id && !d.isTrashed);
 
     if (type === "delivery_note") return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: BRAND_LIGHT, color: BRAND }}>
-            <Receipt className="w-2.5 h-2.5" />納品書
-        </span>
+        <div className="flex flex-col gap-1 items-start">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: BRAND_LIGHT, color: BRAND }}>
+                <Receipt className="w-2.5 h-2.5" />納品書
+            </span>
+            {hasLinkedInvoice && (
+                <span className="text-[8px] text-emerald-600 flex items-center gap-0.5 px-1 font-bold animate-in fade-in slide-in-from-left-1 duration-500">
+                    <Check className="w-2 h-2" />
+                    請求書作成済み
+                </span>
+            )}
+        </div>
     );
     if (type === "invoice") return (
         <div className="flex flex-col gap-1 items-start">
@@ -630,16 +639,21 @@ export default function DocumentsPage() {
                                                                 ? <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                                                                 : <Copy className="w-4 h-4" />}
                                                         </button>
-                                                        {doc.type === 'delivery_note' && (
-                                                            <button onClick={() => handleConvertToInvoice(doc.id)}
-                                                                disabled={convertingId === doc.id}
-                                                                title="請求書を作成"
-                                                                className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all disabled:opacity-40 animate-pulse-subtle">
-                                                                {convertingId === doc.id
-                                                                    ? <div className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
-                                                                    : <FilePlus className="w-4 h-4" />}
-                                                            </button>
-                                                        )}
+                                                        {doc.type === 'delivery_note' && (() => {
+                                                            const isConverted = issuedDocuments.some(d => d.type === "invoice" && d.sourceDocId === doc.id && !d.isTrashed);
+                                                            return (
+                                                                <button onClick={() => handleConvertToInvoice(doc.id)}
+                                                                    disabled={convertingId === doc.id}
+                                                                    title={isConverted ? "請求書を再作成" : "請求書を作成"}
+                                                                    className={`p-1.5 rounded-lg transition-all disabled:opacity-40 ${isConverted
+                                                                        ? 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                                                                        : 'bg-rose-50 text-rose-600 hover:bg-rose-100 animate-pulse-subtle'}`}>
+                                                                    {convertingId === doc.id
+                                                                        ? <div className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                                                                        : <FilePlus className="w-4 h-4" />}
+                                                                </button>
+                                                            );
+                                                        })()}
                                                         <button onClick={() => { if (window.confirm("この帳票をごみ箱に移動しますか？")) handleDelete(doc.id); }}
                                                             title="削除"
                                                             className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all">
