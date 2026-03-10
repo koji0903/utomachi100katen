@@ -291,15 +291,22 @@ export function DocumentPreviewModal({
 
                     {/* ── PRINTABLE DOCUMENT ───────────────────────────── */}
                     <div ref={previewRef} className="bg-white shadow-lg mx-auto printable-document" style={{
-                        width: "794px", // A4 at 96dpi
-                        minHeight: "1123px",
-                        padding: "48px 56px",
+                        width: "210mm",
+                        minHeight: "297mm",
+                        padding: "15mm 20mm",
                         fontFamily: "'Hiragino Mincho ProN', 'Yu Mincho', 'MS PMincho', Georgia, serif",
                         color: "#1a1a1a",
                         position: "relative",
+                        boxSizing: "border-box",
                     }}>
                         <style jsx global>{`
                             @media print {
+                                html, body {
+                                    margin: 0 !important;
+                                    padding: 0 !important;
+                                    width: 210mm;
+                                    height: 297mm;
+                                }
                                 body * {
                                     visibility: hidden;
                                 }
@@ -307,13 +314,13 @@ export function DocumentPreviewModal({
                                     visibility: visible;
                                 }
                                 .printable-document {
-                                    position: absolute;
-                                    left: 0;
-                                    top: 0;
-                                    width: 100% !important;
+                                    position: static !important;
+                                    width: 210mm !important;
+                                    min-height: 297mm !important;
                                     margin: 0 !important;
-                                    padding: 48px 56px !important;
+                                    padding: 15mm 20mm !important;
                                     box-shadow: none !important;
+                                    box-sizing: border-box !important;
                                 }
                                 @page {
                                     size: A4;
@@ -322,32 +329,34 @@ export function DocumentPreviewModal({
                             }
                         `}</style>
 
-                        {/* ── Metadata: Top Right ── */}
-                        <div style={{
-                            position: "absolute", top: "48px", right: "56px",
-                            textAlign: "right", fontSize: "11px", color: "#555", lineHeight: "1.6"
-                        }}>
-                            <div>発行日: {today()}</div>
-                            <div style={{ fontWeight: 600 }}>文書番号: {docNumber}</div>
-                            {periodLabel && <div>対象期間: {periodLabel}</div>}
-                        </div>
-
-                        {/* ── Header: Row 1 (Document Title) ── */}
-                        <div style={{
-                            textAlign: "center", marginBottom: "32px", padding: "8px 0",
-                            borderBottom: `2px solid ${BRAND}`, position: "relative",
-                            marginTop: "24px" // Add margin to avoid metadata overlap
-                        }}>
-                            <h1 style={{
-                                fontSize: "32px", fontWeight: "700", letterSpacing: "0.8em", margin: 0,
-                                textIndent: "0.8em", color: "#1a1a1a"
+                        {/* ── Top Section: Metadata & Title ── */}
+                        <div style={{ display: "flex", flexDirection: "column", marginBottom: "12px" }}>
+                            {/* Metadata */}
+                            <div style={{
+                                textAlign: "right", fontSize: "11px", color: "#555", lineHeight: "1.6",
+                                marginBottom: "4px"
                             }}>
-                                {docTitle}
-                            </h1>
+                                <div>発行日: {today()}</div>
+                                <div style={{ fontWeight: 600 }}>文書番号: {docNumber}</div>
+                                {periodLabel && <div>対象期間: {periodLabel}</div>}
+                            </div>
+
+                            {/* Document Title */}
+                            <div style={{
+                                textAlign: "center", padding: "6px 0",
+                                borderBottom: `2px solid ${BRAND}`, marginBottom: "20px"
+                            }}>
+                                <h1 style={{
+                                    fontSize: "28px", fontWeight: "700", letterSpacing: "0.8em", margin: 0,
+                                    textIndent: "0.8em", color: "#1a1a1a"
+                                }}>
+                                    {docTitle}
+                                </h1>
+                            </div>
                         </div>
 
                         {/* ── Header: Row 2 (Recipient) ── */}
-                        <div style={{ marginBottom: "32px", display: "flex", justifyContent: "flex-start" }}>
+                        <div style={{ marginBottom: "20px", display: "flex", justifyContent: "flex-start" }}>
                             {/* Left: Recipient */}
                             <div style={{ flex: 1 }}>
                                 {recipientAddress?.address && (
@@ -364,15 +373,15 @@ export function DocumentPreviewModal({
                             </div>
                         </div>
 
-                        {/* ── Header: Row 3 (Sender Info - Right Aligned & Non-overlapping) ── */}
-                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "32px" }}>
-                            <div style={{ position: "relative", minWidth: "360px", textAlign: "right", paddingRight: "60px" }}>
+                        {/* ── Header: Row 3 (Sender Info) ── */}
+                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "20px" }}>
+                            <div style={{ position: "relative", minWidth: "300px", textAlign: "right", paddingRight: "50px" }}>
 
                                 {/* Logo area */}
-                                <div style={{ height: "48px", marginBottom: "8px", display: "flex", justifyContent: "flex-end" }}>
+                                <div style={{ height: "40px", marginBottom: "4px", display: "flex", justifyContent: "flex-end" }}>
                                     {companySettings?.logoUrl ? (
                                         /* eslint-disable-next-line @next/next/no-img-element */
-                                        <img src={companySettings.logoUrl} alt="logo" style={{ maxHeight: "100%", maxWidth: "160px" }} />
+                                        <img src={companySettings.logoUrl} alt="logo" style={{ maxHeight: "100%", maxWidth: "140px" }} />
                                     ) : (
                                         /* eslint-disable-next-line @next/next/no-img-element */
                                         <img src="/logo.png" alt="logo" style={{ maxHeight: "100%", opacity: 0.8 }} />
@@ -380,34 +389,34 @@ export function DocumentPreviewModal({
                                 </div>
 
                                 {/* Company Name and PIC */}
-                                <div style={{ textAlign: "right", marginBottom: "8px" }}>
-                                    <div style={{ fontSize: "18px", fontWeight: "700", letterSpacing: "0.05em", color: "#1a1a1a", marginBottom: "2px" }}>
+                                <div style={{ textAlign: "right", marginBottom: "4px" }}>
+                                    <div style={{ fontSize: "15px", fontWeight: "700", letterSpacing: "0.05em", color: "#1a1a1a", marginBottom: "1px" }}>
                                         {companySettings?.companyName || "ウトマチ百貨店"}
                                     </div>
                                     {companySettings?.picName && (
-                                        <div style={{ fontSize: "11px", color: "#444" }}>
+                                        <div style={{ fontSize: "10px", color: "#444" }}>
                                             担当者：{companySettings.picTitle}　{companySettings.picName}
                                         </div>
                                     )}
                                 </div>
 
                                 {/* Company Details */}
-                                <div style={{ fontSize: "10px", color: "#555", lineHeight: "1.6", textAlign: "right" }}>
+                                <div style={{ fontSize: "9px", color: "#555", lineHeight: "1.4", textAlign: "right" }}>
                                     〒{companySettings?.zipCode}　{companySettings?.address}<br />
                                     TEL: {companySettings?.tel}
-                                    {companySettings?.fax && <span style={{ marginLeft: "10px" }}>FAX: {companySettings.fax}</span>}<br />
+                                    {companySettings?.fax && <span style={{ marginLeft: "8px" }}>FAX: {companySettings.fax}</span>}<br />
                                     {companySettings?.invoiceNumber && (
                                         <span style={{ fontWeight: 500 }}>登録番号: {companySettings.invoiceNumber}</span>
                                     )}
                                 </div>
 
-                                {/* Seal Overlay - Positioned to the right, avoiding overlap with text */}
+                                {/* Seal Overlay */}
                                 <div style={{
                                     position: "absolute",
                                     right: "0px",
-                                    top: "56px",
-                                    width: "48px",
-                                    height: "48px",
+                                    top: "44px",
+                                    width: "40px",
+                                    height: "40px",
                                     zIndex: 10,
                                     pointerEvents: "none"
                                 }}>
@@ -430,7 +439,7 @@ export function DocumentPreviewModal({
                         </div>
 
                         {/* ── Greeting ── */}
-                        <div style={{ fontSize: "11px", color: "#444", marginBottom: "24px", lineHeight: "1.7" }}>
+                        <div style={{ fontSize: "11px", color: "#444", marginBottom: "12px", lineHeight: "1.7" }}>
                             {isDeliveryNote
                                 ? "下記の通り納品いたしますので、ご確認の上ご査収くださいますようお願い申し上げます。"
                                 : isInvoice
@@ -442,16 +451,16 @@ export function DocumentPreviewModal({
                         {/* ── Invoice Summary Section (Only for Invoice) ── */}
                         {isInvoice && (
                             <div style={{
-                                marginBottom: "32px", padding: "16px 0", borderBottom: "1px solid #eee"
+                                marginBottom: "16px", padding: "8px 0", borderBottom: "1px solid #eee"
                             }}>
                                 <div style={{ display: "flex", alignItems: "baseline", gap: "32px" }}>
                                     <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
                                         <span style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>ご請求金額（税込）</span>
-                                        <span style={{ fontSize: "28px", fontWeight: "700", color: "#1a1a1a", borderBottom: `3px double ${BRAND}` }}>
+                                        <span style={{ fontSize: "24px", fontWeight: "700", color: "#1a1a1a", borderBottom: `3px double ${BRAND}` }}>
                                             ¥{totalWithTax.toLocaleString()}-
                                         </span>
                                     </div>
-                                    <div style={{ display: "flex", gap: "20px", fontSize: "12px", color: "#666" }}>
+                                    <div style={{ display: "flex", gap: "20px", fontSize: "11px", color: "#666" }}>
                                         <span>（税抜合計: ¥{subtotal.toLocaleString()}</span>
                                         <span>消費税等: ¥{tax.toLocaleString()}）</span>
                                     </div>
@@ -623,9 +632,9 @@ export function DocumentPreviewModal({
 
                         {/* ── Footer ── */}
                         <div style={{
-                            position: "absolute", bottom: "32px", left: "56px", right: "56px",
+                            marginTop: "auto",
                             display: "flex", justifyContent: "space-between", alignItems: "flex-end",
-                            borderTop: `1px solid ${BRAND}`, paddingTop: "12px"
+                            borderTop: `1px solid ${BRAND}`, paddingTop: "12px", paddingBottom: "10mm"
                         }}>
                             <div style={{ fontSize: "11px", color: "#888", fontStyle: "italic", letterSpacing: "0.05em" }}>
                                 ヒトとモノをつなぐ架け橋、ウトマチ百貨店
