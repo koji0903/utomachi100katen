@@ -299,7 +299,13 @@ export function DocumentPreviewModal({
                                     〒{companySettings?.zipCode}<br />
                                     {companySettings?.address}<br />
                                     TEL: {companySettings?.tel}
+                                    {companySettings?.fax && <span style={{ marginLeft: "8px" }}>FAX: {companySettings.fax}</span>}
                                 </div>
+                                {companySettings?.picName && (
+                                    <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>
+                                        担当者: {companySettings.picTitle} {companySettings.picName}
+                                    </div>
+                                )}
                                 {companySettings?.invoiceNumber && (
                                     <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>
                                         登録番号: {companySettings.invoiceNumber}
@@ -471,17 +477,36 @@ export function DocumentPreviewModal({
                         )}
 
                         {/* ── Bank info (for payments & invoices) ── */}
-                        {(isPaymentSummary || isInvoice) && (companySettings?.bankName || companySettings?.bankAccountNumber) && (
+                        {(isPaymentSummary || isInvoice) && (companySettings?.bankName || companySettings?.bankAccountNumber || companySettings?.bankName2) && (
                             <div style={{
-                                marginTop: "20px", padding: "12px 16px", border: `1px solid ${BRAND}`,
-                                borderRadius: "6px", backgroundColor: BRAND_LIGHT, fontSize: "11px", lineHeight: "1.8"
+                                marginTop: "20px", display: "grid", gridTemplateColumns: companySettings?.bankName2 ? "1fr 1fr" : "1fr", gap: "12px"
                             }}>
-                                <div style={{ fontWeight: 700, marginBottom: "4px", color: BRAND_DARK }}>振込先口座</div>
-                                <div>
-                                    {companySettings.bankName} {companySettings.bankBranch} {companySettings.bankAccountType}
-                                    口座番号: {companySettings.bankAccountNumber}
-                                </div>
-                                <div>口座名義: {companySettings.bankAccountHolder}</div>
+                                {(companySettings?.bankName || companySettings?.bankAccountNumber) && (
+                                    <div style={{
+                                        padding: "12px 16px", border: `1px solid ${BRAND}`,
+                                        borderRadius: "6px", backgroundColor: BRAND_LIGHT, fontSize: "11px", lineHeight: "1.8"
+                                    }}>
+                                        <div style={{ fontWeight: 700, marginBottom: "4px", color: BRAND_DARK }}>振込先口座1</div>
+                                        <div>
+                                            {companySettings.bankName} {companySettings.bankBranch} {companySettings.bankAccountType}
+                                            口座番号: {companySettings.bankAccountNumber}
+                                        </div>
+                                        <div>口座名義: {companySettings.bankAccountHolder}</div>
+                                    </div>
+                                )}
+                                {(companySettings?.bankName2 || companySettings?.bankAccountNumber2) && (
+                                    <div style={{
+                                        padding: "12px 16px", border: `1px solid #ddd`,
+                                        borderRadius: "6px", backgroundColor: "#f9f9f9", fontSize: "11px", lineHeight: "1.8"
+                                    }}>
+                                        <div style={{ fontWeight: 700, marginBottom: "4px", color: "#666" }}>振込先口座2</div>
+                                        <div>
+                                            {companySettings.bankName2} {companySettings.bankBranch2} {companySettings.bankAccountType2}
+                                            口座番号: {companySettings.bankAccountNumber2}
+                                        </div>
+                                        <div>口座名義: {companySettings.bankAccountHolder2}</div>
+                                    </div>
+                                )}
                             </div>
                         )}
 

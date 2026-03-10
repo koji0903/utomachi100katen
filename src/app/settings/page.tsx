@@ -199,18 +199,60 @@ export default function SettingsPage() {
                             </div>
                         </div>
 
-                        {/* 電話番号 */}
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                                <Phone className="w-3 h-3 inline mr-1" />電話番号
-                            </label>
-                            <input
-                                type="tel"
-                                value={form.tel}
-                                onChange={e => handleChange("tel", e.target.value)}
-                                placeholder="0964-00-0000"
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors"
-                            />
+                        {/* 電話番号 + FAX */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                                    <Phone className="w-3 h-3 inline mr-1" />電話番号
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={form.tel}
+                                    onChange={e => handleChange("tel", e.target.value)}
+                                    placeholder="0964-00-0000"
+                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                                    FAX番号
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={form.fax}
+                                    onChange={e => handleChange("fax", e.target.value)}
+                                    placeholder="0964-00-0000"
+                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors"
+                                />
+                            </div>
+                        </div>
+
+                        {/* 担当者情報 */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1.5 text-blue-600">
+                                    担当者 肩書
+                                </label>
+                                <input
+                                    type="text"
+                                    value={form.picTitle}
+                                    onChange={e => handleChange("picTitle", e.target.value)}
+                                    placeholder="例: 代表社員 / 店長"
+                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1.5 text-blue-600">
+                                    担当者名
+                                </label>
+                                <input
+                                    type="text"
+                                    value={form.picName}
+                                    onChange={e => handleChange("picName", e.target.value)}
+                                    placeholder="例: 山田 太郎"
+                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -288,38 +330,80 @@ export default function SettingsPage() {
                         <h2 className="font-semibold text-slate-800 text-sm">振込先口座</h2>
                         <span className="ml-auto text-[10px] text-slate-400">支払明細書に印刷されます</span>
                     </div>
-                    <div className="p-6 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">銀行名</label>
-                                <input type="text" value={form.bankName ?? ""} onChange={e => handleChange("bankName", e.target.value)}
-                                    placeholder="例: 肥後銀行" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                    <div className="p-6 space-y-8 divide-y divide-slate-100">
+                        {/* 第1口座 */}
+                        <div className="space-y-4">
+                            <h3 className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded w-fit">第1口座</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">銀行名</label>
+                                    <input type="text" value={form.bankName ?? ""} onChange={e => handleChange("bankName", e.target.value)}
+                                        placeholder="例: 肥後銀行" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">支店名</label>
+                                    <input type="text" value={form.bankBranch ?? ""} onChange={e => handleChange("bankBranch", e.target.value)}
+                                        placeholder="例: 宇土支店" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">支店名</label>
-                                <input type="text" value={form.bankBranch ?? ""} onChange={e => handleChange("bankBranch", e.target.value)}
-                                    placeholder="例: 宇土支店" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座種別</label>
+                                    <select value={form.bankAccountType ?? "普通"} onChange={e => handleChange("bankAccountType", e.target.value)}
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors bg-white">
+                                        <option value="普通">普通</option>
+                                        <option value="当座">当座</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座番号</label>
+                                    <input type="text" value={form.bankAccountNumber ?? ""} onChange={e => handleChange("bankAccountNumber", e.target.value)}
+                                        placeholder="1234567" inputMode="numeric" maxLength={10}
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座名義</label>
+                                    <input type="text" value={form.bankAccountHolder ?? ""} onChange={e => handleChange("bankAccountHolder", e.target.value)}
+                                        placeholder="ウトマチヒャッカテン" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座種別</label>
-                                <select value={form.bankAccountType ?? "普通"} onChange={e => handleChange("bankAccountType", e.target.value)}
-                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors bg-white">
-                                    <option value="普通">普通</option>
-                                    <option value="当座">当座</option>
-                                </select>
+
+                        {/* 第2口座 */}
+                        <div className="pt-8 space-y-4">
+                            <h3 className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded w-fit">第2口座（任意）</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">銀行名</label>
+                                    <input type="text" value={form.bankName2 ?? ""} onChange={e => handleChange("bankName2", e.target.value)}
+                                        placeholder="例: 楽天銀行" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">支店名</label>
+                                    <input type="text" value={form.bankBranch2 ?? ""} onChange={e => handleChange("bankBranch2", e.target.value)}
+                                        placeholder="例: 第一営業支店" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座番号</label>
-                                <input type="text" value={form.bankAccountNumber ?? ""} onChange={e => handleChange("bankAccountNumber", e.target.value)}
-                                    placeholder="1234567" inputMode="numeric" maxLength={10}
-                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座名義</label>
-                                <input type="text" value={form.bankAccountHolder ?? ""} onChange={e => handleChange("bankAccountHolder", e.target.value)}
-                                    placeholder="ウトマチヒャッカテン" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座種別</label>
+                                    <select value={form.bankAccountType2 ?? "普通"} onChange={e => handleChange("bankAccountType2", e.target.value)}
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors bg-white">
+                                        <option value="普通">普通</option>
+                                        <option value="当座">当座</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座番号</label>
+                                    <input type="text" value={form.bankAccountNumber2 ?? ""} onChange={e => handleChange("bankAccountNumber2", e.target.value)}
+                                        placeholder="1234567" inputMode="numeric" maxLength={10}
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座名義</label>
+                                    <input type="text" value={form.bankAccountHolder2 ?? ""} onChange={e => handleChange("bankAccountHolder2", e.target.value)}
+                                        placeholder="ウトマチヒャッカテン" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
                             </div>
                         </div>
                     </div>

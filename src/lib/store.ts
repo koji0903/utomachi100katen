@@ -25,12 +25,21 @@ export interface CompanySettings {
     tel: string;
     invoiceNumber: string;  // T-XXXXXXXXXXXXX
     roundingMode: RoundingMode;
-    // 挙込先口座
+    fax?: string;            // FAX番号
+    picName?: string;        // 担当者名
+    picTitle?: string;       // 担当者肩書
+    // 振込先口座1
     bankName?: string;       // 銀行名
     bankBranch?: string;     // 支店名
     bankAccountType?: string; // 普通 / 当座
     bankAccountNumber?: string;
     bankAccountHolder?: string;
+    // 振込先口座2
+    bankName2?: string;
+    bankBranch2?: string;
+    bankAccountType2?: string;
+    bankAccountNumber2?: string;
+    bankAccountHolder2?: string;
     // ブランド資産
     logoUrl?: string;        // ロゴ画像 URL
     sealUrl?: string;        // 印影画像 URL
@@ -45,11 +54,19 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     tel: '',
     invoiceNumber: '',
     roundingMode: 'floor',
+    fax: '',
+    picName: '',
+    picTitle: '',
     bankName: '',
     bankBranch: '',
     bankAccountType: '普通',
     bankAccountNumber: '',
     bankAccountHolder: '',
+    bankName2: '',
+    bankBranch2: '',
+    bankAccountType2: '普通',
+    bankAccountNumber2: '',
+    bankAccountHolder2: '',
     weatherFetchTime: '14:00',
 };
 
