@@ -59,7 +59,7 @@ function TypeBadge({ type }: { type: IssuedDocument["type"] }) {
 
 // ─── New Document Form Modal ──────────────────────────────────────────────────
 function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editingDoc?: IssuedDocument }) {
-    const { retailStores, suppliers, saveIssuedDocument, updateIssuedDocument, generateDocNumber } = useStore();
+    const { retailStores, suppliers, saveIssuedDocument, updateIssuedDocument, generateDocNumber, updateSpotRecipient } = useStore();
     const [docType, setDocType] = useState<IssuedDocument["type"]>(editingDoc?.type ?? "delivery_note");
     const [recipientType, setRecipientType] = useState<"store" | "supplier" | "spot">(editingDoc?.recipientType ?? "store");
     const [storeId, setStoreId] = useState(editingDoc?.storeId ?? "");
@@ -174,6 +174,12 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
                     issuedDate: today(),
                 });
             }
+
+            // Sync: Update lastUsedAt if it's a spot recipient
+            if (recipientType === "spot" && spotRecipient) {
+                await updateSpotRecipient(spotRecipient.id, { lastUsedAt: new Date().toISOString() });
+            }
+
             onClose(); // Automatically close after save
         } catch (err) {
             console.error("Save failed:", err);

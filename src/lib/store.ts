@@ -2,7 +2,7 @@
 "use client";
 
 import useSWR from "swr";
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 // Helper to remove undefined properties before sending to Firestore
@@ -994,6 +994,12 @@ export function useStore() {
         return newRecipient;
     };
 
+    const updateSpotRecipient = async (id: string, data: Partial<Omit<SpotRecipient, 'id' | 'createdAt'>>) => {
+        mutateSpotRecipients(spotRecipients.map(r => r.id === id ? { ...r, ...data } : r), false);
+        await updateDoc(doc(db, 'spot_recipients', id), cleanObject(data));
+        mutateSpotRecipients();
+    };
+
     const deleteSpotRecipient = async (id: string) => {
         await updateDoc(doc(db, 'spot_recipients', id), { isTrashed: true });
         mutateSpotRecipients();
@@ -1007,6 +1013,15 @@ export function useStore() {
     const permanentlyDeleteSpotRecipient = async (id: string) => {
         await deleteDoc(doc(db, 'spot_recipients', id));
         mutateSpotRecipients();
+    };
+
+    const permanentlyDeleteAllSpotRecipients = async () => {
+        const batch = writeBatch(db);
+        spotRecipients.forEach(r => {
+            batch.delete(doc(db, 'spot_recipients', r.id));
+        });
+        await batch.commit();
+        mutateSpotRecipients([]);
     };
 
     // --- Business Challenge Actions ---
@@ -1177,7 +1192,9 @@ export function useStore() {
         // Spot Recipients
         spotRecipients,
         addSpotRecipient,
+        updateSpotRecipient,
         deleteSpotRecipient,
+        permanentlyDeleteAllSpotRecipients,
         // Business Challenges
         challenges,
         addChallenge,

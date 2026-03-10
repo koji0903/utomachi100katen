@@ -10,7 +10,8 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Search, UserPlus, X, MapPin, Phone, Loader2, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { Search, UserPlus, X, MapPin, Phone, Loader2, CheckCircle2, Building2, ExternalLink } from "lucide-react";
 import { useStore, SpotRecipient } from "@/lib/store";
 
 const BRAND = "#b27f79";
@@ -64,7 +65,7 @@ export function SpotRecipientInput({ value, onChange, className = "" }: SpotReci
     // Filtered suggestions with robust null checks
     const suggestions = (spotRecipients || [])
         .filter(r => {
-            if (!r || !r.name) return false;
+            if (!r || !r.name || r.isTrashed) return false;
             if (!query) return true;
             const q = query.toLowerCase();
             const nameMatch = r.name?.toLowerCase().includes(q);
@@ -190,6 +191,18 @@ export function SpotRecipientInput({ value, onChange, className = "" }: SpotReci
                                     {query ? `「${query}」を新規スポット宛先として登録` : "新規スポット宛先を登録"}
                                 </span>
                             </button>
+                            <Link href="/spot-recipients"
+                                className="w-full flex items-center justify-between px-3 py-3 bg-slate-50 hover:bg-slate-100 transition-colors border-t border-slate-100 group">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shrink-0 border border-slate-200">
+                                        <Building2 className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />
+                                    </div>
+                                    <span className="text-sm font-bold text-slate-600 group-hover:text-blue-600">
+                                        スポット宛先を管理
+                                    </span>
+                                </div>
+                                <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-400" />
+                            </Link>
                         </div>
                     </div>
                 )}
