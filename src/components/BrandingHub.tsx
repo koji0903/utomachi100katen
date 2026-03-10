@@ -3,6 +3,8 @@
 import { useState, useRef } from "react";
 import { X, Sparkles, Copy, Check, ChevronRight, BookOpen, ShoppingBag, Share2, AlertCircle, UploadCloud, Image as ImageIcon, Printer, Download, Video } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
+import { AIPromptDisplay } from "./AIPromptDisplay";
+import { generateCopyPrompt } from "@/lib/aiPromptUtils";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { QRCodeSVG } from "qrcode.react";
 import { POP_STYLES, POPStyle } from "@/lib/popStyles";
@@ -331,6 +333,19 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                                         <><Sparkles className="w-4 h-4" /> AIでPR文章を生成する</>
                                     )}
                                 </button>
+
+                                <AIPromptDisplay
+                                    prompt={generateCopyPrompt({
+                                        mode: activeMode,
+                                        name: product.name,
+                                        variant: product.variantName,
+                                        brand: brand?.name || "",
+                                        producerStory,
+                                        regionBackground,
+                                        servingSuggestion,
+                                        story: product.story,
+                                    })}
+                                />
                             </div>
 
                             {/* Error */}

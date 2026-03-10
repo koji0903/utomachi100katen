@@ -4,6 +4,8 @@ import { useRef, useState, useCallback } from "react";
 import { useStore, IssuedDocument } from "@/lib/store";
 import { summarizeTaxByRate, TAX_RATE_LABELS } from "@/lib/taxUtils";
 import { generatePdfFromElement } from "@/lib/pdfGenerator";
+import { AIPromptDisplay } from "./AIPromptDisplay";
+import { generateStoryPrompt } from "@/lib/aiPromptUtils";
 import { X, Download, Printer, Loader2, Sparkles, FileText, Receipt } from "lucide-react";
 
 // ─── Brand token ─────────────────────────────────────────────────────────
@@ -288,6 +290,13 @@ export function DocumentPreviewModal({
                             AI生成
                         </button>
                     </div>
+                    <AIPromptDisplay
+                        prompt={generateStoryPrompt({
+                            name: "季節のご挨拶",
+                            brand: "ウトマチ百貨店",
+                            features: `宇土・熊本の旬の便りを一文で。「今、〇〇が旬を迎えています」のような短い季節のコメント。50文字以内。`
+                        })}
+                    />
 
                     {/* ── PRINTABLE DOCUMENT ───────────────────────────── */}
                     <div ref={previewRef} className="bg-white shadow-lg mx-auto printable-document" style={{

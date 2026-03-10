@@ -1,9 +1,10 @@
-// src/components/BrandBrandingHub.tsx
 "use client";
 
 import { useState } from "react";
 import { X, Sparkles, Copy, Check, BookOpen, Share2, AlertCircle, Quote, Save } from "lucide-react";
 import { useStore, Brand } from "@/lib/store";
+import { AIPromptDisplay } from "./AIPromptDisplay";
+import { generateCopyPrompt } from "@/lib/aiPromptUtils";
 
 type BrandCopyMode = "manifesto" | "social" | "press";
 
@@ -57,6 +58,8 @@ export function BrandBrandingHub({ isOpen, onClose, brand }: BrandBrandingHubPro
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [error, setError] = useState("");
+
+    const currentMode = MODES.find(m => m.id === activeMode);
 
     // Local edits for brand story/concept if needed
     const [story, setStory] = useState(brand.story || "");
@@ -180,9 +183,18 @@ export function BrandBrandingHub({ isOpen, onClose, brand }: BrandBrandingHubPro
                             {isGenerating ? (
                                 <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> 生成中...</>
                             ) : (
-                                <><Sparkles className="w-4 h-4" /> AIでマニフェストを生成する</>
+                                <><Sparkles className="w-4 h-4" /> AIで{currentMode?.label}を生成する</>
                             )}
                         </button>
+                        <AIPromptDisplay
+                            prompt={generateCopyPrompt({
+                                mode: activeMode,
+                                name: brand.name,
+                                concept: brand.concept,
+                                story: brand.story,
+                                isBrandLevel: true
+                            })}
+                        />
                     </div>
 
                     {error && (

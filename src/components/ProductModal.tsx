@@ -5,6 +5,8 @@ import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, Al
 import { useStore, Product } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
+import { AIPromptDisplay } from "./AIPromptDisplay";
+import { generateCopyPrompt, generateStoryPrompt } from "@/lib/aiPromptUtils";
 
 interface ProductModalProps {
     isOpen: boolean;
@@ -581,6 +583,13 @@ JANコード: ${formData.janCode || "なし"}
                                             className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/10 bg-slate-50 focus:bg-white text-sm leading-relaxed transition-all resize-none"
                                             placeholder="生産者の想いや、地域の背景などを物語として記録します..."
                                         />
+                                        <AIPromptDisplay
+                                            prompt={generateStoryPrompt({
+                                                name: formData.name,
+                                                brand: brands.find(b => b.id === formData.brandId)?.name || "",
+                                                features: formData.story
+                                            })}
+                                        />
                                     </div>
 
                                     {/* BOM Selection */}
@@ -727,6 +736,15 @@ JANコード: ${formData.janCode || "なし"}
                                                 投稿文を生成
                                             </button>
                                         </div>
+                                        <AIPromptDisplay
+                                            prompt={generateCopyPrompt({
+                                                mode: 'social',
+                                                name: formData.name,
+                                                brand: brands.find(b => b.id === formData.brandId)?.name || "",
+                                                story: formData.story,
+                                                producerStory: formData.producerStory,
+                                            })}
+                                        />
 
                                         <div className="relative group">
                                             <textarea
@@ -768,6 +786,15 @@ JANコード: ${formData.janCode || "なし"}
                                                 シーン案を生成
                                             </button>
                                         </div>
+                                        <AIPromptDisplay
+                                            prompt={generateCopyPrompt({
+                                                mode: 'image-prompt',
+                                                name: formData.name,
+                                                brand: brands.find(b => b.id === formData.brandId)?.name || "",
+                                                story: formData.story,
+                                                producerStory: formData.producerStory,
+                                            })}
+                                        />
 
                                         <div className="relative group">
                                             <div className="w-full p-5 text-sm border border-slate-200 rounded-2xl bg-emerald-50/20 italic text-emerald-800 leading-relaxed min-h-[100px]">
