@@ -5,7 +5,7 @@ import {
     FileText, Receipt, Search, Filter, Copy, Eye,
     Pencil, Trash2, CheckCircle2, Clock, ChevronDown,
     ChevronUp, Store, Users, UserCircle, Plus, X,
-    Download, RotateCcw
+    Download, RotateCcw, FilePlus
 } from "lucide-react";
 import { useStore, IssuedDocument, SpotRecipient, InvoiceItem, InvoiceAdjustment } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
@@ -332,7 +332,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
 
 // ─── Documents Page ───────────────────────────────────────────────────────────
 export default function DocumentsPage() {
-    const { isLoaded, issuedDocuments, duplicateDocument, deleteIssuedDocument, restoreIssuedDocument, permanentlyDeleteIssuedDocument, updateIssuedDocument } = useStore();
+    const { isLoaded, issuedDocuments, duplicateDocument, convertToInvoice, deleteIssuedDocument, restoreIssuedDocument, permanentlyDeleteIssuedDocument, updateIssuedDocument } = useStore();
 
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<DocStatus>("all");
@@ -343,6 +343,7 @@ export default function DocumentsPage() {
     const [previewDoc, setPreviewDoc] = useState<IssuedDocument | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+    const [convertingId, setConvertingId] = useState<string | null>(null);
     const [showTrash, setShowTrash] = useState(false);
 
     // ── Filter + sort ─────────────────────────────────────────────────────────
@@ -392,6 +393,15 @@ export default function DocumentsPage() {
     const handleDelete = async (id: string) => {
         await deleteIssuedDocument(id);
         setDeletingId(null);
+    };
+
+    const handleConvertToInvoice = async (id: string) => {
+        setConvertingId(id);
+        try {
+            await convertToInvoice(id);
+        } finally {
+            setConvertingId(null);
+        }
     };
 
     const handleMarkIssued = async (d: IssuedDocument) => {
@@ -576,9 +586,19 @@ export default function DocumentsPage() {
                                                         )}
                                                         <button onClick={() => { if (window.confirm("この帳票をごみ箱に移動しますか？")) handleDelete(doc.id); }}
                                                             title="削除"
-                                                            className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
+                                                            className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all">
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
+                                                        {doc.type === 'delivery_note' && (
+                                                            <button onClick={() => handleConvertToInvoice(doc.id)}
+                                                                disabled={convertingId === doc.id}
+                                                                title="請求書を作成"
+                                                                className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-colors disabled:opacity-40">
+                                                                {convertingId === doc.id
+                                                                    ? <div className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                                                                    : <FilePlus className="w-4 h-4" />}
+                                                            </button>
+                                                        )}
                                                     </>
                                                 )}
                                             </div>

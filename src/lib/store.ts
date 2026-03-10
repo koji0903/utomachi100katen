@@ -919,8 +919,39 @@ export function useStore() {
             spotRecipientId: original.spotRecipientId,
             recipientName: original.recipientName,
             totalAmount: original.totalAmount,
+            taxRate: original.taxRate,
+            details: original.details,
+            adjustments: original.adjustments,
+            finalAdjustment: original.finalAdjustment,
             memo: original.memo,
         }));
+    };
+
+    const convertToInvoice = async (id: string): Promise<IssuedDocument | null> => {
+        const original = issuedDocuments.find(d => d.id === id);
+        if (!original || original.type !== 'delivery_note') return null;
+
+        const year = new Date().getFullYear().toString();
+        const newDocNumber = generateDocNumber('invoice', year);
+
+        return saveIssuedDocument({
+            type: 'invoice',
+            docNumber: newDocNumber,
+            status: 'draft' as const,
+            issuedDate: new Date().toISOString().split('T')[0],
+            period: original.period,
+            recipientType: original.recipientType,
+            storeId: original.storeId,
+            supplierId: original.supplierId,
+            spotRecipientId: original.spotRecipientId,
+            recipientName: original.recipientName,
+            totalAmount: original.totalAmount,
+            taxRate: original.taxRate,
+            details: original.details,
+            adjustments: original.adjustments,
+            finalAdjustment: original.finalAdjustment,
+            memo: original.memo,
+        });
     };
 
     const updateIssuedDocument = async (id: string, data: Partial<Omit<IssuedDocument, 'id' | 'createdAt'>>) => {
@@ -1140,6 +1171,7 @@ export function useStore() {
         generateDocNumber,
         saveIssuedDocument,
         duplicateDocument,
+        convertToInvoice,
         updateIssuedDocument,
         deleteIssuedDocument,
         // Spot Recipients
