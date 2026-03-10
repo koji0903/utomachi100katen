@@ -158,6 +158,10 @@ export function DocumentPreviewModal({
         taxSummary.grandTotal += adjTotal;
     }
 
+    const totalWithTax = taxSummary.grandTotal;
+    const subtotal = taxSummary.standard.subtotal + taxSummary.reduced.subtotal;
+    const tax = taxSummary.totalTax;
+
     // ─ Names ──────────────────────────────────────────────────────────
     const store = retailStores.find(s => s.id === storeId);
     const supplier = suppliers.find(s => s.id === supplierId);
@@ -282,95 +286,142 @@ export function DocumentPreviewModal({
                         position: "relative",
                     }}>
 
-                        {/* ── Header ── */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "32px" }}>
-                            {/* Left: Logo area */}
-                            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                                <div style={{ height: "70px", width: "200px", display: "flex", alignItems: "flex-start", justifyContent: "flex-start" }}>
+                        {/* ── Metadata: Top Right ── */}
+                        <div style={{
+                            position: "absolute", top: "48px", right: "56px",
+                            textAlign: "right", fontSize: "11px", color: "#555", lineHeight: "1.6"
+                        }}>
+                            <div>発行日: {today()}</div>
+                            <div style={{ fontWeight: 600 }}>文書番号: {docNumber}</div>
+                            {periodLabel && <div>対象期間: {periodLabel}</div>}
+                        </div>
+
+                        {/* ── Header: Row 1 (Document Title) ── */}
+                        <div style={{
+                            textAlign: "center", marginBottom: "32px", padding: "8px 0",
+                            borderBottom: `2px solid ${BRAND}`, position: "relative",
+                            marginTop: "24px" // Add margin to avoid metadata overlap
+                        }}>
+                            <h1 style={{
+                                fontSize: "32px", fontWeight: "700", letterSpacing: "0.8em", margin: 0,
+                                textIndent: "0.8em", color: "#1a1a1a"
+                            }}>
+                                {docTitle}
+                            </h1>
+                        </div>
+
+                        {/* ── Header: Row 2 (Recipient) ── */}
+                        <div style={{ marginBottom: "32px", display: "flex", justifyContent: "flex-start" }}>
+                            {/* Left: Recipient */}
+                            <div style={{ flex: 1 }}>
+                                {recipientAddress?.address && (
+                                    <div style={{ fontSize: "11px", color: "#666", marginBottom: "8px" }}>
+                                        {recipientAddress.zipCode && `〒${recipientAddress.zipCode}`}<br />
+                                        {recipientAddress.address}
+                                        {recipientAddress.tel && <span style={{ marginLeft: "8px" }}>TEL: {recipientAddress.tel}</span>}
+                                    </div>
+                                )}
+                                <div style={{ borderBottom: "2px solid #1a1a1a", paddingBottom: "4px", display: "inline-block", minWidth: "320px" }}>
+                                    <span style={{ fontSize: "22px", fontWeight: "700" }}>{recipient}</span>
+                                    <span style={{ fontSize: "15px", marginLeft: "8px", color: "#333" }}>御中</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── Header: Row 3 (Sender Info - Right Aligned & Non-overlapping) ── */}
+                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "32px" }}>
+                            <div style={{ position: "relative", minWidth: "360px", textAlign: "right", paddingRight: "60px" }}>
+
+                                {/* Logo area */}
+                                <div style={{ height: "48px", marginBottom: "8px", display: "flex", justifyContent: "flex-end" }}>
                                     {companySettings?.logoUrl ? (
                                         /* eslint-disable-next-line @next/next/no-img-element */
-                                        <img src={companySettings.logoUrl} alt="logo" style={{ maxHeight: "100%", maxWidth: "100%", width: "auto", height: "auto" }} />
+                                        <img src={companySettings.logoUrl} alt="logo" style={{ maxHeight: "100%", maxWidth: "160px" }} />
                                     ) : (
                                         /* eslint-disable-next-line @next/next/no-img-element */
-                                        <img src="/logo.png" alt="UTOMACHI 100 KATEN" style={{ maxHeight: "100%", maxWidth: "100%", width: "auto", height: "auto" }} />
+                                        <img src="/logo.png" alt="logo" style={{ maxHeight: "100%", opacity: 0.8 }} />
                                     )}
                                 </div>
-                                <div style={{ fontSize: "10px", color: "#666", marginTop: "6px", lineHeight: "1.7" }}>
-                                    〒{companySettings?.zipCode}<br />
-                                    {companySettings?.address}<br />
-                                    TEL: {companySettings?.tel}
-                                    {companySettings?.fax && <span style={{ marginLeft: "8px" }}>FAX: {companySettings.fax}</span>}
-                                </div>
-                                {companySettings?.picName && (
-                                    <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>
-                                        担当者: {companySettings.picTitle} {companySettings.picName}
-                                    </div>
-                                )}
-                                {companySettings?.invoiceNumber && (
-                                    <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>
-                                        登録番号: {companySettings.invoiceNumber}
-                                    </div>
-                                )}
-                            </div>
 
-                            {/* Right: Title + Seal area */}
-                            <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "8px" }}>
+                                {/* Company Name and PIC */}
+                                <div style={{ textAlign: "right", marginBottom: "8px" }}>
+                                    <div style={{ fontSize: "18px", fontWeight: "700", letterSpacing: "0.05em", color: "#1a1a1a", marginBottom: "2px" }}>
+                                        {companySettings?.companyName || "ウトマチ百貨店"}
+                                    </div>
+                                    {companySettings?.picName && (
+                                        <div style={{ fontSize: "11px", color: "#444" }}>
+                                            担当者：{companySettings.picTitle}　{companySettings.picName}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Company Details */}
+                                <div style={{ fontSize: "10px", color: "#555", lineHeight: "1.6", textAlign: "right" }}>
+                                    〒{companySettings?.zipCode}　{companySettings?.address}<br />
+                                    TEL: {companySettings?.tel}
+                                    {companySettings?.fax && <span style={{ marginLeft: "10px" }}>FAX: {companySettings.fax}</span>}<br />
+                                    {companySettings?.invoiceNumber && (
+                                        <span style={{ fontWeight: 500 }}>登録番号: {companySettings.invoiceNumber}</span>
+                                    )}
+                                </div>
+
+                                {/* Seal Overlay - Positioned to the right, avoiding overlap with text */}
                                 <div style={{
-                                    fontSize: "26px", fontWeight: "700", letterSpacing: "0.2em",
-                                    color: "#1a1a1a", borderBottom: `3px solid ${BRAND}`, paddingBottom: "8px", marginBottom: "8px"
+                                    position: "absolute",
+                                    right: "0px",
+                                    top: "56px",
+                                    width: "48px",
+                                    height: "48px",
+                                    zIndex: 10,
+                                    pointerEvents: "none"
                                 }}>
-                                    {docTitle}
-                                </div>
-                                <div style={{ fontSize: "11px", color: "#555" }}>
-                                    <div>発行日: {today()}</div>
-                                    <div>文書番号: {docNumber}</div>
-                                    {periodLabel && <div>対象期間: {periodLabel}</div>}
-                                </div>
-                                {/* Seal placeholder */}
-                                <div style={{ position: "relative", width: "64px", height: "64px", marginTop: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                     {companySettings?.sealUrl ? (
                                         /* eslint-disable-next-line @next/next/no-img-element */
                                         <img src={companySettings.sealUrl} alt="seal"
-                                            style={{ maxHeight: "100%", maxWidth: "100%", width: "auto", height: "auto", opacity: 0.85 }} />
+                                            style={{ width: "100%", height: "100%", objectFit: "contain", opacity: 0.8 }} />
                                     ) : (
                                         <div style={{
-                                            width: "64px", height: "64px", borderRadius: "50%",
-                                            border: `2px solid ${BRAND}`, color: BRAND, fontSize: "9px",
+                                            width: "44px", height: "44px", borderRadius: "50%",
+                                            border: `1.5px solid ${BRAND}`, color: BRAND, fontSize: "9px",
                                             display: "flex", alignItems: "center", justifyContent: "center",
-                                            textAlign: "center", opacity: 0.6, lineHeight: "1.3"
+                                            textAlign: "center", opacity: 0.4, lineHeight: "1.2"
                                         }}>
-                                            印<br />影
+                                            印影
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* ── Recipient ── */}
-                        <div style={{ marginBottom: "28px" }}>
-                            {recipientAddress?.address && (
-                                <div style={{ fontSize: "11px", color: "#555", marginBottom: "4px" }}>
-                                    {recipientAddress.zipCode && `〒${recipientAddress.zipCode}`}<br />
-                                    {recipientAddress.address}
-                                    {recipientAddress.tel && <span style={{ marginLeft: "8px" }}>TEL: {recipientAddress.tel}</span>}
-                                </div>
-                            )}
-                            <span style={{ fontSize: "18px", fontWeight: "700", borderBottom: `2px solid #1a1a1a`, paddingBottom: "2px" }}>
-                                {recipient}
-                            </span>
-                            <span style={{ fontSize: "15px", marginLeft: "4px", color: "#333" }}>御中</span>
-                        </div>
-
-                        {/* ── Greeting line ── */}
-                        <div style={{ fontSize: "12px", color: "#444", marginBottom: "24px", lineHeight: "1.8" }}>
-                            いつも格別のお引き立てを賜り、厚く御礼申し上げます。<br />
+                        {/* ── Greeting ── */}
+                        <div style={{ fontSize: "11px", color: "#444", marginBottom: "24px", lineHeight: "1.7" }}>
                             {isDeliveryNote
                                 ? "下記の通り納品いたしますので、ご確認の上ご査収くださいますようお願い申し上げます。"
                                 : isInvoice
                                     ? "下記の通りご請求申し上げます。内容をご確認の上、期日までにお支払いくださいますようお願い申し上げます。"
-                                    : "下記の通り、仕入れ代金のご請求（お支払い明細）をご確認くださいますようお願い申し上げます。"
+                                    : "下記の通り仕入れ明細書をお送りいたしますので、内容をご確認くださいますようお願い申し上げます。"
                             }
                         </div>
+
+                        {/* ── Invoice Summary Section (Only for Invoice) ── */}
+                        {isInvoice && (
+                            <div style={{
+                                marginBottom: "32px", padding: "16px 0", borderBottom: "1px solid #eee"
+                            }}>
+                                <div style={{ display: "flex", alignItems: "baseline", gap: "32px" }}>
+                                    <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
+                                        <span style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>ご請求金額（税込）</span>
+                                        <span style={{ fontSize: "28px", fontWeight: "700", color: "#1a1a1a", borderBottom: `3px double ${BRAND}` }}>
+                                            ¥{totalWithTax.toLocaleString()}-
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", gap: "20px", fontSize: "12px", color: "#666" }}>
+                                        <span>（税抜合計: ¥{subtotal.toLocaleString()}</span>
+                                        <span>消費税等: ¥{tax.toLocaleString()}）</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* ── Line items table ── */}
                         <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "24px", fontSize: "12px" }}>
@@ -476,37 +527,46 @@ export function DocumentPreviewModal({
                             </div>
                         )}
 
-                        {/* ── Bank info (for payments & invoices) ── */}
-                        {(isPaymentSummary || isInvoice) && (companySettings?.bankName || companySettings?.bankAccountNumber || companySettings?.bankName2) && (
-                            <div style={{
-                                marginTop: "20px", display: "grid", gridTemplateColumns: companySettings?.bankName2 ? "1fr 1fr" : "1fr", gap: "12px"
-                            }}>
-                                {(companySettings?.bankName || companySettings?.bankAccountNumber) && (
-                                    <div style={{
-                                        padding: "12px 16px", border: `1px solid ${BRAND}`,
-                                        borderRadius: "6px", backgroundColor: BRAND_LIGHT, fontSize: "11px", lineHeight: "1.8"
-                                    }}>
-                                        <div style={{ fontWeight: 700, marginBottom: "4px", color: BRAND_DARK }}>振込先口座1</div>
-                                        <div>
-                                            {companySettings.bankName} {companySettings.bankBranch} {companySettings.bankAccountType}
-                                            口座番号: {companySettings.bankAccountNumber}
+                        {/* ── Bank Info ── */}
+                        {(isInvoice || isPaymentSummary) && (
+                            <div style={{ marginTop: "40px", borderTop: `1px solid #eee`, paddingTop: "24px" }}>
+                                <div style={{ fontSize: "12px", fontWeight: "700", color: "#333", marginBottom: "12px" }}>【お振込先】</div>
+                                <div style={{ display: "flex", gap: "40px" }}>
+                                    {/* Bank 1 */}
+                                    <div style={{ flex: 1, padding: "12px", backgroundColor: "#fcfcfc", border: "1px solid #eee", borderRadius: "4px" }}>
+                                        <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px", fontWeight: "600" }}>第1口座</div>
+                                        <div style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1a", marginBottom: "4px" }}>
+                                            {companySettings?.bankName}　{companySettings?.bankBranch}
                                         </div>
-                                        <div>口座名義: {companySettings.bankAccountHolder}</div>
-                                    </div>
-                                )}
-                                {(companySettings?.bankName2 || companySettings?.bankAccountNumber2) && (
-                                    <div style={{
-                                        padding: "12px 16px", border: `1px solid #ddd`,
-                                        borderRadius: "6px", backgroundColor: "#f9f9f9", fontSize: "11px", lineHeight: "1.8"
-                                    }}>
-                                        <div style={{ fontWeight: 700, marginBottom: "4px", color: "#666" }}>振込先口座2</div>
-                                        <div>
-                                            {companySettings.bankName2} {companySettings.bankBranch2} {companySettings.bankAccountType2}
-                                            口座番号: {companySettings.bankAccountNumber2}
+                                        <div style={{ fontSize: "13px", color: "#333", display: "flex", gap: "10px", marginBottom: "4px" }}>
+                                            <span>{companySettings?.bankAccountType}</span>
+                                            <span style={{ letterSpacing: "0.05em", fontWeight: "600" }}>{companySettings?.bankAccountNumber}</span>
                                         </div>
-                                        <div>口座名義: {companySettings.bankAccountHolder2}</div>
+                                        <div style={{ fontSize: "11px", color: "#555" }}>
+                                            口座名義：{companySettings?.bankAccountHolder}
+                                        </div>
                                     </div>
-                                )}
+
+                                    {/* Bank 2 (Optional) */}
+                                    {companySettings?.bankName2 && (
+                                        <div style={{ flex: 1, padding: "12px", backgroundColor: "#fcfcfc", border: "1px solid #eee", borderRadius: "4px" }}>
+                                            <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px", fontWeight: "600" }}>第2口座</div>
+                                            <div style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1a", marginBottom: "4px" }}>
+                                                {companySettings?.bankName2}　{companySettings?.bankBranch2}
+                                            </div>
+                                            <div style={{ fontSize: "13px", color: "#333", display: "flex", gap: "10px", marginBottom: "4px" }}>
+                                                <span>{companySettings?.bankAccountType2}</span>
+                                                <span style={{ letterSpacing: "0.05em", fontWeight: "600" }}>{companySettings?.bankAccountNumber2}</span>
+                                            </div>
+                                            <div style={{ fontSize: "11px", color: "#555" }}>
+                                                口座名義：{companySettings?.bankAccountHolder2}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ marginTop: "12px", fontSize: "11px", color: "#444" }}>
+                                    ※お振込み手数料は御社ご負担でお願いします。
+                                </div>
                             </div>
                         )}
 
