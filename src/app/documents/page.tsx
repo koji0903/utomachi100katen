@@ -572,7 +572,7 @@ export default function DocumentsPage() {
                                                                 <CheckCircle2 className="w-4 h-4" />
                                                             </button>
                                                         )}
-                                                        <button onClick={() => setDeletingId(doc.id)}
+                                                        <button onClick={() => { if (window.confirm("この帳票をごみ箱に移動しますか？")) handleDelete(doc.id); }}
                                                             title="削除"
                                                             className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
                                                             <Trash2 className="w-4 h-4" />

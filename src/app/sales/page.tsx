@@ -533,38 +533,24 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
         return [...ids].sort((a, b) => (productMap[a] ?? a).localeCompare(productMap[b] ?? b));
     }, [filteredSales, productMap]);
 
-    // Summary calculation
     const summary = useMemo(() => {
         const productStats: Record<string, number> = {};
         let totalAmt = 0;
         let totalQty = 0;
+        let totalNet = 0;
+        const entryDays = new Set<string>();
 
         filteredSales.forEach(sale => {
             totalAmt += sale.totalAmount;
             totalQty += sale.totalQuantity;
+            totalNet += sale.totalNetProfit || 0;
+            entryDays.add(sale.period);
             sale.items.forEach(item => {
                 productStats[item.productId] = (productStats[item.productId] || 0) + item.quantity;
             });
         });
 
-        // Calculate days in period for average
-        const now = new Date();
-        const currentYearMonth = now.toISOString().slice(0, 7); // YYYY-MM
-        const todayDay = now.getDate();
-
-        let daysInPeriod = 1;
-        if (logType === 'daily') {
-            if (filterMonth === currentYearMonth) {
-                daysInPeriod = todayDay;
-            } else {
-                const [y, m] = filterMonth.split('-').map(Number);
-                daysInPeriod = new Date(y, m, 0).getDate();
-            }
-        } else {
-            // monthly view - could be year or selective
-            daysInPeriod = 30; // rough average or actual months? Let's use 1 for now if not daily
-        }
-
+        const daysInPeriod = entryDays.size || 1;
         const avgDailySales = totalAmt / daysInPeriod;
 
         // Achievement rate if store selected
@@ -574,7 +560,8 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
             const store = retailStores.find(s => s.id === filterStoreId);
             storeGoal = store?.dailySalesGoal || 0;
             if (storeGoal > 0) {
-                achievementRate = (totalAmt / (storeGoal * daysInPeriod)) * 100;
+                // 分子は日毎の平均売上、分母は、日毎の売上目標
+                achievementRate = (avgDailySales / storeGoal) * 100;
             }
         }
 
@@ -583,7 +570,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
             .map(([id, qty]) => ({ id, name: productMap[id] || id, qty }))
             .sort((a, b) => b.qty - a.qty);
 
-        return { totalAmt, totalQty, sortedProductStats, avgDailySales, achievementRate, storeGoal, daysInPeriod };
+        return { totalAmt, totalQty, totalNet, sortedProductStats, avgDailySales, achievementRate, storeGoal, daysInPeriod };
     }, [filteredSales, productMap, logType, filterMonth, filterStoreId, retailStores]);
 
     const requestSort = (key: string) => {
@@ -671,8 +658,13 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">期間売上総額</div>
-                    <div className="text-2xl font-black mb-1" style={{ color: BRAND }}>
-                        ¥{summary.totalAmt.toLocaleString()}
+                    <div className="flex items-baseline justify-between mb-1">
+                        <div className="text-2xl font-black" style={{ color: BRAND }}>
+                            ¥{summary.totalAmt.toLocaleString()}
+                        </div>
+                        <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                            入金: ¥{summary.totalNet.toLocaleString()}
+                        </div>
                     </div>
                     <div className="text-[10px] text-slate-400 font-bold border-t border-slate-50 pt-1.5 flex justify-between">
                         <span>平均売上（日）</span>
