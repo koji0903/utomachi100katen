@@ -420,7 +420,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
 // ─── Daily Log Tab ────────────────────────────────────────────────────────────
 function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, filterDate?: string }) {
-    const { sales, products, retailStores, dailyReports, dailyWeather, deleteSale, restoreSale, permanentlyDeleteSale } = useStore();
+    const { sales, products, brands, retailStores, dailyReports, dailyWeather, deleteSale, restoreSale, permanentlyDeleteSale } = useStore();
 
     // Filter controls
     const [logType, setLogType] = useState<'daily' | 'monthly'>('daily');
@@ -429,6 +429,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const [showTrash, setShowTrash] = useState(false);
+    const [isTransposed, setIsTransposed] = useState(false);
 
     useEffect(() => {
         if (filterDate) {
@@ -469,6 +470,11 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     }, [sales, logType, filterStoreId, filterMonth, filterYear, filterDate, showTrash]);
 
     const sortedSales = useMemo(() => {
+        // When transposed, user wants chronological order (oldest -> newest) for columns
+        if (isTransposed) {
+            return [...filteredSales].sort((a, b) => a.period.localeCompare(b.period));
+        }
+
         const base = [...filteredSales].sort((a, b) => b.period.localeCompare(a.period));
 
         if (!sortConfig) return base;
@@ -506,7 +512,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [filteredSales, sortConfig, storeMap]);
+    }, [filteredSales, sortConfig, storeMap, isTransposed]);
 
     // Build weather lookup: key = "YYYY-MM-DD|storeId"
     const weatherMap = useMemo(() => {
@@ -642,6 +648,17 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                 <div className="h-8 w-px bg-slate-200 self-center hidden sm:block" />
 
                 <button
+                    onClick={() => setIsTransposed(!isTransposed)}
+                    className={`flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all border ${isTransposed ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                    title="行列を入れ替えて表示"
+                >
+                    <ArrowUpDown className={`w-4 h-4 transition-transform ${isTransposed ? 'rotate-90' : ''}`} />
+                    縦横切替
+                </button>
+
+                <div className="h-8 w-px bg-slate-200 self-center hidden sm:block" />
+
+                <button
                     onClick={() => setShowTrash(!showTrash)}
                     className={`flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl transition-all border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}
                 >
@@ -733,245 +750,248 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
             ) : (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm border-collapse min-w-[700px]">
-                            <thead>
-                                {/* Row 1: date / store / weather + product group header */}
-                                <tr className="bg-slate-50 border-b border-slate-200">
-                                    <th
-                                        className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-28 cursor-pointer hover:bg-slate-100 transition-colors"
-                                        onClick={() => requestSort('period')}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            {logType === 'daily' ? '日付' : '対象月'} {getSortIcon('period')}
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
-                                        onClick={() => requestSort('store')}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            店舗 {getSortIcon('store')}
-                                        </div>
-                                    </th>
-                                    {logType === 'daily' && <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-40">天気</th>}
-                                    {usedProductIds.map(pid => (
-                                        <th key={pid} className="px-3 py-3 text-center text-xs font-bold text-slate-600 whitespace-nowrap min-w-[90px]">
-                                            {productMap[pid] ?? pid.slice(0, 8)}
+                        {!isTransposed ? (
+                            <table className="w-full text-sm border-collapse min-w-[700px]">
+                                <thead>
+                                    {/* Row 1: date / store / weather + product group header */}
+                                    <tr className="bg-slate-50 border-b border-slate-200">
+                                        <th
+                                            className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-28 cursor-pointer hover:bg-slate-100 transition-colors"
+                                            onClick={() => requestSort('period')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {logType === 'daily' ? '日付' : '対象月'} {getSortIcon('period')}
+                                            </div>
                                         </th>
-                                    ))}
-                                    <th
-                                        className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
-                                        onClick={() => requestSort('totalQuantity')}
-                                    >
-                                        <div className="flex items-center justify-end gap-2">
-                                            合計個数 {getSortIcon('totalQuantity')}
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
-                                        onClick={() => requestSort('totalAmount')}
-                                    >
-                                        <div className="flex items-center justify-end gap-2">
-                                            売上額 {getSortIcon('totalAmount')}
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
-                                        onClick={() => requestSort('totalNetProfit')}
-                                    >
-                                        <div className="flex items-center justify-end gap-2">
-                                            入金額 {getSortIcon('totalNetProfit')}
-                                        </div>
-                                    </th>
-                                    <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-20">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sortedSales.map((sale, idx) => {
-                                    const weatherKey = `${sale.period}|${sale.storeId}`;
-                                    const w = weatherMap[weatherKey];
-                                    // Build item map for this sale
-                                    const itemQtyMap: Record<string, number> = {};
-                                    sale.items.forEach(it => { itemQtyMap[it.productId] = it.quantity; });
+                                        <th
+                                            className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
+                                            onClick={() => requestSort('store')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                店舗 {getSortIcon('store')}
+                                            </div>
+                                        </th>
+                                        {logType === 'daily' && <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-40">天気</th>}
+                                        {usedProductIds.map(pid => (
+                                            <th key={pid} className="px-3 py-3 text-center text-xs font-bold text-slate-600 whitespace-nowrap min-w-[90px]">
+                                                {productMap[pid] ?? pid.slice(0, 8)}
+                                            </th>
+                                        ))}
+                                        <th
+                                            className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
+                                            onClick={() => requestSort('totalQuantity')}
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                個数 {getSortIcon('totalQuantity')}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
+                                            onClick={() => requestSort('totalAmount')}
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                売上額 {getSortIcon('totalAmount')}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="px-4 py-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors"
+                                            onClick={() => requestSort('totalNetProfit')}
+                                        >
+                                            <div className="flex items-center justify-end gap-2 text-right">
+                                                入金額 {getSortIcon('totalNetProfit')}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-20">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sortedSales.map((sale, idx) => {
+                                        const weatherKey = `${sale.period}|${sale.storeId}`;
+                                        const w = weatherMap[weatherKey];
+                                        const itemQtyMap: Record<string, number> = {};
+                                        sale.items.forEach(it => { itemQtyMap[it.productId] = it.quantity; });
 
-                                    const dateObj = new Date(sale.period);
-                                    const dayOfWeek = dateObj.getDay(); // 0: Sun, 6: Sat
-                                    const holidayName = getHolidayName(sale.period);
-                                    const isWeekendOrHoliday = dayOfWeek === 0 || dayOfWeek === 6 || !!holidayName;
+                                        const dateObj = new Date(sale.period);
+                                        const dayOfWeek = dateObj.getDay();
+                                        const holidayName = getHolidayName(sale.period);
 
-                                    let bgClass = idx % 2 === 0 ? '' : 'bg-slate-50/30';
-                                    if (dayOfWeek === 0 || !!holidayName) bgClass = 'bg-red-50/40';
-                                    else if (dayOfWeek === 6) bgClass = 'bg-blue-50/40';
+                                        let bgClass = idx % 2 === 0 ? '' : 'bg-slate-50/30';
+                                        if (dayOfWeek === 0 || !!holidayName) bgClass = 'bg-red-50/40';
+                                        else if (dayOfWeek === 6) bgClass = 'bg-blue-50/40';
 
-                                    const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
-                                    const dayLabel = dayLabels[dayOfWeek];
+                                        const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
+                                        const dayLabel = dayLabels[dayOfWeek];
 
-                                    return (
-                                        <tr key={sale.id} className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${bgClass}`}>
-                                            {/* Date */}
-                                            <td className="px-4 py-3 font-bold text-slate-800 whitespace-nowrap">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span>{sale.period.replace(/-/g, "/")}</span>
-                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${dayOfWeek === 0 || !!holidayName ? "text-red-600 bg-red-100" : dayOfWeek === 6 ? "text-blue-600 bg-blue-100" : "text-slate-400 bg-slate-100"}`}>
-                                                        {dayLabel}
-                                                    </span>
-                                                </div>
-                                                {logType === 'daily' && holidayName && (
-                                                    <div className="text-[10px] text-red-500 font-bold leading-none mt-1">{holidayName}</div>
-                                                )}
-                                            </td>
-                                            {/* Store */}
-                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs font-medium">
-                                                {storeMap[sale.storeId] ?? sale.storeId}
-                                            </td>
-                                            {/* Weather (Only for daily) */}
-                                            {logType === 'daily' && (
-                                                <td className="px-4 py-3">
-                                                    {w ? (
-                                                        <div className="flex items-center gap-1.5 justify-center">
-                                                            <WeatherIcon main={w.weatherMain} size={4} />
-                                                            <div className="text-center">
-                                                                <div className="font-bold text-slate-800 text-xs leading-none">{w.temp}°C</div>
-                                                                <div className="text-[10px] text-slate-400 mt-0.5">{w.weather}</div>
-                                                            </div>
-                                                            {w.humidity !== undefined && (
-                                                                <div className="hidden sm:flex flex-col items-center ml-1">
-                                                                    <span className="text-[9px] text-slate-400 flex items-center gap-0.5"><Thermometer className="w-2.5 h-2.5" />{w.humidity}%</span>
-                                                                    <span className="text-[9px] text-slate-400 flex items-center gap-0.5"><Wind className="w-2.5 h-2.5" />{w.windSpeed}m/s</span>
+                                        return (
+                                            <tr key={sale.id} className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${bgClass}`}>
+                                                <td className="px-4 py-3 font-bold text-slate-800 whitespace-nowrap text-xs">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span>{sale.period.replace(/-/g, "/")}</span>
+                                                        <span className={`text-[9px] px-1 py-0.5 rounded ${dayOfWeek === 0 || !!holidayName ? "text-red-600 bg-red-100" : dayOfWeek === 6 ? "text-blue-600 bg-blue-100" : "text-slate-400 bg-slate-100"}`}>
+                                                            {dayLabel}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-[11px] font-medium leading-tight">
+                                                    {storeMap[sale.storeId] ?? sale.storeId}
+                                                </td>
+                                                {logType === 'daily' && (
+                                                    <td className="px-4 py-3">
+                                                        {w ? (
+                                                            <div className="flex items-center gap-1.5 justify-center">
+                                                                <WeatherIcon main={w.weatherMain} size={4} />
+                                                                <div className="text-center">
+                                                                    <div className="font-bold text-slate-800 text-[10px] leading-none">{w.temp}°C</div>
                                                                 </div>
-                                                            )}
-                                                        </div>
+                                                            </div>
+                                                        ) : <div className="text-center text-[9px] text-slate-300">なし</div>}
+                                                    </td>
+                                                )}
+                                                {usedProductIds.map(pid => {
+                                                    const qty = itemQtyMap[pid] ?? 0;
+                                                    return (
+                                                        <td key={pid} className="px-3 py-3 text-center">
+                                                            {qty > 0 ? (
+                                                                <span className="inline-flex items-center justify-center min-w-[1.8rem] px-1.5 py-0.5 rounded-lg font-black text-xs"
+                                                                    style={{ backgroundColor: BRAND_LIGHT, color: BRAND }}>
+                                                                    {qty}
+                                                                </span>
+                                                            ) : <span className="text-slate-100 text-[10px]">—</span>}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap text-xs">
+                                                    {sale.totalQuantity}
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap text-xs">
+                                                    ¥{sale.totalAmount.toLocaleString()}
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-black whitespace-nowrap text-xs" style={{ color: BRAND }}>
+                                                    ¥{sale.totalNetProfit.toLocaleString()}
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    {showTrash ? (
+                                                        <button onClick={() => restoreSale(sale.id)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"><RotateCcw className="w-4 h-4" /></button>
                                                     ) : (
-                                                        <div className="text-center text-[10px] text-slate-300">日報なし</div>
+                                                        <button onClick={() => onEdit(sale)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
                                                     )}
                                                 </td>
-                                            )}
-                                            {/* Product columns */}
-                                            {usedProductIds.map(pid => {
-                                                const qty = itemQtyMap[pid] ?? 0;
-                                                return (
-                                                    <td key={pid} className="px-3 py-3 text-center">
-                                                        {qty > 0 ? (
-                                                            <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-lg font-black text-sm"
-                                                                style={{ backgroundColor: BRAND_LIGHT, color: BRAND }}>
-                                                                {qty}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-slate-200 text-xs">—</span>
-                                                        )}
-                                                    </td>
-                                                );
-                                            })}
-                                            {/* Totals */}
-                                            <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
-                                                {sale.totalQuantity}<span className="text-xs text-slate-400 ml-0.5">個</span>
-                                            </td>
-                                            <td className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">
-                                                ¥{sale.totalAmount.toLocaleString()}
-                                            </td>
-                                            <td className="px-4 py-3 text-right font-black whitespace-nowrap" style={{ color: BRAND }}>
-                                                ¥{sale.totalNetProfit.toLocaleString()}
-                                            </td>
-                                            <td className="px-4 py-3 text-center">
-                                                {showTrash ? (
-                                                    <>
-                                                        <button
-                                                            onClick={async () => {
-                                                                if (window.confirm("この売上データを復元しますか？")) {
-                                                                    try {
-                                                                        await restoreSale(sale.id);
-                                                                    } catch (error) {
-                                                                        console.error("Restore error:", error);
-                                                                        alert("復元に失敗しました。");
-                                                                    }
-                                                                }
-                                                            }}
-                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                                            title="復元"
-                                                        >
-                                                            <RotateCcw className="w-4 h-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={async () => {
-                                                                if (window.confirm("このデータを完全に削除しますか？この操作は取り消せません。")) {
-                                                                    try {
-                                                                        await permanentlyDeleteSale(sale.id);
-                                                                    } catch (error) {
-                                                                        console.error("Delete error:", error);
-                                                                        alert("削除に失敗しました。");
-                                                                    }
-                                                                }
-                                                            }}
-                                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
-                                                            title="完全削除"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <button
-                                                            onClick={() => onEdit(sale)}
-                                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                            title="編集"
-                                                        >
-                                                            <Edit2 className="w-4 h-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={async () => {
-                                                                if (window.confirm("この売上データをゴミ箱に移動しますか？在庫数も自動的に差し戻されます。")) {
-                                                                    try {
-                                                                        await deleteSale(sale.id);
-                                                                    } catch (error) {
-                                                                        console.error("Delete error:", error);
-                                                                        alert("削除に失敗しました。");
-                                                                    }
-                                                                }
-                                                            }}
-                                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
-                                                            title="ゴミ箱へ移動"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                            {/* Footer totals row */}
-                            <tfoot>
-                                <tr className="border-t-2 border-slate-200 bg-slate-50">
-                                    <td colSpan={logType === 'daily' ? 3 : 2} className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                        合計 ({filteredSales.length}{logType === 'daily' ? '日' : 'ヶ月'}分)
-                                    </td>
-                                    {usedProductIds.map(pid => {
-                                        const total = filteredSales.reduce((sum, s) => {
-                                            const item = s.items.find(it => it.productId === pid);
-                                            return sum + (item?.quantity ?? 0);
-                                        }, 0);
-                                        return (
-                                            <td key={pid} className="px-3 py-3 text-center">
-                                                {total > 0 ? (
-                                                    <span className="text-sm font-black text-slate-700">{total}</span>
-                                                ) : <span className="text-slate-200 text-xs">—</span>}
-                                            </td>
+                                            </tr>
                                         );
                                     })}
-                                    <td className="px-4 py-3 text-right font-black text-slate-800">
-                                        {filteredSales.reduce((s, r) => s + r.totalQuantity, 0)}<span className="text-xs text-slate-400 ml-0.5">個</span>
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-bold text-slate-700">
-                                        ¥{filteredSales.reduce((s, r) => s + r.totalAmount, 0).toLocaleString()}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-black" style={{ color: BRAND }}>
-                                        ¥{sortedSales.reduce((s, r) => s + r.totalNetProfit, 0).toLocaleString()}
-                                    </td>
-                                    <td className="bg-slate-50"></td>
-                                </tr>
-                            </tfoot>
-                        </table>
+                                </tbody>
+                                <tfoot>
+                                    <tr className="border-t-2 border-slate-200 bg-slate-50/80">
+                                        <td colSpan={logType === 'daily' ? 3 : 2} className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            商品別合計
+                                        </td>
+                                        {usedProductIds.map(pid => {
+                                            const total = filteredSales.reduce((sum, s) => sum + (s.items.find(it => it.productId === pid)?.quantity ?? 0), 0);
+                                            return (
+                                                <td key={pid} className="px-3 py-3 text-center">
+                                                    {total > 0 ? <span className="text-sm font-black text-slate-700">{total}</span> : <span className="text-slate-200 text-xs">—</span>}
+                                                </td>
+                                            );
+                                        })}
+                                        <td colSpan={4} className="bg-slate-50/20"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        ) : (
+                            /* ──────── Transposed Table (Product Rows, Date Columns) ──────── */
+                            <table className="w-full text-sm border-collapse min-w-[700px]">
+                                <thead>
+                                    <tr className="bg-slate-50 border-b border-slate-200">
+                                        <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap sticky left-0 bg-slate-50 z-10 border-r border-slate-200">
+                                            商品名 / 日付
+                                        </th>
+                                        {sortedSales.map(sale => {
+                                            const dateObj = new Date(sale.period);
+                                            const dayOfWeek = dateObj.getDay();
+                                            const holidayName = getHolidayName(sale.period);
+                                            const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
+                                            const dayLabel = dayLabels[dayOfWeek];
+                                            const isSun = dayOfWeek === 0 || !!holidayName;
+                                            const isSat = dayOfWeek === 6;
+
+                                            return (
+                                                <th key={sale.id} className="px-3 py-3 text-center whitespace-nowrap min-w-[80px]">
+                                                    <div className="text-[10px] font-bold text-slate-500 mb-0.5 leading-none">
+                                                        {sale.period.split('-').slice(1).join('/')}
+                                                    </div>
+                                                    <div className={`text-[10px] inline-block px-1 rounded font-black ${isSun ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-slate-400'}`}>
+                                                        {dayLabel}
+                                                    </div>
+                                                </th>
+                                            );
+                                        })}
+                                        <th className="px-6 py-4 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap bg-slate-50 border-l border-slate-200">
+                                            合計個数
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {usedProductIds.map((pid, idx) => {
+                                        let rowQtyTotal = 0;
+                                        return (
+                                            <tr key={pid} className={`border-b border-slate-100 hover:bg-slate-50/50 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-50/30'}`}>
+                                                <td className="px-6 py-3 font-bold text-slate-700 whitespace-nowrap sticky left-0 bg-white z-10 border-r border-slate-100">
+                                                    <div className="text-[10px] text-slate-400 leading-tight mb-0.5">
+                                                        {brands.find(b => b.id === products.find(p => p.id === pid)?.brandId)?.name || ""}
+                                                    </div>
+                                                    <div className="text-xs truncate max-w-[150px]">{productMap[pid] ?? pid}</div>
+                                                </td>
+                                                {sortedSales.map(sale => {
+                                                    const qty = sale.items.find(it => it.productId === pid)?.quantity ?? 0;
+                                                    rowQtyTotal += qty;
+                                                    return (
+                                                        <td key={`${sale.id}-${pid}`} className="px-3 py-3 text-center">
+                                                            {qty > 0 ? (
+                                                                <span className="inline-flex items-center justify-center min-w-[1.8rem] px-1.5 py-0.5 rounded-lg font-black text-xs"
+                                                                    style={{ backgroundColor: BRAND_LIGHT, color: BRAND }}>
+                                                                    {qty}
+                                                                </span>
+                                                            ) : <span className="text-slate-100 text-[10px]">—</span>}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="px-6 py-3 text-right bg-slate-50/30 border-l border-slate-100 font-black text-slate-800 text-sm">
+                                                    {rowQtyTotal}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                                <tfoot>
+                                    <tr className="border-t-2 border-slate-200 bg-slate-100/50">
+                                        <td className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-100 z-10 border-r border-slate-200">
+                                            日毎売上合計 (個)
+                                        </td>
+                                        {sortedSales.map(sale => (
+                                            <td key={`total-${sale.id}`} className="px-3 py-4 text-center font-black text-slate-700">
+                                                {sale.totalQuantity}
+                                            </td>
+                                        ))}
+                                        <td className="px-6 py-4 text-right font-black text-blue-600 bg-blue-50/50 border-l border-slate-200">
+                                            {filteredSales.reduce((s, r) => s + r.totalQuantity, 0)}
+                                        </td>
+                                    </tr>
+                                    <tr className="bg-slate-50/80">
+                                        <td className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50 z-10 border-r border-slate-200">
+                                            日毎入金額 (¥)
+                                        </td>
+                                        {sortedSales.map(sale => (
+                                            <td key={`net-${sale.id}`} className="px-3 py-3 text-center text-[10px] font-bold text-slate-500">
+                                                ¥{sale.totalNetProfit.toLocaleString()}
+                                            </td>
+                                        ))}
+                                        <td className="px-6 py-3 text-right font-black text-blue-700 bg-blue-100/30 border-l border-slate-200">
+                                            ¥{filteredSales.reduce((s, r) => s + (r.totalNetProfit || 0), 0).toLocaleString()}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        )}
                     </div>
                 </div>
             )}
