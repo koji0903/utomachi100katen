@@ -367,7 +367,7 @@ export default function DocumentsPage() {
                     ? dateB.getTime() - dateA.getTime()
                     : dateA.getTime() - dateB.getTime();
             });
-    }, [issuedDocuments, filterStatus, filterType, searchQuery, sortDesc, isLoaded]);
+    }, [issuedDocuments, filterStatus, filterType, searchQuery, sortDesc, isLoaded, showTrash]);
 
     const stats = useMemo(() => {
         if (!isLoaded) return { total: 0, issued: 0, draft: 0, delivery: 0, invoice: 0, payment: 0, trashed: 0 };
@@ -479,16 +479,18 @@ export default function DocumentsPage() {
             {/* Table */}
             {filtered.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200 py-20 flex flex-col items-center justify-center text-center">
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ backgroundColor: BRAND_LIGHT }}>
-                        <FileText className="w-8 h-8" style={{ color: BRAND }} />
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ backgroundColor: showTrash ? '#fff7ed' : BRAND_LIGHT }}>
+                        {showTrash ? <Trash2 className="w-8 h-8 text-amber-500" /> : <FileText className="w-8 h-8" style={{ color: BRAND }} />}
                     </div>
-                    <h3 className="font-bold text-slate-700 mb-1">帳票がありません</h3>
-                    <p className="text-sm text-slate-400 mb-4">「新規帳票を作成」から最初の帳票を発行してください</p>
-                    <button onClick={() => setShowNewModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-xl"
-                        style={{ backgroundColor: BRAND }}>
-                        <Plus className="w-4 h-4" />新規作成
-                    </button>
+                    <h3 className="font-bold text-slate-700 mb-1">{showTrash ? "ゴミ箱は空です" : "帳票がありません"}</h3>
+                    <p className="text-sm text-slate-400 mb-4">{showTrash ? "削除された帳票はありません" : "「新規帳票を作成」から最初の帳票を発行してください"}</p>
+                    {!showTrash && (
+                        <button onClick={() => setShowNewModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-xl"
+                            style={{ backgroundColor: BRAND }}>
+                            <Plus className="w-4 h-4" />新規作成
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
