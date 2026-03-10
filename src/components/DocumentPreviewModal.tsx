@@ -481,8 +481,8 @@ export function DocumentPreviewModal({
                             </tbody>
                         </table>
 
-                        {/* ── Tax Summary ── */}
-                        {!hidePrices && (
+                        {/* ── Tax Summary (Hide for Delivery Note) ── */}
+                        {!isDeliveryNote && !hidePrices && (
                             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
                                 <table style={{ borderCollapse: "collapse", fontSize: "12px", minWidth: "320px" }}>
                                     <tbody>
