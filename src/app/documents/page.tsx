@@ -5,7 +5,7 @@ import {
     FileText, Receipt, Search, Filter, Copy, Eye,
     Pencil, Trash2, CheckCircle2, Clock, ChevronDown,
     ChevronUp, Store, Users, UserCircle, Plus, X,
-    Download, RotateCcw, FilePlus
+    Download, RotateCcw, FilePlus, Link2, CreditCard, Package, Check
 } from "lucide-react";
 import { useStore, IssuedDocument, SpotRecipient, InvoiceItem, InvoiceAdjustment } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
@@ -39,21 +39,61 @@ function StatusBadge({ status }: { status: "draft" | "issued" }) {
     );
 }
 
-function TypeBadge({ type }: { type: IssuedDocument["type"] }) {
+function TypeBadge({ doc, allDocs }: { doc: IssuedDocument, allDocs: IssuedDocument[] }) {
+    const { type, sourceDocId } = doc;
+    const sourceDoc = sourceDocId ? allDocs.find(d => d.id === sourceDocId) : null;
+
     if (type === "delivery_note") return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: BRAND_LIGHT, color: BRAND }}>
             <Receipt className="w-2.5 h-2.5" />納品書
         </span>
     );
     if (type === "invoice") return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-100">
-            <Receipt className="w-2.5 h-2.5" />請求書
-        </span>
+        <div className="flex flex-col gap-1 items-start">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-100">
+                <Receipt className="w-2.5 h-2.5" />請求書
+            </span>
+            {sourceDoc && (
+                <span className="text-[8px] text-slate-400 flex items-center gap-0.5 px-1 font-bold">
+                    <Link2 className="w-2 h-2" />
+                    納品書 {sourceDoc.docNumber} より
+                </span>
+            )}
+        </div>
     );
     return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
             <FileText className="w-2.5 h-2.5" />支払明細
         </span>
+    );
+}
+
+function FulfillmentBadge({ doc, onUpdate }: { doc: IssuedDocument, onUpdate: (status: IssuedDocument['fulfillmentStatus']) => void }) {
+    if (doc.type !== 'invoice') return null;
+    const status = doc.fulfillmentStatus || 'pending';
+
+    const cycle: Record<string, IssuedDocument['fulfillmentStatus']> = {
+        'pending': 'sent',
+        'sent': 'paid',
+        'paid': 'pending'
+    };
+
+    const config = {
+        'pending': { label: '未', icon: Clock, color: 'text-slate-400 bg-slate-50 border-slate-200' },
+        'sent': { label: '渡し済み', icon: Package, color: 'text-blue-600 bg-blue-50 border-blue-200' },
+        'paid': { label: '入金済み', icon: CreditCard, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' }
+    };
+
+    const c = config[status];
+
+    return (
+        <button
+            onClick={() => onUpdate(cycle[status])}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${c.color} transition-all active:scale-95`}
+            title="クリックで状態を切り替え"
+        >
+            <c.icon className="w-2.5 h-2.5" />{c.label}
+        </button>
     );
 }
 
@@ -531,7 +571,7 @@ export default function DocumentsPage() {
                                         <td className="px-4 py-3">
                                             <span className="font-mono font-bold text-slate-800 text-xs tracking-wide">{doc.docNumber}</span>
                                         </td>
-                                        <td className="px-4 py-3"><TypeBadge type={doc.type} /></td>
+                                        <td className="px-4 py-3"><TypeBadge doc={doc} allDocs={issuedDocuments} /></td>
                                         <td className="px-4 py-3">
                                             <div className="font-semibold text-slate-800">{doc.recipientName}</div>
                                             {doc.recipientType === "spot" && (
@@ -540,7 +580,12 @@ export default function DocumentsPage() {
                                         </td>
                                         <td className="px-4 py-3 text-slate-600 text-xs font-medium">{fmtDate(doc.period)}</td>
                                         <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(doc.issuedDate)}</td>
-                                        <td className="px-4 py-3"><StatusBadge status={doc.status} /></td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-col gap-1 items-start">
+                                                <StatusBadge status={doc.status} />
+                                                <FulfillmentBadge doc={doc} onUpdate={(s) => updateIssuedDocument(doc.id, { fulfillmentStatus: s })} />
+                                            </div>
+                                        </td>
                                         <td className="px-4 py-3 text-right font-semibold text-slate-700">
                                             {doc.totalAmount > 0 ? fmtMoney(doc.totalAmount) : <span className="text-slate-300 text-xs">—</span>}
                                         </td>
@@ -583,6 +628,16 @@ export default function DocumentsPage() {
                                                                 ? <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                                                                 : <Copy className="w-4 h-4" />}
                                                         </button>
+                                                        {doc.type === 'delivery_note' && (
+                                                            <button onClick={() => handleConvertToInvoice(doc.id)}
+                                                                disabled={convertingId === doc.id}
+                                                                title="請求書を作成"
+                                                                className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all disabled:opacity-40 animate-pulse-subtle">
+                                                                {convertingId === doc.id
+                                                                    ? <div className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                                                                    : <FilePlus className="w-4 h-4" />}
+                                                            </button>
+                                                        )}
                                                         {doc.status === "draft" && (
                                                             <button onClick={() => handleMarkIssued(doc)}
                                                                 title="発行済みにする"
@@ -595,16 +650,6 @@ export default function DocumentsPage() {
                                                             className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all">
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
-                                                        {doc.type === 'delivery_note' && (
-                                                            <button onClick={() => handleConvertToInvoice(doc.id)}
-                                                                disabled={convertingId === doc.id}
-                                                                title="請求書を作成"
-                                                                className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-colors disabled:opacity-40">
-                                                                {convertingId === doc.id
-                                                                    ? <div className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
-                                                                    : <FilePlus className="w-4 h-4" />}
-                                                            </button>
-                                                        )}
                                                     </>
                                                 )}
                                             </div>

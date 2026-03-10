@@ -224,6 +224,8 @@ export interface IssuedDocument extends BaseEntity {
     finalAdjustment?: number;
     hidePrices?: boolean;
     memo?: string;
+    sourceDocId?: string;       // 元になった帳票のID（納品書から請求書を作った場合など）
+    fulfillmentStatus?: 'pending' | 'sent' | 'paid'; // 請求書の状態管理
     createdAt?: string | any;
 }
 
@@ -951,6 +953,8 @@ export function useStore() {
             adjustments: original.adjustments,
             finalAdjustment: original.finalAdjustment,
             memo: original.memo,
+            sourceDocId: id, // Link to source delivery note
+            fulfillmentStatus: 'pending', // Default for new invoice
         });
     };
 

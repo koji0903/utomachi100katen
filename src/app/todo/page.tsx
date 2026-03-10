@@ -82,8 +82,10 @@ const ChallengeCard = ({
                         優先度: {prio.label}
                     </span>
                 </div>
-                <h3 className="text-base md:text-lg font-bold text-slate-800 line-clamp-1">{challenge.title}</h3>
-                <p className={`text-sm text-slate-500 line-clamp-2 mt-1 leading-relaxed ${compact ? 'text-xs' : ''}`}>{challenge.description}</p>
+                <h3 className={`font-bold text-slate-800 ${challenge.status === 'done' ? 'text-sm' : 'text-base md:text-lg'}`}>{challenge.title}</h3>
+                {challenge.status !== 'done' && (
+                    <p className={`text-sm text-slate-500 mt-1 leading-relaxed ${compact ? 'text-xs' : ''}`}>{challenge.description}</p>
+                )}
             </div>
 
             {/* Status & Actions */}
@@ -244,12 +246,16 @@ export default function TodoPage() {
                 c.description.toLowerCase().includes(searchQuery.toLowerCase()))
         )
         .sort((a: BusinessChallenge, b: BusinessChallenge) => {
-            // Sort by priority then status
+            // Sort by priority (High > Medium > Low)
             const pMap: Record<string, number> = { high: 0, medium: 1, low: 2 };
             const aPrio = pMap[a.priority] ?? 1;
             const bPrio = pMap[b.priority] ?? 1;
             if (aPrio !== bPrio) return aPrio - bPrio;
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+
+            // Then by createdAt (Oldest > Newest)
+            const aTime = a.createdAt ? (typeof a.createdAt === 'string' ? new Date(a.createdAt).getTime() : ((a.createdAt as any).toDate ? (a.createdAt as any).toDate().getTime() : 0)) : 0;
+            const bTime = b.createdAt ? (typeof b.createdAt === 'string' ? new Date(b.createdAt).getTime() : ((b.createdAt as any).toDate ? (b.createdAt as any).toDate().getTime() : 0)) : 0;
+            return aTime - bTime;
         });
 
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
@@ -343,29 +349,30 @@ export default function TodoPage() {
                     )}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                <div className="grid grid-cols-1 gap-10">
                     {Object.entries(STATUSES).map(([statusKey, statusInfo]) => {
                         const columnTasks = filteredChallenges.filter(c => c.status === statusKey);
                         return (
-                            <div key={statusKey} className="flex flex-col gap-4">
+                            <div key={statusKey} className="flex flex-col gap-5">
                                 {/* Column Header */}
-                                <div className="flex items-center justify-between px-2">
-                                    <div className={`flex items-center gap-2 ${statusInfo.color} font-black text-sm`}>
-                                        <statusInfo.icon className="w-5 h-5" />
+                                <div className="flex items-center justify-between px-2 pb-2 border-b border-slate-100">
+                                    <div className={`flex items-center gap-2 ${statusInfo.color} font-black text-lg`}>
+                                        <statusInfo.icon className="w-6 h-6" />
                                         {statusInfo.label}
-                                        <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full ml-1">
+                                        <span className="text-sm font-medium text-slate-400 bg-slate-100 px-3 py-0.5 rounded-full ml-2">
                                             {columnTasks.length}
                                         </span>
                                     </div>
                                     {statusKey === 'todo' && (
-                                        <button onClick={() => handleOpenModal()} className="p-1 text-slate-400 hover:text-blue-600 transition-colors">
-                                            <PlusCircle className="w-5 h-5" />
+                                        <button onClick={() => handleOpenModal()} className="flex items-center gap-1 text-blue-600 hover:text-blue-700 transition-colors text-sm font-bold">
+                                            <PlusCircle className="w-4 h-4" />
+                                            追加
                                         </button>
                                     )}
                                 </div>
 
                                 {/* Column Content */}
-                                <div className="space-y-4 min-h-[100px]">
+                                <div className="grid grid-cols-1 gap-4">
                                     {columnTasks.length > 0 ? (
                                         columnTasks.map((challenge: BusinessChallenge) => (
                                             <ChallengeCard
@@ -373,12 +380,12 @@ export default function TodoPage() {
                                                 challenge={challenge}
                                                 onEdit={handleOpenModal}
                                                 onDelete={handleDelete}
-                                                compact={true}
+                                                compact={statusKey === 'done'}
                                             />
                                         ))
                                     ) : (
-                                        <div className="py-12 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
-                                            <span className="text-xs font-medium text-slate-400">課題はありません</span>
+                                        <div className="py-10 text-center bg-slate-50/30 rounded-3xl border border-dashed border-slate-200">
+                                            <span className="text-sm font-medium text-slate-400">{statusInfo.label}はありません</span>
                                         </div>
                                     )}
                                 </div>
