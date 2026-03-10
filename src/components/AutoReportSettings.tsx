@@ -23,31 +23,48 @@ export function AutoReportSettings() {
     const [isSaving, setIsSaving] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [testSent, setTestSent] = useState(false);
+    const [testError, setTestError] = useState<string | null>(null);
+    const [localEmail, setLocalEmail] = useState(reportConfig.emailRecipient || "");
+
+    // Sync local state when reportConfig loads
+    useMemo(() => {
+        if (reportConfig.emailRecipient && !localEmail) {
+            setLocalEmail(reportConfig.emailRecipient);
+        }
+    }, [reportConfig.emailRecipient]);
 
     const reportData = useMemo(() => {
         return generateReportData(sales, products, retailStores, dailyReports);
     }, [sales, products, retailStores, dailyReports]);
 
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSaving(true);
-        // data is already bound to reportConfig via updateReportConfig in store.ts
-        // but here we might want to collect from local state if we didn't use direct binding.
-        // For simplicity, let's assume we use direct binding or a small local state.
-        setIsSaving(false);
+    const handleEmailBlur = () => {
+        if (localEmail !== reportConfig.emailRecipient) {
+            updateReportConfig({ emailRecipient: localEmail });
+        }
     };
 
     const sendTestEmail = async () => {
         setTestSent(false);
+        setTestError(null);
         try {
             const res = await fetch('/api/reports/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ test: true, recipient: reportConfig.emailRecipient })
+                body: JSON.stringify({
+                    test: true,
+                    recipient: localEmail,
+                    data: reportData
+                })
             });
-            if (res.ok) setTestSent(true);
-        } catch (e) {
+            const result = await res.json();
+            if (res.ok) {
+                setTestSent(true);
+            } else {
+                setTestError(result.error || "送信に失敗しました");
+            }
+        } catch (e: any) {
             console.error(e);
+            setTestError(e.message);
         }
     };
 
@@ -95,7 +112,7 @@ export function AutoReportSettings() {
                                 </label>
                             </div>
 
-                            <div className={`space-y-4 transition-opacity ${reportConfig.isEnabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+                            <div className={`space-y-4 transition-opacity ${reportConfig.isEnabled ? 'opacity-100' : 'opacity-60'}`}>
                                 {/* Recipient */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">送信先メールアドレス</label>
@@ -104,8 +121,9 @@ export function AutoReportSettings() {
                                         <input
                                             type="email"
                                             placeholder="example@yourdomain.com"
-                                            value={reportConfig.emailRecipient}
-                                            onChange={e => updateReportConfig({ emailRecipient: e.target.value })}
+                                            value={localEmail}
+                                            onChange={e => setLocalEmail(e.target.value)}
+                                            onBlur={handleEmailBlur}
                                             className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#b27f7920] focus:border-[#b27f79] outline-none transition-all font-medium"
                                         />
                                     </div>
@@ -151,8 +169,8 @@ export function AutoReportSettings() {
                                                     key={idx}
                                                     onClick={() => updateReportConfig({ sendDay: idx })}
                                                     className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all ${reportConfig.sendDay === idx
-                                                            ? 'bg-[#b27f79] border-[#b27f79] text-white shadow-sm'
-                                                            : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                                                        ? 'bg-[#b27f79] border-[#b27f79] text-white shadow-sm'
+                                                        : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
                                                         }`}
                                                 >
                                                     {day}
@@ -171,14 +189,22 @@ export function AutoReportSettings() {
                             </div>
                             <button
                                 onClick={sendTestEmail}
-                                disabled={!reportConfig.emailRecipient || !reportConfig.isEnabled}
+                                disabled={!localEmail}
                                 className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors disabled:opacity-30"
                             >
                                 <Play className="w-3 h-3" />
-                                {testSent ? 'テストメール送信完了' : 'テストメールを送信'}
+                                {testSent ? 'テストメール送信完了' : testError ? '送信失敗' : 'テストメールを送信'}
                                 {testSent && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
+                                {testError && <AlertCircle className="w-3 h-3 text-rose-400" />}
                             </button>
                         </div>
+                        {testError && (
+                            <div className="px-6 pb-4">
+                                <p className="text-[10px] text-rose-500 font-bold bg-rose-50 p-2 rounded-lg border border-rose-100 italic">
+                                    エラー: {testError}
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Quick Help Card */}
