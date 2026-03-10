@@ -295,36 +295,50 @@ export function DocumentPreviewModal({
                         minHeight: "297mm",
                         padding: "15mm 20mm",
                         fontFamily: "'Hiragino Mincho ProN', 'Yu Mincho', 'MS PMincho', Georgia, serif",
+                        letterSpacing: "0.05em",
+                        lineHeight: "1.6",
+                        fontFeatureSettings: '"normal"',
                         color: "#1a1a1a",
                         position: "relative",
                         boxSizing: "border-box",
                     }}>
                         <style jsx global>{`
                             @media print {
+                                @page {
+                                    size: A4;
+                                    margin: 0;
+                                }
                                 html, body {
                                     margin: 0 !important;
                                     padding: 0 !important;
-                                    width: 210mm;
-                                    height: 297mm;
+                                    width: 210mm !important;
+                                    height: auto !important;
+                                    background: #fff !important;
+                                    -webkit-print-color-adjust: exact !important;
+                                    print-color-adjust: exact !important;
                                 }
                                 body * {
-                                    visibility: hidden;
+                                    visibility: hidden !important;
                                 }
                                 .printable-document, .printable-document * {
-                                    visibility: visible;
+                                    visibility: visible !important;
                                 }
                                 .printable-document {
-                                    position: static !important;
+                                    position: absolute !important;
+                                    left: 0 !important;
+                                    top: 0 !important;
                                     width: 210mm !important;
                                     min-height: 297mm !important;
                                     margin: 0 !important;
                                     padding: 15mm 20mm !important;
                                     box-shadow: none !important;
+                                    background: white !important;
                                     box-sizing: border-box !important;
+                                    page-break-after: always;
                                 }
-                                @page {
-                                    size: A4;
-                                    margin: 0;
+                                .printable-document table tr {
+                                    page-break-inside: avoid;
+                                    break-inside: avoid;
                                 }
                             }
                         `}</style>
@@ -537,7 +551,7 @@ export function DocumentPreviewModal({
 
                         {/* ── Tax Summary (Hide for Delivery Note) ── */}
                         {!isDeliveryNote && !hidePrices && (
-                            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
+                            <div className="summary-table" style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px", breakInside: "avoid", pageBreakInside: "avoid" }}>
                                 <table style={{ borderCollapse: "collapse", fontSize: "12px", minWidth: "320px" }}>
                                     <tbody>
                                         {taxSummary.reduced.subtotal > 0 && (<>
@@ -583,7 +597,7 @@ export function DocumentPreviewModal({
 
                         {/* ── Bank Info ── */}
                         {(isInvoice || isPaymentSummary) && (
-                            <div style={{ marginTop: "40px", borderTop: `1px solid #eee`, paddingTop: "24px" }}>
+                            <div className="bank-info" style={{ marginTop: "40px", borderTop: `1px solid #eee`, paddingTop: "24px", breakInside: "avoid", pageBreakInside: "avoid" }}>
                                 <div style={{ fontSize: "12px", fontWeight: "700", color: "#333", marginBottom: "12px" }}>【お振込先】</div>
                                 <div style={{ display: "flex", gap: "40px" }}>
                                     {/* Bank 1 */}
@@ -626,7 +640,7 @@ export function DocumentPreviewModal({
 
                         {/* ── Memo/Seasonal greeting ── */}
                         {memo && (
-                            <div style={{ marginTop: "24px", padding: "10px 14px", borderLeft: `3px solid ${BRAND}`, fontSize: "11px", color: "#555", lineHeight: "1.8" }}>
+                            <div className="memo-section" style={{ marginTop: "24px", padding: "10px 14px", borderLeft: `3px solid ${BRAND}`, fontSize: "11px", color: "#555", lineHeight: "1.8", breakInside: "avoid", pageBreakInside: "avoid" }}>
                                 <div style={{ fontWeight: 700, marginBottom: "2px", color: BRAND_DARK }}>備考</div>
                                 {memo}
                             </div>

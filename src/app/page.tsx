@@ -34,16 +34,24 @@ function ActivityTimeline() {
     const allActivities = useMemo(() => {
         const items: any[] = [];
 
+        const parseDate = (d: any) => {
+            if (!d) return new Date();
+            if (d instanceof Date) return d;
+            if (typeof d === 'string') return new Date(d);
+            if (d.toDate) return d.toDate();
+            if (d.seconds) return new Date(d.seconds * 1000);
+            return new Date();
+        };
+
         // Add explicit activities
         activities.forEach((a: Activity) => {
-            const dateStr = typeof a.createdAt === 'string' ? a.createdAt : a.createdAt?.toDate?.()?.toISOString() || new Date().toISOString();
             items.push({
                 id: a.id,
                 type: a.type,
                 category: a.category,
                 title: a.title,
                 detail: a.detail,
-                date: new Date(dateStr)
+                date: parseDate(a.createdAt)
             });
         });
 
@@ -55,20 +63,19 @@ function ActivityTimeline() {
                 category: 'report',
                 title: `日報「${r.title || '無題'}」`,
                 detail: `担当: ${r.worker}`,
-                date: new Date(r.createdAt || r.date)
+                date: parseDate(r.createdAt || r.date)
             });
         });
 
         // Sales as activities
         sales.filter(s => s.type === 'daily' && !s.isTrashed).forEach(s => {
-            const saleDate = new Date(s.updatedAt || s.period);
             items.push({
                 id: s.id,
                 type: 'create',
                 category: 'sale',
                 title: `売上実績入力`,
                 detail: `${s.period} / ¥${s.totalAmount.toLocaleString()}`,
-                date: isNaN(saleDate.getTime()) ? new Date() : saleDate
+                date: parseDate(s.updatedAt || s.period)
             });
         });
 
