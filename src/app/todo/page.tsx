@@ -44,6 +44,120 @@ const STATUSES = {
     done: { label: "完了", icon: CheckCircle2, color: "text-emerald-600" },
 };
 
+// --- Sub-components ---
+
+const ChallengeCard = ({
+    challenge,
+    onEdit,
+    onDelete,
+    onRestore,
+    onPermanentDelete,
+    compact = false
+}: {
+    challenge: BusinessChallenge;
+    onEdit: (c: BusinessChallenge) => void;
+    onDelete: (id: string) => void;
+    onRestore?: (id: string) => void;
+    onPermanentDelete?: (id: string) => void;
+    compact?: boolean;
+}) => {
+    const cat = (CATEGORIES as any)[challenge.category] || CATEGORIES.other;
+    const prio = (PRIORITIES as any)[challenge.priority] || PRIORITIES.medium;
+    const stat = (STATUSES as any)[challenge.status] || STATUSES.todo;
+
+    return (
+        <div className={`group bg-white rounded-3xl border border-slate-200 p-5 flex flex-col gap-4 shadow-sm hover:shadow-md hover:border-blue-200 transition-all relative overflow-hidden ${compact ? 'md:p-4' : 'md:p-6 md:flex-row md:items-center md:gap-6'}`}>
+            {/* Category Icon */}
+            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl ${cat.bg} flex items-center justify-center shrink-0`}>
+                <cat.icon className={`w-5 h-5 md:w-6 md:h-6 ${cat.color}`} />
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${cat.bg} ${cat.color}`}>
+                        {cat.label}
+                    </span>
+                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${prio.bg} ${prio.color} border ${prio.border}`}>
+                        優先度: {prio.label}
+                    </span>
+                </div>
+                <h3 className="text-base md:text-lg font-bold text-slate-800 line-clamp-1">{challenge.title}</h3>
+                <p className={`text-sm text-slate-500 line-clamp-2 mt-1 leading-relaxed ${compact ? 'text-xs' : ''}`}>{challenge.description}</p>
+            </div>
+
+            {/* Status & Actions */}
+            <div className={`flex items-center justify-between gap-4 shrink-0 pt-3 border-t border-slate-50 ${compact ? '' : 'md:pt-0 md:border-t-0 md:justify-end md:gap-6'}`}>
+                {!compact && (
+                    <div className={`flex items-center gap-2 ${stat.color} font-black text-xs`}>
+                        <stat.icon className="w-4 h-4" />
+                        {stat.label}
+                    </div>
+                )}
+
+                <div className="flex items-center gap-1">
+                    {challenge.isTrashed ? (
+                        <>
+                            <button
+                                onClick={() => onRestore?.(challenge.id)}
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                title="復元"
+                            >
+                                <RotateCcw className="w-5 h-5" />
+                            </button>
+                            <button
+                                onClick={() => onPermanentDelete?.(challenge.id)}
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="完全削除"
+                            >
+                                <Trash2 className="w-5 h-5" />
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button
+                                onClick={() => onEdit(challenge)}
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                title="編集"
+                            >
+                                <MoreVertical className="w-5 h-5" />
+                            </button>
+                            <button
+                                onClick={() => onDelete(challenge.id)}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="削除"
+                            >
+                                <Trash2 className="w-5 h-5" />
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const EmptyState = ({ showTrash, onNewClick }: { showTrash: boolean; onNewClick: () => void }) => (
+    <div className="py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-300">
+        <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-4">
+            {showTrash ? <Trash2 className="w-8 h-8 text-slate-300" /> : <CheckCircle2 className="w-8 h-8 text-slate-300" />}
+        </div>
+        <h3 className="text-lg font-bold text-slate-800">{showTrash ? "ゴミ箱は空です" : "課題はありません"}</h3>
+        <p className="text-slate-400 text-sm mt-1">
+            {showTrash ? "削除された課題はありません。" : "現在、表示条件に一致する課題は見つかりません。"}
+        </p>
+        {!showTrash && (
+            <button
+                onClick={onNewClick}
+                className="mt-6 inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold text-sm hover:bg-blue-700 transition-all"
+            >
+                <PlusCircle className="w-5 h-5" />
+                最初の課題を登録
+            </button>
+        )}
+    </div>
+);
+
 export default function TodoPage() {
     const { challenges, addChallenge, updateChallenge, deleteChallenge, restoreChallenge, permanentlyDeleteChallenge, isLoaded } = useStore();
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -210,98 +324,69 @@ export default function TodoPage() {
                 </div>
             </div>
 
-            {/* List */}
-            <div className="grid grid-cols-1 gap-4">
-                {filteredChallenges.length > 0 ? (
-                    filteredChallenges.map((challenge: BusinessChallenge) => {
-                        const cat = (CATEGORIES as any)[challenge.category] || CATEGORIES.other;
-                        const prio = (PRIORITIES as any)[challenge.priority] || PRIORITIES.medium;
-                        const stat = (STATUSES as any)[challenge.status] || STATUSES.todo;
-
-                        return (
-                            <div
+            {/* List / Kanban */}
+            {showTrash ? (
+                <div className="grid grid-cols-1 gap-4">
+                    {filteredChallenges.length > 0 ? (
+                        filteredChallenges.map((challenge: BusinessChallenge) => (
+                            <ChallengeCard
                                 key={challenge.id}
-                                className="group bg-white rounded-3xl border border-slate-200 p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all relative overflow-hidden"
-                            >
-                                {/* Category Icon */}
-                                <div className={`w-12 h-12 rounded-2xl ${cat.bg} flex items-center justify-center shrink-0`}>
-                                    <cat.icon className={`w-6 h-6 ${cat.color}`} />
+                                challenge={challenge}
+                                onEdit={handleOpenModal}
+                                onDelete={handleDelete}
+                                onRestore={handleRestore}
+                                onPermanentDelete={handlePermanentDelete}
+                            />
+                        ))
+                    ) : (
+                        <EmptyState showTrash={true} onNewClick={() => handleOpenModal()} />
+                    )}
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                    {Object.entries(STATUSES).map(([statusKey, statusInfo]) => {
+                        const columnTasks = filteredChallenges.filter(c => c.status === statusKey);
+                        return (
+                            <div key={statusKey} className="flex flex-col gap-4">
+                                {/* Column Header */}
+                                <div className="flex items-center justify-between px-2">
+                                    <div className={`flex items-center gap-2 ${statusInfo.color} font-black text-sm`}>
+                                        <statusInfo.icon className="w-5 h-5" />
+                                        {statusInfo.label}
+                                        <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full ml-1">
+                                            {columnTasks.length}
+                                        </span>
+                                    </div>
+                                    {statusKey === 'todo' && (
+                                        <button onClick={() => handleOpenModal()} className="p-1 text-slate-400 hover:text-blue-600 transition-colors">
+                                            <PlusCircle className="w-5 h-5" />
+                                        </button>
+                                    )}
                                 </div>
 
-                                {/* Content */}
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${cat.bg} ${cat.color}`}>
-                                            {cat.label}
-                                        </span>
-                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${prio.bg} ${prio.color} border ${prio.border}`}>
-                                            優先度: {prio.label}
-                                        </span>
-                                    </div>
-                                    <h3 className="text-lg font-bold text-slate-800 line-clamp-1">{challenge.title}</h3>
-                                    <p className="text-sm text-slate-500 line-clamp-2 mt-1 leading-relaxed">{challenge.description}</p>
-                                </div>
-
-                                {/* Status & Actions */}
-                                <div className="flex items-center justify-between md:justify-end gap-6 shrink-0 mt-2 md:mt-0 pt-4 md:pt-0 border-t md:border-t-0 border-slate-50">
-                                    <div className={`flex items-center gap-2 ${stat.color} font-black text-xs`}>
-                                        <stat.icon className="w-4 h-4" />
-                                        {stat.label}
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        {challenge.isTrashed ? (
-                                            <>
-                                                <button
-                                                    onClick={() => handleRestore(challenge.id)}
-                                                    className="p-2 text-green-600 hover:bg-green-50 rounded-xl transition-all"
-                                                    title="復元"
-                                                >
-                                                    <RotateCcw className="w-5 h-5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handlePermanentDelete(challenge.id)}
-                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                                    title="完全削除"
-                                                >
-                                                    <Trash2 className="w-5 h-5" />
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <button
-                                                    onClick={() => handleOpenModal(challenge)}
-                                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                                                    title="編集"
-                                                >
-                                                    <MoreVertical className="w-5 h-5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(challenge.id)}
-                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                                    title="削除"
-                                                >
-                                                    <Trash2 className="w-5 h-5" />
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
+                                {/* Column Content */}
+                                <div className="space-y-4 min-h-[100px]">
+                                    {columnTasks.length > 0 ? (
+                                        columnTasks.map((challenge: BusinessChallenge) => (
+                                            <ChallengeCard
+                                                key={challenge.id}
+                                                challenge={challenge}
+                                                onEdit={handleOpenModal}
+                                                onDelete={handleDelete}
+                                                compact={true}
+                                            />
+                                        ))
+                                    ) : (
+                                        <div className="py-12 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+                                            <span className="text-xs font-medium text-slate-400">課題はありません</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         );
-                    })
-                ) : (
-                    <div className="py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-300">
-                        <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle2 className="w-8 h-8 text-slate-300" />
-                        </div>
-                        <h3 className="text-lg font-bold text-slate-800">課題はありません</h3>
-                        <p className="text-slate-400 text-sm mt-1">
-                            現在、表示条件に一致する課題は見つかりません。
-                        </p>
-                    </div>
-                )}
-            </div>
+                    })}
+                </div>
+            )}
 
             {/* Modal */}
             {isModalOpen && (
