@@ -604,10 +604,10 @@ export default function AnalyticsPage() {
                             </ResponsiveContainer>
 
                             {/* quadrant labels */}
-                            <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">Efficiency Stars</div>
-                            <div className="absolute bottom-0 right-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">Volume Drivers</div>
-                            <div className="absolute top-0 left-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">Niche Luxury</div>
-                            <div className="absolute bottom-0 left-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">Low Performers</div>
+                            <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">高効率・スター</div>
+                            <div className="absolute bottom-0 right-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">売上牽引役</div>
+                            <div className="absolute top-0 left-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">ニッチ・高単価</div>
+                            <div className="absolute bottom-0 left-0 p-2 text-[9px] font-bold text-slate-300 pointer-events-none uppercase tracking-widest">課題店舗</div>
                         </div>
                     ) : (
                         <div className="h-[320px] flex items-center justify-center text-slate-300 flex-col gap-2">
@@ -642,7 +642,7 @@ export default function AnalyticsPage() {
                                     <div key={group} className={`p-4 rounded-xl border ${colors[group]}`}>
                                         <div className="flex items-center justify-between mb-1">
                                             <span className="text-xl font-black">{group}</span>
-                                            <span className="text-xs font-bold">{fmtPct(share)} share</span>
+                                            <span className="text-xs font-bold">{fmtPct(share)} シェア</span>
                                         </div>
                                         <div className="text-sm font-bold">{fmtYen(groupRevenue)}</div>
                                         <div className="text-[10px] mt-1 opacity-70 cursor-default" title={groupItems.map(i => i.name).join("\n")}>

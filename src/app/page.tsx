@@ -141,7 +141,7 @@ function ActivityTimeline() {
             </div>
             <div className="mt-8 pt-6 border-t border-slate-50 text-center">
                 <Link href="/analytics" className="text-[10px] font-black uppercase tracking-widest text-[#1e3a8a] hover:underline">
-                    All Activities <ArrowRight className="inline w-3 h-3 ml-1" />
+                    アクティビティ一覧 <ArrowRight className="inline w-3 h-3 ml-1" />
                 </Link>
             </div>
         </div>
@@ -242,7 +242,7 @@ export default function DashboardPage() {
                         <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[#1e3a8a]">
                             <LayoutDashboard className="w-5 h-5" />
                         </div>
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600/60">Overview</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600/60">OVERVIEW / 概要</span>
                     </div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">
                         ダッシュボード
@@ -260,7 +260,7 @@ export default function DashboardPage() {
             <section>
                 <div className="flex items-center gap-2 mb-6 text-slate-400">
                     <Plus className="w-3.5 h-3.5" />
-                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">Quick Actions</h2>
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">Quick Actions / クイックアクセス</h2>
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                     {quickActions.map((action, idx) => (
@@ -278,7 +278,7 @@ export default function DashboardPage() {
                                 <p className="text-slate-400 text-[11px] leading-relaxed mt-1 font-medium">{action.desc}</p>
                             </div>
                             <div className="mt-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-300 group-hover:text-[#1e3a8a] transition-colors">
-                                START <ArrowRight className="w-3.5 h-3.5" />
+                                表示する <ArrowRight className="w-3.5 h-3.5" />
                             </div>
                         </Link>
                     ))}
@@ -323,7 +323,7 @@ export default function DashboardPage() {
                     </div>
 
                     <Link href="/analytics" className="px-8 py-4 bg-white text-[#1e3a8a] rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-900/20 self-start xl:self-center">
-                        View Analytics
+                        分析レポートを表示
                     </Link>
                 </div>
             </section>
@@ -393,27 +393,27 @@ export default function DashboardPage() {
                     <section>
                         <div className="flex items-center gap-2 mb-6 text-slate-400">
                             <BarChart3 className="w-3.5 h-3.5" />
-                            <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">System Status</h2>
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">System Status / システム状況</h2>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
                             <div className="bg-white p-7 rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
                                 <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
                                     <Package className="w-4 h-4 text-blue-500/50" />
-                                    Products
+                                    商品数
                                 </div>
                                 <div className="text-4xl font-black text-slate-900 tracking-tighter">{totalProducts}</div>
                             </div>
                             <div className="bg-white p-7 rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
                                 <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
                                     <Tag className="w-4 h-4 text-emerald-500/50" />
-                                    Brands
+                                    ブランド数
                                 </div>
                                 <div className="text-4xl font-black text-slate-900 tracking-tighter">{totalBrands}</div>
                             </div>
                             <div className="bg-white p-7 rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
                                 <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
                                     <Store className="w-4 h-4 text-amber-500/50" />
-                                    Stores
+                                    店舗数
                                 </div>
                                 <div className="text-4xl font-black text-slate-900 tracking-tighter">{totalStores}</div>
                             </div>

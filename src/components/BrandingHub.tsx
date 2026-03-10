@@ -20,35 +20,35 @@ interface BrandingHubProps {
 const MODES: { id: CopyMode; label: string; icon: any; description: string; color: string }[] = [
     {
         id: "marketplace",
-        label: "Marketplace",
+        label: "ECモール",
         icon: ShoppingBag,
         description: "Amazon・Shopify向け SEO商品説明文",
         color: "blue",
     },
     {
         id: "story",
-        label: "Story",
+        label: "物語・コラム",
         icon: BookOpen,
         description: "HP・ブログ向けコラム文",
         color: "emerald",
     },
     {
         id: "social",
-        label: "Social",
+        label: "SNS投稿",
         icon: Share2,
         description: "SNS投稿文＋ハッシュタグ",
         color: "violet",
     },
     {
         id: "pop",
-        label: "POP",
+        label: "店頭POP",
         icon: Printer,
         description: "店頭用POP・棚札の作成",
         color: "amber",
     },
     {
         id: "video",
-        label: "Video",
+        label: "動画台本",
         icon: Video,
         description: "ショート動画・リール用台本案",
         color: "rose",
@@ -215,7 +215,7 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                             <Sparkles className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-black text-slate-900 tracking-tight">BRANDING HUB</h2>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">ブランディング支援 / AI生成</h2>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
                                 <span className="text-[#1e3a8a]">{product.name}</span>
                                 {product.variantName && ` • ${product.variantName}`}
@@ -363,7 +363,7 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
 
                                             <div className="flex justify-between items-end relative z-10">
                                                 <div>
-                                                    <div className="text-[10px] font-bold opacity-60">PRICE</div>
+                                                    <div className="text-[10px] font-bold opacity-60 uppercase tracking-widest">価格</div>
                                                     <div className={`text-4xl font-black italic ${activePopStyle.fontFamily}`}>
                                                         <span className="text-lg mr-0.5 NOT-italic">¥</span>
                                                         {product.sellingPrice.toLocaleString()}
@@ -374,7 +374,7 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                                                     <div className="p-1 px-1 bg-white rounded shadow-sm">
                                                         <QRCodeSVG value={`https://utomachi.example.jp/products/${product.id}`} size={48} />
                                                     </div>
-                                                    <div className="text-[8px] font-bold tracking-tighter opacity-70">STORY READ</div>
+                                                    <div className="text-[8px] font-bold tracking-tighter opacity-70">ストーリーを読む</div>
                                                 </div>
                                             </div>
 

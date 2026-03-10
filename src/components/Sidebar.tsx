@@ -135,7 +135,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </button>
       </div>
       <div className="pb-6 px-6 text-[10px] font-bold text-slate-300 tracking-widest text-center uppercase">
-        © {new Date().getFullYear()} UTOMACHI Platform
+        © {new Date().getFullYear()} ウトマチ平台 / UTOMACHI Platform
       </div>
     </div>
   );

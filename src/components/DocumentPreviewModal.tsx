@@ -4,7 +4,7 @@ import { useRef, useState, useCallback } from "react";
 import { useStore, IssuedDocument } from "@/lib/store";
 import { summarizeTaxByRate, TAX_RATE_LABELS } from "@/lib/taxUtils";
 import { generatePdfFromElement } from "@/lib/pdfGenerator";
-import { X, Download, Loader2, Sparkles, FileText, Receipt } from "lucide-react";
+import { X, Download, Printer, Loader2, Sparkles, FileText, Receipt } from "lucide-react";
 
 // ─── Brand token ─────────────────────────────────────────────────────────
 const BRAND = "#b27f79";
@@ -227,7 +227,11 @@ export function DocumentPreviewModal({
         } finally {
             setIsGenerating(false);
         }
-    }, [docTitle, periodLabel]);
+    }, [docTitle, periodLabel, previewRef]);
+
+    const handlePrint = useCallback(() => {
+        window.print();
+    }, []);
 
     // ─ Render ──────────────────────────────────────────────────────
     return (
@@ -245,9 +249,18 @@ export function DocumentPreviewModal({
                             <div className="text-xs text-slate-400">{periodLabel}{recipient && ` ／ ${recipient}`}</div>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-500">
-                        <X className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handlePrint}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+                        >
+                            <Printer className="w-3.5 h-3.5" />
+                            印刷
+                        </button>
+                        <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-500">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Scrollable preview area */}
@@ -277,7 +290,7 @@ export function DocumentPreviewModal({
                     </div>
 
                     {/* ── PRINTABLE DOCUMENT ───────────────────────────── */}
-                    <div ref={previewRef} className="bg-white shadow-lg mx-auto" style={{
+                    <div ref={previewRef} className="bg-white shadow-lg mx-auto printable-document" style={{
                         width: "794px", // A4 at 96dpi
                         minHeight: "1123px",
                         padding: "48px 56px",
@@ -285,6 +298,29 @@ export function DocumentPreviewModal({
                         color: "#1a1a1a",
                         position: "relative",
                     }}>
+                        <style jsx global>{`
+                            @media print {
+                                body * {
+                                    visibility: hidden;
+                                }
+                                .printable-document, .printable-document * {
+                                    visibility: visible;
+                                }
+                                .printable-document {
+                                    position: absolute;
+                                    left: 0;
+                                    top: 0;
+                                    width: 100% !important;
+                                    margin: 0 !important;
+                                    padding: 48px 56px !important;
+                                    box-shadow: none !important;
+                                }
+                                @page {
+                                    size: A4;
+                                    margin: 0;
+                                }
+                            }
+                        `}</style>
 
                         {/* ── Metadata: Top Right ── */}
                         <div style={{

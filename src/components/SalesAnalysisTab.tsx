@@ -55,7 +55,7 @@ function CustomTooltip({ active, payload, label, unit = "個" }: any) {
             {payload.map((p: any, i: number) => (
                 <div key={i} className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: p.color }} />
-                    <span className="text-slate-500">{p.name}:</span>
+                    <span className="text-slate-500">{p.name === 'avgQty' ? '平均個数' : p.name === 'avgAmount' ? '平均金額' : p.name === 'amount' ? '売上額' : p.name === 'net' ? '入金額' : p.name}:</span>
                     <span className="font-bold text-slate-800">{typeof p.value === 'number' && unit === '¥' ? `¥${p.value.toLocaleString()}` : `${p.value.toFixed ? p.value.toFixed(1) : p.value}${unit}`}</span>
                 </div>
             ))}
@@ -281,7 +281,7 @@ export function SalesAnalysisTab() {
                             <XAxis dataKey="day" tick={{ fontSize: 12, fontWeight: 700 }} />
                             <YAxis tick={{ fontSize: 11 }} />
                             <Tooltip content={<CustomTooltip unit="個" />} />
-                            <Bar dataKey="avgQty" name="平均個数" radius={[6, 6, 0, 0]}>
+                            <Bar dataKey="avgQty" name="平均売上個数" radius={[6, 6, 0, 0]}>
                                 {weekdayData.map((entry, i) => (
                                     <Cell key={i} fill={
                                         bestWeekday?.dayIdx === entry.dayIdx ? BRAND : "#e2e8f0"
@@ -315,7 +315,7 @@ export function SalesAnalysisTab() {
                                     <XAxis dataKey="label" tick={{ fontSize: 12, fontWeight: 600 }} />
                                     <YAxis tick={{ fontSize: 11 }} />
                                     <Tooltip content={<CustomTooltip unit="個" />} />
-                                    <Bar dataKey="avgQty" name="平均個数" radius={[6, 6, 0, 0]}>
+                                    <Bar dataKey="avgQty" name="平均売上個数" radius={[6, 6, 0, 0]}>
                                         {weatherData.map((entry, i) => (
                                             <Cell key={i} fill={
                                                 entry.label === "晴れ" ? "#fbbf24" :
@@ -435,7 +435,7 @@ export function SalesAnalysisTab() {
                                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                                 <YAxis tick={{ fontSize: 11 }} />
                                 <Tooltip content={<CustomTooltip unit="個" />} />
-                                <Bar dataKey="avgQty" name="平均個数" radius={[6, 6, 0, 0]} fill="#60a5fa" />
+                                <Bar dataKey="avgQty" name="平均売上個数" radius={[6, 6, 0, 0]} fill="#60a5fa" />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
