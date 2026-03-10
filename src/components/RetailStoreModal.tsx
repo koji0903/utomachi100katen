@@ -31,7 +31,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         lat: undefined as number | undefined,
         lng: undefined as number | undefined,
         imageUrls: [] as string[],
-        type: 'A' as 'A' | 'B',
+        type: 'A' as 'A' | 'B' | 'C',
         pricingRule: 0,
         activeProductIds: [] as string[],
         useDifferentBilling: false,
@@ -197,7 +197,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                 }
             }
 
-            const finalData = { ...formData, imageUrls: finalImageUrls };
+            const finalData = {
+                ...formData,
+                imageUrls: finalImageUrls,
+                commissionRate: formData.type === 'A' ? formData.commissionRate : 0
+            };
 
             if (initialData) {
                 await updateRetailStore(initialData.id, finalData);
@@ -275,7 +279,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                         <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1.5">店舗種別 <span className="text-red-400">*</span></label>
                             <div className="flex gap-4">
-                                {(['A', 'B'] as const).map(t => (
+                                {(['A', 'B', 'C'] as const).map(t => (
                                     <label key={t} className="flex items-center gap-2 cursor-pointer group">
                                         <div className="relative flex items-center justify-center">
                                             <input
@@ -288,7 +292,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                             <div className="absolute w-2.5 h-2.5 bg-[#b27f79] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                                         </div>
                                         <span className={`text-sm font-medium transition-colors ${formData.type === t ? "text-slate-900" : "text-slate-500 group-hover:text-slate-700"}`}>
-                                            {t === 'A' ? "委託販売 (A)" : "卸販売 (B)"}
+                                            {t === 'A' ? "委託販売 (A)" : t === 'B' ? "卸販売 (B)" : "直営 (C)"}
                                         </span>
                                     </label>
                                 ))}
@@ -296,7 +300,9 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                             <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
                                 {formData.type === 'A'
                                     ? "売上発生時に販売手数料が計算されます。"
-                                    : "日報で商品を補充した時点で売上（手数料 0%）として計上されます。"}
+                                    : formData.type === 'B'
+                                        ? "日報で商品を補充した時点で売上（手数料 0%）として計上されます。"
+                                        : "自社での直接販売（手数料 0%）として扱われます。"}
                             </p>
                         </div>
 
@@ -381,11 +387,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                         {/* 手数料 */}
                         <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                                {formData.type === 'A' ? "販売手数料率 (%)" : "卸売時は 0% 固定"} <span className="text-red-400">*</span>
+                                {formData.type === 'A' ? "販売手数料率 (%)" : "卸売・直営時は 0% 固定"} <span className="text-red-400">*</span>
                             </label>
                             <input type="number" required min="0" max="100"
                                 value={formData.type === 'A' ? formData.commissionRate : 0}
-                                disabled={formData.type === 'B'}
+                                disabled={formData.type !== 'A'}
                                 onFocus={e => e.target.select()}
                                 onChange={e => setFormData({ ...formData, commissionRate: Number(e.target.value) })}
                                 className={`${inputCls} text-right disabled:bg-slate-100 disabled:text-slate-400 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} />

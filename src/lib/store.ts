@@ -83,7 +83,7 @@ export interface RetailStore extends BaseEntity {
     lat?: number;   // 緯度（OpenWeatherMap 連携用）
     lng?: number;   // 経度
     imageUrls?: string[]; // 店舗写真
-    type?: 'A' | 'B'; // A: 委託販売, B: 卸販売
+    type?: 'A' | 'B' | 'C'; // A: 委託販売, B: 卸販売, C: 直営
     createdAt?: string | any;
     updatedAt?: string | any;
     pricingRule?: number; // Percentage offset (e.g., 15 for +15%, -20 for -20%)

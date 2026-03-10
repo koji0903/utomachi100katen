@@ -159,7 +159,8 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
         const storePriceObj = product.storePrices?.find(sp => sp.storeId === selectedStoreId);
         const price = (storePriceObj && storePriceObj.price > 0) ? storePriceObj.price : product.sellingPrice;
         const subtotal = price * quantity;
-        const commissionRate = selectedStore?.commissionRate ?? 15;
+        // Safety: only type 'A' (Consignment) has commission. B and C are 0%.
+        const commissionRate = selectedStore?.type === 'A' ? (selectedStore.commissionRate ?? 15) : 0;
         const commission = Math.floor(subtotal * (commissionRate / 100));
         const netProfit = subtotal - commission;
         return { price, subtotal, commission, netProfit };
