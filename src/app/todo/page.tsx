@@ -64,6 +64,20 @@ const ChallengeCard = ({
     const cat = (CATEGORIES as any)[challenge.category] || CATEGORIES.other;
     const prio = (PRIORITIES as any)[challenge.priority] || PRIORITIES.medium;
     const stat = (STATUSES as any)[challenge.status] || STATUSES.todo;
+    const formattedDate = (createdAt: any) => {
+        if (!createdAt) return "";
+        let date: Date;
+        if (typeof createdAt === 'string') {
+            date = new Date(createdAt);
+        } else if (createdAt.toDate) {
+            date = createdAt.toDate();
+        } else if (createdAt.seconds) {
+            date = new Date(createdAt.seconds * 1000);
+        } else {
+            return "";
+        }
+        return date.toLocaleDateString("ja-JP", { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '/');
+    };
 
     return (
         <div className={`group bg-white rounded-3xl border border-slate-200 p-5 flex flex-col gap-4 shadow-sm hover:shadow-md hover:border-blue-200 transition-all relative overflow-hidden ${compact ? 'md:p-4' : 'md:p-6 md:flex-row md:items-center md:gap-6'}`}>
@@ -80,6 +94,10 @@ const ChallengeCard = ({
                     </span>
                     <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${prio.bg} ${prio.color} border ${prio.border}`}>
                         優先度: {prio.label}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 ml-auto flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        投稿日: {formattedDate(challenge.createdAt)}
                     </span>
                 </div>
                 <h3 className={`font-bold text-slate-800 ${challenge.status === 'done' ? 'text-sm' : 'text-base md:text-lg'}`}>{challenge.title}</h3>
