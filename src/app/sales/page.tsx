@@ -63,7 +63,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             setSalesData({});
         }
         setSaveSuccess(false);
-    }, [selectedStoreId, targetDate, targetMonth, inputMode, editingSale]);
+    }, [editingSale]);
 
     const selectedStore = useMemo(() =>
         retailStores.find(s => s.id === selectedStoreId), [retailStores, selectedStoreId]
