@@ -22,7 +22,7 @@ export async function POST(req: Request) {
             );
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = `あなたは「ウトマチ百貨店」の優秀なコピーライターです。
 以下の情報を元に、商品一覧や詳細ページに載せるための、魅力的で短い商品ストーリー（150文字程度）を作成してください。

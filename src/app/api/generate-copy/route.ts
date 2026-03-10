@@ -160,26 +160,35 @@ ${modeInstruction}`;
         let responseText = "";
         // Prioritize Pro models for maximum intelligence
         const modelsToTry = [
-            "gemini-1.5-pro-latest",
-            "gemini-1.5-pro",
-            "gemini-2.0-flash-exp",
             "gemini-2.0-flash",
-            "gemini-1.5-flash-latest"
+            "gemini-2.0-flash-lite-preview-02-05",
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-pro",
+            "gemini-1.5-pro-latest"
         ];
         let lastError: any = null;
         for (const modelName of modelsToTry) {
             try {
+                console.log(`[Gemini] Attempting with model: ${modelName}`);
                 const model = genAI.getGenerativeModel({ model: modelName });
                 const result = await model.generateContent(fullPrompt);
                 responseText = result.response.text();
-                break; // success
-            } catch (_e) {
-                lastError = _e;
-                console.warn(`[Gemini] Failed to use model ${modelName}:`, _e);
-                if (typeof _e === "object" && _e !== null && "message" in _e && typeof _e.message === "string" && (_e.message.includes("429") || _e.message.includes("404") || _e.message.includes("503"))) {
-                    continue; // try next model
+                if (responseText) {
+                    console.log(`[Gemini] Success with model: ${modelName}`);
+                    break;
                 }
-                throw _e; // other error, rethrow
+            } catch (_e: any) {
+                lastError = _e;
+                const errorMsg = _e?.message || String(_e);
+                console.warn(`[Gemini] Failed to use model ${modelName}:`, errorMsg);
+
+                // If it's a quota error or other retryable error, try the next model
+                if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("limit") || errorMsg.includes("503") || errorMsg.includes("404")) {
+                    continue;
+                }
+                // For other errors, we might want to stop, but let's try all models anyway for safety
+                continue;
             }
         }
 
