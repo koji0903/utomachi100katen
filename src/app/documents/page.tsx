@@ -20,7 +20,7 @@ const today = () => new Date().toISOString().split("T")[0];
 const year = new Date().getFullYear().toString();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type DocStatus = "all" | "draft" | "issued";
+type DocStatus = "all" | "draft" | "issued" | "paid";
 type DocType = "all" | "delivery_note" | "payment_summary" | "invoice";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -395,17 +395,21 @@ export default function DocumentsPage() {
     // ── Filter + sort ─────────────────────────────────────────────────────────
     const filtered = useMemo(() => {
         if (!isLoaded) return [];
-        return issuedDocuments
+        const filtered = issuedDocuments
+            .filter(d => showTrash ? d.isTrashed : !d.isTrashed)
+            .filter(d => filterType === "all" || d.type === filterType)
             .filter(d => {
-                const matchType = filterType === "all" || d.type === filterType;
-                const matchStatus = filterStatus === "all" || d.status === filterStatus;
-                const matchTrash = !!d.isTrashed === showTrash;
+                if (filterStatus === "all") return true;
+                if (filterStatus === "paid") return d.fulfillmentStatus === "paid";
+                return d.status === filterStatus;
+            })
+            .filter(d => {
                 const q = searchQuery.toLowerCase();
                 const matchSearch = !searchQuery ||
                     d.recipientName.toLowerCase().includes(q) ||
                     d.docNumber.toLowerCase().includes(q) ||
                     d.period.includes(q);
-                return matchType && matchStatus && matchSearch && matchTrash;
+                return matchSearch;
             })
             .sort((a, b) => {
                 const dateA = a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000) : new Date(a.createdAt || 0);
@@ -414,6 +418,7 @@ export default function DocumentsPage() {
                     ? dateB.getTime() - dateA.getTime()
                     : dateA.getTime() - dateB.getTime();
             });
+        return filtered;
     }, [issuedDocuments, filterStatus, filterType, searchQuery, sortDesc, isLoaded, showTrash]);
 
     const stats = useMemo(() => {
@@ -450,9 +455,6 @@ export default function DocumentsPage() {
         }
     };
 
-    const handleMarkIssued = async (d: IssuedDocument) => {
-        await updateIssuedDocument(d.id, { status: "issued", issuedDate: today() });
-    };
 
     if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
 
@@ -511,11 +513,12 @@ export default function DocumentsPage() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <Filter className="w-4 h-4 text-slate-400" />
-                    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as DocStatus)}
+                    <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as DocStatus)}
                         className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 focus:outline-none">
                         <option value="all">すべての状態</option>
-                        <option value="issued">発行済</option>
                         <option value="draft">下書き</option>
+                        <option value="issued">発行済み</option>
+                        <option value="paid">入金済み</option>
                     </select>
                     <select value={filterType} onChange={e => setFilterType(e.target.value as DocType)}
                         className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 focus:outline-none">
@@ -582,7 +585,6 @@ export default function DocumentsPage() {
                                         <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(doc.issuedDate)}</td>
                                         <td className="px-4 py-3">
                                             <div className="flex flex-col gap-1 items-start">
-                                                <StatusBadge status={doc.status} />
                                                 <FulfillmentBadge doc={doc} onUpdate={(s) => updateIssuedDocument(doc.id, { fulfillmentStatus: s })} />
                                             </div>
                                         </td>
@@ -636,13 +638,6 @@ export default function DocumentsPage() {
                                                                 {convertingId === doc.id
                                                                     ? <div className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
                                                                     : <FilePlus className="w-4 h-4" />}
-                                                            </button>
-                                                        )}
-                                                        {doc.status === "draft" && (
-                                                            <button onClick={() => handleMarkIssued(doc)}
-                                                                title="発行済みにする"
-                                                                className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 transition-colors">
-                                                                <CheckCircle2 className="w-4 h-4" />
                                                             </button>
                                                         )}
                                                         <button onClick={() => { if (window.confirm("この帳票をごみ箱に移動しますか？")) handleDelete(doc.id); }}
