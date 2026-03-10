@@ -47,6 +47,15 @@ export interface CompanySettings {
     weatherFetchTime?: string; // e.g. "14:00"
 }
 
+export interface AutoReportConfig {
+    isEnabled: boolean;
+    emailRecipient: string;
+    frequency: 'daily' | 'weekly' | 'monthly';
+    sendDay: number; // 0: Sun, 1: Mon, ...
+    sendTime: string; // "HH:mm"
+    updatedAt?: string | any;
+}
+
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     companyName: '',
     zipCode: '',
@@ -68,6 +77,14 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     bankAccountNumber2: '',
     bankAccountHolder2: '',
     weatherFetchTime: '14:00',
+};
+
+export const DEFAULT_REPORT_CONFIG: AutoReportConfig = {
+    isEnabled: false,
+    emailRecipient: '',
+    frequency: 'weekly',
+    sendDay: 1, // Monday
+    sendTime: '09:00',
 };
 
 export interface RetailStore extends BaseEntity {
@@ -384,6 +401,17 @@ export function useStore() {
     const { data: activities = [], mutate: mutateActivities } = useSWR<Activity[]>("activities", () => fetcher<Activity>("activities"), swrConfig);
     const { data: trash = [], mutate: mutateTrash } = useSWR<TrashItem[]>("trash", () => fetcher<TrashItem>("trash"), swrConfig);
 
+    // Auto Report Config
+    const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
+        "auto_report_config",
+        async () => {
+            const snap = await getDoc(doc(db, "settings", "auto_report"));
+            if (snap.exists()) return { ...DEFAULT_REPORT_CONFIG, ...snap.data() } as AutoReportConfig;
+            return DEFAULT_REPORT_CONFIG;
+        },
+        { ...swrConfig, revalidateOnFocus: false }
+    );
+
     // Company Settings — fetched once from Firestore doc (not a collection)
     const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings } = useSWR<CompanySettings>(
         "company_settings",
@@ -396,6 +424,13 @@ export function useStore() {
     );
 
     const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports;
+
+    const updateReportConfig = async (data: Partial<AutoReportConfig>) => {
+        const newConfig = { ...reportConfig, ...data, updatedAt: serverTimestamp() };
+        mutateReportConfig(newConfig as AutoReportConfig, false);
+        await setDoc(doc(db, "settings", "auto_report"), newConfig, { merge: true });
+        mutateReportConfig();
+    };
 
     // --- Activity Logging Helper ---
     const logActivity = async (activity: Omit<Activity, "id" | "createdAt">) => {
@@ -1245,5 +1280,8 @@ export function useStore() {
         trash,
         restoreFromTrash,
         permanentlyDeleteFromTrash,
+        // Auto Report
+        reportConfig,
+        updateReportConfig
     };
 }

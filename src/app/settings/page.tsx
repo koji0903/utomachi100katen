@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useStore, CompanySettings } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
 import {
     Building2, Phone, MapPin, Hash, Calculator,
     Save, CheckCircle2, ChevronDown, Info, FileText, Loader2, CheckCircle, AlertCircle,
-    CloudSun
+    CloudSun, Mail, ChevronRight
 } from "lucide-react";
 import { SettingsImageUpload } from "@/components/SettingsImageUpload";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
@@ -458,6 +459,29 @@ export default function SettingsPage() {
                             <p className="text-[11px] text-slate-400 mt-2">
                                 設定した時間に全店舗の天気情報を自動的に取得し、データとして保存します。
                             </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── 7. 自動レポート設定（リンク） ───────────────────── */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                        <Mail className="w-4 h-4 text-slate-500" />
+                        <h2 className="font-semibold text-slate-800 text-sm">自動レポート</h2>
+                    </div>
+                    <div className="p-6">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-800">レポート送信設定</h3>
+                                <p className="text-xs text-slate-500 mt-1">週次の売上概況や在庫補充アラートをメールで自動送信します。</p>
+                            </div>
+                            <Link
+                                href="/settings/reports"
+                                className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                            >
+                                設定画面を開く
+                                <ChevronRight className="w-4 h-4" />
+                            </Link>
                         </div>
                     </div>
                 </div>
