@@ -1064,6 +1064,10 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                             const isSun = dayOfWeek === 0 || !!holidayName;
                                             const isSat = dayOfWeek === 6;
 
+                                            const weatherKey = `${sale.period}|${sale.storeId}`;
+                                            const w = sale.temperature !== undefined 
+                                                ? { temp: sale.temperature, tempMin: sale.temperatureMin, tempMax: sale.temperatureMax, weather: sale.weather, weatherMain: sale.weatherMain }
+                                                : weatherMap[weatherKey];
                                             return (
                                                 <th key={sale.id} className="px-3 py-3 text-center whitespace-nowrap min-w-[80px]">
                                                     <div className="text-[10px] font-bold text-slate-500 mb-0.5 leading-none">
@@ -1072,6 +1076,21 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                     <div className={`text-[10px] inline-block px-1 rounded font-black ${isSun ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-slate-400'}`}>
                                                         {dayLabel}
                                                     </div>
+                                                    {logType === 'daily' && w && (
+                                                        <div className="mt-1 flex flex-col items-center">
+                                                            <div className="flex items-center gap-1 justify-center">
+                                                                <WeatherIcon main={w.weatherMain} size={3} />
+                                                                <span className="text-[9px] font-bold text-slate-700">{w.temp}°</span>
+                                                            </div>
+                                                            {(w.tempMin !== undefined && w.tempMax !== undefined) && (
+                                                                <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                                                                    <span className="text-[8px] font-bold text-red-500">{w.tempMax}°</span>
+                                                                    <span className="text-[8px] text-slate-300">/</span>
+                                                                    <span className="text-[8px] font-bold text-blue-500">{w.tempMin}°</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </th>
                                             );
                                         })}
