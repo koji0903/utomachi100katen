@@ -16,7 +16,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
 
     const [formData, setFormData] = useState({
         type: 'A' as 'A' | 'B',
-        status: 'ordered' as 'ordered' | 'waiting' | 'completed',
+        status: 'ordered_pending' as 'ordered_pending' | 'ordered' | 'completed',
         supplierId: "",
         items: [] as PurchaseItem[],
         totalAmount: 0,
@@ -41,7 +41,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
 
                 setFormData({
                     type: initialData.type || 'A',
-                    status: initialData.status || 'ordered',
+                    status: initialData.status || 'ordered_pending',
                     supplierId: initialData.supplierId,
                     items: itemsList,
                     totalAmount: initialData.totalAmount || initialData.totalCost || 0,
@@ -52,7 +52,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
             } else {
                 setFormData({
                     type: 'A',
-                    status: 'ordered',
+                    status: 'ordered_pending',
                     supplierId: suppliers.length > 0 ? suppliers[0].id : "",
                     items: [],
                     totalAmount: 0,
@@ -105,7 +105,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
             setFormData(prev => ({
                 ...prev,
                 type: 'A',
-                status: 'ordered',
+                status: 'ordered_pending',
             }));
         }
     };
@@ -255,9 +255,9 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                                     className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white disabled:bg-slate-100"
                                 >
-                                    <option value="ordered">発注済</option>
-                                    <option value="waiting">入荷待ち</option>
-                                    <option value="completed">入荷完了</option>
+                                    <option value="ordered_pending">発注未（予定）</option>
+                                    <option value="ordered">発注済み</option>
+                                    <option value="completed">入荷済み</option>
                                 </select>
                             </div>
                         </div>

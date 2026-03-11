@@ -33,7 +33,7 @@ function PurchasesPageContent() {
                 const isRunningOutSoon = days !== Infinity && days <= 7;
 
                 if (isUnderThreshold || isRunningOutSoon) {
-                    // Check if there's already an active PO (ordered/waiting) for THIS product
+                    // Check if there's already an active PO (ordered_pending/ordered) for THIS product
                     const hasActivePO = purchases.some(p => p.status !== 'completed' && (p.items || []).some(i => i.productId === product.id));
                     if (hasActivePO) continue;
 
@@ -65,7 +65,7 @@ function PurchasesPageContent() {
                     
                     await addPurchase({
                         type: 'A',
-                        status: 'ordered',
+                        status: 'ordered_pending',
                         supplierId,
                         items,
                         totalAmount,
@@ -117,7 +117,7 @@ function PurchasesPageContent() {
     };
 
     const handleToggleStatus = (purchase: Purchase) => {
-        const statusOrder: Purchase['status'][] = ['ordered', 'waiting', 'completed'];
+        const statusOrder: Purchase['status'][] = ['ordered_pending', 'ordered', 'completed'];
         const currentIndex = statusOrder.indexOf(purchase.status);
         if (currentIndex < statusOrder.length - 1) {
             const nextStatus = statusOrder[currentIndex + 1];
@@ -150,22 +150,22 @@ function PurchasesPageContent() {
 
     const getStatusBadge = (status: Purchase['status']) => {
         switch (status) {
+            case 'ordered_pending':
+                return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                        <Clock className="w-3 h-3" /> 未（予定）
+                    </span>
+                );
             case 'ordered':
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200">
                         <Clock className="w-3 h-3" /> 発注済
                     </span>
                 );
-            case 'waiting':
-                return (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                        <Clock className="w-3 h-3" /> 入荷待ち
-                    </span>
-                );
             case 'completed':
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                        <CheckCircle className="w-3 h-3" /> 入荷完了
+                        <CheckCircle className="w-3 h-3" /> 入荷済み
                     </span>
                 );
         }

@@ -187,7 +187,7 @@ export interface PurchaseItem {
 export interface Purchase extends BaseEntity {
     id: string;
     type: 'A' | 'B';
-    status: 'ordered' | 'waiting' | 'completed';
+    status: 'ordered_pending' | 'ordered' | 'completed';
     supplierId: string;
     items: PurchaseItem[];
     totalAmount: number;

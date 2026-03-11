@@ -284,8 +284,8 @@ export default function PaymentsPage() {
                                 <tr>
                                     <td colSpan={6} className="px-5 py-16 text-center text-slate-400">
                                         <CreditCard className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                                        <p className="font-medium">{displayMonth}の入荷完了記録がありません</p>
-                                        <p className="text-xs mt-1">「発注管理」で入荷を完了にすると、ここに表示されます。</p>
+                                        <p className="font-medium">{displayMonth}の入荷済み記録がありません</p>
+                                        <p className="text-xs mt-1">「発注管理」で「入荷済み」にすると、ここに表示されます。</p>
                                     </td>
                                 </tr>
                             )}
@@ -357,7 +357,7 @@ export default function PaymentsPage() {
                 {rows.length === 0 && (
                     <div className="text-center py-12 text-slate-400">
                         <CreditCard className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                        <p className="font-medium text-sm">{displayMonth}の入荷完了記録がありません</p>
+                        <p className="font-medium text-sm">{displayMonth}の入荷済み記録がありません</p>
                     </div>
                 )}
             </div>
