@@ -52,7 +52,8 @@ const ChallengeCard = ({
     onDelete,
     onRestore,
     onPermanentDelete,
-    compact = false
+    compact = false,
+    showFullDescription = false
 }: {
     challenge: BusinessChallenge;
     onEdit: (c: BusinessChallenge) => void;
@@ -60,6 +61,7 @@ const ChallengeCard = ({
     onRestore?: (id: string) => void;
     onPermanentDelete?: (id: string) => void;
     compact?: boolean;
+    showFullDescription?: boolean;
 }) => {
     const cat = (CATEGORIES as any)[challenge.category] || CATEGORIES.other;
     const prio = (PRIORITIES as any)[challenge.priority] || PRIORITIES.medium;
@@ -80,36 +82,50 @@ const ChallengeCard = ({
     };
 
     return (
-        <div className={`group bg-white rounded-3xl border border-slate-200 p-5 flex flex-col gap-4 shadow-sm hover:shadow-md hover:border-blue-200 transition-all relative overflow-hidden ${compact ? 'md:p-4' : 'md:p-6 md:flex-row md:items-center md:gap-6'}`}>
+        <div className={`group bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all relative overflow-hidden flex ${compact ? 'rounded-2xl p-3 items-center gap-3' : 'rounded-3xl p-5 md:p-6 flex-col md:flex-row md:items-start gap-4 md:gap-6'}`}>
             {/* Category Icon */}
-            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl ${cat.bg} flex items-center justify-center shrink-0`}>
-                <cat.icon className={`w-5 h-5 md:w-6 md:h-6 ${cat.color}`} />
+            <div className={`${compact ? 'w-8 h-8 rounded-xl' : 'w-10 h-10 md:w-12 md:h-12 rounded-2xl'} ${cat.bg} flex items-center justify-center shrink-0`}>
+                <cat.icon className={`${compact ? 'w-4 h-4' : 'w-5 h-5 md:w-6 md:h-6'} ${cat.color}`} />
             </div>
 
             {/* Content */}
             <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${cat.bg} ${cat.color}`}>
-                        {cat.label}
-                    </span>
-                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${prio.bg} ${prio.color} border ${prio.border}`}>
-                        優先度: {prio.label}
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-400 ml-auto flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        投稿日: {formattedDate(challenge.createdAt)}
-                    </span>
-                </div>
-                <h3 className={`font-bold text-slate-800 ${challenge.status === 'done' ? 'text-sm' : 'text-base md:text-lg'}`}>{challenge.title}</h3>
-                {challenge.status !== 'done' && (
-                    <p className={`text-sm text-slate-500 mt-1 leading-relaxed ${compact ? 'text-xs' : ''}`}>{challenge.description}</p>
+                {!compact && (
+                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${cat.bg} ${cat.color}`}>
+                            {cat.label}
+                        </span>
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${prio.bg} ${prio.color} border ${prio.border}`}>
+                            優先度: {prio.label}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400 ml-auto flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formattedDate(challenge.createdAt)}
+                        </span>
+                    </div>
+                )}
+                <div className={`font-bold text-slate-800 ${compact ? 'text-sm truncate' : 'text-base md:text-lg whitespace-pre-wrap'}`}>{challenge.title}</div>
+                {challenge.status !== 'done' && challenge.description && (
+                    <p className={`text-sm text-slate-500 mt-1.5 leading-relaxed ${showFullDescription ? 'whitespace-pre-wrap' : 'line-clamp-2'} ${compact ? 'text-xs truncate max-w-[200px]' : ''}`}>
+                        {challenge.description}
+                    </p>
+                )}
+                {compact && (
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${cat.bg} ${cat.color}`}>
+                            {cat.label}
+                        </span>
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${prio.bg} ${prio.color} border ${prio.border}`}>
+                            {prio.label}
+                        </span>
+                    </div>
                 )}
             </div>
 
             {/* Status & Actions */}
-            <div className={`flex items-center justify-between gap-4 shrink-0 pt-3 border-t border-slate-50 ${compact ? '' : 'md:pt-0 md:border-t-0 md:justify-end md:gap-6'}`}>
+            <div className={`flex items-center justify-end shrink-0 ${compact ? '' : 'pt-3 border-t border-slate-50 md:pt-0 md:border-t-0 md:flex-col md:h-full gap-2'}`}>
                 {!compact && (
-                    <div className={`flex items-center gap-2 ${stat.color} font-black text-xs`}>
+                    <div className={`flex items-center justify-end gap-1.5 ${stat.color} font-black text-xs w-full`}>
                         <stat.icon className="w-4 h-4" />
                         {stat.label}
                     </div>
@@ -399,6 +415,7 @@ export default function TodoPage() {
                                                 onEdit={handleOpenModal}
                                                 onDelete={handleDelete}
                                                 compact={statusKey === 'done'}
+                                                showFullDescription={statusKey === 'todo'}
                                             />
                                         ))
                                     ) : (
