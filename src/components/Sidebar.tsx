@@ -28,7 +28,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       label: "在庫・仕入れ",
       items: [
         { name: "商品管理", href: "/products", icon: Package },
-        { name: "仕入れ管理", href: "/purchases", icon: Truck },
+        { name: "発注管理", href: "/purchases", icon: Truck },
         { name: "支払い管理", href: "/payments", icon: CreditCard },
         { name: "注文管理", href: "/orders", icon: ShoppingCart },
       ]

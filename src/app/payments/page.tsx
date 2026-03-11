@@ -72,7 +72,7 @@ export default function PaymentsPage() {
             });
         }
         const row = rowMap.get(ship.supplierId)!;
-        row.total += ship.totalCost;
+        row.total += ship.totalAmount || 0;
         row.shipmentCount += 1;
     }
     const rows = Array.from(rowMap.values()).sort((a, b) => b.total - a.total);
@@ -285,7 +285,7 @@ export default function PaymentsPage() {
                                     <td colSpan={6} className="px-5 py-16 text-center text-slate-400">
                                         <CreditCard className="w-10 h-10 text-slate-200 mx-auto mb-3" />
                                         <p className="font-medium">{displayMonth}の入荷完了記録がありません</p>
-                                        <p className="text-xs mt-1">「仕入れ管理」で入荷を完了にすると、ここに表示されます。</p>
+                                        <p className="text-xs mt-1">「発注管理」で入荷を完了にすると、ここに表示されます。</p>
                                     </td>
                                 </tr>
                             )}

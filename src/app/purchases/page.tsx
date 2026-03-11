@@ -73,7 +73,7 @@ function PurchasesPageContent() {
                         expectedArrivalDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default 7 days
                     });
                 }
-                showNotification(`${supplierIds.length}件の仕入先に対する発注データを自動作成しました。`);
+                showNotification(`${supplierIds.length}件の仕入先に対する発注オーダーを自動作成しました。`);
             } else {
                 showNotification("現在、補充が必要な商品はありません。");
             }
@@ -130,7 +130,7 @@ function PurchasesPageContent() {
     };
 
     const handleDelete = (id: string) => {
-        if (window.confirm("この仕入れ記録をゴミ箱に移動してもよろしいですか？")) {
+        if (window.confirm("この発注記録をゴミ箱に移動してもよろしいですか？")) {
             deletePurchase(id);
             showNotification("ゴミ箱に移動しました。");
         }
@@ -138,11 +138,11 @@ function PurchasesPageContent() {
 
     const handleRestore = (id: string) => {
         restorePurchase(id);
-        showNotification("仕入れ記録を復元しました。");
+        showNotification("発注記録を復元しました。");
     };
 
     const handlePermanentDelete = (id: string) => {
-        if (window.confirm("この仕入れ記録を完全に削除しますか？この操作は取り消せません。")) {
+        if (window.confirm("この発注記録を完全に削除しますか？この操作は取り消せません。")) {
             permanentlyDeletePurchase(id);
             showNotification("完全に削除しました。");
         }
@@ -187,10 +187,10 @@ function PurchasesPageContent() {
                                 </Link>
                             )}
                             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                                {filterDate ? `${filterDate.replace(/-/g, "/")} の仕入れ` : "仕入れ管理"}
+                                {filterDate ? `${filterDate.replace(/-/g, "/")} の発注記録` : "発注管理"}
                             </h1>
                         </div>
-                        <p className="text-slate-500 text-sm">商品の発注から入荷、直接入荷の管理を行います。</p>
+                        <p className="text-slate-500 text-sm">仕入先への発注から入荷、直接入荷の管理を一元化します。</p>
                     </div>
                 </div>
                 <div className="flex gap-3">
@@ -214,7 +214,7 @@ function PurchasesPageContent() {
                         className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm font-medium"
                     >
                         <Plus className="w-5 h-5" />
-                        仕入れ登録
+                        新規発注登録
                     </button>
                 </div>
             </div>
@@ -239,7 +239,7 @@ function PurchasesPageContent() {
                             <tr className="border-b border-slate-200 text-slate-500 text-sm bg-white">
                                 <th className="p-5 font-semibold">種別</th>
                                 <th className="p-5 font-semibold">仕入先</th>
-                                <th className="p-5 font-semibold">発注内容</th>
+                                <th className="p-5 font-semibold">発注/入荷内容</th>
                                 <th className="p-5 font-semibold text-right">発注合計金額</th>
                                 <th className="p-5 font-semibold">日付</th>
                                 <th className="p-5 font-semibold text-center">ステータス</th>
@@ -340,7 +340,7 @@ function PurchasesPageContent() {
                                     <td colSpan={8} className="p-12 text-center text-slate-500">
                                         <div className="flex flex-col items-center gap-3">
                                             <Search className="w-8 h-8 text-slate-300" />
-                                            <p>仕入れ記録が見つかりませんでした。</p>
+                                            <p>発注記録が見つかりませんでした。</p>
                                         </div>
                                     </td>
                                 </tr>

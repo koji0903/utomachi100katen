@@ -170,7 +170,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                             <ShoppingBag className="w-5 h-5" />
                         </div>
                         <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                            {initialData ? "仕入れ情報を編集" : "新規仕入れ（発注）作成"}
+                            {initialData ? "発注・仕入情報を編集" : "新規発注オーダー作成"}
                         </h2>
                     </div>
                     <button
@@ -265,7 +265,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                         {formData.supplierId && (
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                                    <h3 className="text-sm font-bold text-slate-800">発注商品リスト</h3>
+                                    <h3 className="text-sm font-bold text-slate-800">発注商品一覧</h3>
                                     <button
                                         type="button"
                                         onClick={addItem}
@@ -380,7 +380,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                         className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Save className="w-4 h-4" />
-                        保存する
+                        情報を保存
                     </button>
                 </div>
             </div>
