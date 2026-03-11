@@ -693,7 +693,9 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
         let achievementRate = 0;
         let storeGoal = 0;
         if (filterStoreId) {
-            const store = retailStores.find(s => s.id === filterStoreId);
+            const filterParts = filterStoreId.split(':');
+            const targetId = filterParts.length === 2 ? filterParts[1] : filterStoreId;
+            const store = retailStores.find(s => s.id === targetId);
             storeGoal = store?.dailySalesGoal || 0;
             if (storeGoal > 0) {
                 // 分子は日毎の平均売上、分母は、日毎の売上目標
@@ -758,7 +760,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                         className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 font-medium text-slate-700">
                         <option value="">すべての宛先</option>
                         <optgroup label="登録店舗">
-                            {retailStores.map(s => <option key={`store:${s.id}`} value={`store:${s.id}`}>{s.name}</option>)}
+                            {retailStores.map(s => <option key={`retail:${s.id}`} value={`retail:${s.id}`}>{s.name}</option>)}
                         </optgroup>
                         {spotRecipients.length > 0 && (
                             <optgroup label="スポット宛先">
