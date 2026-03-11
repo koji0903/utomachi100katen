@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { X, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, History } from "lucide-react";
+import { useMemo, useState } from "react";
+import { X, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, History, ChevronLeft, ChevronRight } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 
 interface WeatherHistoryModalProps {
@@ -11,18 +11,24 @@ interface WeatherHistoryModalProps {
 }
 
 function weatherIcon(main: string | undefined) {
-    if (!main) return <CloudSun className="w-5 h-5 text-amber-400" />;
-    if (main.includes("Rain") || main.includes("Drizzle")) return <CloudRain className="w-5 h-5 text-blue-400" />;
-    if (main.includes("Snow")) return <CloudSnow className="w-5 h-5 text-sky-300" />;
-    if (main.includes("Cloud")) return <Cloud className="w-5 h-5 text-slate-400" />;
-    return <CloudSun className="w-5 h-5 text-amber-400" />;
+    if (!main) return null;
+    if (main.includes("Rain") || main.includes("Drizzle")) return <CloudRain className="w-6 h-6 text-blue-400" />;
+    if (main.includes("Snow")) return <CloudSnow className="w-6 h-6 text-sky-300" />;
+    if (main.includes("Cloud")) return <Cloud className="w-6 h-6 text-slate-400" />;
+    return <CloudSun className="w-6 h-6 text-amber-400" />;
 }
 
 export function WeatherHistoryModal({ isOpen, onClose, store }: WeatherHistoryModalProps) {
     const { dailyWeather, dailyReports } = useStore();
+    
+    // State for current displayed month
+    const [currentDate, setCurrentDate] = useState(() => {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), 1);
+    });
 
     const mergedHistory = useMemo(() => {
-        if (!store) return [];
+        if (!store) return new Map();
 
         const historyMap = new Map<string, {
             date: string;
@@ -57,22 +63,58 @@ export function WeatherHistoryModal({ isOpen, onClose, store }: WeatherHistoryMo
                     weather: r.weather!,
                     weatherMain: r.weatherMain || existing?.weatherMain || "Clear",
                     temp: r.temperature,
-                    humidity: existing?.humidity, // 日報には湿度がないので既存のものを維持する
+                    humidity: existing?.humidity,
                     source: 'report'
                 });
             });
 
-        return Array.from(historyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+        return historyMap;
     }, [store, dailyWeather, dailyReports]);
+
+    // Calendar generation
+    const calendarDays = useMemo(() => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        
+        const days = [];
+        // Pad beginning of month
+        for (let i = 0; i < firstDay.getDay(); i++) {
+            days.push(null);
+        }
+        // Days of month
+        for (let i = 1; i <= lastDay.getDate(); i++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+            days.push({
+                dayNumber: i,
+                dateStr,
+                data: mergedHistory.get(dateStr)
+            });
+        }
+        return days;
+    }, [currentDate, mergedHistory]);
 
     if (!isOpen || !store) return null;
 
+    const handlePrevMonth = () => {
+        setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    };
+
+    const handleNextMonth = () => {
+        setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    };
+
+    const monthName = `${currentDate.getFullYear()}年 ${currentDate.getMonth() + 1}月`;
+    const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 m-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 m-4">
                 
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
                             <History className="w-5 h-5" />
@@ -88,70 +130,76 @@ export function WeatherHistoryModal({ isOpen, onClose, store }: WeatherHistoryMo
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                    {mergedHistory.length > 0 ? (
-                        <div className="space-y-2 relative">
-                            {/* Vertical Line */}
-                            <div className="absolute left-[85px] top-4 bottom-4 w-px bg-slate-100" />
-                            
-                            {mergedHistory.map((item, index) => (
-                                <div key={item.date} className="flex items-center gap-4 p-3 bg-white hover:bg-slate-50 border border-slate-100 rounded-xl transition-colors group relative z-10">
-                                    {/* Date */}
-                                    <div className="w-16 shrink-0 text-right">
-                                        <div className="text-sm font-bold text-slate-700">
-                                            {item.date.slice(5).replace('-', '/')}
-                                        </div>
-                                        <div className="text-[10px] text-slate-400">
-                                            {item.date.slice(0, 4)}
-                                        </div>
-                                    </div>
+                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">
+                    {/* Calendar Navigation */}
+                    <div className="flex items-center justify-between mb-6">
+                        <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-600">
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <h3 className="text-lg font-bold text-slate-800">{monthName}</h3>
+                        <button onClick={handleNextMonth} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-600">
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                    </div>
 
-                                    {/* Icon & Details */}
-                                    <div className="flex-1 flex items-center gap-4 pl-4 border-l-2 border-slate-100 group-hover:border-blue-200 transition-colors">
-                                        <div className="shrink-0 p-2 bg-slate-50 rounded-full">
-                                            {weatherIcon(item.weatherMain)}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-baseline gap-2">
-                                                <span className="font-bold text-slate-800">{item.weather}</span>
-                                                {item.temp !== undefined && (
-                                                    <span className="flex items-center text-sm font-bold text-slate-600">
-                                                        <Thermometer className="w-3.5 h-3.5 text-slate-400 mr-0.5" />
-                                                        {item.temp}°C
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {(item.humidity !== undefined || item.source === 'report') && (
-                                                <div className="flex items-center gap-3 mt-1">
-                                                    {item.humidity !== undefined && (
-                                                        <span className="text-xs text-slate-400 flex items-center">
-                                                            湿度 {item.humidity}%
-                                                        </span>
-                                                    )}
-                                                    {item.source === 'report' && (
-                                                        <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-sm font-medium">
-                                                            日報入力
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                        {/* Weekday Headers */}
+                        <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/80">
+                            {WEEKDAYS.map((day, i) => (
+                                <div key={day} className={`py-3 text-center text-xs font-bold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-slate-500'}`}>
+                                    {day}
                                 </div>
                             ))}
                         </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <Cloud className="w-12 h-12 text-slate-200 mb-3" />
-                            <p className="font-medium text-slate-600">天気履歴がありません</p>
-                            <p className="text-xs text-slate-400 mt-1">日報の入力や自動取得によってデータが蓄積されます</p>
+
+                        {/* Calendar Grid */}
+                        <div className="grid grid-cols-7 auto-rows-[100px] sm:auto-rows-[120px]">
+                            {calendarDays.map((day, index) => {
+                                const isWeekendRow = index % 7 === 0 || index % 7 === 6;
+                                const cellBg = !day ? 'bg-slate-50/50' : 'bg-white hover:bg-slate-50/50';
+                                
+                                return (
+                                    <div 
+                                        key={index} 
+                                        className={`border-r border-b border-slate-100 p-2 relative flex flex-col transition-colors ${cellBg} ${index % 7 === 6 ? 'border-r-0' : ''}`}
+                                    >
+                                        {day && (
+                                            <>
+                                                <div className={`text-xs font-bold mb-1 ${index % 7 === 0 ? 'text-red-500' : index % 7 === 6 ? 'text-blue-500' : 'text-slate-700'}`}>
+                                                    {day.dayNumber}
+                                                </div>
+                                                
+                                                {day.data ? (
+                                                    <div className="flex-1 flex flex-col items-center justify-center gap-1">
+                                                        {weatherIcon(day.data.weatherMain)}
+                                                        {day.data.temp !== undefined && (
+                                                            <div className="flex items-center text-sm font-bold text-slate-700 mt-1">
+                                                                {day.data.temp}°
+                                                            </div>
+                                                        )}
+                                                        {day.data.source === 'report' && (
+                                                            <div className="absolute bottom-1 right-1 text-[8px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded leading-none">
+                                                                手動
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex-1 flex items-center justify-center text-slate-200">
+                                                        -
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
-                    )}
+                    </div>
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
-                    <button onClick={onClose} className="px-6 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors">
+                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end shrink-0">
+                    <button onClick={onClose} className="px-6 py-2.5 bg-white border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
                         閉じる
                     </button>
                 </div>
