@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen, AlertCircle, Trash2, Building2, Mail } from "lucide-react";
+import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen, AlertCircle, Trash2, Building2, Mail, Sparkles } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
+import { CURRENT_VERSION } from "@/lib/version";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -56,6 +57,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       label: "サポート",
       items: [
         { name: "ご利用ガイド", href: "/guidelines", icon: BookOpen },
+        { name: "アップデート・機能一覧", href: "/updates", icon: Sparkles },
       ]
     }
   ];
@@ -137,8 +139,11 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           ログアウト
         </button>
       </div>
-      <div className="pb-6 px-6 text-[10px] font-bold text-slate-300 tracking-widest text-center uppercase">
-        © {new Date().getFullYear()} ウトマチ平台 / UTOMACHI Platform
+      <div className="pb-6 px-6 text-[10px] font-bold text-slate-300 tracking-widest text-center uppercase flex flex-col items-center gap-1">
+        <Link href="/updates" className="hover:text-[#1e3a8a] transition-colors cursor-pointer">
+            {CURRENT_VERSION}
+        </Link>
+        <span>© {new Date().getFullYear()} ウトマチ平台 / UTOMACHI Platform</span>
       </div>
     </div>
   );
