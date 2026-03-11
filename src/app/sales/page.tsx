@@ -487,7 +487,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     // Filter sales to selected logType + selected filters
     const filteredSales = useMemo(() => {
         return sales
-            .filter(s => s.isTrashed === showTrash)
+            .filter(s => !!s.isTrashed === showTrash)
             .filter(s => s.type === logType || (!s.type && logType === 'daily'))
             .filter(s => {
                 if (!filterStoreId) return true;
