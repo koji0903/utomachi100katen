@@ -180,19 +180,30 @@ export interface Sale extends BaseEntity {
     updatedAt?: string | any;
 }
 
+export interface PurchaseItem {
+    productId: string;
+    quantity: number;
+    unitCost: number;
+    totalCost: number;
+}
+
 export interface Purchase extends BaseEntity {
     id: string;
     type: 'A' | 'B';
     status: 'ordered' | 'waiting' | 'completed';
-    productId: string;
     supplierId: string;
+    items: PurchaseItem[];
+    totalAmount: number;
     orderDate: string;
     arrivalDate?: string;
     expectedArrivalDate?: string;
-    quantity: number;
-    unitCost: number;
-    totalCost: number;
     createdAt?: string | any;
+
+    // Legacy fields for backward compatibility during migration
+    productId?: string;
+    quantity?: number;
+    unitCost?: number;
+    totalCost?: number;
 }
 
 export interface DailyWeather {
@@ -289,6 +300,7 @@ export interface Supplier extends BaseEntity {
         closingDay?: number;  // e.g. 末日=31, 20日=20
         paymentDay?: number;  // 翌月何日払い
     };
+    suppliedProducts?: { productId: string; purchasePrice: number }[];
     memo?: string;
 }
 
@@ -385,7 +397,24 @@ export interface Product extends BaseEntity {
 // Reusable fetcher for SWR
 const fetcher = async <T>(collectionName: string): Promise<T[]> => {
     const querySnapshot = await getDocs(collection(db, collectionName));
-    return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as unknown as T));
+    return querySnapshot.docs.map((doc) => {
+        let data = { id: doc.id, ...doc.data() } as any;
+        
+        // Migrate legacy purchases to new format
+        if (collectionName === 'inbound_shipments') {
+            if (!data.items && data.productId) {
+                data.items = [{
+                    productId: data.productId,
+                    quantity: data.quantity || 1,
+                    unitCost: data.unitCost || 0,
+                    totalCost: data.totalCost || 0
+                }];
+                data.totalAmount = data.totalCost || 0;
+            }
+        }
+        
+        return data as T;
+    });
 };
 
 const swrConfig = {
@@ -639,16 +668,19 @@ export function useStore() {
 
         // If status is completed, increment stock
         if (purchaseData.status === 'completed') {
-            const product = products.find(p => p.id === purchaseData.productId);
-            if (product) {
-                const newStock = (product.stock || 0) + purchaseData.quantity;
-                await updateProduct(product.id, { stock: newStock });
+            const items = purchaseData.items || [];
+            for (const item of items) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    const newStock = (product.stock || 0) + item.quantity;
+                    await updateProduct(product.id, { stock: newStock });
+                }
             }
         }
 
         mutatePurchases([...purchases, newPurchase as Purchase], false);
         await setDoc(newRef, {
-            ...purchaseData,
+            ...cleanObject(purchaseData),
             createdAt: serverTimestamp(),
         });
         mutatePurchases();
@@ -660,16 +692,19 @@ export function useStore() {
 
         // If shifting to completed status, increment stock
         if (purchaseUpdate.status === 'completed' && currentPurchase.status !== 'completed') {
-            const product = products.find(p => p.id === currentPurchase.productId);
-            if (product) {
-                const newStock = (product.stock || 0) + (purchaseUpdate.quantity || currentPurchase.quantity);
-                await updateProduct(product.id, { stock: newStock });
+            const items = purchaseUpdate.items || currentPurchase.items || [];
+            for (const item of items) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    const newStock = (product.stock || 0) + item.quantity;
+                    await updateProduct(product.id, { stock: newStock });
+                }
             }
         }
 
         mutatePurchases(purchases.map((p) => p.id === id ? { ...p, ...purchaseUpdate } : p) as Purchase[], false);
         const docRef = doc(db, "inbound_shipments", id);
-        await updateDoc(docRef, purchaseUpdate);
+        await updateDoc(docRef, cleanObject(purchaseUpdate));
         mutatePurchases();
     };
 
@@ -679,10 +714,13 @@ export function useStore() {
 
         // Correct stock if the purchase was completed
         if (purchase.status === 'completed' && !purchase.isTrashed) {
-            const product = products.find(p => p.id === purchase.productId);
-            if (product) {
-                const newStock = (product.stock || 0) - purchase.quantity;
-                await updateProduct(product.id, { stock: newStock });
+            const items = purchase.items || [];
+            for (const item of items) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    const newStock = (product.stock || 0) - item.quantity;
+                    await updateProduct(product.id, { stock: newStock });
+                }
             }
         }
 
@@ -696,10 +734,13 @@ export function useStore() {
 
         // Redo stock if the purchase was completed
         if (purchase.status === 'completed') {
-            const product = products.find(p => p.id === purchase.productId);
-            if (product) {
-                const newStock = (product.stock || 0) + purchase.quantity;
-                await updateProduct(product.id, { stock: newStock });
+            const items = purchase.items || [];
+            for (const item of items) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    const newStock = (product.stock || 0) + item.quantity;
+                    await updateProduct(product.id, { stock: newStock });
+                }
             }
         }
 
@@ -1201,9 +1242,12 @@ export function useStore() {
         } else if (item.collectionName === 'inbound_shipments') {
             const purchase = item.data as Purchase;
             if (purchase.status === 'completed') {
-                const product = products.find(p => p.id === purchase.productId);
-                if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) + purchase.quantity });
+                const purchaseItems = purchase.items || [];
+                for (const pItem of purchaseItems) {
+                    const product = products.find(p => p.id === pItem.productId);
+                    if (product) {
+                        await updateProduct(product.id, { stock: (product.stock || 0) + pItem.quantity });
+                    }
                 }
             }
         }

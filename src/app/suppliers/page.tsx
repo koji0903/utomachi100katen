@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, Edit2, Trash2, Search, Users, Building2, Wheat, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Users, Building2, Wheat, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw, Box } from "lucide-react";
 import { useStore, Supplier } from "@/lib/store";
 import { SupplierModal } from "@/components/SupplierModal";
 import { showNotification } from "@/lib/notifications";
@@ -175,6 +175,7 @@ export default function SuppliersPage() {
                                     </div>
                                 </th>
                                 <th className="p-5 font-semibold">電話番号</th>
+                                <th className="p-5 font-semibold text-center">取扱商品</th>
                                 <th className="p-5 font-semibold text-right">操作</th>
                             </tr>
                         </thead>
@@ -204,6 +205,13 @@ export default function SuppliersPage() {
                                     </td>
                                     <td className="p-5 text-slate-600">
                                         {supplier.tel || <span className="text-slate-400 italic">未登録</span>}
+                                    </td>
+                                    <td className="p-5 text-center">
+                                        <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold border border-slate-200">
+                                            <Box className="w-3 h-3 text-slate-400" />
+                                            {supplier.suppliedProducts?.length || 0}
+                                            <span className="font-normal text-slate-500">点</span>
+                                        </div>
                                     </td>
                                     <td className="p-5 text-right">
                                         <div className="flex items-center justify-end gap-2">

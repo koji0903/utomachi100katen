@@ -22,38 +22,58 @@ function PurchasesPageContent() {
         if (!window.confirm("在庫不足の商品に対して、自動的に発注データを作成しますか？")) return;
 
         setIsGenerating(true);
-        let count = 0;
 
         try {
+            // Group needed products by supplierId
+            const supplierOrders: { [supplierId: string]: { productId: string, quantity: number, unitCost: number, totalCost: number }[] } = {};
+
             for (const product of products) {
                 const days = calculateDaysRemaining(product, sales);
                 const isUnderThreshold = product.stock <= (product.alertThreshold ?? 20);
                 const isRunningOutSoon = days !== Infinity && days <= 7;
 
                 if (isUnderThreshold || isRunningOutSoon) {
-                    // Avoid duplicate orders if there's already an active PO (ordered/waiting) for this product
-                    const hasActivePO = purchases.some(p => p.productId === product.id && p.status !== 'completed');
+                    // Check if there's already an active PO (ordered/waiting) for THIS product
+                    const hasActivePO = purchases.some(p => p.status !== 'completed' && (p.items || []).some(i => i.productId === product.id));
                     if (hasActivePO) continue;
 
                     const threshold = product.alertThreshold ?? 20;
                     const quantity = Math.max(threshold * 2, 10); // Simple restock rule
 
+                    if (!supplierOrders[product.supplierId]) {
+                        supplierOrders[product.supplierId] = [];
+                    }
+                    // Fetch accurate unit cost from the supplier's provided products if available
+                    const supplier = suppliers.find(s => s.id === product.supplierId);
+                    const suppliedProd = supplier?.suppliedProducts?.find(sp => sp.productId === product.id);
+                    const costPrice = suppliedProd ? suppliedProd.purchasePrice : (product.costPrice || 0);
+
+                    supplierOrders[product.supplierId].push({
+                        productId: product.id,
+                        quantity,
+                        unitCost: costPrice,
+                        totalCost: costPrice * quantity
+                    });
+                }
+            }
+
+            const supplierIds = Object.keys(supplierOrders);
+            if (supplierIds.length > 0) {
+                for (const supplierId of supplierIds) {
+                    const items = supplierOrders[supplierId];
+                    const totalAmount = items.reduce((sum, item) => sum + item.totalCost, 0);
+                    
                     await addPurchase({
                         type: 'A',
                         status: 'ordered',
-                        productId: product.id,
-                        supplierId: product.supplierId,
+                        supplierId,
+                        items,
+                        totalAmount,
                         orderDate: new Date().toISOString().split('T')[0],
                         expectedArrivalDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default 7 days
-                        quantity,
-                        unitCost: product.costPrice,
-                        totalCost: product.costPrice * quantity,
                     });
-                    count++;
                 }
-            }
-            if (count > 0) {
-                showNotification(`${count}件の発注データを自動作成しました。`);
+                showNotification(`${supplierIds.length}件の仕入先に対する発注データを自動作成しました。`);
             } else {
                 showNotification("現在、補充が必要な商品はありません。");
             }
@@ -73,10 +93,12 @@ function PurchasesPageContent() {
         .filter(p => !!p.isTrashed === showTrash)
         .filter((purchase) => {
             // Search filter
-            const product = products.find(p => p.id === purchase.productId);
             const supplier = suppliers.find(s => s.id === purchase.supplierId);
-            const searchTarget = `${product?.name} ${supplier?.name}`.toLowerCase();
-            const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
+            const itemsMatches = (purchase.items || []).some(item => {
+                const product = products.find(p => p.id === item.productId);
+                return product?.name.toLowerCase().includes(searchQuery.toLowerCase());
+            });
+            const matchesSearch = itemsMatches || (supplier?.name || "").toLowerCase().includes(searchQuery.toLowerCase());
 
             // Date filter
             const matchesDate = !filterDate || purchase.orderDate === filterDate || purchase.arrivalDate === filterDate;
@@ -216,10 +238,9 @@ function PurchasesPageContent() {
                         <thead>
                             <tr className="border-b border-slate-200 text-slate-500 text-sm bg-white">
                                 <th className="p-5 font-semibold">種別</th>
-                                <th className="p-5 font-semibold">商品名</th>
                                 <th className="p-5 font-semibold">仕入先</th>
-                                <th className="p-5 font-semibold text-right">数量</th>
-                                <th className="p-5 font-semibold text-right">単価 / 合計</th>
+                                <th className="p-5 font-semibold">発注内容</th>
+                                <th className="p-5 font-semibold text-right">発注合計金額</th>
                                 <th className="p-5 font-semibold">日付</th>
                                 <th className="p-5 font-semibold text-center">ステータス</th>
                                 <th className="p-5 font-semibold text-right">操作</th>
@@ -227,8 +248,8 @@ function PurchasesPageContent() {
                         </thead>
                         <tbody>
                             {filteredPurchases.map((purchase) => {
-                                const product = products.find(p => p.id === purchase.productId);
                                 const supplier = suppliers.find(s => s.id === purchase.supplierId);
+                                const items = purchase.items || [];
 
                                 return (
                                     <tr key={purchase.id} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors group">
@@ -237,12 +258,22 @@ function PurchasesPageContent() {
                                                 パターン{purchase.type}
                                             </span>
                                         </td>
-                                        <td className="p-5 font-medium text-slate-900">{product?.name || "不明"}</td>
-                                        <td className="p-5 text-slate-600 text-sm">{supplier?.name || "不明"}</td>
-                                        <td className="p-5 text-right text-slate-900 font-semibold">{purchase.quantity}</td>
-                                        <td className="p-5 text-right">
-                                            <div className="text-xs text-slate-400">¥{purchase.unitCost.toLocaleString()}</div>
-                                            <div className="font-bold text-slate-900">¥{purchase.totalCost.toLocaleString()}</div>
+                                        <td className="p-5 text-slate-900 font-bold">{supplier?.name || "不明"}</td>
+                                        <td className="p-5 text-sm text-slate-700">
+                                            <div className="space-y-1">
+                                                {items.map((item, idx) => (
+                                                    <div key={idx} className="flex items-center gap-3 justify-between max-w-[200px]">
+                                                        <span className="truncate" title={products.find(p => p.id === item.productId)?.name}>{products.find(p => p.id === item.productId)?.name || "不明"}</span>
+                                                        <span className="text-slate-500 font-medium whitespace-nowrap">x {item.quantity}</span>
+                                                    </div>
+                                                ))}
+                                                {items.length === 0 && (
+                                                    <span className="text-slate-400 italic">商品がありません</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="p-5 text-right font-bold text-emerald-700">
+                                            ¥{(purchase.totalAmount || 0).toLocaleString()}
                                         </td>
                                         <td className="p-5 text-xs text-slate-500">
                                             <div>発注: {purchase.orderDate}</div>
