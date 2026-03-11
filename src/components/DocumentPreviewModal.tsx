@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
-import { useStore, IssuedDocument } from "@/lib/store";
+import { useRef, useState, useCallback, useEffect } from "react";
+import { useStore, IssuedDocument, calculateInvoiceBalance } from "@/lib/store";
 import { summarizeTaxByRate, TAX_RATE_LABELS } from "@/lib/taxUtils";
 import { generatePdfFromElement } from "@/lib/pdfGenerator";
 import { AIPromptDisplay } from "./AIPromptDisplay";
 import { generateStoryPrompt } from "@/lib/aiPromptUtils";
-import { X, Download, Printer, Loader2, Sparkles, FileText, Receipt } from "lucide-react";
+import { InvoicePaymentModal } from "./InvoicePaymentModal";
+import { X, Download, Printer, Loader2, Sparkles, FileText, Receipt, CreditCard } from "lucide-react";
 
 // ─── Brand token ─────────────────────────────────────────────────────────
 const BRAND = "#b27f79";
@@ -14,7 +15,7 @@ const BRAND_LIGHT = "#f5eeee";
 const BRAND_DARK = "#8b5c57";
 
 // ─── Props ───────────────────────────────────────────────────────────────
-export type DocumentType = "delivery_note" | "payment_summary" | "invoice";
+export type DocumentType = "delivery_note" | "payment_summary" | "invoice" | "receipt";
 
 interface DocumentPreviewModalProps {
     type: DocumentType;
@@ -30,6 +31,7 @@ interface DocumentPreviewModalProps {
     customAdjustments?: IssuedDocument['adjustments'];
     customTaxRate?: IssuedDocument['taxRate'];
     hidePrices?: boolean;
+    autoDownload?: boolean; // New prop
     onClose: () => void;
 }
 
@@ -53,22 +55,30 @@ export function DocumentPreviewModal({
     customAdjustments,
     customTaxRate,
     hidePrices: propHidePrices,
+    autoDownload = false,
     onClose,
 }: DocumentPreviewModalProps) {
-    const { companySettings, sales, products, retailStores, purchases, suppliers, isLoaded, spotRecipients } = useStore();
+    const { companySettings, sales, products, retailStores, purchases, suppliers, isLoaded, spotRecipients, invoicePayments, issuedDocuments, generateDocNumber, saveIssuedDocument, updateIssuedDocument } = useStore();
+    
+    // Internal state to allow switching types within the modal
+    const [currentType, setCurrentType] = useState<DocumentType>(type);
+    const [currentDocNumber, setCurrentDocNumber] = useState(propDocNumber);
+
     const previewRef = useRef<HTMLDivElement>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [memo, setMemo] = useState("");
     const [isGeneratingMemo, setIsGeneratingMemo] = useState(false);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
 
     if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
 
     const rounding = companySettings?.roundingMode ?? "floor";
 
     // ─ Compute document data ────────────────────────────────────────────
-    const isDeliveryNote = type === "delivery_note";
-    const isInvoice = type === "invoice";
-    const isPaymentSummary = type === "payment_summary";
+    const isDeliveryNote = currentType === "delivery_note";
+    const isInvoice = currentType === "invoice";
+    const isPaymentSummary = currentType === "payment_summary";
+    const isReceipt = currentType === "receipt";
     const hidePrices = propHidePrices ?? false;
 
     // --- Line Items (Delivery Note & Invoice): aggregate sales items for store+period ---
@@ -166,12 +176,17 @@ export function DocumentPreviewModal({
     })();
 
     // ─ Tax summary ──────────────────────────────────────────────────────
+    // For receipts, we try to find the actual document to get the correct total
+    const existingDoc = issuedDocuments.find(d => d.docNumber === currentDocNumber && !d.isTrashed);
+    
     const taxSummary = (isDeliveryNote || isInvoice)
         ? summarizeTaxByRate(lineItems.map(i => ({
             amount: i.subtotal,
             rateType: customTaxRate ? (customTaxRate === 8 ? 'reduced' : 'standard') : i.taxRate
         })), rounding)
-        : summarizeTaxByRate(purchaseLines.map(i => ({ amount: i.total, rateType: i.taxRate })), rounding);
+        : isReceipt && existingDoc
+            ? summarizeTaxByRate([{ amount: existingDoc.totalAmount, rateType: existingDoc.taxRate === 8 ? 'reduced' : 'standard' }], rounding)
+            : summarizeTaxByRate(purchaseLines.map(i => ({ amount: i.total, rateType: i.taxRate })), rounding);
 
     // Apply adjustments if any
     if (customAdjustments && customAdjustments.length > 0) {
@@ -179,7 +194,7 @@ export function DocumentPreviewModal({
         taxSummary.grandTotal += adjTotal;
     }
 
-    const totalWithTax = taxSummary.grandTotal;
+    const totalWithTax = (isReceipt && existingDoc) ? existingDoc.totalAmount : taxSummary.grandTotal;
     const subtotal = taxSummary.standard.subtotal + taxSummary.reduced.subtotal;
     const tax = taxSummary.totalTax;
 
@@ -188,7 +203,7 @@ export function DocumentPreviewModal({
     const supplier = suppliers.find(s => s.id === supplierId);
     // Fixed: handle spot recipient name
     const recipient = propRecipientName || (
-        (isDeliveryNote || isInvoice)
+        (isDeliveryNote || isInvoice || isReceipt)
             ? (store?.useDifferentBilling ? (store.billingName || store.name) : (store?.name ?? "（客先名）"))
             : (supplier?.name ?? "（仕入先名）")
     );
@@ -199,10 +214,10 @@ export function DocumentPreviewModal({
         tel: store.billingTel
     } : null;
 
-    const docTitle = isDeliveryNote ? "納　品　書" : isInvoice ? "請　求　書" : "支 払 明 細 書";
+    const docTitle = isDeliveryNote ? "納　品　書" : isInvoice ? "請　求　書" : isPaymentSummary ? "支 払 明 細 書" : "領　収　証";
 
     // Fixed: use passed docNumber or fallback to temp
-    const docNumber = propDocNumber || `${isDeliveryNote ? "DN" : isInvoice ? "INV" : "PM"}-${Date.now().toString().slice(-8)}`;
+    const docNumber = propDocNumber || `${isDeliveryNote ? "DN" : isInvoice ? "INV" : isPaymentSummary ? "PM" : "RC"}-${Date.now().toString().slice(-8)}`;
 
     const periodLabel = (() => {
         if ((isDeliveryNote || isInvoice) && period) {
@@ -254,6 +269,19 @@ export function DocumentPreviewModal({
         window.print();
     }, []);
 
+    // Auto-download logic
+    useEffect(() => {
+        if (autoDownload && isLoaded && previewRef.current) {
+            // Small delay to ensure rendering is complete
+            const timer = setTimeout(async () => {
+                await handleDownload();
+                // We should close after download if it's auto-download mode
+                onClose();
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [autoDownload, isLoaded, handleDownload, onClose]);
+
     // ─ Render ──────────────────────────────────────────────────────
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
@@ -266,7 +294,7 @@ export function DocumentPreviewModal({
                             {isPaymentSummary ? <FileText className="w-5 h-5" style={{ color: BRAND }} /> : <Receipt className="w-5 h-5" style={{ color: BRAND }} />}
                         </div>
                         <div>
-                            <div className="font-bold text-slate-900">{isDeliveryNote ? "納品書" : isInvoice ? "請求書" : "支払明細書"} プレビュー</div>
+                            <div className="font-bold text-slate-900">{isDeliveryNote ? "納品書" : isInvoice ? "請求書" : isPaymentSummary ? "支払明細書" : "領収書"} プレビュー</div>
                             <div className="text-xs text-slate-400">{periodLabel}{recipient && ` ／ ${recipient}`}</div>
                         </div>
                     </div>
@@ -425,16 +453,16 @@ export function DocumentPreviewModal({
                                 textAlign: "right",
                                 paddingRight: "50px"
                             }}>
-                                {/* Logo area (Left of text) */}
-                                <div style={{ height: "44px", display: "flex", alignItems: "flex-end" }}>
-                                    {companySettings?.logoUrl ? (
-                                        /* eslint-disable-next-line @next/next/no-img-element */
-                                        <img src={companySettings.logoUrl} alt="logo" style={{ maxHeight: "100%", maxWidth: "120px" }} />
-                                    ) : (
-                                        /* eslint-disable-next-line @next/next/no-img-element */
-                                        <img src="/logo.png" alt="logo" style={{ maxHeight: "100%", opacity: 0.8 }} />
-                                    )}
-                                </div>
+                                    {/* Logo area (Left of text) */}
+                                    <div style={{ height: "44px", display: "flex", alignItems: "flex-end" }}>
+                                        {companySettings?.logoUrl ? (
+                                            /* eslint-disable-next-line @next/next/no-img-element */
+                                            <img src={companySettings.logoUrl} alt="logo" style={{ maxHeight: "100%", maxWidth: "120px" }} />
+                                        ) : (
+                                            /* eslint-disable-next-line @next/next/no-img-element */
+                                            <img src="/logo.png" alt="logo" style={{ maxHeight: "100%", opacity: 0.8 }} />
+                                        )}
+                                    </div>
 
                                 {/* Text info area (Right of logo) */}
                                 <div>
@@ -495,32 +523,92 @@ export function DocumentPreviewModal({
                                 ? "下記の通り納品いたしますので、ご確認の上ご査収くださいますようお願い申し上げます。"
                                 : isInvoice
                                     ? "下記の通りご請求申し上げます。内容をご確認の上、期日までにお支払いくださいますようお願い申し上げます。"
-                                    : "下記の通り仕入れ明細書をお送りいたしますので、内容をご確認くださいますようお願い申し上げます。"
+                                    : isReceipt
+                                        ? "下記の通り領収いたしました。"
+                                        : "下記の通り仕入れ明細書をお送りいたしますので、内容をご確認くださいますようお願い申し上げます。"
                             }
                         </div>
 
-                        {/* ── Invoice Summary Section (Only for Invoice) ── */}
-                        {isInvoice && (
+                        {/* ── Summary Section (Invoice or Receipt) ── */}
+                        {(isInvoice || isReceipt) && (
                             <div style={{
                                 marginBottom: "16px", padding: "8px 0", borderBottom: "1px solid #eee"
                             }}>
-                                <div style={{ display: "flex", alignItems: "baseline", gap: "32px" }}>
-                                    <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
-                                        <span style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>ご請求金額（税込）</span>
-                                        <span style={{ fontSize: "24px", fontWeight: "700", color: "#1a1a1a", borderBottom: `3px double ${BRAND}` }}>
-                                            ¥{totalWithTax.toLocaleString()}-
-                                        </span>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                    <div style={{ display: "flex", alignItems: "baseline", gap: "32px" }}>
+                                        <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
+                                            <span style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>
+                                                {isReceipt ? "領収金額（税込）" : "ご請求金額（税込）"}
+                                            </span>
+                                            <span style={{ fontSize: "24px", fontWeight: "700", color: "#1a1a1a", borderBottom: `3px double ${BRAND}` }}>
+                                                ¥{totalWithTax.toLocaleString()}-
+                                            </span>
+                                        </div>
+                                        {isInvoice && (
+                                            <div style={{ display: "flex", gap: "20px", fontSize: "11px", color: "#666" }}>
+                                                <span>（税抜合計: ¥{subtotal.toLocaleString()}</span>
+                                                <span>消費税等: ¥{tax.toLocaleString()}）</span>
+                                            </div>
+                                        )}
+                                        {isReceipt && (
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                                <div style={{ fontSize: "13px", fontWeight: "bold", color: "#444" }}>
+                                                    支払方法：{(() => {
+                                                        const r = issuedDocuments.find(d => d.docNumber === docNumber);
+                                                        return r?.paymentMethod || "現金";
+                                                    })()}
+                                                </div>
+                                                <div style={{ fontSize: "12px", color: "#666" }}>
+                                                    但し書き：{(() => {
+                                                        const r = issuedDocuments.find(d => d.docNumber === docNumber);
+                                                        return r?.memo || "お品代として";
+                                                    })()}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div style={{ display: "flex", gap: "20px", fontSize: "11px", color: "#666" }}>
-                                        <span>（税抜合計: ¥{subtotal.toLocaleString()}</span>
-                                        <span>消費税等: ¥{tax.toLocaleString()}）</span>
-                                    </div>
+
+                                    {/* Link and Balance info for Receipt or Invoice */}
+                                    {(() => {
+                                        const doc = issuedDocuments.find(d => d.docNumber === docNumber);
+                                        if (!doc || doc.isTrashed) return null;
+
+                                        if (isInvoice) {
+                                            const payments = invoicePayments.filter(p => !p.isTrashed && p.invoiceId === doc.id);
+                                            const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+                                            if (totalPaid > 0) {
+                                                const balance = Math.max(0, totalWithTax - totalPaid);
+                                                return (
+                                                    <div style={{ display: "flex", gap: "24px", fontSize: "12px", color: "#444", marginTop: "4px", paddingLeft: "4px" }}>
+                                                        <div>入金済金額: <strong>¥{totalPaid.toLocaleString()}</strong></div>
+                                                        <div style={{ color: balance === 0 ? "#10b981" : "#e11d48", fontWeight: "bold" }}>
+                                                            {balance === 0 ? "完済" : `ご請求残高: ¥${balance.toLocaleString()}`}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                        }
+
+                                        if (isReceipt && doc.sourceDocId) {
+                                            const parentPayment = invoicePayments.find(p => p.id === doc.sourceDocId);
+                                            const parentInvoice = parentPayment ? issuedDocuments.find(d => d.id === parentPayment.invoiceId) : null;
+                                            if (parentInvoice) {
+                                                return (
+                                                    <div style={{ fontSize: "11px", color: "#888", marginTop: "4px", paddingLeft: "4px" }}>
+                                                        対象請求書: {parentInvoice.docNumber}
+                                                    </div>
+                                                );
+                                            }
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
                             </div>
                         )}
 
                         {/* ── Line items table ── */}
-                        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "24px", fontSize: "12px" }}>
+                        {!isReceipt && (
+                            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "24px", fontSize: "12px" }}>
                             <thead>
                                 <tr style={{ backgroundColor: BRAND }}>
                                     <th style={{ ...thStyle, width: "40%", textAlign: "left" }}>
@@ -576,9 +664,10 @@ export function DocumentPreviewModal({
                                 }
                             </tbody>
                         </table>
+                        )}
 
-                        {/* ── Tax Summary (Hide for Delivery Note) ── */}
-                        {!isDeliveryNote && !hidePrices && (
+                        {/* ── Tax Summary (Hide for Delivery Note and Receipt) ── */}
+                        {!isDeliveryNote && !isReceipt && !hidePrices && (
                             <div className="summary-table" style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px", breakInside: "avoid", pageBreakInside: "avoid" }}>
                                 <table style={{ borderCollapse: "collapse", fontSize: "12px", minWidth: "320px" }}>
                                     <tbody>
@@ -667,7 +756,7 @@ export function DocumentPreviewModal({
                         )}
 
                         {/* ── Memo/Seasonal greeting ── */}
-                        {memo && (
+                        {memo && !isReceipt && (
                             <div className="memo-section" style={{ marginTop: "24px", padding: "10px 14px", borderLeft: `3px solid ${BRAND}`, fontSize: "11px", color: "#555", lineHeight: "1.8", breakInside: "avoid", pageBreakInside: "avoid" }}>
                                 <div style={{ fontWeight: 700, marginBottom: "2px", color: BRAND_DARK }}>備考</div>
                                 {memo}
@@ -675,7 +764,7 @@ export function DocumentPreviewModal({
                         )}
 
                         {/* ── Tax note ── */}
-                        {(taxSummary.reduced.subtotal > 0) && (
+                        {(taxSummary.reduced.subtotal > 0 && !isReceipt) && (
                             <div style={{ marginTop: "16px", fontSize: "10px", color: "#888" }}>
                                 ★ 軽減税率（8%）対象品目
                             </div>
@@ -696,12 +785,115 @@ export function DocumentPreviewModal({
                         </div>
                     </div>
                     {/* ── End Printable Document ── */}
+                    {/* ── Payment History (Only for Invoice) ── */}
+                    {isInvoice && (() => {
+                        const invoiceDoc = issuedDocuments.find(d => d.docNumber === docNumber);
+                        if (!invoiceDoc || invoiceDoc.isTrashed) return null;
+                        
+                        const payments = invoicePayments.filter(p => !p.isTrashed && p.invoiceId === invoiceDoc.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                        if (payments.length === 0) return null;
+
+                        return (
+                            <div className="mt-6 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                                <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                    <Receipt className="w-4 h-4 text-emerald-500" />
+                                    入金履歴
+                                </h3>
+                                <div className="space-y-2">
+                                    {payments.map(payment => {
+                                        const hasReceipt = issuedDocuments.some(d => d.type === 'receipt' && d.sourceDocId === payment.id && !d.isTrashed);
+                                        return (
+                                            <div key={payment.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs text-slate-500 font-medium">{payment.date}</span>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <span className="font-bold text-slate-800">¥{payment.amount.toLocaleString()}</span>
+                                                        <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">{payment.method}</span>
+                                                    </div>
+                                                    {payment.notes && <span className="text-[11px] text-slate-500 mt-1">{payment.notes}</span>}
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {hasReceipt ? (
+                                                        <button 
+                                                            disabled
+                                                            className="px-3 py-1.5 text-[11px] font-bold text-slate-400 bg-slate-100 rounded-lg cursor-not-allowed border border-slate-200"
+                                                        >
+                                                            領収書発行済
+                                                        </button>
+                                                    ) : (
+                                                        <button 
+                                                            onClick={async () => {
+                                                                const { storeId: pStoreId, supplierId: pSupplierId, recipientName: pRecipientName, period: pPeriod } = invoiceDoc;
+                                                                const newDocNumber = generateDocNumber('receipt', String(new Date().getFullYear()));
+                                                                
+                                                                const newReceiptData: Omit<IssuedDocument, 'id' | 'createdAt'> = {
+                                                                    type: 'receipt',
+                                                                    docNumber: newDocNumber,
+                                                                    status: 'issued',
+                                                                    issuedDate: payment.date,
+                                                                    period: pPeriod,
+                                                                    recipientType: invoiceDoc.recipientType,
+                                                                    storeId: pStoreId,
+                                                                    supplierId: pSupplierId,
+                                                                    recipientName: pRecipientName,
+                                                                    totalAmount: payment.amount,
+                                                                    taxRate: invoiceDoc.taxRate,
+                                                                    paymentMethod: payment.method as any,
+                                                                    memo: payment.notes || "お品代として",
+                                                                    sourceDocId: payment.id,
+                                                                };
+                                                                
+                                                                await saveIssuedDocument(newReceiptData);
+                                                                
+                                                                // Switch modal view to show the new receipt
+                                                                setCurrentType('receipt');
+                                                                setCurrentDocNumber(newDocNumber);
+                                                            }}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"
+                                                        >
+                                                            <Receipt className="w-3.5 h-3.5" />
+                                                            領収書を発行
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </div>
 
                 {/* Modal Footer */}
                 <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50 shrink-0">
                     <p className="text-xs text-slate-400">プレビューを確認後、PDFをダウンロードしてください。</p>
                     <div className="flex gap-3">
+                        {(() => {
+                            if (isInvoice) {
+                                const invoiceDoc = issuedDocuments.find(d => d.docNumber === docNumber);
+                                if (invoiceDoc && !invoiceDoc.isTrashed) {
+                                    const totalPaid = invoicePayments
+                                        .filter(p => !p.isTrashed && p.invoiceId === invoiceDoc.id)
+                                        .reduce((sum, p) => sum + p.amount, 0);
+                                    const balance = Math.max(0, totalWithTax - totalPaid);
+
+                                    if (balance > 0) {
+                                        return (
+                                            <button
+                                                onClick={() => setShowPaymentModal(true)}
+                                                className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl transition-all mr-auto"
+                                                style={{ backgroundColor: "#14b8a6" }} // Teal color for payment action
+                                            >
+                                                <CreditCard className="w-4 h-4" />
+                                                入金登録
+                                            </button>
+                                        );
+                                    }
+                                }
+                            }
+                            return null;
+                        })()}
                         <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">
                             閉じる
                         </button>
@@ -719,6 +911,24 @@ export function DocumentPreviewModal({
                     </div>
                 </div>
             </div>
+
+            {/* Payment Modal */}
+            {showPaymentModal && (() => {
+                const invoiceDoc = issuedDocuments.find(d => d.docNumber === docNumber);
+                if (!invoiceDoc) return null;
+                const totalPaid = invoicePayments
+                    .filter(p => !p.isTrashed && p.invoiceId === invoiceDoc.id)
+                    .reduce((sum, p) => sum + p.amount, 0);
+                const balance = Math.max(0, totalWithTax - totalPaid);
+                
+                return (
+                    <InvoicePaymentModal
+                        invoice={invoiceDoc}
+                        initialAmount={balance}
+                        onClose={() => setShowPaymentModal(false)}
+                    />
+                );
+            })()}
         </div>
     );
 }

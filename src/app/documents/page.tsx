@@ -12,6 +12,7 @@ import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
 import { SpotRecipientInput } from "@/components/SpotRecipientInput";
 import { InvoiceEditor } from "@/components/InvoiceEditor";
 import { summarizeTaxByRate } from "@/lib/taxUtils";
+import { calculateInvoiceBalance } from "@/lib/store";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -21,7 +22,7 @@ const year = new Date().getFullYear().toString();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type DocStatus = "all" | "draft" | "issued" | "paid";
-type DocType = "all" | "delivery_note" | "payment_summary" | "invoice";
+type DocType = "all" | "delivery_note" | "payment_summary" | "invoice" | "receipt";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmtMoney = (n: number) => `¥${n.toLocaleString()}`;
@@ -69,6 +70,11 @@ function TypeBadge({ doc, allDocs }: { doc: IssuedDocument, allDocs: IssuedDocum
                 </span>
             )}
         </div>
+    );
+    if (type === "receipt") return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-600 border border-cyan-100">
+            <Receipt className="w-2.5 h-2.5" />領収書
+        </span>
     );
     return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
@@ -132,6 +138,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
     const [taxRate, setTaxRate] = useState<8 | 10>((editingDoc?.taxRate as 8 | 10) ?? 8);
     const [finalAdjustment, setFinalAdjustment] = useState(editingDoc?.finalAdjustment ?? 0);
     const [totalAmountState, setTotalAmountState] = useState(editingDoc?.totalAmount ?? 0);
+    const [paymentMethod, setPaymentMethod] = useState<IssuedDocument['paymentMethod']>(editingDoc?.paymentMethod ?? "現金");
 
     // Effect to initialize items for Invoice or Delivery Note
     const { sales, products, spotRecipients } = useStore();
@@ -194,7 +201,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
         if (!recipientName || !period) return;
         setIsSaving(true);
         try {
-            const totalAmount = (docType === "invoice" || docType === "delivery_note") ? totalAmountState : 0;
+            const totalAmount = (docType === "invoice" || docType === "delivery_note" || docType === "receipt") ? totalAmountState : 0;
             const payload = {
                 type: docType,
                 period,
@@ -209,6 +216,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
                 adjustments: (docType === "invoice" || docType === "delivery_note") ? invoiceAdjustments : undefined,
                 finalAdjustment: (docType === "invoice" || docType === "delivery_note") ? finalAdjustment : undefined,
                 hidePrices: docType === "delivery_note" ? hidePrices : undefined,
+                paymentMethod: docType === "receipt" ? paymentMethod : undefined,
                 memo: editingDoc?.memo ?? "",
             };
 
@@ -255,11 +263,11 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
                     {/* Doc type */}
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">書類種別</label>
-                        <div className="grid grid-cols-3 gap-2 p-1 bg-slate-100 rounded-xl">
-                            {([["delivery_note", "納品書", Receipt], ["invoice", "請求書", Receipt], ["payment_summary", "支払明細", FileText]] as const).map(([type, label, Icon]) => (
+                        <div className="grid grid-cols-4 gap-2 p-1 bg-slate-100 rounded-xl">
+                            {([["delivery_note", "納品書", Receipt], ["invoice", "請求書", Receipt], ["receipt", "領収書", Receipt], ["payment_summary", "支払明細", FileText]] as const).map(([type, label, Icon]) => (
                                 <button key={type} onClick={() => setDocType(type)}
-                                    className={`flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold rounded-lg transition-all ${docType === type ? "bg-white shadow-sm text-slate-900" : "text-slate-500"}`}>
-                                    <Icon className="w-4 h-4" />{label}
+                                    className={`flex items-center justify-center gap-1 py-2.5 text-[10px] font-bold rounded-lg transition-all ${docType === type ? "bg-white shadow-sm text-slate-900" : "text-slate-500"}`}>
+                                    <Icon className="w-3.5 h-3.5" />{label}
                                 </button>
                             ))}
                         </div>
@@ -350,6 +358,37 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
                             />
                         </div>
                     )}
+
+                    {/* Receipt Specific Inputs */}
+                    {docType === "receipt" && (
+                        <div className="pt-4 border-t border-slate-100 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">領収金額</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
+                                    <input
+                                        type="number"
+                                        value={totalAmountState}
+                                        onChange={e => setTotalAmountState(Number(e.target.value))}
+                                        className="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">支払方法</label>
+                                <select 
+                                    value={paymentMethod} 
+                                    onChange={e => setPaymentMethod(e.target.value as any)}
+                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none"
+                                >
+                                    <option value="現金">現金</option>
+                                    <option value="銀行振込">銀行振込</option>
+                                    <option value="QR決済">QR決済</option>
+                                    <option value="その他">その他</option>
+                                </select>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex gap-2 justify-end">
@@ -387,7 +426,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
 
 // ─── Documents Page ───────────────────────────────────────────────────────────
 export default function DocumentsPage() {
-    const { isLoaded, issuedDocuments, duplicateDocument, convertToInvoice, deleteIssuedDocument, restoreIssuedDocument, permanentlyDeleteIssuedDocument, updateIssuedDocument } = useStore();
+    const { isLoaded, issuedDocuments, invoicePayments, duplicateDocument, convertToInvoice, deleteIssuedDocument, restoreIssuedDocument, permanentlyDeleteIssuedDocument, updateIssuedDocument } = useStore();
 
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<DocStatus>("all");
@@ -399,6 +438,7 @@ export default function DocumentsPage() {
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
     const [convertingId, setConvertingId] = useState<string | null>(null);
+    const [downloadingDoc, setDownloadingDoc] = useState<IssuedDocument | null>(null);
     const [showTrash, setShowTrash] = useState(false);
 
     // ── Filter + sort ─────────────────────────────────────────────────────────
@@ -439,10 +479,35 @@ export default function DocumentsPage() {
             draft: activeDocs.filter(d => d.status === "draft").length,
             delivery: activeDocs.filter(d => d.type === "delivery_note").length,
             invoice: activeDocs.filter(d => d.type === "invoice").length,
+            receipt: activeDocs.filter(d => d.type === "receipt").length,
             payment: activeDocs.filter(d => d.type === "payment_summary").length,
             trashed: issuedDocuments.filter(d => d.isTrashed).length,
         };
     }, [issuedDocuments, isLoaded]);
+
+    const financeStats = useMemo(() => {
+        if (!isLoaded) return { unpaidCount: 0, arBalance: 0, thisMonthPayments: 0 };
+        
+        const activeInvoices = issuedDocuments.filter(d => !d.isTrashed && d.type === 'invoice' && d.status === 'issued');
+        
+        let unpaidCount = 0;
+        let arBalance = 0;
+        
+        activeInvoices.forEach(inv => {
+            const balance = calculateInvoiceBalance(inv, invoicePayments);
+            if (balance > 0) {
+                unpaidCount++;
+                arBalance += balance;
+            }
+        });
+        
+        const currentMonth = new Date().toISOString().slice(0, 7);
+        const thisMonthPayments = invoicePayments
+            .filter(p => !p.isTrashed && p.date.startsWith(currentMonth))
+            .reduce((sum, p) => sum + p.amount, 0);
+            
+        return { unpaidCount, arBalance, thisMonthPayments };
+    }, [issuedDocuments, invoicePayments, isLoaded]);
 
     const handleDuplicate = async (id: string) => {
         setDuplicatingId(id);
@@ -491,6 +556,40 @@ export default function DocumentsPage() {
                 </div>
             </div>
 
+            {/* Financial Overview (For Invoices) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center gap-4 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-bl-full -z-10" />
+                    <div className="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                        <Receipt className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">未入金</div>
+                        <div className="text-xl font-black text-slate-900 leading-none mt-1">{financeStats.unpaidCount}<span className="text-[10px] text-slate-400 ml-1">件</span></div>
+                    </div>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center gap-4 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full -z-10" />
+                    <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                        <CreditCard className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">売掛残高</div>
+                        <div className="text-xl font-black text-slate-900 leading-none mt-1">{fmtMoney(financeStats.arBalance)}</div>
+                    </div>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center gap-4 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -z-10" />
+                    <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                        <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">今月入金</div>
+                        <div className="text-xl font-black text-slate-900 leading-none mt-1">{fmtMoney(financeStats.thisMonthPayments)}</div>
+                    </div>
+                </div>
+            </div>
+
             {/* KPI row */}
             <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
                 {[
@@ -499,6 +598,7 @@ export default function DocumentsPage() {
                     { label: "下書き", value: stats.draft, color: "#f59e0b" },
                     { label: "納品書", value: stats.delivery, color: BRAND },
                     { label: "請求書", value: stats.invoice, color: "#f43f5e" },
+                    { label: "領収書", value: stats.receipt, color: "#06b6d4" },
                     { label: "支払明細", value: stats.payment, color: "#6366f1" },
                 ].map(item => (
                     <div key={item.label} className="bg-white rounded-xl border border-slate-200 p-3 flex sm:flex-col sm:items-start items-center gap-2.5">
@@ -534,6 +634,7 @@ export default function DocumentsPage() {
                         <option value="all">すべての書類</option>
                         <option value="delivery_note">納品書</option>
                         <option value="invoice">請求書</option>
+                        <option value="receipt">領収書</option>
                         <option value="payment_summary">支払明細</option>
                     </select>
                     <button onClick={() => setSortDesc(v => !v)}
@@ -572,7 +673,9 @@ export default function DocumentsPage() {
                                     <th className="px-4 py-3 text-left">対象期間</th>
                                     <th className="px-4 py-3 text-left">発行日</th>
                                     <th className="px-4 py-3 text-left">状態</th>
-                                    <th className="px-4 py-3 text-right">合計金額</th>
+                                    <th className="px-4 py-3 text-right">ご請求/合計</th>
+                                    <th className="px-4 py-3 text-right">入金日</th>
+                                    <th className="px-4 py-3 text-right">残高</th>
                                     <th className="px-4 py-3 text-center">アクション</th>
                                 </tr>
                             </thead>
@@ -600,6 +703,23 @@ export default function DocumentsPage() {
                                         <td className="px-4 py-3 text-right font-semibold text-slate-700">
                                             {doc.totalAmount > 0 ? fmtMoney(doc.totalAmount) : <span className="text-slate-300 text-xs">—</span>}
                                         </td>
+                                        <td className="px-4 py-3 text-right text-xs">
+                                            {doc.type === 'invoice' ? (() => {
+                                                const payments = invoicePayments.filter(p => p.invoiceId === doc.id && !p.isTrashed).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                                                return payments.length > 0 ? <span className="text-slate-600 font-medium">{fmtDate(payments[0].date)}</span> : <span className="text-slate-400">未入金</span>;
+                                            })() : doc.type === 'receipt' ? (
+                                                <span className="text-slate-600 font-medium">{fmtDate(doc.issuedDate)}</span>
+                                            ) : <span className="text-slate-300">—</span>}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            {doc.type === 'invoice' ? (() => {
+                                                const bal = calculateInvoiceBalance(doc, invoicePayments);
+                                                if (bal === 0) return <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold whitespace-nowrap">完済</span>;
+                                                return <span className="text-[11px] text-rose-500 font-bold whitespace-nowrap">{fmtMoney(bal)}</span>;
+                                            })() : doc.type === 'receipt' ? (
+                                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold whitespace-nowrap">受領済</span>
+                                            ) : <span className="text-slate-300 text-xs">—</span>}
+                                        </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-1 justify-center">
                                                 {doc.isTrashed ? (
@@ -625,6 +745,11 @@ export default function DocumentsPage() {
                                                             title="プレビュー / PDF"
                                                             className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
                                                             <Eye className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => setDownloadingDoc(doc)}
+                                                            title="PDFダウンロード"
+                                                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors">
+                                                            <Download className="w-4 h-4" />
                                                         </button>
                                                         <button onClick={() => setEditingDoc(doc)}
                                                             title="編集"
@@ -688,6 +813,23 @@ export default function DocumentsPage() {
                     customTaxRate={previewDoc.taxRate}
                     hidePrices={previewDoc.hidePrices}
                     onClose={() => setPreviewDoc(null)}
+                />
+            )}
+            {downloadingDoc && (
+                <DocumentPreviewModal
+                    type={downloadingDoc.type}
+                    storeId={downloadingDoc.storeId}
+                    supplierId={downloadingDoc.supplierId}
+                    period={downloadingDoc.type !== 'payment_summary' ? downloadingDoc.period : undefined}
+                    month={downloadingDoc.type === 'payment_summary' ? downloadingDoc.period : undefined}
+                    docNumber={downloadingDoc.docNumber}
+                    recipientName={downloadingDoc.recipientName}
+                    customDetails={downloadingDoc.details}
+                    customAdjustments={downloadingDoc.adjustments}
+                    customTaxRate={downloadingDoc.taxRate}
+                    hidePrices={downloadingDoc.hidePrices}
+                    autoDownload={true}
+                    onClose={() => setDownloadingDoc(null)}
                 />
             )}
         </div>

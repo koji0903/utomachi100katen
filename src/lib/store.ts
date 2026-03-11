@@ -243,8 +243,8 @@ export interface InvoiceAdjustment {
 // ─── 発行済み帳票レコード ───────────────────────────────────────────────
 export interface IssuedDocument extends BaseEntity {
     id: string;
-    type: 'delivery_note' | 'payment_summary' | 'invoice';
-    docNumber: string;          // "DN-2026-001", "INV-2026-001" or branch variants
+    type: 'delivery_note' | 'payment_summary' | 'invoice' | 'receipt';
+    docNumber: string;          // "DN-2026-001", "INV-2026-001", "RC-2026-001" or branch variants
     status: 'draft' | 'issued';
     issuedDate: string;         // YYYY-MM-DD
     period: string;             // YYYY-MM or YYYY-MM-DD
@@ -260,10 +260,32 @@ export interface IssuedDocument extends BaseEntity {
     finalAdjustment?: number;
     hidePrices?: boolean;
     memo?: string;
+    paymentMethod?: '銀行振込' | '現金' | 'QR決済' | 'その他'; // Used for receipts
     sourceDocId?: string;       // 元になった帳票のID（納品書から請求書を作った場合など）
     fulfillmentStatus?: 'pending' | 'sent' | 'paid'; // 請求書の状態管理
     createdAt?: string | any;
 }
+
+export interface InvoicePayment extends BaseEntity {
+    id: string;
+    invoiceId: string;
+    date: string;
+    amount: number;
+    method: '銀行振込' | '現金' | 'QR決済' | 'その他';
+    notes?: string;
+    createdAt?: string | any;
+}
+
+// Helper function to calculate the remaining balance of an invoice
+export const calculateInvoiceBalance = (invoice: IssuedDocument, payments: InvoicePayment[]): number => {
+    if (invoice.type !== 'invoice') return 0;
+    
+    const totalPaid = payments
+        .filter(p => !p.isTrashed && p.invoiceId === invoice.id)
+        .reduce((sum, p) => sum + p.amount, 0);
+        
+    return Math.max(0, invoice.totalAmount - totalPaid);
+};
 
 // ─── スポット（非登録）宛先マスター ───────────────────────────────────
 export interface SpotRecipient extends BaseEntity {
@@ -437,6 +459,7 @@ export function useStore() {
     const { data: stockConversions = [], mutate: mutateStockConversions } = useSWR<StockConversion[]>("stock_conversions", () => fetcher<StockConversion>("stock_conversions"), swrConfig);
     const { data: activities = [], mutate: mutateActivities } = useSWR<Activity[]>("activities", () => fetcher<Activity>("activities"), swrConfig);
     const { data: trash = [], mutate: mutateTrash } = useSWR<TrashItem[]>("trash", () => fetcher<TrashItem>("trash"), swrConfig);
+    const { data: invoicePayments = [], mutate: mutateInvoicePayments } = useSWR<InvoicePayment[]>("invoice_payments", () => fetcher<InvoicePayment>("invoice_payments"), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -962,8 +985,8 @@ export function useStore() {
     // --- Issued Document Actions ---
 
     /** 帳票番号の採番: 同じ prefix の既存番号を参照して次の連番を返す */
-    const generateDocNumber = (type: 'delivery_note' | 'payment_summary' | 'invoice', year: string): string => {
-        const prefix = type === 'delivery_note' ? 'DN' : type === 'payment_summary' ? 'PM' : 'INV';
+    const generateDocNumber = (type: 'delivery_note' | 'payment_summary' | 'invoice' | 'receipt', year: string): string => {
+        const prefix = type === 'delivery_note' ? 'DN' : type === 'payment_summary' ? 'PM' : type === 'receipt' ? 'RC' : 'INV';
         const base = `${prefix}-${year}-`;
         const existing = issuedDocuments
             .filter(d => d.docNumber.startsWith(base) && !d.docNumber.includes('-', base.length + 2))
@@ -1061,6 +1084,37 @@ export function useStore() {
     const permanentlyDeleteIssuedDocument = async (id: string) => {
         await deleteDoc(doc(db, 'issued_documents', id));
         mutateIssuedDocuments();
+    };
+
+    // --- Invoice Payment Actions ---
+    const addInvoicePayment = async (data: Omit<InvoicePayment, 'id' | 'createdAt'>): Promise<InvoicePayment> => {
+        const newRef = doc(collection(db, 'invoice_payments'));
+        const newPayment: InvoicePayment = { id: newRef.id, ...data, createdAt: new Date().toISOString() };
+        mutateInvoicePayments([newPayment, ...invoicePayments], false);
+        await setDoc(newRef, { ...cleanObject(data), createdAt: serverTimestamp() });
+        mutateInvoicePayments();
+        return newPayment;
+    };
+
+    const updateInvoicePayment = async (id: string, data: Partial<Omit<InvoicePayment, 'id' | 'createdAt'>>) => {
+        mutateInvoicePayments(invoicePayments.map(p => p.id === id ? { ...p, ...data } : p), false);
+        await updateDoc(doc(db, 'invoice_payments', id), cleanObject(data));
+        mutateInvoicePayments();
+    };
+
+    const deleteInvoicePayment = async (id: string) => {
+        await updateDoc(doc(db, 'invoice_payments', id), { isTrashed: true });
+        mutateInvoicePayments();
+    };
+
+    const restoreInvoicePayment = async (id: string) => {
+        await updateDoc(doc(db, 'invoice_payments', id), { isTrashed: false });
+        mutateInvoicePayments();
+    };
+
+    const permanentlyDeleteInvoicePayment = async (id: string) => {
+        await deleteDoc(doc(db, 'invoice_payments', id));
+        mutateInvoicePayments();
     };
 
     // --- Spot Recipient Actions ---
@@ -1315,6 +1369,11 @@ export function useStore() {
         convertToInvoice,
         updateIssuedDocument,
         deleteIssuedDocument,
+        // Invoice Payments
+        invoicePayments,
+        addInvoicePayment,
+        updateInvoicePayment,
+        deleteInvoicePayment,
         // Spot Recipients
         spotRecipients,
         addSpotRecipient,
@@ -1359,6 +1418,8 @@ export function useStore() {
         // Documents
         restoreIssuedDocument,
         permanentlyDeleteIssuedDocument,
+        restoreInvoicePayment,
+        permanentlyDeleteInvoicePayment,
         // Spot Recipients
         restoreSpotRecipient,
         permanentlyDeleteSpotRecipient,
