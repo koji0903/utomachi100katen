@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { X, Save, ShoppingBag, Plus, Trash2 } from "lucide-react";
 import { useStore, Purchase, PurchaseItem } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
+import { Tooltip } from "@/components/ui/Tooltip";
 
 interface PurchaseModalProps {
     isOpen: boolean;
@@ -184,16 +185,20 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                 <div className="p-6 overflow-y-auto max-h-[70vh]">
                     <div className="flex p-1 bg-slate-100 rounded-lg mb-6 max-w-sm mx-auto">
                         <button
+                            type="button"
                             onClick={() => handleTypeChange('A')}
-                            className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${formData.type === 'A' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium rounded-md transition-all ${formData.type === 'A' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             パターンA (発注管理)
+                            <Tooltip content="発注書を作成し、後日入荷するフローです。在庫は入荷時に反映されます。" position="bottom" />
                         </button>
                         <button
+                            type="button"
                             onClick={() => handleTypeChange('B')}
-                            className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${formData.type === 'B' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium rounded-md transition-all ${formData.type === 'B' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             パターンB (直接入荷)
+                            <Tooltip content="当日仕入れた商品を即座に在庫へ反映するフローです。" position="bottom" />
                         </button>
                     </div>
 
@@ -203,7 +208,10 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                             <h3 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-2">基本情報</h3>
                             
                             <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-700 block">仕入先 <span className="text-red-500">*</span></label>
+                                <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                                    仕入先 <span className="text-red-500">*</span>
+                                    <Tooltip content="事前に『設定』＞『仕入先管理』で登録された仕入先のみ選択可能です。" position="right" />
+                                </label>
                                 <select
                                     required
                                     value={formData.supplierId}
@@ -247,7 +255,10 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                             </div>
                             
                             <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-700 block">ステータス</label>
+                                <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                                    ステータス
+                                    <Tooltip content="「入荷済み」にすると、自動的に現在の在庫数へ加算されます。" position="right" />
+                                </label>
                                 <select
                                     required
                                     disabled={formData.type === 'B'}

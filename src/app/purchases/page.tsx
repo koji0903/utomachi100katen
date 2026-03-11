@@ -8,6 +8,7 @@ import { useStore, Purchase } from "@/lib/store";
 import { PurchaseModal } from "@/components/PurchaseModal";
 import { calculateDaysRemaining } from "@/lib/stockUtils";
 import { showNotification } from "@/lib/notifications";
+import { Tooltip } from "@/components/ui/Tooltip";
 
 function PurchasesPageContent() {
     const { isLoaded, purchases, products, suppliers, sales, addPurchase, updatePurchase, deletePurchase, restorePurchase, permanentlyDeletePurchase } = useStore();
@@ -201,14 +202,16 @@ function PurchasesPageContent() {
                         <Trash2 className="w-4 h-4" />
                         {showTrash ? "戻る" : "ゴミ箱"}
                     </button>
-                    <button
-                        onClick={handleAutoGenerate}
-                        disabled={isGenerating}
-                        className="hidden sm:flex items-center gap-2 bg-white text-emerald-700 px-4 py-2.5 rounded-lg border border-emerald-200 hover:bg-emerald-50 transition-colors shadow-sm font-bold text-sm disabled:opacity-50"
-                    >
-                        <Sparkles className={`w-4 h-4 ${isGenerating ? 'animate-pulse' : ''}`} />
-                        {isGenerating ? "生成中..." : "欠品予測から自動生成"}
-                    </button>
+                    <Tooltip content="在庫数と過去の販売ペースから、今後一週間で不足しそうな商品を自動計算して発注オーダー(パターンA)を作成します。" position="bottom">
+                        <button
+                            onClick={handleAutoGenerate}
+                            disabled={isGenerating}
+                            className="hidden sm:flex items-center gap-2 bg-white text-emerald-700 px-4 py-2.5 rounded-lg border border-emerald-200 hover:bg-emerald-50 transition-colors shadow-sm font-bold text-sm disabled:opacity-50"
+                        >
+                            <Sparkles className={`w-4 h-4 ${isGenerating ? 'animate-pulse' : ''}`} />
+                            {isGenerating ? "生成中..." : "欠品予測から自動生成"}
+                        </button>
+                    </Tooltip>
                     <button
                         onClick={handleCreate}
                         className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm font-medium"

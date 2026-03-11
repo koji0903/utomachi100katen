@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Save, FileText, Plus } from "lucide-react";
 import { useStore, Transaction } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
+import { Tooltip } from "@/components/ui/Tooltip";
 
 interface TransactionModalProps {
     isOpen: boolean;
@@ -163,9 +164,10 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                                 setFormData(prev => ({ ...prev, customerName: "" }));
                                             }
                                         }}
-                                        className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${customerType === 'retail' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-md transition-all ${customerType === 'retail' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         販売店舗・事業者
+                                        <Tooltip content="設定＞販売店舗管理で登録済みの得意先を選択します。" position="bottom" />
                                     </button>
                                     <button
                                         type="button"
@@ -176,9 +178,10 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                                 setFormData(prev => ({ ...prev, customerName: "" }));
                                             }
                                         }}
-                                        className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${customerType === 'spot' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-md transition-all ${customerType === 'spot' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         スポット（都度）
+                                        <Tooltip content="一時的な取引や、個人への直接販売などの宛先を入力します。" position="bottom" />
                                     </button>
                                 </div>
 
@@ -251,7 +254,10 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-slate-700 block">チャネル <span className="text-red-500">*</span></label>
+                                    <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                                        チャネル <span className="text-red-500">*</span>
+                                        <Tooltip content="取引の発生元を選択します。売上分析に利用されます。" position="right" />
+                                    </label>
                                     <select
                                         required
                                         value={formData.channel}
@@ -311,7 +317,10 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                             <h3 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-2">金額・状況</h3>
                             <div className="grid grid-cols-2 gap-4 items-end">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-slate-700 block">ステータス <span className="text-red-500">*</span></label>
+                                    <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                                        ステータス <span className="text-red-500">*</span>
+                                        <Tooltip content="取引の進行状況です。請求前のもの、入金待ちのものを区別できます。" position="right" />
+                                    </label>
                                     <select
                                         required
                                         value={formData.transactionStatus}
