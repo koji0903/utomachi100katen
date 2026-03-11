@@ -350,7 +350,7 @@ export default function RetailStoresPage() {
                         <Store className="w-6 h-6" style={{ color: BRAND }} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">販売管理</h1>
+                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">販売店舗・事業者管理</h1>
                         <p className="text-slate-500 text-sm mt-0.5">各店舗・事業者の情報と現在の天気をリアルタイムで確認できます</p>
                     </div>
                 </div>
