@@ -1112,6 +1112,39 @@ export function useStore() {
         mutateDailyWeather();
     };
 
+    const fetchAndSaveWeatherIfNeeded = async (storeId: string, lat: number, lng: number, date: string) => {
+        const today = new Date().toISOString().split('T')[0];
+        // Only fetch for today or a specific target date
+        if (!date) date = today;
+
+        const weatherId = `${storeId}_${date}`;
+        // Check if we already have it
+        if (dailyWeather.some(w => w.id === weatherId)) {
+            return; // Already exists
+        }
+
+        try {
+            const res = await fetch(`/api/weather?lat=${lat}&lon=${lng}`);
+            if (!res.ok) throw new Error("Failed to fetch weather");
+            const data = await res.json();
+
+            if (data.weather) {
+                await saveDailyWeather({
+                    id: weatherId,
+                    storeId,
+                    date,
+                    weather: data.weather,
+                    weatherMain: data.main,
+                    temp: data.temp,
+                    humidity: data.humidity,
+                    windSpeed: data.windSpeed
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch/save weather automatically:", error);
+        }
+    };
+
     // --- Trash Actions ---
     const moveToTrash = async (originalId: string, collectionName: string, data: any, label: string) => {
         const newRef = doc(collection(db, "trash"));
@@ -1250,6 +1283,7 @@ export function useStore() {
         // Daily Weather
         dailyWeather,
         saveDailyWeather,
+        fetchAndSaveWeatherIfNeeded,
         activities,
         logActivity,
         // Brands

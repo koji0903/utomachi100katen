@@ -35,7 +35,7 @@ function WeatherIcon({ main, size = 4 }: { main?: string; size?: number }) {
 
 // ─── Sales Input Tab ──────────────────────────────────────────────────────────
 function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null; onClearEdit: () => void }) {
-    const { isLoaded, products, brands, retailStores, spotRecipients, dailyWeather, dailyReports, addSale, updateSale, deleteSale } = useStore();
+    const { isLoaded, products, brands, retailStores, spotRecipients, dailyWeather, dailyReports, addSale, updateSale, deleteSale, fetchAndSaveWeatherIfNeeded } = useStore();
 
     const [selectedStoreId, setSelectedStoreId] = useState<string>(""); // Format: "type:id" (e.g. "store:xxx" or "spot:yyy")
     const [inputMode, setInputMode] = useState<'daily' | 'monthly'>('daily');
@@ -81,6 +81,13 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const selectedSpot = useMemo(() =>
         spotRecipients.find(s => s.id === selectedStoreIdRaw), [spotRecipients, selectedStoreIdRaw]
     );
+
+    // Fetch weather automatically if missing
+    useEffect(() => {
+        if (selectedStore && selectedStore.lat && selectedStore.lng && inputMode === 'daily') {
+            fetchAndSaveWeatherIfNeeded(selectedStore.id, selectedStore.lat, selectedStore.lng, targetDate);
+        }
+    }, [selectedStore, inputMode, targetDate, fetchAndSaveWeatherIfNeeded]);
 
     const weatherInfo = useMemo(() => {
         if (!selectedStoreIdRaw || inputMode !== 'daily' || isSpotSelection) return null;

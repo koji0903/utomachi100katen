@@ -80,7 +80,7 @@ function ReportForm({
     onSaved: () => void;
     editData?: DailyReport;
 }) {
-    const { retailStores, products, addDailyReport, updateDailyReport, addSale } = useStore();
+    const { retailStores, products, addDailyReport, updateDailyReport, addSale, fetchAndSaveWeatherIfNeeded } = useStore();
     const isEdit = !!editData;
 
     const [type, setType] = useState<"office" | "store" | "activity">(editData?.type ?? "store");
@@ -132,7 +132,7 @@ function ReportForm({
 
     // Auto-fetch weather when store with lat/lng is selected (not when editing and store unchanged)
     useEffect(() => {
-        if (!selectedStore?.lat || !selectedStore?.lng) {
+        if (!selectedStore?.lat || !selectedStore?.lng || type !== "store") {
             if (!isEdit) setWeather(null);
             return;
         }
@@ -147,25 +147,38 @@ function ReportForm({
         abortControllerRef.current = controller;
 
         setFetchingWeather(true);
-        fetch(`/api/weather?lat=${selectedStore.lat}&lon=${selectedStore.lng}`, {
-            signal: controller.signal
-        })
-            .then(r => r.json())
-            .then(d => { if (!d.error) setWeather(d); })
-            .catch((err) => {
-                if (err.name === 'AbortError') return;
-                console.error("Weather fetch error:", err);
-            })
-            .finally(() => {
-                if (controller.signal.aborted) return;
-                setFetchingWeather(false);
-            });
+
+        // Fetch via store.ts and also fetch locally for immediate display
+        const fetchWeather = async () => {
+             try {
+                 // 1. Trigger the background save to Firestore
+                 fetchAndSaveWeatherIfNeeded(selectedStore.id, selectedStore.lat!, selectedStore.lng!, date);
+
+                 // 2. Fetch locally to populate the component state right now
+                 const res = await fetch(`/api/weather?lat=${selectedStore.lat}&lon=${selectedStore.lng}`, {
+                     signal: controller.signal
+                 });
+                 const d = await res.json();
+                 if (!d.error && !controller.signal.aborted) {
+                     setWeather(d);
+                 }
+             } catch (err: any) {
+                 if (err.name === 'AbortError') return;
+                 console.error("Weather fetch error:", err);
+             } finally {
+                 if (!controller.signal.aborted) {
+                     setFetchingWeather(false);
+                 }
+             }
+        };
+
+        fetchWeather();
 
         return () => {
             controller.abort();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [storeId, selectedStore?.lat, selectedStore?.lng]);
+    }, [storeId, selectedStore?.lat, selectedStore?.lng, date, type, fetchAndSaveWeatherIfNeeded]);
 
     const handleBeforeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = Array.from(e.target.files || []);
