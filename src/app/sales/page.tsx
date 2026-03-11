@@ -46,6 +46,11 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
+    // For inline spot creation
+    const [isCreatingSpot, setIsCreatingSpot] = useState(false);
+    const [newSpotName, setNewSpotName] = useState("");
+    const { addSpotRecipient } = useStore();
+
     useEffect(() => {
         if (editingSale) {
             setSelectedStoreId(editingSale.recipientType === 'spot' ? `spot:${editingSale.storeId}` : `store:${editingSale.storeId}`);
@@ -251,6 +256,22 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
         }
     };
 
+    const handleCreateSpot = async () => {
+        if (!newSpotName.trim()) return;
+        setIsSaving(true);
+        try {
+            const newSpot = await addSpotRecipient({ name: newSpotName.trim() });
+            setSelectedStoreId(`spot:${newSpot.id}`);
+            setIsCreatingSpot(false);
+            setNewSpotName("");
+        } catch (error) {
+            console.error("Spot creation error:", error);
+            alert("スポットの追加に失敗しました。");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
     return (
@@ -260,18 +281,57 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">販売店舗・事業者</label>
-                        <select value={selectedStoreId} onChange={e => setSelectedStoreId(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 font-medium">
-                            <option value="">宛先を選択してください</option>
-                            <optgroup label="登録店舗">
-                                {retailStores.map(store => <option key={`store:${store.id}`} value={`store:${store.id}`}>{store.name}</option>)}
-                            </optgroup>
-                            {spotRecipients.length > 0 && (
-                                <optgroup label="スポット宛先">
-                                    {spotRecipients.map(spot => <option key={`spot:${spot.id}`} value={`spot:${spot.id}`}>{spot.name}</option>)}
+                        {!isCreatingSpot ? (
+                            <select value={selectedStoreId} onChange={e => {
+                                if (e.target.value === "new_spot") {
+                                    setIsCreatingSpot(true);
+                                    setSelectedStoreId("");
+                                } else {
+                                    setSelectedStoreId(e.target.value);
+                                }
+                            }}
+                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 font-medium">
+                                <option value="">宛先を選択してください</option>
+                                <optgroup label="登録店舗">
+                                    {retailStores.map(store => <option key={`store:${store.id}`} value={`store:${store.id}`}>{store.name}</option>)}
                                 </optgroup>
-                            )}
-                        </select>
+                                {spotRecipients.filter(s => !s.isTrashed).length > 0 && (
+                                    <optgroup label="スポット宛先">
+                                        {spotRecipients.filter(s => !s.isTrashed).map(spot => <option key={`spot:${spot.id}`} value={`spot:${spot.id}`}>{spot.name}</option>)}
+                                    </optgroup>
+                                )}
+                                <optgroup label="新規作成">
+                                    <option value="new_spot">＋ 新規スポット宛先を追加</option>
+                                </optgroup>
+                            </select>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={newSpotName}
+                                    onChange={e => setNewSpotName(e.target.value)}
+                                    placeholder="スポット宛先名"
+                                    className="w-full px-4 py-2 bg-slate-50 border border-blue-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 text-sm font-bold"
+                                    autoFocus
+                                />
+                                <button
+                                    onClick={handleCreateSpot}
+                                    disabled={!newSpotName.trim()}
+                                    className="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
+                                >
+                                    登録
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIsCreatingSpot(false);
+                                        setNewSpotName("");
+                                    }}
+                                    className="px-3 py-2 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold hover:bg-slate-200 whitespace-nowrap"
+                                >
+                                    取消
+                                </button>
+                            </div>
+                        )}
                     </div>
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">入力モード</label>
