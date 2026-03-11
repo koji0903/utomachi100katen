@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon, ArrowUpDown, RotateCcw } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { RetailStoreModal } from "@/components/RetailStoreModal";
+import { WeatherHistoryModal } from "@/components/WeatherHistoryModal";
 import { showNotification } from "@/lib/notifications";
 
 const BRAND = "#b27f79";
@@ -144,6 +145,7 @@ function StoreCard({
     onDelete,
     onRestore,
     onPermanentDelete,
+    onShowHistory,
 }: {
     store: RetailStore;
     refresh: number;
@@ -151,6 +153,7 @@ function StoreCard({
     onDelete: () => void;
     onRestore: () => void;
     onPermanentDelete: () => void;
+    onShowHistory: () => void;
 }) {
     const gmapsUrl = store.address
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`
@@ -242,9 +245,15 @@ function StoreCard({
 
                 {/* Weather divider */}
                 <div className="border-t border-slate-100 pt-3">
-                    <div className="flex items-center gap-1.5 mb-2">
-                        <CloudSun className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">現在の天気</span>
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                            <CloudSun className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">現在の天気</span>
+                        </div>
+                        <button onClick={onShowHistory} className="flex items-center gap-1 text-[11px] font-medium text-blue-500 hover:text-blue-700 transition-colors">
+                            <RotateCcw className="w-3 h-3" />
+                            履歴
+                        </button>
                     </div>
                     <WeatherWidget store={store} refresh={refresh} />
                 </div>
@@ -267,6 +276,7 @@ export default function RetailStoresPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStore, setEditingStore] = useState<RetailStore | null>(null);
+    const [historyStore, setHistoryStore] = useState<RetailStore | null>(null);
     const [refresh, setRefresh] = useState(0);
     const [sortBy, setSortBy] = useState<'name' | 'type' | 'commission'>('name');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -429,6 +439,7 @@ export default function RetailStoresPage() {
                             onDelete={() => handleDelete(store.id)}
                             onRestore={() => handleRestore(store.id)}
                             onPermanentDelete={() => handlePermanentDelete(store.id)}
+                            onShowHistory={() => setHistoryStore(store)}
                         />
                     ))}
                 </div>
@@ -457,6 +468,12 @@ export default function RetailStoresPage() {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 initialData={editingStore}
+            />
+
+            <WeatherHistoryModal
+                isOpen={!!historyStore}
+                onClose={() => setHistoryStore(null)}
+                store={historyStore}
             />
         </div>
     );
