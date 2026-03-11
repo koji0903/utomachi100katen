@@ -948,10 +948,17 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                 <tbody>
                                     {sortedSales.map((sale, idx) => {
                                         const weatherKey = `${sale.period}|${sale.storeId}`;
+                                        const mw = weatherMap[weatherKey];
                                         // Priority: 1. Sale record's weather fields, 2. Fallback to weatherMap
                                         const w = sale.temperature !== undefined 
-                                            ? { temp: sale.temperature, tempMin: sale.temperatureMin, tempMax: sale.temperatureMax, weather: sale.weather, weatherMain: sale.weatherMain }
-                                            : weatherMap[weatherKey];
+                                            ? { 
+                                                temp: sale.temperature, 
+                                                tempMin: sale.temperatureMin ?? mw?.tempMin, 
+                                                tempMax: sale.temperatureMax ?? mw?.tempMax, 
+                                                weather: sale.weather ?? mw?.weather, 
+                                                weatherMain: sale.weatherMain ?? mw?.weatherMain
+                                              }
+                                            : mw;
                                         const itemQtyMap: Record<string, number> = {};
                                         sale.items.forEach(it => { itemQtyMap[it.productId] = it.quantity; });
 
@@ -1067,9 +1074,16 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                             const isSat = dayOfWeek === 6;
 
                                             const weatherKey = `${sale.period}|${sale.storeId}`;
+                                            const mw = weatherMap[weatherKey];
                                             const w = sale.temperature !== undefined 
-                                                ? { temp: sale.temperature, tempMin: sale.temperatureMin, tempMax: sale.temperatureMax, weather: sale.weather, weatherMain: sale.weatherMain }
-                                                : weatherMap[weatherKey];
+                                                ? { 
+                                                    temp: sale.temperature, 
+                                                    tempMin: sale.temperatureMin ?? mw?.tempMin, 
+                                                    tempMax: sale.temperatureMax ?? mw?.tempMax, 
+                                                    weather: sale.weather ?? mw?.weather, 
+                                                    weatherMain: sale.weatherMain ?? mw?.weatherMain
+                                                  }
+                                                : mw;
                                             return (
                                                 <th key={sale.id} className="px-3 py-3 text-center whitespace-nowrap min-w-[80px]">
                                                     <div className="text-[10px] font-bold text-slate-500 mb-0.5 leading-none">
