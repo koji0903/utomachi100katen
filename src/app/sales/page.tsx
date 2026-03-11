@@ -94,11 +94,23 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
         // Priority: 1. Daily Report, 2. Automated Daily Weather
         const report = dailyReports.find(r => r.storeId === selectedStoreIdRaw && r.date === targetDate);
         if (report?.temperature !== undefined) {
-            return { temp: report.temperature, weather: report.weather, weatherMain: report.weatherMain };
+            return {
+                temp: report.temperature,
+                tempMin: report.temperatureMin,
+                tempMax: report.temperatureMax,
+                weather: report.weather,
+                weatherMain: report.weatherMain 
+            };
         }
         const auto = dailyWeather.find(w => w.storeId === selectedStoreIdRaw && w.date === targetDate);
         if (auto) {
-            return { temp: auto.temp, weather: auto.weather, weatherMain: auto.weatherMain };
+            return {
+                temp: auto.temp,
+                tempMin: auto.tempMin,
+                tempMax: auto.tempMax,
+                weather: auto.weather,
+                weatherMain: auto.weatherMain 
+            };
         }
         return null;
     }, [selectedStoreId, targetDate, inputMode, dailyReports, dailyWeather]);
@@ -227,7 +239,9 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                 ...(inputMode === 'daily' && weatherInfo ? {
                     weather: weatherInfo.weather,
                     weatherMain: weatherInfo.weatherMain,
-                    temperature: weatherInfo.temp
+                    temperature: weatherInfo.temp,
+                    temperatureMin: weatherInfo.tempMin,
+                    temperatureMax: weatherInfo.tempMax
                 } : {})
             };
 
@@ -434,8 +448,17 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                         {weatherInfo && (
                                             <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-slate-200">
                                                 <WeatherIcon main={weatherInfo.weatherMain} size={4} />
-                                                <span className="text-xs font-bold text-slate-700">{weatherInfo.temp}°C</span>
-                                                <span className="text-[10px] text-slate-500">{weatherInfo.weather}</span>
+                                                <div className="flex flex-col items-center justify-center">
+                                                    <span className="text-xs font-bold text-slate-700 leading-tight">{weatherInfo.temp}°C</span>
+                                                    {(weatherInfo.tempMin !== undefined && weatherInfo.tempMax !== undefined) && (
+                                                        <span className="text-[9px] font-bold leading-none mt-0.5">
+                                                            <span className="text-red-400">{weatherInfo.tempMax}°</span>
+                                                            <span className="text-slate-300 mx-0.5">/</span>
+                                                            <span className="text-blue-400">{weatherInfo.tempMin}°</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="text-[10px] font-bold text-slate-500">{weatherInfo.weather}</span>
                                             </div>
                                         )}
                                         <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200">{products.length} 商品が登録されています</div>

@@ -27,7 +27,7 @@ function WeatherIcon({ main, size = 5 }: { main?: string; size?: number }) {
     return <CloudSun className={`${cls} text-amber-400`} />;
 }
 
-type WeatherData = { weather: string; main: string; temp: number; humidity: number; windSpeed: number };
+type WeatherData = { weather: string; main: string; temp: number; tempMin?: number; tempMax?: number; humidity: number; windSpeed: number };
 
 // ─── Restocking Row ───────────────────────────────────────────────────────────
 function RestockingRow({
@@ -326,7 +326,15 @@ function ReportForm({
 
             const payload: Omit<DailyReport, "id" | "createdAt"> = {
                 date, worker, type,
-                ...(weather ? { weather: weather.weather, weatherMain: weather.main, temperature: weather.temp, humidity: weather.humidity, windSpeed: weather.windSpeed } : {}),
+                ...(weather ? { 
+                    weather: weather.weather, 
+                    weatherMain: weather.main, 
+                    temperature: weather.temp, 
+                    temperatureMin: weather.tempMin, 
+                    temperatureMax: weather.tempMax, 
+                    humidity: weather.humidity, 
+                    windSpeed: weather.windSpeed 
+                } : {}),
                 title,
                 content,
                 involvedProductIds,
@@ -544,7 +552,17 @@ function ReportForm({
                                             <>
                                                 <WeatherIcon main={weather.main} size={7} />
                                                 <div>
-                                                    <div className="font-bold text-slate-800">{weather.temp}°C <span className="font-normal text-slate-500 text-sm">{weather.weather}</span></div>
+                                                    <div className="font-bold text-slate-800 flex items-center gap-2">
+                                                        {weather.temp}°C 
+                                                        {(weather.tempMin !== undefined && weather.tempMax !== undefined) && (
+                                                            <span className="text-xs font-bold leading-none">
+                                                                <span className="text-red-400">{weather.tempMax}°</span>
+                                                                <span className="text-slate-300 mx-0.5">/</span>
+                                                                <span className="text-blue-400">{weather.tempMin}°</span>
+                                                            </span>
+                                                        )}
+                                                        <span className="font-normal text-slate-500 text-sm">{weather.weather}</span>
+                                                    </div>
                                                     <div className="text-xs text-slate-400 flex gap-2 mt-0.5">
                                                         <span><Thermometer className="w-3 h-3 inline" /> 湿度 {weather.humidity}%</span>
                                                         <span><Wind className="w-3 h-3 inline" /> {weather.windSpeed}m/s</span>

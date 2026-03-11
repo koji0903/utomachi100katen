@@ -133,6 +133,8 @@ export interface DailyReport extends BaseEntity {
     weather?: string;        // e.g. "晴れ"
     weatherMain?: string;    // e.g. "Clear"
     temperature?: number;    // 気温（℃）
+    temperatureMin?: number; // 最低気温（℃）
+    temperatureMax?: number; // 最高気温（℃）
     humidity?: number;       // 湿度（%）
     windSpeed?: number;      // 風速 m/s
     // 関連商品・店舗
@@ -173,6 +175,8 @@ export interface Sale extends BaseEntity {
     weather?: string;
     weatherMain?: string;
     temperature?: number;
+    temperatureMin?: number;
+    temperatureMax?: number;
     updatedAt?: string | any;
 }
 
@@ -198,6 +202,8 @@ export interface DailyWeather {
     weather: string;
     weatherMain: string;
     temp: number;
+    tempMin?: number;
+    tempMax?: number;
     humidity: number;
     windSpeed: number;
     updatedAt?: string | any;
@@ -1136,6 +1142,8 @@ export function useStore() {
                     weather: data.weather,
                     weatherMain: data.main,
                     temp: data.temp,
+                    tempMin: data.tempMin,
+                    tempMax: data.tempMax,
                     humidity: data.humidity,
                     windSpeed: data.windSpeed
                 });

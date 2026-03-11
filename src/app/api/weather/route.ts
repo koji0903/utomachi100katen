@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
             main: data.weather?.[0]?.main ?? "",
             icon: data.weather?.[0]?.icon ?? "",
             temp: Math.round(data.main?.temp ?? 0),
+            tempMin: Math.round(data.main?.temp_min ?? 0),
+            tempMax: Math.round(data.main?.temp_max ?? 0),
             humidity: data.main?.humidity ?? 0,
             windSpeed: Math.round((data.wind?.speed ?? 0) * 10) / 10,
             cityName: data.name ?? "",
