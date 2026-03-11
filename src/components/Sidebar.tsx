@@ -36,8 +36,9 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     {
       label: "分析・報告",
       items: [
-        { name: "事業分析", href: "/analytics", icon: BarChart2 },
-        { name: "帳票管理", href: "/documents", icon: Archive },
+        { name: "分析・事業報告", href: "/analytics", icon: BarChart2 },
+        { name: "取引管理", href: "/transactions", icon: BookOpen },
+        { name: "帳票アーカイブ", href: "/documents", icon: Archive },
       ]
     },
     {

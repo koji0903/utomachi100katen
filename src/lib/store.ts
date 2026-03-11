@@ -1,6 +1,7 @@
 // src/lib/store.ts
 "use client";
 
+import { useMemo } from "react";
 import useSWR from "swr";
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -261,6 +262,7 @@ export interface IssuedDocument extends BaseEntity {
     hidePrices?: boolean;
     memo?: string;
     paymentMethod?: '銀行振込' | '現金' | 'QR決済' | 'その他'; // Used for receipts
+    transactionId?: string;
     sourceDocId?: string;       // 元になった帳票のID（納品書から請求書を作った場合など）
     fulfillmentStatus?: 'pending' | 'sent' | 'paid'; // 請求書の状態管理
     createdAt?: string | any;
@@ -271,9 +273,45 @@ export interface InvoicePayment extends BaseEntity {
     invoiceId: string;
     date: string;
     amount: number;
+    transactionId?: string;
     method: '銀行振込' | '現金' | 'QR決済' | 'その他';
     notes?: string;
     createdAt?: string | any;
+}
+
+// ─── 取引（Transactions） ───────────────────────────────────────────────
+export interface Transaction extends BaseEntity {
+    id: string;
+    transactionType: string;
+    customerName: string;
+    channel: 'スポット注文' | '卸販売' | '委託販売' | '店頭販売' | 'EC' | 'イベント販売';
+    orderDate: string;
+    deliveryDate: string;
+    invoiceDate: string;
+    dueDate: string;
+    transactionStatus: '受注' | '納品済' | '請求済' | '一部入金' | '入金済' | '完了';
+    subtotal: number;
+    tax: number;
+    totalAmount: number;
+    paidAmount: number;
+    balanceAmount: number;
+    remarks: string;
+    createdAt?: string | any;
+    updatedAt?: string | any;
+}
+
+// ─── 取引明細（Transaction Items） ──────────────────────────────────────
+export interface TransactionItem extends BaseEntity {
+    id: string;
+    transactionId: string;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    amount: number;
+    taxRate: number;
+    remarks?: string;
+    createdAt?: string | any;
+    updatedAt?: string | any;
 }
 
 // Helper function to calculate the remaining balance of an invoice
@@ -454,12 +492,14 @@ export function useStore() {
     const { data: dailyReports = [], mutate: mutateDailyReports, isLoading: loadingReports } = useSWR<DailyReport[]>("daily_reports", () => fetcher<DailyReport>("daily_reports"), swrConfig);
     const { data: issuedDocuments = [], mutate: mutateIssuedDocuments } = useSWR<IssuedDocument[]>("issued_documents", () => fetcher<IssuedDocument>("issued_documents"), swrConfig);
     const { data: dailyWeather = [], mutate: mutateDailyWeather } = useSWR<DailyWeather[]>("daily_weather", () => fetcher<DailyWeather>("daily_weather"), swrConfig);
+    const { data: invoicePayments = [], mutate: mutateInvoicePayments } = useSWR<InvoicePayment[]>("invoice_payments", () => fetcher<InvoicePayment>("invoice_payments"), swrConfig);
+    const { data: rawTransactions = [], mutate: mutateTransactions } = useSWR<Transaction[]>("transactions", () => fetcher<Transaction>("transactions"), swrConfig);
+    const { data: transactionItems = [], mutate: mutateTransactionItems } = useSWR<TransactionItem[]>("transaction_items", () => fetcher<TransactionItem>("transaction_items"), swrConfig);
     const { data: spotRecipients = [], mutate: mutateSpotRecipients } = useSWR<SpotRecipient[]>("spot_recipients", () => fetcher<SpotRecipient>("spot_recipients"), swrConfig);
     const { data: challenges = [], mutate: mutateChallenges } = useSWR<BusinessChallenge[]>("business_challenges", () => fetcher<BusinessChallenge>("business_challenges"), swrConfig);
     const { data: stockConversions = [], mutate: mutateStockConversions } = useSWR<StockConversion[]>("stock_conversions", () => fetcher<StockConversion>("stock_conversions"), swrConfig);
     const { data: activities = [], mutate: mutateActivities } = useSWR<Activity[]>("activities", () => fetcher<Activity>("activities"), swrConfig);
     const { data: trash = [], mutate: mutateTrash } = useSWR<TrashItem[]>("trash", () => fetcher<TrashItem>("trash"), swrConfig);
-    const { data: invoicePayments = [], mutate: mutateInvoicePayments } = useSWR<InvoicePayment[]>("invoice_payments", () => fetcher<InvoicePayment>("invoice_payments"), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -950,7 +990,7 @@ export function useStore() {
     const addDailyReport = async (reportData: Omit<DailyReport, "id" | "createdAt">) => {
         const newRef = doc(collection(db, "daily_reports"));
         const newReport: DailyReport = { id: newRef.id, ...reportData, createdAt: new Date().toISOString() };
-        mutateDailyReports([newReport, ...(dailyReports ?? [])], false);
+        mutateDailyReports([newReport, ...dailyReports], false);
         await setDoc(newRef, { ...reportData, createdAt: serverTimestamp() });
         logActivity({
             type: 'create',
@@ -977,7 +1017,7 @@ export function useStore() {
     };
 
     const updateDailyReport = async (id: string, data: Partial<Omit<DailyReport, "id" | "createdAt">>) => {
-        mutateDailyReports((dailyReports ?? []).map(r => r.id === id ? { ...r, ...data } : r), false);
+        mutateDailyReports(dailyReports.map(r => r.id === id ? { ...r, ...data } : r), false);
         await updateDoc(doc(db, "daily_reports", id), { ...data, updatedAt: serverTimestamp() });
         mutateDailyReports();
     };
@@ -1060,6 +1100,7 @@ export function useStore() {
             adjustments: original.adjustments,
             finalAdjustment: original.finalAdjustment,
             memo: original.memo,
+            transactionId: original.transactionId, // Carry over transaction link
             sourceDocId: id, // Link to source delivery note
             fulfillmentStatus: 'pending', // Default for new invoice
         });
@@ -1113,8 +1154,110 @@ export function useStore() {
     };
 
     const permanentlyDeleteInvoicePayment = async (id: string) => {
-        await deleteDoc(doc(db, 'invoice_payments', id));
+        mutateInvoicePayments(invoicePayments.filter(p => p.id !== id), false);
+        await deleteDoc(doc(db, "invoice_payments", id));
         mutateInvoicePayments();
+    };
+
+    // --- Transaction Actions ---
+    
+    // 計算済みの transactions を導出
+    const transactions = useMemo(() => {
+        return rawTransactions.map(t => {
+            const payments = invoicePayments.filter(p => p.transactionId === t.id && !p.isTrashed);
+            const paidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+            return {
+                ...t,
+                paidAmount,
+                balanceAmount: t.totalAmount - paidAmount
+            };
+        });
+    }, [rawTransactions, invoicePayments]);
+
+    const addTransaction = async (data: Omit<Transaction, "id" | "createdAt" | "updatedAt">) => {
+        const newRef = doc(collection(db, "transactions"));
+        const payload = {
+            ...data,
+            id: newRef.id,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        };
+        mutateTransactions([payload as Transaction, ...rawTransactions], false);
+        await setDoc(newRef, payload);
+        mutateTransactions();
+        return newRef.id;
+    };
+
+    const updateTransaction = async (id: string, data: Partial<Transaction>) => {
+        const docRef = doc(db, "transactions", id);
+        const cleaned = cleanObject(data);
+        mutateTransactions(rawTransactions.map(t => t.id === id ? { ...t, ...cleaned } : t), false);
+        await updateDoc(docRef, { ...cleaned, updatedAt: serverTimestamp() });
+        mutateTransactionItems(); // trigger re-fetch if needed
+        mutateTransactions();
+    };
+
+    const deleteTransaction = async (id: string) => {
+        const transaction = rawTransactions.find(t => t.id === id);
+        if (!transaction) return;
+        await moveToTrash(id, "transactions", transaction, `取引: ${transaction.customerName} (${transaction.orderDate})`);
+        mutateTransactions(rawTransactions.filter(t => t.id !== id), false);
+        await deleteDoc(doc(db, "transactions", id));
+        mutateTransactions();
+    };
+
+    const restoreTransaction = async (id: string) => {
+        await restoreFromTrash(id);
+        mutateTransactions();
+    };
+
+    const permanentlyDeleteTransaction = async (id: string) => {
+        mutateTransactions(rawTransactions.filter(t => t.id !== id), false);
+        await deleteDoc(doc(db, "transactions", id));
+        mutateTransactions();
+    };
+
+    // --- Transaction Item Actions ---
+    const addTransactionItem = async (data: Omit<TransactionItem, "id" | "createdAt" | "updatedAt">) => {
+        const newRef = doc(collection(db, "transaction_items"));
+        const payload = {
+            ...data,
+            id: newRef.id,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        };
+        mutateTransactionItems([payload as TransactionItem, ...transactionItems], false);
+        await setDoc(newRef, payload);
+        mutateTransactionItems();
+        return newRef.id;
+    };
+
+    const updateTransactionItem = async (id: string, data: Partial<TransactionItem>) => {
+        const docRef = doc(db, "transaction_items", id);
+        const cleaned = cleanObject(data);
+        mutateTransactionItems(transactionItems.map(t => t.id === id ? { ...t, ...cleaned } : t), false);
+        await updateDoc(docRef, { ...cleaned, updatedAt: serverTimestamp() });
+        mutateTransactionItems();
+    };
+
+    const deleteTransactionItem = async (id: string) => {
+        const item = transactionItems.find(t => t.id === id);
+        if (!item) return;
+        await moveToTrash(id, "transaction_items", item, `取引明細: ${item.productName}`);
+        mutateTransactionItems(transactionItems.filter(t => t.id !== id), false);
+        await deleteDoc(doc(db, "transaction_items", id));
+        mutateTransactionItems();
+    };
+
+    const restoreTransactionItem = async (id: string) => {
+        await restoreFromTrash(id);
+        mutateTransactionItems();
+    };
+
+    const permanentlyDeleteTransactionItem = async (id: string) => {
+        mutateTransactionItems(transactionItems.filter(t => t.id !== id), false);
+        await deleteDoc(doc(db, "transaction_items", id));
+        mutateTransactionItems();
     };
 
     // --- Spot Recipient Actions ---
@@ -1317,6 +1460,7 @@ export function useStore() {
         mutateSales();
         mutateDailyReports();
         mutateIssuedDocuments();
+        mutateTransactions();
         mutateSpotRecipients();
         mutateChallenges();
     };
@@ -1326,6 +1470,7 @@ export function useStore() {
         await deleteDoc(doc(db, "trash", id));
         mutateTrash();
     };
+
 
     return {
         isLoaded,
@@ -1420,6 +1565,20 @@ export function useStore() {
         permanentlyDeleteIssuedDocument,
         restoreInvoicePayment,
         permanentlyDeleteInvoicePayment,
+        // Transactions
+        transactions,
+        addTransaction,
+        updateTransaction,
+        deleteTransaction,
+        restoreTransaction,
+        permanentlyDeleteTransaction,
+        // Transaction Items
+        transactionItems,
+        addTransactionItem,
+        updateTransactionItem,
+        deleteTransactionItem,
+        restoreTransactionItem,
+        permanentlyDeleteTransactionItem,
         // Spot Recipients
         restoreSpotRecipient,
         permanentlyDeleteSpotRecipient,

@@ -114,7 +114,7 @@ function FulfillmentBadge({ doc, onUpdate }: { doc: IssuedDocument, onUpdate: (s
 
 // ─── New Document Form Modal ──────────────────────────────────────────────────
 function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editingDoc?: IssuedDocument }) {
-    const { retailStores, suppliers, saveIssuedDocument, updateIssuedDocument, generateDocNumber, updateSpotRecipient } = useStore();
+    const { retailStores, suppliers, saveIssuedDocument, updateIssuedDocument, generateDocNumber, updateSpotRecipient, transactions } = useStore();
     const [docType, setDocType] = useState<IssuedDocument["type"]>(editingDoc?.type ?? "delivery_note");
     const [recipientType, setRecipientType] = useState<"store" | "supplier" | "spot">(editingDoc?.recipientType ?? "store");
     const [storeId, setStoreId] = useState(editingDoc?.storeId ?? "");
@@ -125,6 +125,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
     const [isSaving, setIsSaving] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [hidePrices, setHidePrices] = useState(editingDoc?.hidePrices ?? false);
+    const [transactionId, setTransactionId] = useState(editingDoc?.transactionId ?? "");
 
     const recipientName = useMemo(() => {
         if (recipientType === "store") return retailStores.find(s => s.id === storeId)?.name ?? "";
@@ -218,6 +219,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
                 hidePrices: docType === "delivery_note" ? hidePrices : undefined,
                 paymentMethod: docType === "receipt" ? paymentMethod : undefined,
                 memo: editingDoc?.memo ?? "",
+                transactionId: ((docType === "invoice" || docType === "delivery_note") && transactionId) ? transactionId : undefined,
             };
 
             if (editingDoc) {
@@ -337,6 +339,20 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
                             <label htmlFor="hidePrices" className="text-sm font-bold text-slate-700 cursor-pointer">
                                 納品書に価格を表示しない
                             </label>
+                        </div>
+                    )}
+
+                    {/* Transaction Selector (Invoices & Delivery Notes) */}
+                    {(docType === "invoice" || docType === "delivery_note") && (
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">紐付ける取引 (任意)</label>
+                            <select value={transactionId} onChange={e => setTransactionId(e.target.value)}
+                                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 font-medium text-slate-900">
+                                <option value="">紐付ける取引を選択...</option>
+                                {transactions.filter(t => !t.isTrashed).map(t => (
+                                    <option key={t.id} value={t.id}>{t.customerName} - {fmtDate(t.orderDate)} ({t.id.slice(-6)})</option>
+                                ))}
+                            </select>
                         </div>
                     )}
 

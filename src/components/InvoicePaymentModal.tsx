@@ -36,7 +36,8 @@ export function InvoicePaymentModal({ invoice, initialAmount, onClose }: Invoice
                 date,
                 amount,
                 method,
-                notes
+                notes,
+                transactionId: invoice.transactionId
             });
 
             if (issueReceipt) {
