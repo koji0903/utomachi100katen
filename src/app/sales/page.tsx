@@ -35,9 +35,9 @@ function WeatherIcon({ main, size = 4 }: { main?: string; size?: number }) {
 
 // ─── Sales Input Tab ──────────────────────────────────────────────────────────
 function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null; onClearEdit: () => void }) {
-    const { isLoaded, products, brands, retailStores, dailyWeather, dailyReports, addSale, updateSale, deleteSale } = useStore();
+    const { isLoaded, products, brands, retailStores, spotRecipients, dailyWeather, dailyReports, addSale, updateSale, deleteSale } = useStore();
 
-    const [selectedStoreId, setSelectedStoreId] = useState<string>("");
+    const [selectedStoreId, setSelectedStoreId] = useState<string>(""); // Format: "type:id" (e.g. "store:xxx" or "spot:yyy")
     const [inputMode, setInputMode] = useState<'daily' | 'monthly'>('daily');
     const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [targetMonth, setTargetMonth] = useState<string>(new Date().toISOString().slice(0, 7));
@@ -48,7 +48,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
     useEffect(() => {
         if (editingSale) {
-            setSelectedStoreId(editingSale.storeId);
+            setSelectedStoreId(editingSale.recipientType === 'spot' ? `spot:${editingSale.storeId}` : `store:${editingSale.storeId}`);
             setInputMode(editingSale.type || 'daily');
             if (editingSale.type === 'monthly') {
                 setTargetMonth(editingSale.period);
@@ -66,18 +66,25 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
         setSaveSuccess(false);
     }, [editingSale]);
 
+    const selectedStoreIdRaw = selectedStoreId.includes(':') ? selectedStoreId.split(':')[1] : selectedStoreId;
+    const isSpotSelection = selectedStoreId.startsWith('spot:');
+
     const selectedStore = useMemo(() =>
-        retailStores.find(s => s.id === selectedStoreId), [retailStores, selectedStoreId]
+        retailStores.find(s => s.id === selectedStoreIdRaw), [retailStores, selectedStoreIdRaw]
+    );
+
+    const selectedSpot = useMemo(() =>
+        spotRecipients.find(s => s.id === selectedStoreIdRaw), [spotRecipients, selectedStoreIdRaw]
     );
 
     const weatherInfo = useMemo(() => {
-        if (!selectedStoreId || inputMode !== 'daily') return null;
+        if (!selectedStoreIdRaw || inputMode !== 'daily' || isSpotSelection) return null;
         // Priority: 1. Daily Report, 2. Automated Daily Weather
-        const report = dailyReports.find(r => r.storeId === selectedStoreId && r.date === targetDate);
+        const report = dailyReports.find(r => r.storeId === selectedStoreIdRaw && r.date === targetDate);
         if (report?.temperature !== undefined) {
             return { temp: report.temperature, weather: report.weather, weatherMain: report.weatherMain };
         }
-        const auto = dailyWeather.find(w => w.storeId === selectedStoreId && w.date === targetDate);
+        const auto = dailyWeather.find(w => w.storeId === selectedStoreIdRaw && w.date === targetDate);
         if (auto) {
             return { temp: auto.temp, weather: auto.weather, weatherMain: auto.weatherMain };
         }
@@ -87,9 +94,9 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const sortedProducts = useMemo(() => {
         const brandMap = new Map(brands.map(b => [b.id, b.name]));
 
-        // Filter products based on store assignment
+        // Filter products based on store assignment (only for retail stores, spots can get any)
         let filteredProducts = [...products];
-        if (selectedStore?.activeProductIds && selectedStore.activeProductIds.length > 0) {
+        if (!isSpotSelection && selectedStore?.activeProductIds && selectedStore.activeProductIds.length > 0) {
             filteredProducts = products.filter(p => selectedStore.activeProductIds?.includes(p.id));
         }
 
@@ -116,8 +123,8 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                     bValue = brandMap.get(b.brandId) || "";
                     break;
                 case 'price':
-                    const storePriceA = a.storePrices?.find(sp => sp.storeId === selectedStoreId)?.price ?? a.sellingPrice;
-                    const storePriceB = b.storePrices?.find(sp => sp.storeId === selectedStoreId)?.price ?? b.sellingPrice;
+                    const storePriceA = a.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw)?.price ?? a.sellingPrice;
+                    const storePriceB = b.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw)?.price ?? b.sellingPrice;
                     aValue = storePriceA;
                     bValue = storePriceB;
                     break;
@@ -133,7 +140,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [products, brands, sortConfig, salesData, selectedStoreId]);
+    }, [products, brands, sortConfig, salesData, selectedStoreIdRaw, isSpotSelection, selectedStore]);
 
     const requestSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
@@ -157,11 +164,16 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     };
 
     const calculateRowDetails = (product: Product, quantity: number) => {
-        const storePriceObj = product.storePrices?.find(sp => sp.storeId === selectedStoreId);
-        const price = (storePriceObj && storePriceObj.price > 0) ? storePriceObj.price : product.sellingPrice;
+        const storePriceObj = product.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw);
+        const price = (storePriceObj && storePriceObj.price > 0 && !isSpotSelection) ? storePriceObj.price : product.sellingPrice;
         const subtotal = price * quantity;
-        // Safety: only type 'A' (Consignment) has commission. B and C are 0%.
-        const commissionRate = selectedStore?.type === 'A' ? (selectedStore.commissionRate ?? 15) : 0;
+        
+        let commissionRate = 0;
+        if (!isSpotSelection) {
+            // Safety: only type 'A' (Consignment) has commission. B and C are 0%.
+            commissionRate = selectedStore?.type === 'A' ? (selectedStore.commissionRate ?? 15) : 0;
+        }
+        
         const commission = Math.floor(subtotal * (commissionRate / 100));
         const netProfit = subtotal - commission;
         return { price, subtotal, commission, netProfit };
@@ -177,10 +189,10 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             }
         });
         return { totalQty, totalAmt, totalComm, totalNet };
-    }, [products, salesData, selectedStoreId, selectedStore]);
+    }, [products, salesData, selectedStoreIdRaw, isSpotSelection, selectedStore]);
 
     const handleSave = async () => {
-        if (!selectedStoreId) return;
+        if (!selectedStoreIdRaw) return;
         if (totals.totalQty === 0) { alert("売上個数を入力してください。"); return; }
         setIsSaving(true);
         try {
@@ -191,7 +203,8 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             });
 
             const saleData = {
-                storeId: selectedStoreId,
+                storeId: selectedStoreIdRaw,
+                recipientType: isSpotSelection ? 'spot' as const : 'store' as const,
                 type: inputMode,
                 period: inputMode === 'daily' ? targetDate : targetMonth,
                 items: saleItems,
@@ -249,8 +262,15 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">販売店舗・事業者</label>
                         <select value={selectedStoreId} onChange={e => setSelectedStoreId(e.target.value)}
                             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 font-medium">
-                            <option value="">店舗を選択してください</option>
-                            {retailStores.map(store => <option key={store.id} value={store.id}>{store.name}</option>)}
+                            <option value="">宛先を選択してください</option>
+                            <optgroup label="登録店舗">
+                                {retailStores.map(store => <option key={`store:${store.id}`} value={`store:${store.id}`}>{store.name}</option>)}
+                            </optgroup>
+                            {spotRecipients.length > 0 && (
+                                <optgroup label="スポット宛先">
+                                    {spotRecipients.map(spot => <option key={`spot:${spot.id}`} value={`spot:${spot.id}`}>{spot.name}</option>)}
+                                </optgroup>
+                            )}
                         </select>
                     </div>
                     <div className="space-y-2">
@@ -297,7 +317,9 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                             </div>
                             <div className="h-px bg-blue-500/50 my-2" />
                             <div className="flex justify-between items-baseline">
-                                <span className="text-blue-200 text-sm">店舗手数料 ({selectedStore?.commissionRate ?? 15}%)</span>
+                                <span className="text-blue-200 text-sm">
+                                    {isSpotSelection ? "店舗手数料 (0%)" : `店舗手数料 (${selectedStore?.commissionRate ?? 15}%)`}
+                                </span>
                                 <span className="text-lg font-semibold text-blue-100">-¥{totals.totalComm.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between items-baseline pt-2">
@@ -306,7 +328,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                             </div>
                         </div>
                     </div>
-                    <button onClick={handleSave} disabled={!selectedStoreId || totals.totalQty === 0 || isSaving}
+                    <button onClick={handleSave} disabled={!selectedStoreIdRaw || totals.totalQty === 0 || isSaving}
                         className={`w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-xl font-bold shadow-md transition-all relative z-10 ${editingSale ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' : 'bg-white text-blue-600 hover:bg-blue-50'}`}>
                         {isSaving ? <div className={`w-5 h-5 border-2 border-t-transparent rounded-full animate-spin ${editingSale ? 'border-amber-700' : 'border-blue-600'}`} /> : (editingSale ? <Edit2 className="w-5 h-5" /> : <Save className="w-5 h-5" />)}
                         {isSaving ? "保存中..." : (editingSale ? "データを更新する" : "データを保存する")}
@@ -329,17 +351,17 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             {/* Input table */}
             <div className="lg:col-span-3">
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[500px] flex flex-col">
-                    {!selectedStoreId ? (
+                    {!selectedStoreIdRaw ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-12 text-slate-400 space-y-4">
                             <div className="p-4 bg-slate-50 rounded-full"><StoreIcon className="w-12 h-12 text-slate-200" /></div>
-                            <p className="font-medium">まずは販売店舗・事業者を選択してください</p>
+                            <p className="font-medium">まずは販売先（店舗またはスポット）を選択してください</p>
                         </div>
                     ) : (
                         <>
                             <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-200">
                                 <div className="flex justify-between items-center">
                                     <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                                        <StoreIcon className="w-5 h-5 text-blue-500" />{selectedStore?.name}
+                                        <StoreIcon className="w-5 h-5 text-blue-500" />{isSpotSelection ? selectedSpot?.name : selectedStore?.name}
                                     </h3>
                                     <div className="flex items-center gap-4">
                                         {weatherInfo && (
@@ -430,7 +452,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
 // ─── Daily Log Tab ────────────────────────────────────────────────────────────
 function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, filterDate?: string }) {
-    const { sales, products, brands, retailStores, dailyReports, dailyWeather, deleteSale, restoreSale, permanentlyDeleteSale } = useStore();
+    const { sales, products, brands, retailStores, spotRecipients, dailyReports, dailyWeather, deleteSale, restoreSale, permanentlyDeleteSale } = useStore();
 
     // Filter controls
     const [logType, setLogType] = useState<'daily' | 'monthly'>('daily');
@@ -458,15 +480,23 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     const storeMap = useMemo(() => {
         const m: Record<string, string> = {};
         retailStores.forEach(s => { m[s.id] = s.name; });
+        spotRecipients.forEach(s => { m[s.id] = s.name; });
         return m;
-    }, [retailStores]);
+    }, [retailStores, spotRecipients]);
 
     // Filter sales to selected logType + selected filters
     const filteredSales = useMemo(() => {
         return sales
-            .filter(s => !!s.isTrashed === showTrash)
+            .filter(s => s.isTrashed === showTrash)
             .filter(s => s.type === logType || (!s.type && logType === 'daily'))
-            .filter(s => !filterStoreId || s.storeId === filterStoreId)
+            .filter(s => {
+                if (!filterStoreId) return true;
+                const filterParts = filterStoreId.split(':');
+                if (filterParts.length === 2) {
+                    return s.storeId === filterParts[1] && s.recipientType === filterParts[0];
+                }
+                return s.storeId === filterStoreId; // fallback for old data without prefix
+            })
             .filter(s => {
                 if (filterDate) {
                     return s.period === filterDate;
@@ -636,8 +666,15 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                     <StoreIcon className="w-4 h-4 text-slate-400" />
                     <select value={filterStoreId} onChange={e => setFilterStoreId(e.target.value)}
                         className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 font-medium text-slate-700">
-                        <option value="">すべての店舗</option>
-                        {retailStores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        <option value="">すべての宛先</option>
+                        <optgroup label="登録店舗">
+                            {retailStores.map(s => <option key={`store:${s.id}`} value={`store:${s.id}`}>{s.name}</option>)}
+                        </optgroup>
+                        {spotRecipients.length > 0 && (
+                            <optgroup label="スポット宛先">
+                                {spotRecipients.map(s => <option key={`spot:${s.id}`} value={`spot:${s.id}`}>{s.name}</option>)}
+                            </optgroup>
+                        )}
                     </select>
                 </div>
                 <div className="flex items-center gap-2">
@@ -778,7 +815,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                             onClick={() => requestSort('store')}
                                         >
                                             <div className="flex items-center gap-2">
-                                                店舗 {getSortIcon('store')}
+                                                店舗 / 宛先 {getSortIcon('store')}
                                             </div>
                                         </th>
                                         {logType === 'daily' && <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-40">天気</th>}
@@ -847,6 +884,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                 </td>
                                                 <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-[11px] font-medium leading-tight">
                                                     {storeMap[sale.storeId] ?? sale.storeId}
+                                                    {sale.recipientType === 'spot' && <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">スポット</span>}
                                                 </td>
                                                 {logType === 'daily' && (
                                                     <td className="px-4 py-3">
