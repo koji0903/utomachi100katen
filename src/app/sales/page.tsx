@@ -583,7 +583,9 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                 if (!filterStoreId) return true;
                 const filterParts = filterStoreId.split(':');
                 if (filterParts.length === 2) {
-                    return s.storeId === filterParts[1] && s.recipientType === filterParts[0];
+                    // Treat undefined recipientType as 'store' for backward compatibility
+                    const recordType = s.recipientType || 'store';
+                    return s.storeId === filterParts[1] && recordType === filterParts[0];
                 }
                 return s.storeId === filterStoreId; // fallback for old data without prefix
             })
@@ -760,7 +762,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                         className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 font-medium text-slate-700">
                         <option value="">すべての宛先</option>
                         <optgroup label="登録店舗">
-                            {retailStores.map(s => <option key={`retail:${s.id}`} value={`retail:${s.id}`}>{s.name}</option>)}
+                            {retailStores.map(s => <option key={`store:${s.id}`} value={`store:${s.id}`}>{s.name}</option>)}
                         </optgroup>
                         {spotRecipients.length > 0 && (
                             <optgroup label="スポット宛先">
