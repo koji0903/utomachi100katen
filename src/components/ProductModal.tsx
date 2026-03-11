@@ -111,17 +111,14 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         }
     }, [isOpen, initialData, brands, suppliers]);
 
-    // Automatic Store Pricing calculation based on RetailStore rules
-    useEffect(() => {
-        if (!isOpen || !formData.sellingPrice) return;
-
+    const handleSellingPriceChange = (newPrice: number) => {
         setFormData(prev => {
             let changed = false;
             const newStorePrices = [...prev.storePrices];
 
             retailStores.forEach(store => {
                 const pricingRule = store.pricingRule || 0;
-                const calculatedPrice = Math.round(prev.sellingPrice * (1 + pricingRule / 100));
+                const calculatedPrice = Math.round(newPrice * (1 + pricingRule / 100));
 
                 const idx = newStorePrices.findIndex(sp => sp.storeId === store.id);
                 if (idx >= 0) {
@@ -130,6 +127,32 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                         changed = true;
                     }
                 } else {
+                    newStorePrices.push({ storeId: store.id, price: calculatedPrice });
+                    changed = true;
+                }
+            });
+
+            return {
+                ...prev,
+                sellingPrice: newPrice,
+                storePrices: changed ? newStorePrices : prev.storePrices
+            };
+        });
+    };
+
+    // Ensure all active retail stores have an entry in storePrices without overwriting manual overrides
+    useEffect(() => {
+        if (!isOpen || !formData.sellingPrice) return;
+
+        setFormData(prev => {
+            let changed = false;
+            const newStorePrices = [...prev.storePrices];
+
+            retailStores.forEach(store => {
+                const idx = newStorePrices.findIndex(sp => sp.storeId === store.id);
+                if (idx < 0) {
+                    const pricingRule = store.pricingRule || 0;
+                    const calculatedPrice = Math.round(prev.sellingPrice * (1 + pricingRule / 100));
                     newStorePrices.push({ storeId: store.id, price: calculatedPrice });
                     changed = true;
                 }
@@ -487,7 +510,7 @@ JANコード: ${formData.janCode || "なし"}
                                                 required
                                                 min={0}
                                                 value={formData.sellingPrice}
-                                                onChange={(val) => setFormData({ ...formData, sellingPrice: val ?? 0 })}
+                                                onChange={(val) => handleSellingPriceChange(val ?? 0)}
                                                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right"
                                             />
                                         </div>
