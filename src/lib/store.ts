@@ -168,6 +168,10 @@ export interface Sale extends BaseEntity {
     totalAmount: number;
     totalCommission: number;
     totalNetProfit: number;
+    // 天気（売上記録時）
+    weather?: string;
+    weatherMain?: string;
+    temperature?: number;
     updatedAt?: string | any;
 }
 

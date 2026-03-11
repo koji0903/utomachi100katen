@@ -198,7 +198,12 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                 totalQuantity: totals.totalQty,
                 totalAmount: totals.totalAmt,
                 totalCommission: totals.totalComm,
-                totalNetProfit: totals.totalNet
+                totalNetProfit: totals.totalNet,
+                ...(inputMode === 'daily' && weatherInfo ? {
+                    weather: weatherInfo.weather,
+                    weatherMain: weatherInfo.weatherMain,
+                    temperature: weatherInfo.temp
+                } : {})
             };
 
             if (editingSale) {
@@ -812,7 +817,10 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                 <tbody>
                                     {sortedSales.map((sale, idx) => {
                                         const weatherKey = `${sale.period}|${sale.storeId}`;
-                                        const w = weatherMap[weatherKey];
+                                        // Priority: 1. Sale record's weather fields, 2. Fallback to weatherMap
+                                        const w = sale.temperature !== undefined 
+                                            ? { temp: sale.temperature, weather: sale.weather, weatherMain: sale.weatherMain }
+                                            : weatherMap[weatherKey];
                                         const itemQtyMap: Record<string, number> = {};
                                         sale.items.forEach(it => { itemQtyMap[it.productId] = it.quantity; });
 
