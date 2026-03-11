@@ -137,6 +137,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
     const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>(editingDoc?.details ?? []);
     const [invoiceAdjustments, setInvoiceAdjustments] = useState<InvoiceAdjustment[]>(editingDoc?.adjustments ?? []);
     const [taxRate, setTaxRate] = useState<8 | 10>((editingDoc?.taxRate as 8 | 10) ?? 8);
+    const [taxType, setTaxType] = useState<'inclusive' | 'exclusive'>(editingDoc?.taxType ?? 'exclusive');
     const [finalAdjustment, setFinalAdjustment] = useState(editingDoc?.finalAdjustment ?? 0);
     const [totalAmountState, setTotalAmountState] = useState(editingDoc?.totalAmount ?? 0);
     const [paymentMethod, setPaymentMethod] = useState<IssuedDocument['paymentMethod']>(editingDoc?.paymentMethod ?? "現金");
@@ -213,6 +214,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
                 recipientName,
                 totalAmount,
                 taxRate: (docType === "invoice" || docType === "delivery_note") ? taxRate : undefined,
+                taxType: (docType === "invoice" || docType === "delivery_note") ? taxType : undefined,
                 details: (docType === "invoice" || docType === "delivery_note") ? invoiceItems : undefined,
                 adjustments: (docType === "invoice" || docType === "delivery_note") ? invoiceAdjustments : undefined,
                 finalAdjustment: (docType === "invoice" || docType === "delivery_note") ? finalAdjustment : undefined,
@@ -363,10 +365,12 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
                                 items={invoiceItems}
                                 adjustments={invoiceAdjustments}
                                 taxRate={taxRate}
+                                taxType={taxType}
                                 onChange={(data) => {
                                     setInvoiceItems(data.items);
                                     setInvoiceAdjustments(data.adjustments);
                                     setTaxRate(data.taxRate);
+                                    setTaxType(data.taxType);
                                     setTotalAmountState(data.totalAmount);
                                     setFinalAdjustment(data.finalAdjustment || 0);
                                 }}
@@ -432,6 +436,7 @@ function NewDocumentModal({ onClose, editingDoc }: { onClose: () => void; editin
                     customDetails={(docType === "invoice" || docType === "delivery_note") ? invoiceItems : undefined}
                     customAdjustments={(docType === "invoice" || docType === "delivery_note") ? invoiceAdjustments : undefined}
                     customTaxRate={(docType === "invoice" || docType === "delivery_note") ? taxRate : undefined}
+                    customTaxType={(docType === "invoice" || docType === "delivery_note") ? taxType : undefined}
                     hidePrices={docType === "delivery_note" ? hidePrices : false}
                     onClose={() => setShowPreview(false)}
                 />

@@ -256,6 +256,7 @@ export interface IssuedDocument extends BaseEntity {
     recipientName: string;      // 非正規化表示名
     totalAmount: number;
     taxRate?: 8 | 10;
+    taxType?: 'inclusive' | 'exclusive';
     details?: InvoiceItem[];
     adjustments?: InvoiceAdjustment[];
     finalAdjustment?: number;

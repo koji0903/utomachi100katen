@@ -30,6 +30,7 @@ interface DocumentPreviewModalProps {
     customDetails?: IssuedDocument['details'];
     customAdjustments?: IssuedDocument['adjustments'];
     customTaxRate?: IssuedDocument['taxRate'];
+    customTaxType?: IssuedDocument['taxType'];
     hidePrices?: boolean;
     autoDownload?: boolean; // New prop
     onClose: () => void;
@@ -54,6 +55,7 @@ export function DocumentPreviewModal({
     customDetails,
     customAdjustments,
     customTaxRate,
+    customTaxType,
     hidePrices: propHidePrices,
     autoDownload = false,
     onClose,
@@ -179,14 +181,16 @@ export function DocumentPreviewModal({
     // For receipts, we try to find the actual document to get the correct total
     const existingDoc = issuedDocuments.find(d => d.docNumber === currentDocNumber && !d.isTrashed);
     
+    const taxType = customTaxType || existingDoc?.taxType || 'inclusive';
+
     const taxSummary = (isDeliveryNote || isInvoice)
         ? summarizeTaxByRate(lineItems.map(i => ({
             amount: i.subtotal,
             rateType: customTaxRate ? (customTaxRate === 8 ? 'reduced' : 'standard') : i.taxRate
-        })), rounding)
+        })), rounding, taxType)
         : isReceipt && existingDoc
-            ? summarizeTaxByRate([{ amount: existingDoc.totalAmount, rateType: existingDoc.taxRate === 8 ? 'reduced' : 'standard' }], rounding)
-            : summarizeTaxByRate(purchaseLines.map(i => ({ amount: i.total, rateType: i.taxRate })), rounding);
+            ? summarizeTaxByRate([{ amount: existingDoc.totalAmount, rateType: existingDoc.taxRate === 8 ? 'reduced' : 'standard' }], rounding, existingDoc.taxType || 'inclusive')
+            : summarizeTaxByRate(purchaseLines.map(i => ({ amount: i.total, rateType: i.taxRate })), rounding, taxType);
 
     // Apply adjustments if any
     if (customAdjustments && customAdjustments.length > 0) {
@@ -619,9 +623,11 @@ export function DocumentPreviewModal({
                                     {!hidePrices && (
                                         <>
                                             <th style={{ ...thStyle, width: "18%", textAlign: "right" }}>
-                                                {isDeliveryNote || isInvoice ? "単価" : "仕入単価"}
+                                                {isDeliveryNote || isInvoice ? `単価${taxType === 'inclusive' ? '（税込）' : '（税抜）'}` : `仕入単価${taxType === 'inclusive' ? '（税込）' : '（税抜）'}`}
                                             </th>
-                                            <th style={{ ...thStyle, width: "22%", textAlign: "right" }}>小計（税抜）</th>
+                                            <th style={{ ...thStyle, width: "22%", textAlign: "right" }}>
+                                                小計{taxType === 'inclusive' ? '（税込）' : '（税抜）'}
+                                            </th>
                                         </>
                                     )}
                                 </tr>

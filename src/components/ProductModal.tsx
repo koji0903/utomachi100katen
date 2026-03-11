@@ -495,7 +495,7 @@ JANコード: ${formData.janCode || "なし"}
                                         </div>
 
                                         <div className="space-y-2">
-                                            <label className="text-sm font-semibold text-slate-700 block">原価 (円) <span className="text-red-500">*</span></label>
+                                            <label className="text-sm font-semibold text-slate-700 block">原価（税込）(円) <span className="text-red-500">*</span></label>
                                             <NumberInput
                                                 required
                                                 min={0}
@@ -505,7 +505,7 @@ JANコード: ${formData.janCode || "なし"}
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-sm font-semibold text-slate-700 block">販売価格 (円) <span className="text-red-500">*</span></label>
+                                            <label className="text-sm font-semibold text-slate-700 block">販売価格（税込）(円) <span className="text-red-500">*</span></label>
                                             <NumberInput
                                                 required
                                                 min={0}
@@ -555,7 +555,7 @@ JANコード: ${formData.janCode || "なし"}
                                     {/* Store Prices */}
                                     <div className="space-y-3 pt-2">
                                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                            <Store className="w-3.5 h-3.5" /> 店舗別個別価格
+                                            <Store className="w-3.5 h-3.5" /> 店舗別個別価格（税込）
                                         </h3>
                                         <div className="grid grid-cols-2 gap-3">
                                             {retailStores.map(store => {
@@ -567,7 +567,7 @@ JANコード: ${formData.janCode || "なし"}
                                                             value={storePrice}
                                                             onChange={(val) => handleStorePriceChange(store.id, val ?? 0)}
                                                             className="w-20 px-2 py-1.5 text-xs text-right border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/10"
-                                                            placeholder="個別価格"
+                                                            placeholder="個別価格（税込）"
                                                         />
                                                     </div>
                                                 );

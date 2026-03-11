@@ -12,11 +12,12 @@ interface InvoiceEditorProps {
     items: InvoiceItem[];
     adjustments: InvoiceAdjustment[];
     taxRate: 8 | 10;
+    taxType?: 'inclusive' | 'exclusive';
     finalAdjustment?: number;
-    onChange: (data: { items: InvoiceItem[]; adjustments: InvoiceAdjustment[]; taxRate: 8 | 10; totalAmount: number; finalAdjustment?: number }) => void;
+    onChange: (data: { items: InvoiceItem[]; adjustments: InvoiceAdjustment[]; taxRate: 8 | 10; taxType: 'inclusive' | 'exclusive'; totalAmount: number; finalAdjustment?: number }) => void;
 }
 
-export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdjustment = 0 }: InvoiceEditorProps) {
+export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'exclusive', onChange, finalAdjustment = 0 }: InvoiceEditorProps) {
     const { products } = useStore();
     const [searchQuery, setSearchQuery] = useState("");
     const [showProductSearch, setShowProductSearch] = useState(false);
@@ -33,26 +34,38 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
 
     // Calculation Logic
     const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.subtotal, 0), [items]);
-    const taxAmount = Math.floor(subtotal * (taxRate / 100));
+    const taxAmount = taxType === 'inclusive' 
+        ? Math.floor(subtotal - (subtotal / (1 + taxRate / 100))) 
+        : Math.floor(subtotal * (taxRate / 100));
     const adjustmentsTotal = useMemo(() => adjustments.reduce((sum, adj) => sum + adj.amount, 0), [adjustments]);
-    const grandTotal = subtotal + taxAmount + adjustmentsTotal;
+    const grandTotal = taxType === 'inclusive' 
+        ? subtotal + adjustmentsTotal 
+        : subtotal + taxAmount + adjustmentsTotal;
 
     // Trigger onChange when something changes
     useEffect(() => {
-        onChange({ items, adjustments, taxRate, totalAmount: grandTotal + finalAdjustment, finalAdjustment });
-    }, [items, adjustments, taxRate, grandTotal, finalAdjustment]);
+        onChange({ items, adjustments, taxRate, taxType, totalAmount: grandTotal + finalAdjustment, finalAdjustment });
+    }, [items, adjustments, taxRate, taxType, grandTotal, finalAdjustment]);
 
     // Handlers
     const addItem = (product?: Product) => {
+        const productUnitPrice = product?.sellingPrice ?? 0;
+        let unitPrice = productUnitPrice;
+
+        if (taxType === 'exclusive' && productUnitPrice > 0) {
+            const pTaxRate = product?.taxRate === 'reduced' ? 8 : 10;
+            unitPrice = Math.round(productUnitPrice / (1 + pTaxRate / 100));
+        }
+
         const newItem: InvoiceItem = {
             id: crypto.randomUUID(),
             productId: product?.id,
             label: product ? `${product.name}${product.variantName ? ` (${product.variantName})` : ""}` : "新しい項目",
             quantity: 1,
-            unitPrice: product?.sellingPrice ?? 0,
-            subtotal: product?.sellingPrice ?? 0
+            unitPrice: unitPrice,
+            subtotal: unitPrice
         };
-        onChange({ items: [...items, newItem], adjustments, taxRate, totalAmount: grandTotal });
+        onChange({ items: [...items, newItem], adjustments, taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
     };
 
     const updateItem = (id: string, updates: Partial<InvoiceItem>) => {
@@ -63,11 +76,11 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
             updated.subtotal = updated.quantity * updated.unitPrice;
             return updated;
         });
-        onChange({ items: newItems, adjustments, taxRate, totalAmount: grandTotal });
+        onChange({ items: newItems, adjustments, taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
     };
 
     const removeItem = (id: string) => {
-        onChange({ items: items.filter(i => i.id !== id), adjustments, taxRate, totalAmount: grandTotal });
+        onChange({ items: items.filter(i => i.id !== id), adjustments, taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
     };
 
     const addAdjustment = () => {
@@ -76,16 +89,16 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
             label: "値引き",
             amount: 0
         };
-        onChange({ items, adjustments: [...adjustments, newAdj], taxRate, totalAmount: grandTotal });
+        onChange({ items, adjustments: [...adjustments, newAdj], taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
     };
 
     const updateAdjustment = (id: string, updates: Partial<InvoiceAdjustment>) => {
         const newAdjs = adjustments.map(adj => adj.id === id ? { ...adj, ...updates } : adj);
-        onChange({ items, adjustments: newAdjs, taxRate, totalAmount: grandTotal });
+        onChange({ items, adjustments: newAdjs, taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
     };
 
     const removeAdjustment = (id: string) => {
-        onChange({ items, adjustments: adjustments.filter(a => a.id !== id), taxRate, totalAmount: grandTotal });
+        onChange({ items, adjustments: adjustments.filter(a => a.id !== id), taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
     };
 
     return (
@@ -96,16 +109,32 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
                     <Calculator className="w-4 h-4" style={{ color: BRAND }} />
                     明細編集
                 </h3>
-                <div className="flex p-1 bg-slate-100 rounded-lg">
-                    {[8, 10].map(rate => (
+                <div className="flex gap-4">
+                    <div className="flex p-1 bg-slate-100 rounded-lg">
                         <button
-                            key={rate}
-                            onClick={() => onChange({ items, adjustments, taxRate: rate as 8 | 10, totalAmount: grandTotal })}
-                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${taxRate === rate ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
+                            onClick={() => onChange({ items, adjustments, taxRate, taxType: 'inclusive', totalAmount: grandTotal, finalAdjustment })}
+                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${taxType === 'inclusive' ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
                         >
-                            {rate}%
+                            内税
                         </button>
-                    ))}
+                        <button
+                            onClick={() => onChange({ items, adjustments, taxRate, taxType: 'exclusive', totalAmount: grandTotal, finalAdjustment })}
+                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${taxType === 'exclusive' ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
+                        >
+                            外税
+                        </button>
+                    </div>
+                    <div className="flex p-1 bg-slate-100 rounded-lg">
+                        {[8, 10].map(rate => (
+                            <button
+                                key={rate}
+                                onClick={() => onChange({ items, adjustments, taxRate: rate as 8 | 10, taxType, totalAmount: grandTotal, finalAdjustment })}
+                                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${taxRate === rate ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
+                            >
+                                {rate}%
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
@@ -244,11 +273,11 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
             <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-lg shadow-slate-200">
                 <div className="space-y-2 mb-4">
                     <div className="flex justify-between text-xs text-slate-400 font-medium">
-                        <span>小計（税抜）</span>
+                        <span>小計（{taxType === 'inclusive' ? '税込' : '税抜'}）</span>
                         <span>¥{subtotal.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-xs text-slate-400 font-medium">
-                        <span className="flex items-center gap-1"><Percent className="w-3 h-3" /> 消費税（{taxRate}%）</span>
+                        <span className="flex items-center gap-1"><Percent className="w-3 h-3" /> {taxType === 'inclusive' ? '内消費税' : '消費税'}（{taxRate}%）</span>
                         <span>¥{taxAmount.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-xs text-slate-400 font-medium pt-2 border-t border-white/5">
@@ -256,7 +285,7 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
                         <NumberInput
                             value={finalAdjustment}
                             allowNegative
-                            onChange={val => onChange({ items, adjustments, taxRate, totalAmount: grandTotal + (val ?? 0), finalAdjustment: (val ?? 0) })}
+                            onChange={val => onChange({ items, adjustments, taxRate, taxType, totalAmount: grandTotal + (val ?? 0), finalAdjustment: (val ?? 0) })}
                             className="w-24 bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-bold text-white placeholder:text-slate-700"
                             placeholder="0"
                         />

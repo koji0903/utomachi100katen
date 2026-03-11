@@ -58,26 +58,45 @@ export function calcTax(
  */
 export function summarizeTaxByRate(
     items: { amount: number; rateType?: TaxRateType }[],
-    rounding: RoundingMode = 'floor'
+    rounding: RoundingMode = 'floor',
+    taxType: 'inclusive' | 'exclusive' = 'exclusive'
 ): {
     standard: { subtotal: number; taxAmount: number; total: number };
     reduced: { subtotal: number; taxAmount: number; total: number };
     grandTotal: number;
     totalTax: number;
 } {
-    let standardSubtotal = 0;
-    let reducedSubtotal = 0;
+    let standardAmount = 0;
+    let reducedAmount = 0;
 
     for (const item of items) {
         if (item.rateType === 'reduced') {
-            reducedSubtotal += item.amount;
+            reducedAmount += item.amount;
         } else {
-            standardSubtotal += item.amount;
+            standardAmount += item.amount;
         }
     }
 
-    const standardTax = applyRounding(standardSubtotal * TAX_RATES.standard, rounding);
-    const reducedTax = applyRounding(reducedSubtotal * TAX_RATES.reduced, rounding);
+    let standardSubtotal = 0;
+    let standardTax = 0;
+    let reducedSubtotal = 0;
+    let reducedTax = 0;
+
+    if (taxType === 'inclusive') {
+        // Amount is inclusive of tax
+        standardTax = applyRounding(standardAmount - (standardAmount / (1 + TAX_RATES.standard)), rounding);
+        standardSubtotal = standardAmount - standardTax;
+        
+        reducedTax = applyRounding(reducedAmount - (reducedAmount / (1 + TAX_RATES.reduced)), rounding);
+        reducedSubtotal = reducedAmount - reducedTax;
+    } else {
+        // Amount is exclusive of tax
+        standardSubtotal = standardAmount;
+        standardTax = applyRounding(standardSubtotal * TAX_RATES.standard, rounding);
+        
+        reducedSubtotal = reducedAmount;
+        reducedTax = applyRounding(reducedSubtotal * TAX_RATES.reduced, rounding);
+    }
 
     return {
         standard: {

@@ -330,7 +330,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                                             />
                                                         </div>
                                                         <div className="space-y-1">
-                                                            <label className="text-[10px] font-bold text-slate-500 block uppercase">単価 *</label>
+                                                            <label className="text-[10px] font-bold text-slate-500 block uppercase">単価（税込） *</label>
                                                             <NumberInput
                                                                 required
                                                                 min={0}
@@ -340,7 +340,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                                             />
                                                         </div>
                                                         <div className="space-y-1">
-                                                            <label className="text-[10px] font-bold text-slate-500 block uppercase">小計</label>
+                                                            <label className="text-[10px] font-bold text-slate-500 block uppercase">小計（税込）</label>
                                                             <input
                                                                 type="text"
                                                                 readOnly
@@ -362,7 +362,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
 
                                         <div className="flex justify-end pt-3 pr-10">
                                             <div className="text-right space-y-1 bg-emerald-50 p-3 rounded-lg border border-emerald-100 pr-4 pl-8 inline-block">
-                                                <span className="text-xs font-bold text-emerald-600 block">総合計</span>
+                                                <span className="text-xs font-bold text-emerald-600 block">総合計（税込）</span>
                                                 <span className="text-2xl font-black text-emerald-700 tracking-tight">
                                                     ¥{formData.totalAmount.toLocaleString()}
                                                 </span>

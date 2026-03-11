@@ -334,7 +334,7 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                 </div>
                                 
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-500 block uppercase">小計</label>
+                                    <label className="text-[10px] font-bold text-slate-500 block uppercase">小計（税抜）</label>
                                     <NumberInput
                                         value={formData.subtotal}
                                         onChange={v => setFormData({ ...formData, subtotal: v || 0 })}
@@ -350,7 +350,7 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                     />
                                 </div>
                                 <div className="col-span-2 text-right mt-2">
-                                    <span className="text-xs font-bold text-slate-500 mr-4">合計金額:</span>
+                                    <span className="text-xs font-bold text-slate-500 mr-4">合計金額（税込）:</span>
                                     <span className="text-2xl font-black text-slate-900 tracking-tight">¥{formData.totalAmount.toLocaleString()}</span>
                                 </div>
                             </div>
