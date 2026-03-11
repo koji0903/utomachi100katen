@@ -22,7 +22,7 @@ const year = new Date().getFullYear().toString();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type DocStatus = "all" | "draft" | "issued" | "paid";
-type DocType = "all" | "delivery_note" | "payment_summary" | "invoice" | "receipt";
+type DocType = "all" | "delivery_note" | "invoice" | "receipt" | "payment_summary";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmtMoney = (n: number) => `¥${n.toLocaleString()}`;
