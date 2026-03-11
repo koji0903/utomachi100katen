@@ -15,13 +15,36 @@ interface PaymentDetailModalProps {
 export function PaymentDetailModal({ isOpen, onClose, supplierName, month, shipments, products }: PaymentDetailModalProps) {
     if (!isOpen) return null;
 
-    const total = shipments.reduce((sum, s) => sum + s.totalCost, 0);
+    const total = shipments.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
     const [year, m] = month.split("-");
-    const title = `${year}年${parseInt(m)}月 仕入れ明細`;
+    const title = `${year}年${parseInt(m)}月 発注・仕入れ明細`;
+
+    const flattenedShipments = shipments.flatMap(s => {
+        if (s.items && s.items.length > 0) {
+            return s.items.map((item, idx) => ({
+                id: `${s.id}-${idx}`,
+                date: s.arrivalDate || s.orderDate,
+                productId: item.productId,
+                quantity: item.quantity,
+                unitCost: item.unitCost,
+                totalCost: item.totalCost
+            }));
+        } else if (s.productId && s.quantity !== undefined && s.unitCost !== undefined && s.totalCost !== undefined) {
+            return [{
+                id: s.id,
+                date: s.arrivalDate || s.orderDate,
+                productId: s.productId,
+                quantity: s.quantity,
+                unitCost: s.unitCost,
+                totalCost: s.totalCost
+            }];
+        }
+        return [];
+    });
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 max-h-[85vh]">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 max-h-[85vh]">
                 <div className="flex items-center justify-between p-6 border-b border-slate-100">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
@@ -41,7 +64,7 @@ export function PaymentDetailModal({ isOpen, onClose, supplierName, month, shipm
                     <table className="w-full text-left text-sm">
                         <thead className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wide">
                             <tr>
-                                <th className="px-5 py-3 font-semibold">入荷日</th>
+                                <th className="px-5 py-3 font-semibold">入荷日 / 発注日</th>
                                 <th className="px-5 py-3 font-semibold">商品名</th>
                                 <th className="px-5 py-3 font-semibold text-right">単価</th>
                                 <th className="px-5 py-3 font-semibold text-right">数量</th>
@@ -49,16 +72,16 @@ export function PaymentDetailModal({ isOpen, onClose, supplierName, month, shipm
                             </tr>
                         </thead>
                         <tbody>
-                            {shipments.map((s) => {
-                                const product = products.find(p => p.id === s.productId);
+                            {flattenedShipments.map((item) => {
+                                const product = products.find(p => p.id === item.productId);
                                 const productName = product ? `${product.name}${product.variantName ? ` (${product.variantName})` : ''}` : "不明";
                                 return (
-                                    <tr key={s.id} className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
-                                        <td className="px-5 py-3.5 text-slate-500">{s.arrivalDate || s.orderDate}</td>
+                                    <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
+                                        <td className="px-5 py-3.5 text-slate-500">{item.date}</td>
                                         <td className="px-5 py-3.5 font-medium text-slate-900">{productName}</td>
-                                        <td className="px-5 py-3.5 text-right text-slate-600">¥{s.unitCost.toLocaleString()}</td>
-                                        <td className="px-5 py-3.5 text-right text-slate-600">{s.quantity}</td>
-                                        <td className="px-5 py-3.5 text-right font-bold text-slate-900">¥{s.totalCost.toLocaleString()}</td>
+                                        <td className="px-5 py-3.5 text-right text-slate-600">¥{item.unitCost.toLocaleString()}</td>
+                                        <td className="px-5 py-3.5 text-right text-slate-600">{item.quantity}</td>
+                                        <td className="px-5 py-3.5 text-right font-bold text-slate-900">¥{item.totalCost.toLocaleString()}</td>
                                     </tr>
                                 );
                             })}

@@ -126,24 +126,43 @@ export function DocumentPreviewModal({
 
     const purchaseLines: PurchaseLine[] = (() => {
         if (!isPaymentSummary) return [];
-        return purchases
-            .filter(p => {
-                const matchSupplier = supplierId ? p.supplierId === supplierId : true;
-                const dateStr = p.arrivalDate || p.orderDate;
-                const matchMonth = month ? dateStr?.startsWith(month) : true;
-                return matchSupplier && p.status === "completed" && matchMonth;
-            })
-            .map(p => {
+        const lines: PurchaseLine[] = [];
+        const filteredPurchases = purchases.filter(p => {
+            const matchSupplier = supplierId ? p.supplierId === supplierId : true;
+            const dateStr = p.arrivalDate || p.orderDate;
+            const matchMonth = month ? dateStr?.startsWith(month) : true;
+            return matchSupplier && p.status === "completed" && matchMonth;
+        });
+
+        for (const p of filteredPurchases) {
+            const date = p.arrivalDate || p.orderDate || "";
+            if (p.items && p.items.length > 0) {
+                // New logic: iterate over items
+                for (const item of p.items) {
+                    const product = products.find(pr => pr.id === item.productId);
+                    lines.push({
+                        name: product ? product.name + (product.variantName ? ` (${product.variantName})` : "") : "不明",
+                        qty: item.quantity,
+                        unitCost: item.unitCost,
+                        total: item.totalCost,
+                        date,
+                        taxRate: product?.taxRate ?? "standard",
+                    });
+                }
+            } else if (p.productId && p.quantity !== undefined && p.unitCost !== undefined && p.totalCost !== undefined) {
+                // Legacy fallback
                 const product = products.find(pr => pr.id === p.productId);
-                return {
+                lines.push({
                     name: product ? product.name + (product.variantName ? ` (${product.variantName})` : "") : "不明",
                     qty: p.quantity,
                     unitCost: p.unitCost,
                     total: p.totalCost,
-                    date: p.arrivalDate || p.orderDate || "",
+                    date,
                     taxRate: product?.taxRate ?? "standard",
-                };
-            });
+                });
+            }
+        }
+        return lines;
     })();
 
     // ─ Tax summary ──────────────────────────────────────────────────────
