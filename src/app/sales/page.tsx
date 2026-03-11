@@ -18,6 +18,7 @@ import {
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
 import { SalesAnalysisTab } from "@/components/SalesAnalysisTab";
+import { NumberInput } from "@/components/NumberInput";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -398,10 +399,13 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                                     </td>
                                                     <td className="px-6 py-4 text-right"><div className="text-sm font-medium text-slate-600">¥{price.toLocaleString()}</div></td>
                                                     <td className="px-6 py-4">
-                                                        <input type="number" min="0" value={salesData[product.id] ?? ""}
-                                                            onChange={e => handleQuantityChange(product.id, e.target.value)}
+                                                        <NumberInput
+                                                            min={0}
+                                                            value={salesData[product.id]}
+                                                            onChange={val => handleQuantityChange(product.id, val !== undefined ? val.toString() : "")}
                                                             className={`w-full px-3 py-2 text-center font-black rounded-lg border transition-all ${qty > 0 ? 'bg-blue-50 border-blue-200 text-blue-600 ring-2 ring-blue-500/10' : 'bg-white border-slate-200 text-slate-400 focus:border-blue-400 focus:text-slate-900'} focus:outline-none`}
-                                                            placeholder="0" />
+                                                            placeholder="0"
+                                                        />
                                                     </td>
                                                     <td className="px-6 py-4 text-right"><div className={`text-sm font-bold ${qty > 0 ? 'text-slate-900' : 'text-slate-300'}`}>¥{subtotal.toLocaleString()}</div></td>
                                                     <td className="px-6 py-4 text-right"><div className={`text-sm font-black ${qty > 0 ? 'text-blue-600' : 'text-slate-200'}`}>¥{netProfit.toLocaleString()}</div></td>

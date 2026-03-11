@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Image as ImageIcon, UploadCloud, Search, Check } from "lucide-react";
 import { useStore, RetailStore, Product } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
+import { NumberInput } from "@/components/NumberInput";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
 
@@ -389,12 +390,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                                 {formData.type === 'A' ? "販売手数料率 (%)" : "卸売・直営時は 0% 固定"} <span className="text-red-400">*</span>
                             </label>
-                            <input type="number" required min="0" max="100"
+                            <NumberInput required min={0} max={100}
                                 value={formData.type === 'A' ? formData.commissionRate : 0}
                                 disabled={formData.type !== 'A'}
-                                onFocus={e => e.target.select()}
-                                onChange={e => setFormData({ ...formData, commissionRate: Number(e.target.value) })}
-                                className={`${inputCls} text-right disabled:bg-slate-100 disabled:text-slate-400 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} />
+                                onChange={val => setFormData({ ...formData, commissionRate: val ?? 0 })}
+                                className={`${inputCls} text-right disabled:bg-slate-100 disabled:text-slate-400 transition-colors`} />
                         </div>
 
                         {/* 1日の売上目標額 */}
@@ -402,13 +402,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                                 1日の売上目標額 (円)
                             </label>
-                            <input
-                                type="number"
-                                min="0"
+                            <NumberInput
+                                min={0}
                                 value={formData.dailySalesGoal}
-                                onFocus={e => e.target.select()}
-                                onChange={e => setFormData({ ...formData, dailySalesGoal: Number(e.target.value) })}
-                                className={`${inputCls} text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                                onChange={val => setFormData({ ...formData, dailySalesGoal: val ?? 0 })}
+                                className={`${inputCls} text-right`}
                                 placeholder="例: 50000"
                             />
                             <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
@@ -429,15 +427,14 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                     価格加減率 (%) <span className="text-slate-400 font-normal ml-2">※正の値で値上げ、負の値で値下げ</span>
                                 </label>
                                 <div className="relative">
-                                    <input
-                                        type="number"
+                                    <NumberInput
                                         value={formData.pricingRule}
-                                        onFocus={e => e.target.select()}
-                                        onChange={e => setFormData({
+                                        allowNegative
+                                        onChange={val => setFormData({
                                             ...formData,
-                                            pricingRule: Number(e.target.value)
+                                            pricingRule: val ?? 0
                                         })}
-                                        className={`${inputCls} text-right pr-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                                        className={`${inputCls} text-right pr-8`}
                                         placeholder="0"
                                     />
                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">%</span>

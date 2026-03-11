@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle, Plus, HelpCircle, Copy, Check, Instagram, Camera, Share2, Layers, RefreshCw, MessageSquare } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
+import { NumberInput } from "@/components/NumberInput";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
 import { AIPromptDisplay } from "./AIPromptDisplay";
@@ -472,26 +473,22 @@ JANコード: ${formData.janCode || "なし"}
 
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-slate-700 block">原価 (円) <span className="text-red-500">*</span></label>
-                                            <input
-                                                type="number"
+                                            <NumberInput
                                                 required
-                                                min="0"
-                                                value={formData.costPrice || ""}
-                                                onFocus={e => e.target.select()}
-                                                onChange={(e) => setFormData({ ...formData, costPrice: Number(e.target.value) })}
-                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                min={0}
+                                                value={formData.costPrice}
+                                                onChange={(val) => setFormData({ ...formData, costPrice: val ?? 0 })}
+                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right"
                                             />
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-slate-700 block">販売価格 (円) <span className="text-red-500">*</span></label>
-                                            <input
-                                                type="number"
+                                            <NumberInput
                                                 required
-                                                min="0"
-                                                value={formData.sellingPrice || ""}
-                                                onFocus={e => e.target.select()}
-                                                onChange={(e) => setFormData({ ...formData, sellingPrice: Number(e.target.value) })}
-                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                min={0}
+                                                value={formData.sellingPrice}
+                                                onChange={(val) => setFormData({ ...formData, sellingPrice: val ?? 0 })}
+                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -512,26 +509,22 @@ JANコード: ${formData.janCode || "なし"}
 
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-slate-700 block">在庫 <span className="text-red-500">*</span></label>
-                                            <input
-                                                type="number"
+                                            <NumberInput
                                                 required
-                                                min="0"
-                                                value={formData.stock || ""}
-                                                onFocus={e => e.target.select()}
-                                                onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
-                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                min={0}
+                                                value={formData.stock}
+                                                onChange={(val) => setFormData({ ...formData, stock: val ?? 0 })}
+                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right font-bold"
                                             />
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-amber-700 block flex items-center gap-1.5">
                                                 <AlertTriangle className="w-3.5 h-3.5" /> 在庫しきい値
                                             </label>
-                                            <input
-                                                type="number"
+                                            <NumberInput
                                                 value={formData.alertThreshold}
-                                                onFocus={e => e.target.select()}
-                                                onChange={(e) => setFormData({ ...formData, alertThreshold: Number(e.target.value) })}
-                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-amber-50/30 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                onChange={(val) => setFormData({ ...formData, alertThreshold: val ?? 0 })}
+                                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-amber-50/30 text-right"
                                             />
                                         </div>
                                     </div>
@@ -547,12 +540,10 @@ JANコード: ${formData.janCode || "なし"}
                                                 return (
                                                     <div key={store.id} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
                                                         <span className="text-[11px] font-bold text-slate-500 flex-1 truncate">{store.name}</span>
-                                                        <input
-                                                            type="number"
-                                                            value={storePrice || ""}
-                                                            onFocus={e => e.target.select()}
-                                                            onChange={(e) => handleStorePriceChange(store.id, Number(e.target.value))}
-                                                            className="w-20 px-2 py-1.5 text-xs text-right border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        <NumberInput
+                                                            value={storePrice}
+                                                            onChange={(val) => handleStorePriceChange(store.id, val ?? 0)}
+                                                            className="w-20 px-2 py-1.5 text-xs text-right border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/10"
                                                             placeholder="個別価格"
                                                         />
                                                     </div>
@@ -626,16 +617,14 @@ JANコード: ${formData.janCode || "なし"}
                                                                 </option>
                                                             ))}
                                                         </select>
-                                                        <input
-                                                            type="number"
+                                                        <NumberInput
                                                             value={comp.quantity}
-                                                            onFocus={e => e.target.select()}
-                                                            onChange={(e) => {
+                                                            onChange={(val) => {
                                                                 const next = [...formData.components];
-                                                                next[idx].quantity = Number(e.target.value);
+                                                                next[idx].quantity = val ?? 0;
                                                                 setFormData({ ...formData, components: next });
                                                             }}
-                                                            className="w-16 text-xs border border-slate-300 rounded-lg p-2 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                            className="w-16 text-xs border border-slate-300 rounded-lg p-2 text-right"
                                                         />
                                                         <button onClick={() => setFormData({ ...formData, components: formData.components.filter((_, i) => i !== idx) })}
                                                             className="p-2 text-slate-400 hover:text-red-500"><X className="w-4 h-4" /></button>
@@ -703,11 +692,10 @@ JANコード: ${formData.janCode || "なし"}
                                             <label className="text-[11px] font-bold text-slate-700">サイズ情報 (mm)</label>
                                             <div className="grid grid-cols-3 gap-3">
                                                 {(['height', 'width', 'depth'] as const).map(dim => (
-                                                    <input key={dim} type="number" placeholder={dim === 'height' ? '縦' : dim === 'width' ? '横' : '奥'}
+                                                    <NumberInput key={dim} placeholder={dim === 'height' ? '縦' : dim === 'width' ? '横' : '奥'}
                                                         value={formData.dimensions[dim]}
-                                                        onFocus={e => e.target.select()}
-                                                        onChange={(e) => setFormData({ ...formData, dimensions: { ...formData.dimensions, [dim]: Number(e.target.value) } })}
-                                                        className="p-3 text-sm border border-slate-200 rounded-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                                        onChange={(val) => setFormData({ ...formData, dimensions: { ...formData.dimensions, [dim]: val ?? 0 } })}
+                                                        className="p-3 text-sm border border-slate-200 rounded-xl" />
                                                 ))}
                                             </div>
                                         </div>

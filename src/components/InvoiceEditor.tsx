@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus, Trash2, Search, Percent, Calculator, ChevronRight } from "lucide-react";
 import { useStore, Product, InvoiceItem, InvoiceAdjustment } from "@/lib/store";
+import { NumberInput } from "@/components/NumberInput";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -133,21 +134,17 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
                                     />
                                 </td>
                                 <td className="py-2 px-2 text-right">
-                                    <input
-                                        type="number"
+                                    <NumberInput
                                         value={item.unitPrice}
-                                        onFocus={e => e.target.select()}
-                                        onChange={e => updateItem(item.id, { unitPrice: Number(e.target.value) })}
-                                        className="w-full bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-medium text-slate-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        onChange={val => updateItem(item.id, { unitPrice: val ?? 0 })}
+                                        className="w-full bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-medium text-slate-700"
                                     />
                                 </td>
                                 <td className="py-2 px-2 text-right">
-                                    <input
-                                        type="number"
+                                    <NumberInput
                                         value={item.quantity}
-                                        onFocus={e => e.target.select()}
-                                        onChange={e => updateItem(item.id, { quantity: Number(e.target.value) })}
-                                        className="w-full bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-medium text-slate-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        onChange={val => updateItem(item.id, { quantity: val ?? 1 })}
+                                        className="w-full bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-medium text-slate-700"
                                     />
                                 </td>
                                 <td className="py-2 px-2 text-right">
@@ -230,12 +227,11 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
                             className="flex-1 bg-transparent border-none focus:ring-0 p-0 text-xs font-medium text-slate-600"
                             placeholder="調整内容（例：大口割引）"
                         />
-                        <input
-                            type="number"
+                        <NumberInput
                             value={adj.amount}
-                            onFocus={e => e.target.select()}
-                            onChange={e => updateAdjustment(adj.id, { amount: Number(e.target.value) })}
-                            className="w-24 bg-transparent border-none focus:ring-0 p-0 text-right text-xs font-mono font-bold text-rose-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            allowNegative
+                            onChange={val => updateAdjustment(adj.id, { amount: val ?? 0 })}
+                            className="w-24 bg-transparent border-none focus:ring-0 p-0 text-right text-xs font-mono font-bold text-rose-600"
                         />
                         <button onClick={() => removeAdjustment(adj.id)} className="p-1 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all">
                             <Trash2 className="w-3 h-3" />
@@ -257,12 +253,11 @@ export function InvoiceEditor({ items, adjustments, taxRate, onChange, finalAdju
                     </div>
                     <div className="flex justify-between text-xs text-slate-400 font-medium pt-2 border-t border-white/5">
                         <span className="flex items-center gap-1">最終調整（端数・値引き等）</span>
-                        <input
-                            type="number"
+                        <NumberInput
                             value={finalAdjustment}
-                            onFocus={e => e.target.select()}
-                            onChange={e => onChange({ items, adjustments, taxRate, totalAmount: grandTotal + Number(e.target.value), finalAdjustment: Number(e.target.value) })}
-                            className="w-24 bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-bold text-white placeholder:text-slate-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            allowNegative
+                            onChange={val => onChange({ items, adjustments, taxRate, totalAmount: grandTotal + (val ?? 0), finalAdjustment: (val ?? 0) })}
+                            className="w-24 bg-transparent border-none focus:ring-0 p-0 text-right text-sm font-mono font-bold text-white placeholder:text-slate-700"
                             placeholder="0"
                         />
                     </div>

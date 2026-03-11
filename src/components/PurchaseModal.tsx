@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Save, ShoppingBag } from "lucide-react";
 import { useStore, Purchase, Product, Supplier } from "@/lib/store";
+import { NumberInput } from "@/components/NumberInput";
 
 interface PurchaseModalProps {
     isOpen: boolean;
@@ -193,23 +194,21 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700 block">数量</label>
-                                <input
-                                    type="number"
+                                <NumberInput
                                     required
-                                    min="1"
+                                    min={1}
                                     value={formData.quantity}
-                                    onChange={(e) => setFormData({ ...formData, quantity: Number(e.target.value) })}
+                                    onChange={(val) => setFormData({ ...formData, quantity: val ?? 1 })}
                                     className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-slate-50 focus:bg-white text-right"
                                 />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700 block">仕入単価</label>
-                                <input
-                                    type="number"
+                                <NumberInput
                                     required
-                                    min="0"
+                                    min={0}
                                     value={formData.unitCost}
-                                    onChange={(e) => setFormData({ ...formData, unitCost: Number(e.target.value) })}
+                                    onChange={(val) => setFormData({ ...formData, unitCost: val ?? 0 })}
                                     className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-slate-50 focus:bg-white text-right"
                                 />
                             </div>

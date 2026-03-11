@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Save, Users, Building2, Wheat, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { useStore, Supplier } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
+import { NumberInput } from "@/components/NumberInput";
 import { showNotification } from "@/lib/notifications";
 
 interface SupplierModalProps {
@@ -210,14 +211,14 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
                                 <div className="space-y-1.5">
                                     <label className={labelClass}>締日（毎月何日）</label>
                                     <div className="flex items-center gap-2">
-                                        <input type="number" min="1" max="31" value={formData.closingDay} onChange={(e) => setFormData({ ...formData, closingDay: e.target.value })} className={inputClass} placeholder="末日=31" />
+                                        <NumberInput min={1} max={31} value={formData.closingDay ? Number(formData.closingDay) : undefined} onChange={(val) => setFormData({ ...formData, closingDay: val?.toString() || "" })} className={inputClass} placeholder="末日=31" />
                                         <span className="text-sm text-slate-500 whitespace-nowrap">日締め</span>
                                     </div>
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className={labelClass}>支払日（翌月何日）</label>
                                     <div className="flex items-center gap-2">
-                                        <input type="number" min="1" max="31" value={formData.paymentDay} onChange={(e) => setFormData({ ...formData, paymentDay: e.target.value })} className={inputClass} placeholder="例: 20" />
+                                        <NumberInput min={1} max={31} value={formData.paymentDay ? Number(formData.paymentDay) : undefined} onChange={(val) => setFormData({ ...formData, paymentDay: val?.toString() || "" })} className={inputClass} placeholder="例: 20" />
                                         <span className="text-sm text-slate-500 whitespace-nowrap">日払い</span>
                                     </div>
                                 </div>
