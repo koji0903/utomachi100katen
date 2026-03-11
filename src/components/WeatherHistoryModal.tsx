@@ -35,6 +35,8 @@ export function WeatherHistoryModal({ isOpen, onClose, store }: WeatherHistoryMo
             weather: string;
             weatherMain: string;
             temp?: number;
+            tempMin?: number;
+            tempMax?: number;
             humidity?: number;
             source: 'report' | 'auto';
         }>();
@@ -48,6 +50,8 @@ export function WeatherHistoryModal({ isOpen, onClose, store }: WeatherHistoryMo
                     weather: w.weather,
                     weatherMain: w.weatherMain,
                     temp: w.temp,
+                    tempMin: w.tempMin,
+                    tempMax: w.tempMax,
                     humidity: w.humidity,
                     source: 'auto'
                 });
@@ -63,6 +67,8 @@ export function WeatherHistoryModal({ isOpen, onClose, store }: WeatherHistoryMo
                     weather: r.weather!,
                     weatherMain: r.weatherMain || existing?.weatherMain || "Clear",
                     temp: r.temperature,
+                    tempMin: r.temperatureMin ?? existing?.tempMin,
+                    tempMax: r.temperatureMax ?? existing?.tempMax,
                     humidity: existing?.humidity,
                     source: 'report'
                 });
@@ -173,8 +179,16 @@ export function WeatherHistoryModal({ isOpen, onClose, store }: WeatherHistoryMo
                                                     <div className="flex-1 flex flex-col items-center justify-center gap-1">
                                                         {weatherIcon(day.data.weatherMain)}
                                                         {day.data.temp !== undefined && (
-                                                            <div className="flex items-center text-sm font-bold text-slate-700 mt-1">
-                                                                {day.data.temp}°
+                                                            <div className="flex flex-col items-center mt-0.5">
+                                                                <div className="flex items-center text-sm font-bold text-slate-700 leading-none">
+                                                                    {day.data.temp}°
+                                                                </div>
+                                                                {(day.data.tempMin !== undefined && day.data.tempMax !== undefined) && (
+                                                                    <div className="flex items-center gap-1 mt-0.5">
+                                                                        <span className="text-[10px] font-bold text-red-500">{day.data.tempMax}°</span>
+                                                                        <span className="text-[10px] font-bold text-blue-500">{day.data.tempMin}°</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
                                                         {day.data.source === 'report' && (

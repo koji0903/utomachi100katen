@@ -646,17 +646,17 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
 
     // Build weather lookup: key = "YYYY-MM-DD|storeId"
     const weatherMap = useMemo(() => {
-        const m: Record<string, { temp?: number; weather?: string; weatherMain?: string; humidity?: number; windSpeed?: number }> = {};
+        const m: Record<string, { temp?: number; tempMin?: number; tempMax?: number; weather?: string; weatherMain?: string; humidity?: number; windSpeed?: number }> = {};
         // 1. Process dailyWeather (Automated)
         dailyWeather.forEach(w => {
             const key = `${w.date}|${w.storeId}`;
-            m[key] = { temp: w.temp, weather: w.weather, weatherMain: w.weatherMain, humidity: w.humidity, windSpeed: w.windSpeed };
+            m[key] = { temp: w.temp, tempMin: w.tempMin, tempMax: w.tempMax, weather: w.weather, weatherMain: w.weatherMain, humidity: w.humidity, windSpeed: w.windSpeed };
         });
         // 2. Process dailyReports (Manual entry - overrides automated if exists)
         dailyReports.filter(r => r.type === 'store' && r.storeId && r.date).forEach(r => {
             const key = `${r.date}|${r.storeId}`;
             if (r.temperature !== undefined) {
-                m[key] = { temp: r.temperature, weather: r.weather, weatherMain: r.weatherMain, humidity: r.humidity, windSpeed: r.windSpeed };
+                m[key] = { temp: r.temperature, tempMin: r.temperatureMin, tempMax: r.temperatureMax, weather: r.weather, weatherMain: r.weatherMain, humidity: r.humidity, windSpeed: r.windSpeed };
             }
         });
         return m;
@@ -946,7 +946,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                         const weatherKey = `${sale.period}|${sale.storeId}`;
                                         // Priority: 1. Sale record's weather fields, 2. Fallback to weatherMap
                                         const w = sale.temperature !== undefined 
-                                            ? { temp: sale.temperature, weather: sale.weather, weatherMain: sale.weatherMain }
+                                            ? { temp: sale.temperature, tempMin: sale.temperatureMin, tempMax: sale.temperatureMax, weather: sale.weather, weatherMain: sale.weatherMain }
                                             : weatherMap[weatherKey];
                                         const itemQtyMap: Record<string, number> = {};
                                         sale.items.forEach(it => { itemQtyMap[it.productId] = it.quantity; });
@@ -983,6 +983,13 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                                 <WeatherIcon main={w.weatherMain} size={4} />
                                                                 <div className="text-center">
                                                                     <div className="font-bold text-slate-800 text-[10px] leading-none">{w.temp}°C</div>
+                                                                    {(w.tempMin !== undefined && w.tempMax !== undefined) && (
+                                                                        <div className="flex items-center gap-0.5 mt-0.5 justify-center">
+                                                                            <span className="text-[9px] font-bold text-red-500">{w.tempMax}°</span>
+                                                                            <span className="text-[8px] text-slate-300">/</span>
+                                                                            <span className="text-[9px] font-bold text-blue-500">{w.tempMin}°</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         ) : <div className="text-center text-[9px] text-slate-300">なし</div>}
