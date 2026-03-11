@@ -30,7 +30,6 @@ export default function SettingsPage() {
         tel: "",
         invoiceNumber: "",
         roundingMode: "floor",
-        weatherFetchTime: "14:00",
     });
 
     const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -436,32 +435,6 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                {/* ── 6. システム設定（天気自動取得） ───────────────────── */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                        <CloudSun className="w-4 h-4 text-slate-500" />
-                        <h2 className="font-semibold text-slate-800 text-sm">システム設定</h2>
-                    </div>
-                    <div className="p-6">
-                        <div className="max-w-xs">
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                                天気情報の自動取得時間
-                            </label>
-                            <div className="flex items-center gap-3">
-                                <input
-                                    type="time"
-                                    value={form.weatherFetchTime}
-                                    onChange={e => handleChange("weatherFetchTime", e.target.value)}
-                                    className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors bg-white font-medium"
-                                />
-                                <span className="text-sm text-slate-500 font-medium">毎日実行</span>
-                            </div>
-                            <p className="text-[11px] text-slate-400 mt-2">
-                                設定した時間に全店舗の天気情報を自動的に取得し、データとして保存します。
-                            </p>
-                        </div>
-                    </div>
-                </div>
 
                 {/* ── 7. 自動レポート設定（リンク） ───────────────────── */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

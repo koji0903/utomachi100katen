@@ -43,8 +43,6 @@ export interface CompanySettings {
     // ブランド資産
     logoUrl?: string;        // ロゴ画像 URL
     sealUrl?: string;        // 印影画像 URL
-    // 天気自動取得設定
-    weatherFetchTime?: string; // e.g. "14:00"
 }
 
 export interface AutoReportConfig {
@@ -76,7 +74,6 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     bankAccountType2: '普通',
     bankAccountNumber2: '',
     bankAccountHolder2: '',
-    weatherFetchTime: '14:00',
 };
 
 export const DEFAULT_REPORT_CONFIG: AutoReportConfig = {
