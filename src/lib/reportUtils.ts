@@ -156,3 +156,85 @@ export function generateReportData(
         restockingRecommendations
     };
 }
+
+export interface MonthlySalesReportData {
+    month: string; // YYYY-MM
+    totals: {
+        storeId: string;
+        storeName: string;
+        items: {
+            productId: string;
+            productName: string;
+            quantity: number;
+            amount: number;
+        }[];
+        storeTotalAmount: number;
+        storeTotalQuantity: number;
+    }[];
+    grandTotalAmount: number;
+    grandTotalQuantity: number;
+}
+
+export function generateMonthlySalesReport(
+    targetMonth: string, // YYYY-MM
+    sales: Sale[],
+    products: Product[],
+    retailStores: RetailStore[]
+): MonthlySalesReportData {
+    const monthSales = sales.filter(s => s.period.startsWith(targetMonth) && !s.isTrashed);
+    
+    const storeMap: Record<string, { 
+        storeName: string; 
+        items: Record<string, { productName: string; quantity: number; amount: number }>;
+        storeTotalAmount: number;
+        storeTotalQuantity: number;
+    }> = {};
+
+    monthSales.forEach(sale => {
+        const store = retailStores.find(rs => rs.id === sale.storeId);
+        const storeId = sale.storeId;
+        const storeName = store?.name || "未知の店舗";
+
+        if (!storeMap[storeId]) {
+            storeMap[storeId] = { storeName, items: {}, storeTotalAmount: 0, storeTotalQuantity: 0 };
+        }
+
+        sale.items.forEach(item => {
+            const product = products.find(p => p.id === item.productId);
+            const productId = item.productId;
+            const productName = product ? `${product.name}${product.variantName ? " " + product.variantName : ""}` : "未知の商品";
+
+            if (!storeMap[storeId].items[productId]) {
+                storeMap[storeId].items[productId] = { productName, quantity: 0, amount: 0 };
+            }
+
+            storeMap[storeId].items[productId].quantity += item.quantity;
+            storeMap[storeId].items[productId].amount += item.subtotal;
+            storeMap[storeId].storeTotalAmount += item.subtotal;
+            storeMap[storeId].storeTotalQuantity += item.quantity;
+        });
+    });
+
+    const totals = Object.entries(storeMap).map(([storeId, data]) => ({
+        storeId,
+        storeName: data.storeName,
+        items: Object.entries(data.items).map(([productId, itemData]) => ({
+            productId,
+            productName: itemData.productName,
+            quantity: itemData.quantity,
+            amount: itemData.amount
+        })).sort((a, b) => b.amount - a.amount),
+        storeTotalAmount: data.storeTotalAmount,
+        storeTotalQuantity: data.storeTotalQuantity
+    })).sort((a, b) => b.storeTotalAmount - a.storeTotalAmount);
+
+    const grandTotalAmount = totals.reduce((sum, t) => sum + t.storeTotalAmount, 0);
+    const grandTotalQuantity = totals.reduce((sum, t) => sum + t.storeTotalQuantity, 0);
+
+    return {
+        month: targetMonth,
+        totals,
+        grandTotalAmount,
+        grandTotalQuantity
+    };
+}

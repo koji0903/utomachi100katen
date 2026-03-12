@@ -12,6 +12,7 @@ import {
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { getHolidayName } from "@/lib/holidays";
+import { generateMonthlySalesReport, MonthlySalesReportData } from "@/lib/reportUtils";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -1030,13 +1031,18 @@ function ReportCard({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 function ReportsPageContent() {
-    const { dailyReports, deleteDailyReport, restoreDailyReport, permanentlyDeleteDailyReport, isLoaded } = useStore();
     const searchParams = useSearchParams();
+    const { products, retailStores, sales, dailyReports, deleteDailyReport, restoreDailyReport, permanentlyDeleteDailyReport, isLoaded } = useStore();
     const [showForm, setShowForm] = useState(false);
     const [editTarget, setEditTarget] = useState<DailyReport | null>(null);
     const [toast, setToast] = useState<"saved" | "updated" | null>(null);
     const [filterType, setFilterType] = useState<"all" | "office" | "store" | "activity">("all");
     const [showTrash, setShowTrash] = useState(false);
+
+    // Monthly Report State
+    const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7));
+    const [monthlyReportData, setMonthlyReportData] = useState<MonthlySalesReportData | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
 
     const filterDate = searchParams.get("date");
 
@@ -1047,6 +1053,16 @@ function ReportsPageContent() {
 
     const handleNewSaved = () => { setShowForm(false); showToast("saved"); };
     const handleEditSaved = () => { setEditTarget(null); showToast("updated"); };
+
+    const handleGenerateMonthlyReport = () => {
+        setIsGenerating(true);
+        // Simulate a small delay for better UX
+        setTimeout(() => {
+            const data = generateMonthlySalesReport(reportMonth, sales, products, retailStores);
+            setMonthlyReportData(data);
+            setIsGenerating(false);
+        }, 600);
+    };
 
     const sorted = [...dailyReports]
         .filter(r => !!r.isTrashed === showTrash)
@@ -1098,6 +1114,113 @@ function ReportsPageContent() {
                     </div>
                 )}
             </div>
+
+            {/* Monthly Report Generator Section */}
+            {!filterDate && !showTrash && (
+                <div className="mb-8 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                                <FileText className="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <div>
+                                <h2 className="font-bold text-slate-800 text-sm">月次売上レポート</h2>
+                                <p className="text-[10px] text-slate-400 font-medium">店舗別・商品別の集計データ</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="p-5 space-y-4">
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">対象月を選択</label>
+                                <input 
+                                    type="month" 
+                                    value={reportMonth}
+                                    onChange={(e) => setReportMonth(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase"
+                                />
+                            </div>
+                            <div className="flex items-end">
+                                <button
+                                    onClick={handleGenerateMonthlyReport}
+                                    disabled={isGenerating}
+                                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 active:scale-95 transition-all text-sm h-[46px]"
+                                >
+                                    {isGenerating ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <RefreshCw className="w-4 h-4" />
+                                    )}
+                                    月次レポートを出力
+                                </button>
+                            </div>
+                        </div>
+
+                        {monthlyReportData && (
+                            <div className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                {/* Summary Card */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4">
+                                        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">合計売上</p>
+                                        <p className="text-xl font-black text-indigo-900">¥{monthlyReportData.grandTotalAmount.toLocaleString()}</p>
+                                    </div>
+                                    <div className="bg-slate-50/50 border border-slate-200 rounded-2xl p-4">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">合計個数</p>
+                                        <p className="text-xl font-black text-slate-800">{monthlyReportData.grandTotalQuantity.toLocaleString()} 個</p>
+                                    </div>
+                                </div>
+
+                                {/* Table Header */}
+                                <div className="space-y-4">
+                                    {monthlyReportData.totals.length === 0 ? (
+                                        <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                            <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+                                            <p className="text-sm text-slate-500 font-bold">集計データがありませんでした</p>
+                                        </div>
+                                    ) : (
+                                        monthlyReportData.totals.map((store) => (
+                                            <div key={store.storeId} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                                                <div className="px-4 py-3 bg-slate-50/80 flex items-center justify-between border-b border-slate-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <Store className="w-4 h-4 text-slate-400" />
+                                                        <h3 className="font-bold text-slate-800 text-sm truncate max-w-[150px] sm:max-w-none">{store.storeName}</h3>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-xs font-black text-slate-900">¥{store.storeTotalAmount.toLocaleString()}</span>
+                                                        <span className="text-[10px] text-slate-400 ml-2">({store.storeTotalQuantity}個)</span>
+                                                    </div>
+                                                </div>
+                                                <div className="divide-y divide-slate-50">
+                                                    {store.items.map((item) => (
+                                                        <div key={item.productId} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                                                            <div className="flex-1 min-w-0 pr-4">
+                                                                <p className="text-xs font-medium text-slate-600 truncate">{item.productName}</p>
+                                                            </div>
+                                                            <div className="flex items-center gap-4 shrink-0">
+                                                                <span className="text-xs text-slate-400 w-8 text-right font-medium">{item.quantity}個</span>
+                                                                <span className="text-xs font-bold text-slate-700 w-20 text-right">¥{item.amount.toLocaleString()}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                                <div className="text-center">
+                                    <button 
+                                        onClick={() => setMonthlyReportData(null)}
+                                        className="text-[10px] font-bold text-slate-300 hover:text-slate-500 flex items-center gap-1 mx-auto transition-colors"
+                                    >
+                                        集計を閉じる
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Toast */}
             {toast && (
