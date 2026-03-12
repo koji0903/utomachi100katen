@@ -1,0 +1,13 @@
+# Project Rules
+
+## Feature Updates and Modifications
+When performing any feature modifications or version updates, the following files MUST be updated to reflect the changes:
+
+1. **src/lib/version.ts**:
+    - Update `CURRENT_VERSION` and `RELEASE_DATE`.
+    - Update `FEATURE_STATUS_LIST` if a new feature is added or a status changes.
+
+2. **src/app/updates/page.tsx**:
+    - Add a new entry to the "最近の主な更新内容" (Recent History) section with the version number, date, and a summary of changes.
+
+Ensure that the information in both files remains consistent.

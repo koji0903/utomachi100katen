@@ -115,14 +115,34 @@ export default function UpdatesPage() {
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
-                            <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - 2026.03.12</div>
+                            <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - 2026.03.13</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">月次売上レポート機能の追加</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "月次売上レポート出力機能の追加（店舗別・商品別の集計）",
+                                    "レポートのPDFダウンロード機能の追加",
+                                    "レポート表示用UIの新規実装（インディゴ基調のデザイン）"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.2.1 - 2026.03.12</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">UI・UXの洗練と機能追加</h3>
                             <ul className="space-y-2">
                                 {[
                                     "バージョン表記と機能実現状況ページの追加",
-                                    "売上管理の実績ログでの「最高気温・最低気温」表示対応（通常・縦横切替両対応）",
+                                    "売上管理の実績ログでの「最高気温・最低気温」表示対応",
                                     "売上管理の店舗フィルターにおける過去データとの整合性向上",
-                                    "課題・ToDo管理のレイアウト改善（完了済みタスクのコンパクト化）"
+                                    "課題・ToDo管理のレイアウト改善"
                                 ].map((item, i) => (
                                     <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
                                         <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />

@@ -11,8 +11,8 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.2.1";
-export const RELEASE_DATE = "2026.03.12";
+export const CURRENT_VERSION = "v1.3.0";
+export const RELEASE_DATE = "2026.03.13";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
@@ -49,5 +49,10 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
         name: "自動レポート・通知機能",
         description: "特定の条件下でのメールやチャットへの自動報告機能。",
         status: "planned"
+    },
+    {
+        name: "月次売上レポート",
+        description: "対象月ごとの店舗別・商品別売上集計およびPDF出力機能。",
+        status: "completed"
     }
 ];
