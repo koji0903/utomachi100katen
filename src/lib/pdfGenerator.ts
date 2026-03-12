@@ -23,9 +23,14 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
         const canvas = await html2canvas(el, {
             scale: 2,
             useCORS: true,
-            allowTaint: true,
+            allowTaint: false, // Setting to true prevents toDataURL on cross-origin images
             backgroundColor: "#ffffff",
+            logging: false,
         });
+
+        if (!canvas || canvas.width === 0 || canvas.height === 0) {
+            throw new Error("Canvas generation failed or element has no dimensions");
+        }
 
         const pdf = new jsPDF({
             orientation: "portrait",
@@ -33,13 +38,16 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
             format: "a4",
         });
 
-        const imgData = canvas.toDataURL("image/jpeg", 0.9);
-        pdf.addImage(imgData, "JPEG", 0, 0, 210, (canvas.height * 210) / canvas.width);
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        const imgWidth = 210;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        pdf.addImage(imgData, "JPEG", 0, 0, imgWidth, imgHeight);
         pdf.save(filename);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("PDF Generation Error:", error);
-        alert("PDFの生成に失敗しました。画像の読み込みエラー or ライブラリの制約である可能性があります。");
+        alert(`PDFの生成に失敗しました: ${error.message || "未知のエラー"}\nブラウザのメモリ不足や、外部画像の読み込み制限が原因の可能性があります。`);
         throw error;
     }
 }
