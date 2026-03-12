@@ -19,13 +19,36 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
         // Wait a bit to ensure all images (like logo) are fully rendered
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // 1. Capture the element once
+        // 1. Capture the element with "Deep Cleaning"
         const canvas = await html2canvas(el, {
             scale: 2,
             useCORS: true,
-            allowTaint: false, // Setting to true prevents toDataURL on cross-origin images
+            allowTaint: false,
             backgroundColor: "#ffffff",
             logging: false,
+            onclone: (clonedDoc: Document) => {
+                // Aggressive Sanitization: Remove ALL existing stylesheets and link tags
+                // This prevents html2canvas from attempting to parse Tailwind 4's modern color functions (lab/oklch)
+                const styles = clonedDoc.getElementsByTagName("style");
+                const links = clonedDoc.getElementsByTagName("link");
+                
+                for (let i = styles.length - 1; i >= 0; i--) {
+                    styles[i].parentNode?.removeChild(styles[i]);
+                }
+                for (let i = links.length - 1; i >= 0; i--) {
+                    if (links[i].rel === "stylesheet") {
+                        links[i].parentNode?.removeChild(links[i]);
+                    }
+                }
+
+                // Inject a minimal, safe stylesheet for basic layout if needed
+                const safeStyle = clonedDoc.createElement("style");
+                safeStyle.innerHTML = `
+                    * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
+                    body { background: white !important; color: #1e293b !important; font-family: sans-serif !important; }
+                `;
+                clonedDoc.head.appendChild(safeStyle);
+            }
         });
 
         if (!canvas || canvas.width === 0 || canvas.height === 0) {
@@ -46,8 +69,8 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
         pdf.save(filename);
 
     } catch (error: any) {
-        console.error("PDF Generation Error:", error);
-        alert(`PDFの生成に失敗しました: ${error.message || "未知のエラー"}\nブラウザのメモリ不足や、外部画像の読み込み制限が原因の可能性があります。`);
+        console.error("PDF Generation Error (Sanitized Capture):", error);
+        alert(`PDFの生成に失敗しました: ${error.message || "未知のエラー"}\n環境依存のスタイル解析エラーを回避するためのクリーニング処理を行いましたが、解決に至りませんでした。`);
         throw error;
     }
 }

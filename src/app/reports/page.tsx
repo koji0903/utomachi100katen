@@ -1176,53 +1176,53 @@ function ReportsPageContent() {
                         {monthlyReportData && (
                             <div className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                                 {/* Report Content for PDF Export */}
-                                <div ref={reportRef} className="p-4 bg-white rounded-2xl">
-                                    <div className="mb-6 text-center">
-                                        <h3 className="text-xl font-bold text-slate-800">{reportMonth.replace(/-/g, "/")} 売上レポート</h3>
-                                        <p className="text-xs text-slate-400 mt-1">出力日: {new Date().toLocaleDateString("ja-JP")}</p>
+                                <div ref={reportRef} style={{ backgroundColor: '#ffffff', padding: '24px', borderRadius: '16px' }}>
+                                    <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+                                        <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: '0' }}>{reportMonth.replace(/-/g, "/")} 売上レポート</h3>
+                                        <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>出力日: {new Date().toLocaleDateString("ja-JP")}</p>
                                     </div>
 
                                     {/* Summary Card */}
-                                    <div className="grid grid-cols-2 gap-4 mb-6">
-                                        <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4">
-                                            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">合計売上</p>
-                                            <p className="text-xl font-black text-indigo-900">¥{monthlyReportData.grandTotalAmount.toLocaleString()}</p>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                                        <div style={{ backgroundColor: '#f5f7ff', border: '1px solid #e0e7ff', borderRadius: '16px', padding: '16px' }}>
+                                            <p style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#818cf8', marginBottom: '4px', margin: '0' }}>合計売上</p>
+                                            <p style={{ fontSize: '20px', fontWeight: '900', color: '#1e1b4b', margin: '0' }}>¥{monthlyReportData.grandTotalAmount.toLocaleString()}</p>
                                         </div>
-                                        <div className="bg-slate-50/50 border border-slate-200 rounded-2xl p-4">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">合計個数</p>
-                                            <p className="text-xl font-black text-slate-800">{monthlyReportData.grandTotalQuantity.toLocaleString()} 個</p>
+                                        <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px' }}>
+                                            <p style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: '4px', margin: '0' }}>合計個数</p>
+                                            <p style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', margin: '0' }}>{monthlyReportData.grandTotalQuantity.toLocaleString()} 個</p>
                                         </div>
                                     </div>
 
                                     {/* Table Content */}
-                                    <div className="space-y-4">
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                         {monthlyReportData.totals.length === 0 ? (
-                                            <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                                <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
-                                                <p className="text-sm text-slate-500 font-bold">集計データがありませんでした</p>
+                                            <div style={{ textAlign: 'center', padding: '40px 0', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '16px' }}>
+                                                <div style={{ color: '#fbbf24', fontSize: '32px', marginBottom: '8px' }}>⚠️</div>
+                                                <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#64748b', margin: '0' }}>集計データがありませんでした</p>
                                             </div>
                                         ) : (
                                             monthlyReportData.totals.map((store) => (
-                                                <div key={store.storeId} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-                                                    <div className="px-4 py-3 bg-slate-50/80 flex items-center justify-between border-b border-slate-100">
-                                                        <div className="flex items-center gap-2">
-                                                            <Store className="w-4 h-4 text-slate-400" />
-                                                            <h3 className="font-bold text-slate-800 text-sm">{store.storeName}</h3>
+                                                <div key={store.storeId} style={{ backgroundColor: '#ffffff', border: '1px solid #f1f5f9', borderRadius: '16px', overflow: 'hidden' }}>
+                                                    <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1' }}>
+                                                            <span style={{ fontSize: '14px' }}>🏪</span>
+                                                            <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e293b', margin: '0' }}>{store.storeName}</h3>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <span className="text-xs font-black text-slate-900">¥{store.storeTotalAmount.toLocaleString()}</span>
-                                                            <span className="text-[10px] text-slate-400 ml-2">({store.storeTotalQuantity}個)</span>
+                                                        <div style={{ textAlign: 'right' }}>
+                                                            <span style={{ fontSize: '12px', fontWeight: '900', color: '#0f172a' }}>¥{store.storeTotalAmount.toLocaleString()}</span>
+                                                            <span style={{ fontSize: '10px', color: '#94a3b8', marginLeft: '8px' }}>({store.storeTotalQuantity}個)</span>
                                                         </div>
                                                     </div>
-                                                    <div className="divide-y divide-slate-50">
-                                                        {store.items.map((item) => (
-                                                            <div key={item.productId} className="px-4 py-2.5 flex items-center justify-between">
-                                                                <div className="flex-1 min-w-0 pr-4">
-                                                                    <p className="text-xs font-medium text-slate-600 truncate">{item.productName}</p>
+                                                    <div>
+                                                        {store.items.map((item, i) => (
+                                                            <div key={item.productId} style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: i === store.items.length - 1 ? 'none' : '1px solid #f8fafc' }}>
+                                                                <div style={{ flex: '1', overflow: 'hidden', paddingRight: '16px' }}>
+                                                                    <p style={{ fontSize: '12px', fontWeight: '500', color: '#475569', margin: '0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.productName}</p>
                                                                 </div>
-                                                                <div className="flex items-center gap-4 shrink-0">
-                                                                    <span className="text-xs text-slate-400 w-8 text-right font-medium">{item.quantity}個</span>
-                                                                    <span className="text-xs font-bold text-slate-700 w-20 text-right">¥{item.amount.toLocaleString()}</span>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: '0' }}>
+                                                                    <span style={{ fontSize: '12px', width: '40px', textAlign: 'right', fontWeight: '500', color: '#94a3b8' }}>{item.quantity}個</span>
+                                                                    <span style={{ fontSize: '12px', fontWeight: 'bold', width: '80px', textAlign: 'right', color: '#334155' }}>¥{item.amount.toLocaleString()}</span>
                                                                 </div>
                                                             </div>
                                                         ))}
