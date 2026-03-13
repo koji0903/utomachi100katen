@@ -8,7 +8,7 @@ import {
     Thermometer, Wind, Plus, ClipboardList, Trash2, AlertTriangle,
     ChevronRight, ChevronLeft, Store, Image as ImageIcon, UploadCloud, Save, Package,
     Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy, Video, RotateCcw,
-    Mail
+    Mail, Search, Check
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
@@ -99,6 +99,7 @@ function ReportForm({
     const [displayAfterImageUrls, setDisplayAfterImageUrls] = useState<string[]>(editData?.displayAfterImageUrls ?? []);
     const [restocking, setRestocking] = useState<RestockingItem[]>(editData?.restocking ?? []);
     const [imageUrl, setImageUrl] = useState(editData?.imageUrl ?? "");
+    const [productSearchQuery, setProductSearchQuery] = useState("");
 
     // AI Generation states
     const [instaCopy, setInstaCopy] = useState("");
@@ -487,24 +488,63 @@ function ReportForm({
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">📦 関連商品</label>
-                                <div className="flex flex-wrap gap-2 pt-1">
-                                    {products.slice(0, 10).map(p => {
-                                        const isSelected = involvedProductIds.includes(p.id);
-                                        return (
-                                            <button
-                                                key={p.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    if (isSelected) setInvolvedProductIds(involvedProductIds.filter(id => id !== p.id));
-                                                    else setInvolvedProductIds([...involvedProductIds, p.id]);
-                                                }}
-                                                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isSelected ? "bg-[#b27f79] text-white border-[#b27f79]" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
-                                            >
-                                                {p.name}
-                                            </button>
-                                        );
-                                    })}
+                                <label className="block text-xs font-semibold text-slate-500 mb-2 flex items-center justify-between">
+                                    <span>📦 関連商品</span>
+                                    {involvedProductIds.length > 0 && (
+                                        <span className="text-[10px] bg-[#b27f79]/10 text-[#b27f79] px-2 py-0.5 rounded-full font-bold">
+                                            {involvedProductIds.length}点選択中
+                                        </span>
+                                    )}
+                                </label>
+                                
+                                {/* Product Search */}
+                                <div className="relative mb-3">
+                                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                                        <Search className="w-4 h-4 text-slate-400" />
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        value={productSearchQuery}
+                                        onChange={e => setProductSearchQuery(e.target.value)}
+                                        placeholder="商品名で検索..."
+                                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#b27f79]/20 transition-all placeholder:text-slate-400"
+                                    />
+                                    {productSearchQuery && (
+                                        <button 
+                                            type="button"
+                                            onClick={() => setProductSearchQuery("")}
+                                            className="absolute inset-y-0 right-3 flex items-center text-slate-300 hover:text-slate-500"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 pt-1 max-h-48 overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300">
+                                    {products
+                                        .filter(p => {
+                                            if (!productSearchQuery) return true;
+                                            const query = productSearchQuery.toLowerCase();
+                                            return p.name.toLowerCase().includes(query) || 
+                                                   (p.variantName?.toLowerCase().includes(query));
+                                        })
+                                        .map(p => {
+                                            const isSelected = involvedProductIds.includes(p.id);
+                                            return (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (isSelected) setInvolvedProductIds(involvedProductIds.filter(id => id !== p.id));
+                                                        else setInvolvedProductIds([...involvedProductIds, p.id]);
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5 ${isSelected ? "bg-[#b27f79] text-white border-[#b27f79] ring-2 ring-[#b27f79]/20 shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
+                                                >
+                                                    {isSelected && <Check className="w-3 h-3" />}
+                                                    {p.name}{p.variantName ? ` (${p.variantName})` : ""}
+                                                </button>
+                                            );
+                                        })}
                                 </div>
                             </div>
                         </div>
