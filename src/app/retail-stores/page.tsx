@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon, ArrowUpDown, RotateCcw } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon, ArrowUpDown, RotateCcw, X, Filter, ChevronDown, Check } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { RetailStoreModal } from "@/components/RetailStoreModal";
 import { WeatherHistoryModal } from "@/components/WeatherHistoryModal";
@@ -159,8 +159,21 @@ function StoreCard({
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`
         : null;
 
+    const isDirect = store.type === 'C';
+
     return (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden group">
+        <div className={`rounded-2xl border transition-all overflow-hidden group relative ${
+            isDirect 
+                ? "bg-gradient-to-br from-blue-50/50 to-white border-blue-200 shadow-blue-100/50 shadow-md ring-1 ring-blue-100" 
+                : "bg-white border-slate-200 shadow-sm hover:shadow-md"
+        }`}>
+            {isDirect && (
+                <div className="absolute top-0 right-0 p-3 z-10">
+                    <div className="bg-blue-600 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl rounded-tr-lg shadow-sm flex items-center gap-1">
+                        <Check className="w-3 h-3" /> 直営店
+                    </div>
+                </div>
+            )}
             <div className="p-5">
                 {/* Store Image */}
                 <div className="mb-4 aspect-video rounded-xl overflow-hidden bg-slate-100 border border-slate-200 relative group/img">
@@ -183,12 +196,18 @@ function StoreCard({
                         <div className="min-w-0">
                             <h3 className="font-bold text-slate-900 truncate">{store.name}</h3>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${store.type === 'B' ? "bg-indigo-500 text-white" : "bg-emerald-500 text-white"}`}>
-                                    {store.type === 'B' ? "卸 (B)" : "委託 (A)"}
+                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${
+                                    store.type === 'B' ? "bg-indigo-500 text-white" : 
+                                    store.type === 'C' ? "bg-blue-600 text-white" :
+                                    "bg-emerald-500 text-white"
+                                }`}>
+                                    {store.type === 'B' ? "卸 (B)" : store.type === 'C' ? "直営 (C)" : "委託 (A)"}
                                 </span>
-                                <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND }}>
-                                    手数料 {store.type === 'B' ? 0 : (store.commissionRate ?? 0)}%
-                                </span>
+                                {(store.type === 'A' || store.type === 'B') && (
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND }}>
+                                        手数料 {store.type === 'B' ? 0 : (store.commissionRate ?? 0)}%
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -281,14 +300,26 @@ export default function RetailStoresPage() {
     const [sortBy, setSortBy] = useState<'name' | 'type' | 'commission'>('name');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     const [showTrash, setShowTrash] = useState(false);
+    const [filterType, setFilterType] = useState<'all' | 'A' | 'B' | 'C'>('all');
+
+    const counts = useMemo(() => {
+        const base = retailStores.filter(s => !!s.isTrashed === showTrash);
+        return {
+            all: base.length,
+            A: base.filter(s => s.type === 'A').length,
+            B: base.filter(s => s.type === 'B').length,
+            C: base.filter(s => s.type === 'C').length,
+        };
+    }, [retailStores, showTrash]);
 
     const filtered = useMemo(() => {
         return retailStores
             .filter(s => !!s.isTrashed === showTrash)
+            .filter(s => filterType === 'all' || s.type === filterType)
             .filter(s =>
                 `${s.name} ${s.pic ?? ""} ${s.address ?? ""} ${s.tel ?? ""}`.toLowerCase().includes(searchQuery.toLowerCase())
             );
-    }, [retailStores, searchQuery, showTrash]);
+    }, [retailStores, searchQuery, showTrash, filterType]);
 
     const sorted = useMemo(() => {
         return [...filtered].sort((a, b) => {
@@ -380,37 +411,80 @@ export default function RetailStoresPage() {
                 </div>
             </div>
 
-            {/* Search & Sort */}
-            <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
-                <div className="relative max-w-md flex-1">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                    <input
-                        type="text"
-                        placeholder="店舗・事業者名・担当者名で検索..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white"
-                        style={{ "--tw-ring-color": BRAND } as React.CSSProperties}
-                    />
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
-                        <select
-                            value={sortBy}
-                            onChange={e => setSortBy(e.target.value as any)}
-                            className="bg-transparent text-xs font-bold text-slate-600 px-2 py-1.5 focus:outline-none border-none cursor-pointer"
-                        >
-                            <option value="name">店名順</option>
-                            <option value="type">区分順</option>
-                            <option value="commission">手数料順</option>
-                        </select>
-                        <button
-                            onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
-                            className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-500 hover:text-blue-600"
-                            title={sortOrder === 'asc' ? '昇順' : '降順'}
-                        >
-                            <ArrowUpDown className={`w-3.5 h-3.5 transition-transform duration-300 ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
-                        </button>
+            {/* Search, Filter & Sort */}
+            <div className="flex flex-col gap-6 mb-8">
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                    <div className="relative max-w-md flex-1 group">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 group-focus-within:text-blue-500 transition-colors" />
+                        <input
+                            type="text"
+                            placeholder="店舗・事業者名・担当者名で検索..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white"
+                            style={{ "--tw-ring-color": BRAND } as React.CSSProperties}
+                        />
+                        {searchQuery && (
+                            <button 
+                                onClick={() => setSearchQuery("")}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                        <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 shadow-inner">
+                            <button
+                                onClick={() => setFilterType('all')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${filterType === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                すべて <span className="ml-1 opacity-50">{counts.all}</span>
+                            </button>
+                            <button
+                                onClick={() => setFilterType('A')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${filterType === 'A' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                委託 <span className={`ml-1 ${filterType === 'A' ? 'text-emerald-100' : 'opacity-50'}`}>{counts.A}</span>
+                            </button>
+                            <button
+                                onClick={() => setFilterType('B')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${filterType === 'B' ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                卸 <span className={`ml-1 ${filterType === 'B' ? 'text-indigo-100' : 'opacity-50'}`}>{counts.B}</span>
+                            </button>
+                            <button
+                                onClick={() => setFilterType('C')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${filterType === 'C' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                直営 <span className={`ml-1 ${filterType === 'C' ? 'text-blue-100' : 'opacity-50'}`}>{counts.C}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex items-center gap-1.5 p-1 bg-white rounded-xl border border-slate-200 shadow-sm">
+                            <div className="flex items-center gap-1 px-2 py-1 text-slate-400">
+                                <ArrowUpDown className="w-3.5 h-3.5" />
+                            </div>
+                            <select
+                                value={sortBy}
+                                onChange={e => setSortBy(e.target.value as any)}
+                                className="bg-transparent text-xs font-bold text-slate-600 pr-4 py-1.5 focus:outline-none border-none cursor-pointer"
+                            >
+                                <option value="name">店名順</option>
+                                <option value="type">区分順</option>
+                                <option value="commission">手数料順</option>
+                            </select>
+                            <button
+                                onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
+                                className={`p-1.5 rounded-lg transition-all ${sortOrder === 'desc' ? 'bg-slate-50 text-blue-600' : 'hover:bg-slate-50 text-slate-400'}`}
+                                title={sortOrder === 'asc' ? '昇順' : '降順'}
+                            >
+                                <ArrowUpDown className={`w-3.5 h-3.5 transition-transform duration-300 ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
