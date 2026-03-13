@@ -6,7 +6,7 @@ import {
     Pencil, Trash2, CheckCircle2, Clock, ChevronDown,
     ChevronUp, Store, Users, UserCircle, Plus, X,
     Download, RotateCcw, FilePlus, Link2, CreditCard, Package, Check,
-    Loader2, FileStack
+    Loader2, FileStack, ExternalLink
 } from "lucide-react";
 import { useStore, IssuedDocument } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
@@ -486,6 +486,17 @@ export default function DocumentsPage() {
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-1 justify-center">
+                                                {doc.pdfUrl && (
+                                                    <a
+                                                        href={doc.pdfUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title="PDFを表示"
+                                                        className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
+                                                    >
+                                                        <ExternalLink className="w-4 h-4" />
+                                                    </a>
+                                                )}
                                                 {doc.isTrashed ? (
                                                     <>
                                                         <button

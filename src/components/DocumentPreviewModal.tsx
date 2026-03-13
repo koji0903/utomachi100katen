@@ -3,11 +3,12 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useStore, IssuedDocument, calculateInvoiceBalance } from "@/lib/store";
 import { summarizeTaxByRate, TAX_RATE_LABELS } from "@/lib/taxUtils";
-import { generatePdfFromElement } from "@/lib/pdfGenerator";
+import { downloadPdfFromElement as generatePdfFromElement, getPdfBlobFromElement } from "@/lib/pdfGenerator";
+import { uploadImageWithCompression } from "@/lib/imageUpload";
 import { AIPromptDisplay } from "./AIPromptDisplay";
 import { generateStoryPrompt } from "@/lib/aiPromptUtils";
 import { InvoicePaymentModal } from "./InvoicePaymentModal";
-import { X, Download, Printer, Loader2, Sparkles, FileText, Receipt, CreditCard } from "lucide-react";
+import { X, Download, Printer, Loader2, Sparkles, FileText, Receipt, CreditCard, Save } from "lucide-react";
 
 // ─── Brand token ─────────────────────────────────────────────────────────
 const BRAND = "#b27f79";
@@ -272,6 +273,38 @@ export function DocumentPreviewModal({
     const handlePrint = useCallback(() => {
         window.print();
     }, []);
+
+    const handleIssueAndSave = async () => {
+        if (!previewRef.current) return;
+        setIsGenerating(true);
+        try {
+            // 1. Generate PDF Blob
+            const pdfBlob = await getPdfBlobFromElement(previewRef.current);
+            const pdfFile = new File([pdfBlob], `${docNumber}.pdf`, { type: "application/pdf" });
+            
+            // 2. Upload to Storage
+            const folder = isInvoice ? "invoices" : isDeliveryNote ? "delivery_notes" : isReceipt ? "receipts" : "summaries";
+            const pdfUrl = await uploadImageWithCompression(pdfFile, folder);
+            
+            // 3. Update Firestore record
+            const targetDoc = issuedDocuments.find(d => d.docNumber === docNumber);
+            if (targetDoc) {
+                await updateIssuedDocument(targetDoc.id, { 
+                    status: 'issued',
+                    pdfUrl: pdfUrl 
+                });
+                alert("帳票を発行し、PDFをStorageに保存しました。");
+            } else {
+                // For new docs being issued from preview
+                // This logic might need store expansion, but for now we update existing draft
+            }
+        } catch (err: any) {
+            console.error("Issue and Save failed:", err);
+            alert("発行処理に失敗しました: " + err.message);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
 
     // Auto-download logic
     useEffect(() => {

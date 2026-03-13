@@ -267,6 +267,7 @@ export interface IssuedDocument extends BaseEntity {
     sourceDocId?: string;       // 元になった帳票のID（納品書から請求書を作った場合など）
     sourceDocIds?: string[];    // 元になった複数の帳票ID（合算請求書の場合）
     fulfillmentStatus?: 'pending' | 'sent' | 'paid'; // 請求書の状態管理
+    pdfUrl?: string;            // Firebase Storage上のPDFへのリンク
     createdAt?: string | any;
 }
 

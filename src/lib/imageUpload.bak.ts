@@ -81,19 +81,12 @@ export const uploadImageWithCompression = async (
             // 2. Try compression locally (Images only)
             if (!isVideo) {
                 try {
-                    // Adjust compression for Storage (Allow higher quality if we have Storage)
-                    const storageOptions = {
-                        ...options,
-                        maxSizeMB: 1.0, // Storage allows larger files than Firestore
-                        maxWidthOrHeight: 1200, // Better resolution
-                    };
-
                     const compressionTimeout = new Promise<never>((_, reject) => {
                         setTimeout(() => reject(new Error("Compression timeout")), 20000);
                     });
 
                     const compressedFile: any = await Promise.race([
-                        imageCompression(fileToUpload, storageOptions),
+                        imageCompression(fileToUpload, options),
                         compressionTimeout
                     ]);
 
@@ -120,12 +113,7 @@ export const uploadImageWithCompression = async (
 
             if (!response.ok) {
                 const errorData = await response.json();
-                console.error("[Upload] Storage upload failed:", errorData);
-                
-                // If it's a "Forbidden" error, it's likely rules or paywall
-                if (response.status === 403) {
-                    console.warn("[Upload] Permission denied. Falling back to Base64.");
-                }
+                console.warn("[Upload] Proxy upload failed, trying Base64 fallback:", errorData);
 
                 // Fallback: Convert to Base64 for Firestore storage (Zero Config)
                 const convertToBase64 = async (fileToConvert: Blob): Promise<string> => {
@@ -138,28 +126,34 @@ export const uploadImageWithCompression = async (
                 };
 
                 try {
-                    console.log("[Upload] Falling back to Base64 due to Storage error");
-                    // For Base64, we NEED aggressive compression
-                    const aggressiveOptions = {
-                        maxSizeMB: 0.15, // 150KB target for Firestore
-                        maxWidthOrHeight: 600,
-                        useWebWorker: false,
-                    };
-                    const aggressiveBlob = (await imageCompression(fileToUpload, aggressiveOptions)) as any;
-                    const base64 = await convertToBase64(aggressiveBlob);
+                    let base64 = await convertToBase64(fileToUpload as Blob);
 
-                    if (base64.length > 950000) { // Safety margin for 1MB limit
-                        throw new Error("File is too large for fallback storage.");
+                    // If it's an image and even after initial compression it's too big (approx > 600KB base64)
+                    // we try an aggressive compression specifically for Base64
+                    if (!isVideo && base64.length > 600000) {
+                        console.log(`[ImageUpload] Base64 too large (${base64.length}), trying aggressive compression...`);
+                        const aggressiveOptions = {
+                            maxSizeMB: 0.1, // 100KB target
+                            maxWidthOrHeight: 500, // Smaller dimensions
+                            useWebWorker: false,
+                        };
+                        const aggressiveBlob = (await imageCompression(fileToUpload, aggressiveOptions)) as any;
+                        base64 = await convertToBase64(aggressiveBlob);
                     }
 
+                    if (base64.length > 900000) { // Hard limit to avoid 1MB Firestore limit
+                        throw new Error("File is too large even after compression. Please check if the file size is within limits.");
+                    }
+
+                    console.log("[Upload] Using Base64 fallback (size: " + base64.length + ")");
                     return base64;
                 } catch (fallbackError: any) {
-                    throw new Error("Storage upload failed and Base64 fallback also failed: " + (fallbackError.message || "Unknown error"));
+                    throw new Error("Fallback upload failed: " + (fallbackError.message || "Unknown error"));
                 }
             }
 
             const data = await response.json();
-            console.log(`[Upload] Upload successful via Proxy: ${data.url}`);
+            console.log(`[Upload] Upload successful via Proxy`);
 
             return data.url;
         } catch (error: any) {

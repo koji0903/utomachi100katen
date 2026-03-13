@@ -155,6 +155,18 @@ export async function getPdfBase64FromElement(element: HTMLElement): Promise<str
 }
 
 /**
+ * Generates PDF and returns as Blob for Storage upload
+ */
+export async function getPdfBlobFromElement(element: HTMLElement): Promise<Blob> {
+    try {
+        const pdf = await generatePdfInstance(element);
+        return pdf.output("blob");
+    } catch (error: any) {
+        throw new Error(`PDFのBlob変換に失敗しました: ${error.message}`);
+    }
+}
+
+/**
  * legacy support - will be removed later
  */
 export async function generatePdfFromElement(el: HTMLElement, filename = "document.pdf"): Promise<void> {
