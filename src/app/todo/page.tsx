@@ -81,16 +81,24 @@ const ChallengeCard = ({
         return date.toLocaleDateString("ja-JP", { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '/');
     };
 
+    const isDone = challenge.status === 'done';
+
     return (
-        <div className={`group bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all relative overflow-hidden flex ${compact ? 'rounded-2xl p-3 items-center gap-3' : 'rounded-3xl p-5 md:p-6 flex-col md:flex-row md:items-start gap-4 md:gap-6'}`}>
+        <div className={`group transition-all relative overflow-hidden flex border 
+            ${isDone 
+                ? 'bg-slate-50/40 border-slate-200 p-2 px-3 items-center gap-3 rounded-xl' 
+                : compact 
+                    ? 'bg-white border-slate-200 p-3 items-center gap-3 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-200' 
+                    : 'bg-white border-slate-200 p-5 md:p-6 flex-col md:flex-row md:items-start gap-4 md:gap-6 rounded-3xl shadow-sm hover:shadow-md hover:border-blue-200'}`}>
+            
             {/* Category Icon */}
-            <div className={`${compact ? 'w-8 h-8 rounded-xl' : 'w-10 h-10 md:w-12 md:h-12 rounded-2xl'} ${cat.bg} flex items-center justify-center shrink-0`}>
-                <cat.icon className={`${compact ? 'w-4 h-4' : 'w-5 h-5 md:w-6 md:h-6'} ${cat.color}`} />
+            <div className={`${isDone ? 'w-6 h-6 rounded-lg' : compact ? 'w-8 h-8 rounded-xl' : 'w-10 h-10 md:w-12 md:h-12 rounded-2xl'} ${cat.bg} flex items-center justify-center shrink-0`}>
+                <cat.icon className={`${isDone ? 'w-3 h-3' : compact ? 'w-4 h-4' : 'w-5 h-5 md:w-6 md:h-6'} ${cat.color}`} />
             </div>
 
             {/* Content */}
             <div className="flex-1 min-w-0">
-                {!compact && (
+                {!compact && !isDone && (
                     <div className="flex flex-wrap items-center gap-2 mb-1.5">
                         <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${cat.bg} ${cat.color}`}>
                             {cat.label}
@@ -104,13 +112,16 @@ const ChallengeCard = ({
                         </span>
                     </div>
                 )}
-                <div className={`font-bold text-slate-800 ${compact ? 'text-sm truncate' : 'text-base md:text-lg whitespace-pre-wrap'}`}>{challenge.title}</div>
-                {challenge.status !== 'done' && challenge.description && (
+                <div className={`font-bold transition-colors ${isDone ? 'text-slate-400 text-xs truncate' : compact ? 'text-sm truncate text-slate-800' : 'text-base md:text-lg whitespace-pre-wrap text-slate-800'}`}>
+                    {isDone && <span className="mr-2">✓</span>}
+                    {challenge.title}
+                </div>
+                {!isDone && challenge.description && (
                     <p className={`text-sm text-slate-500 mt-1.5 leading-relaxed ${showFullDescription ? 'whitespace-pre-wrap' : 'line-clamp-2'} ${compact ? 'text-xs truncate max-w-[200px]' : ''}`}>
                         {challenge.description}
                     </p>
                 )}
-                {compact && (
+                {compact && !isDone && (
                     <div className="flex items-center gap-2 mt-1">
                         <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${cat.bg} ${cat.color}`}>
                             {cat.label}
@@ -123,8 +134,8 @@ const ChallengeCard = ({
             </div>
 
             {/* Status & Actions */}
-            <div className={`flex items-center justify-end shrink-0 ${compact ? '' : 'pt-3 border-t border-slate-50 md:pt-0 md:border-t-0 md:flex-col md:h-full gap-2'}`}>
-                {!compact && (
+            <div className={`flex items-center justify-end shrink-0 ${isDone || compact ? '' : 'pt-3 border-t border-slate-50 md:pt-0 md:border-t-0 md:flex-col md:h-full gap-2'}`}>
+                {!compact && !isDone && (
                     <div className={`flex items-center justify-end gap-1.5 ${stat.color} font-black text-xs w-full`}>
                         <stat.icon className="w-4 h-4" />
                         {stat.label}
@@ -139,31 +150,31 @@ const ChallengeCard = ({
                                 className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-all"
                                 title="復元"
                             >
-                                <RotateCcw className="w-5 h-5" />
+                                <RotateCcw className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={() => onPermanentDelete?.(challenge.id)}
                                 className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                 title="完全削除"
                             >
-                                <Trash2 className="w-5 h-5" />
+                                <Trash2 className="w-4 h-4" />
                             </button>
                         </>
                     ) : (
                         <>
                             <button
                                 onClick={() => onEdit(challenge)}
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                className={`p-1.5 rounded-lg transition-all ${isDone ? 'text-slate-300 hover:text-blue-500 hover:bg-blue-50' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
                                 title="編集"
                             >
-                                <MoreVertical className="w-5 h-5" />
+                                <MoreVertical className={isDone ? "w-4 h-4" : "w-5 h-5"} />
                             </button>
                             <button
                                 onClick={() => onDelete(challenge.id)}
-                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                className={`p-1.5 rounded-lg transition-all ${isDone ? 'text-slate-300 hover:text-red-500 hover:bg-red-50' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
                                 title="削除"
                             >
-                                <Trash2 className="w-5 h-5" />
+                                <Trash2 className={isDone ? "w-4 h-4" : "w-5 h-5"} />
                             </button>
                         </>
                     )}
