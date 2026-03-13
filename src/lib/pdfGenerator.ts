@@ -16,40 +16,86 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
             throw new Error("Failed to load PDF generation libraries");
         }
 
-        // Wait a bit to ensure all images (like logo) are fully rendered
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Aggressive Iframe Isolation Strategy
+        // This is the most robust way to protect html2canvas from global Tailwind 4 styles (lab/oklch)
+        
+        // 1. Create a hidden iframe
+        const iframe = document.createElement("iframe");
+        iframe.style.position = "absolute";
+        iframe.style.width = el.offsetWidth + "px";
+        iframe.style.height = el.offsetHeight + "px";
+        iframe.style.top = "-9999px";
+        iframe.style.left = "-9999px";
+        iframe.style.visibility = "hidden";
+        document.body.appendChild(iframe);
 
-        // 1. Capture the element with "Deep Cleaning"
-        const canvas = await html2canvas(el, {
+        const iframeDoc = iframe.contentWindow?.document;
+        if (!iframeDoc) throw new Error("Could not create iframe isolation context");
+
+        // 2. Clone the element's inner HTML and write it to the iframe
+        // We also inject a safe, minimal HEX-only stylesheet
+        const reportHtml = el.innerHTML;
+        iframeDoc.open();
+        iframeDoc.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
+                    body { 
+                        margin: 0; 
+                        padding: 0; 
+                        background: white; 
+                        color: #1e293b; 
+                        font-family: sans-serif;
+                    }
+                    /* Ensure layout matches as much as possible without Tailwind */
+                    div, p, h1, h2, h3, h4, span { display: block; position: relative; }
+                    .flex { display: flex; }
+                    .items-center { align-items: center; }
+                    .justify-between { justify-content: space-between; }
+                    .grid { display: grid; }
+                    .grid-cols-2 { grid-template-columns: 1fr 1fr; }
+                    .gap-4 { gap: 16px; }
+                    .mb-6 { margin-bottom: 24px; }
+                    .mt-1 { margin-top: 4px; }
+                    .p-4 { padding: 16px; }
+                    .text-center { text-align: center; }
+                    .text-xl { font-size: 20px; }
+                    .font-bold { font-weight: bold; }
+                    .rounded-2xl { border-radius: 16px; }
+                    .border { border: 1px solid #e2e8f0; }
+                    .overflow-hidden { overflow: hidden; }
+                    .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .text-xs { font-size: 12px; }
+                    .text-[10px] { font-size: 10px; }
+                    .font-black { font-weight: 900; }
+                    .shrink-0 { flex-shrink: 0; }
+                    .divide-y > * + * { border-top: 1px solid #f1f5f9; }
+                </style>
+            </head>
+            <body>
+                <div style="padding: 24px;">${reportHtml}</div>
+            </body>
+            </html>
+        `);
+        iframeDoc.close();
+
+        // Wait for iframe resources to settle
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        // 3. Capture the element inside the isolated iframe
+        const captureArea = iframeDoc.body;
+        const canvas = await html2canvas(captureArea, {
             scale: 2,
             useCORS: true,
             allowTaint: false,
             backgroundColor: "#ffffff",
             logging: false,
-            onclone: (clonedDoc: Document) => {
-                // Aggressive Sanitization: Remove ALL existing stylesheets and link tags
-                // This prevents html2canvas from attempting to parse Tailwind 4's modern color functions (lab/oklch)
-                const styles = clonedDoc.getElementsByTagName("style");
-                const links = clonedDoc.getElementsByTagName("link");
-                
-                for (let i = styles.length - 1; i >= 0; i--) {
-                    styles[i].parentNode?.removeChild(styles[i]);
-                }
-                for (let i = links.length - 1; i >= 0; i--) {
-                    if (links[i].rel === "stylesheet") {
-                        links[i].parentNode?.removeChild(links[i]);
-                    }
-                }
-
-                // Inject a minimal, safe stylesheet for basic layout if needed
-                const safeStyle = clonedDoc.createElement("style");
-                safeStyle.innerHTML = `
-                    * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
-                    body { background: white !important; color: #1e293b !important; font-family: sans-serif !important; }
-                `;
-                clonedDoc.head.appendChild(safeStyle);
-            }
         });
+
+        // 4. Cleanup iframe
+        document.body.removeChild(iframe);
 
         if (!canvas || canvas.width === 0 || canvas.height === 0) {
             throw new Error("Canvas generation failed or element has no dimensions");
@@ -69,8 +115,8 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
         pdf.save(filename);
 
     } catch (error: any) {
-        console.error("PDF Generation Error (Sanitized Capture):", error);
-        alert(`PDFの生成に失敗しました: ${error.message || "未知のエラー"}\n環境依存のスタイル解析エラーを回避するためのクリーニング処理を行いましたが、解決に至りませんでした。`);
+        console.error("PDF Generation Error (Iframe Isolation):", error);
+        alert(`PDFの生成に失敗しました: ${error.message || "未知のエラー"}\n環境依存のスタイル解析エラーを回避するための徹底的な隔離処理を行いましたが、解決に至りませんでした。`);
         throw error;
     }
 }
