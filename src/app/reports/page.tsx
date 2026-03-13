@@ -7,13 +7,14 @@ import {
     X, FileText, CheckCircle2, Pencil, ChevronDown, Loader2,
     Thermometer, Wind, Plus, ClipboardList, Trash2, AlertTriangle,
     ChevronRight, ChevronLeft, Store, Image as ImageIcon, UploadCloud, Save, Package,
-    Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy, Video, RotateCcw
+    Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy, Video, RotateCcw,
+    Mail
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { getHolidayName } from "@/lib/holidays";
 import { generateMonthlySalesReport, MonthlySalesReportData } from "@/lib/reportUtils";
-import { generatePdfFromElement } from "@/lib/pdfGenerator";
+import { downloadPdfFromElement, getPdfBase64FromElement } from "@/lib/pdfGenerator";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -1045,6 +1046,8 @@ function ReportsPageContent() {
     const [monthlyReportData, setMonthlyReportData] = useState<MonthlySalesReportData | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isExportingPdf, setIsExportingPdf] = useState(false);
+    const [recipientEmail, setRecipientEmail] = useState("info@matching-k.jp");
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
     const reportRef = useRef<HTMLDivElement>(null);
 
     const filterDate = searchParams.get("date");
@@ -1072,11 +1075,40 @@ function ReportsPageContent() {
         setIsExportingPdf(true);
         try {
             const filename = `monthly_report_${reportMonth}.pdf`;
-            await generatePdfFromElement(reportRef.current, filename);
+            await downloadPdfFromElement(reportRef.current, filename);
         } catch (error) {
             console.error("PDF Export error:", error);
         } finally {
             setIsExportingPdf(false);
+        }
+    };
+
+    const handleSendEmail = async () => {
+        if (!reportRef.current || !monthlyReportData) return;
+        setIsSendingEmail(true);
+        try {
+            const pdfBase64 = await getPdfBase64FromElement(reportRef.current);
+            const response = await fetch("/api/reports/send-monthly", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    recipient: recipientEmail,
+                    month: reportMonth,
+                    pdfBase64: pdfBase64,
+                    summaryData: monthlyReportData
+                }),
+            });
+            const result = await response.json();
+            if (result.success) {
+                alert("レポートをメールで送信しました。");
+            } else {
+                throw new Error(result.error || "送信に失敗しました");
+            }
+        } catch (error: any) {
+            console.error("Email share error:", error);
+            alert(`メール送信に失敗しました: ${error.message}`);
+        } finally {
+            setIsSendingEmail(false);
         }
     };
 
