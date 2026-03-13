@@ -35,7 +35,7 @@ function PurchasesPageContent() {
 
                 if (isUnderThreshold || isRunningOutSoon) {
                     // Check if there's already an active PO (ordered_pending/ordered) for THIS product
-                    const hasActivePO = purchases.some(p => p.status !== 'completed' && (p.items || []).some(i => i.productId === product.id));
+                    const hasActivePO = purchases.some(p => p.status !== 'received' && p.status !== 'paid' && (p.items || []).some(i => i.productId === product.id));
                     if (hasActivePO) continue;
 
                     const threshold = product.alertThreshold ?? 20;
@@ -118,14 +118,20 @@ function PurchasesPageContent() {
     };
 
     const handleToggleStatus = (purchase: Purchase) => {
-        const statusOrder: Purchase['status'][] = ['ordered_pending', 'ordered', 'completed'];
+        const statusOrder: Purchase['status'][] = ['ordered_pending', 'ordered', 'waiting', 'received', 'paid'];
         const currentIndex = statusOrder.indexOf(purchase.status);
         if (currentIndex < statusOrder.length - 1) {
             const nextStatus = statusOrder[currentIndex + 1];
             const update: Partial<Purchase> = { status: nextStatus };
-            if (nextStatus === 'completed') {
-                update.arrivalDate = new Date().toISOString().split('T')[0];
+            
+            // Auto-set dates
+            if (nextStatus === 'received') {
+                update.receivedDate = new Date().toISOString().split('T')[0];
+                update.arrivalDate = update.receivedDate;
+            } else if (nextStatus === 'paid') {
+                update.paymentDate = new Date().toISOString().split('T')[0];
             }
+            
             updatePurchase(purchase.id, update);
         }
     };
@@ -160,13 +166,31 @@ function PurchasesPageContent() {
             case 'ordered':
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200">
-                        <Clock className="w-3 h-3" /> 発注済
+                        <ShoppingBag className="w-3 h-3" /> 発注済
                     </span>
                 );
-            case 'completed':
+            case 'waiting':
+                return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                        <Clock className="w-3 h-3" /> 仕入待ち
+                    </span>
+                );
+            case 'received':
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                        <CheckCircle className="w-3 h-3" /> 入荷済み
+                        <CheckCircle className="w-3 h-3" /> 仕入済み
+                    </span>
+                );
+            case 'paid':
+                return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">
+                        <CheckCircle className="w-3 h-3" /> 支払済
+                    </span>
+                );
+            default:
+                return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                        {status}
                     </span>
                 );
         }
@@ -188,7 +212,7 @@ function PurchasesPageContent() {
                                 </Link>
                             )}
                             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                                {filterDate ? `${filterDate.replace(/-/g, "/")} の発注記録` : "発注管理"}
+                                {filterDate ? `${filterDate.replace(/-/g, "/")} の記録` : "仕入管理"}
                             </h1>
                         </div>
                         <p className="text-slate-500 text-sm">仕入先への発注から入荷、直接入荷の管理を一元化します。</p>
@@ -217,7 +241,7 @@ function PurchasesPageContent() {
                         className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm font-medium"
                     >
                         <Plus className="w-5 h-5" />
-                        新規発注登録
+                        新規仕入登録
                     </button>
                 </div>
             </div>
@@ -280,18 +304,21 @@ function PurchasesPageContent() {
                                         </td>
                                         <td className="p-5 text-xs text-slate-500">
                                             <div>発注: {purchase.orderDate}</div>
-                                            {purchase.type === 'A' && purchase.status !== 'completed' && (
+                                            {purchase.type === 'A' && purchase.status !== 'received' && purchase.status !== 'paid' && (
                                                 <div className="text-blue-400">予定: {purchase.expectedArrivalDate || "-"}</div>
                                             )}
-                                            {purchase.status === 'completed' && (
-                                                <div className="text-emerald-500 font-medium">入荷: {purchase.arrivalDate}</div>
+                                            {(purchase.status === 'received' || purchase.status === 'paid') && (
+                                                <div className="text-emerald-500 font-medium">入荷: {purchase.arrivalDate || purchase.receivedDate}</div>
+                                            )}
+                                            {purchase.status === 'paid' && (
+                                                <div className="text-indigo-500 font-medium text-[10px]">支払: {purchase.paymentDate}</div>
                                             )}
                                         </td>
                                         <td className="p-5 text-center">
                                             <button
                                                 onClick={() => handleToggleStatus(purchase)}
-                                                disabled={purchase.status === 'completed'}
-                                                className={`transition-all ${purchase.status !== 'completed' ? 'hover:scale-105 active:scale-95' : 'cursor-default'}`}
+                                                disabled={purchase.status === 'paid'}
+                                                className={`transition-all ${purchase.status !== 'paid' ? 'hover:scale-105 active:scale-95' : 'cursor-default'}`}
                                             >
                                                 {getStatusBadge(purchase.status)}
                                             </button>

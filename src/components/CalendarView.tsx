@@ -11,7 +11,9 @@ import {
     Calendar,
     Store,
     Camera,
-    Laptop
+    Laptop,
+    CheckCircle,
+    CreditCard
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
@@ -61,8 +63,10 @@ export const CalendarView: React.FC = () => {
         const hasActivityReport = reports.some(r => r.type === 'activity');
         const hasOfficeReport = reports.some(r => r.type === 'office');
 
-        // Purchases might have orderDate or arrivalDate. Assuming orderDate for record.
-        const dayPurchases = purchases.filter(p => p.orderDate === dateStr);
+        // Purchases filtering by various dates
+        const dayOrdered = purchases.filter(p => !p.isTrashed && p.orderDate === dateStr);
+        const dayReceived = purchases.filter(p => !p.isTrashed && (p.receivedDate === dateStr || (p.status === 'received' && p.arrivalDate === dateStr)));
+        const dayPaid = purchases.filter(p => !p.isTrashed && p.paymentDate === dateStr);
 
         const holidayName = getHolidayName(dateStr);
 
@@ -74,7 +78,11 @@ export const CalendarView: React.FC = () => {
                 office: hasOfficeReport,
                 any: reports.length > 0
             },
-            purchaseCount: dayPurchases.length,
+            purchaseEvents: {
+                ordered: dayOrdered.length,
+                received: dayReceived.length,
+                paid: dayPaid.length,
+            },
             holidayName
         };
     };
@@ -161,13 +169,36 @@ export const CalendarView: React.FC = () => {
                         </Link>
                     )}
 
-                    {data.purchaseCount > 0 && (
+                    {data.purchaseEvents.ordered > 0 && (
                         <Link
                             href={`/purchases?date=${dayDate}`}
                             className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-bold text-amber-600 truncate hover:bg-amber-100/50 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
+                            title="発注"
                         >
                             <ShoppingCart className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
-                            <span>仕入 {data.purchaseCount}</span>
+                            <span>発注 {data.purchaseEvents.ordered}</span>
+                        </Link>
+                    )}
+
+                    {data.purchaseEvents.received > 0 && (
+                        <Link
+                            href={`/purchases?date=${dayDate}`}
+                            className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-bold text-emerald-600 truncate hover:bg-emerald-100/50 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
+                            title="仕入"
+                        >
+                            <CheckCircle className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
+                            <span>仕入 {data.purchaseEvents.received}</span>
+                        </Link>
+                    )}
+
+                    {data.purchaseEvents.paid > 0 && (
+                        <Link
+                            href={`/purchases?date=${dayDate}`}
+                            className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-bold text-indigo-600 truncate hover:bg-indigo-100/50 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
+                            title="支払"
+                        >
+                            <CreditCard className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
+                            <span>支払 {data.purchaseEvents.paid}</span>
                         </Link>
                     )}
                 </div>
@@ -247,7 +278,13 @@ export const CalendarView: React.FC = () => {
                     <div className="w-2.5 h-2.5 rounded-full bg-slate-500" /> Office
                 </div>
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Purchase
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Ordered
+                </div>
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Received
+                </div>
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" /> Paid
                 </div>
             </div>
         </section>

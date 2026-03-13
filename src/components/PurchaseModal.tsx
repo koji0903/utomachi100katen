@@ -17,12 +17,14 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
 
     const [formData, setFormData] = useState({
         type: 'A' as 'A' | 'B',
-        status: 'ordered_pending' as 'ordered_pending' | 'ordered' | 'completed',
+        status: 'ordered_pending' as Purchase['status'],
         supplierId: "",
         items: [] as PurchaseItem[],
         totalAmount: 0,
         orderDate: new Date().toISOString().split("T")[0],
         arrivalDate: "",
+        receivedDate: "",
+        paymentDate: "",
         expectedArrivalDate: "",
     });
 
@@ -42,12 +44,14 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
 
                 setFormData({
                     type: initialData.type || 'A',
-                    status: initialData.status || 'ordered_pending',
+                    status: initialData.status as Purchase['status'] || 'ordered_pending',
                     supplierId: initialData.supplierId,
                     items: itemsList,
                     totalAmount: initialData.totalAmount || initialData.totalCost || 0,
                     orderDate: initialData.orderDate,
                     arrivalDate: initialData.arrivalDate || "",
+                    receivedDate: initialData.receivedDate || initialData.arrivalDate || "",
+                    paymentDate: initialData.paymentDate || "",
                     expectedArrivalDate: initialData.expectedArrivalDate || "",
                 });
             } else {
@@ -59,6 +63,8 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                     totalAmount: 0,
                     orderDate: new Date().toISOString().split("T")[0],
                     arrivalDate: "",
+                    receivedDate: "",
+                    paymentDate: "",
                     expectedArrivalDate: "",
                 });
             }
@@ -98,9 +104,10 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
             setFormData(prev => ({
                 ...prev,
                 type: 'B',
-                status: 'completed',
+                status: 'received',
                 orderDate: today,
                 arrivalDate: today,
+                receivedDate: today,
             }));
         } else {
             setFormData(prev => ({
@@ -171,7 +178,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                             <ShoppingBag className="w-5 h-5" />
                         </div>
                         <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                            {initialData ? "発注・仕入情報を編集" : "新規発注オーダー作成"}
+                            {initialData ? "仕入情報を編集" : "新規仕入作成"}
                         </h2>
                     </div>
                     <button
@@ -197,7 +204,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                             onClick={() => handleTypeChange('B')}
                             className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium rounded-md transition-all ${formData.type === 'B' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
-                            パターンB (直接入荷)
+                            パターンB (即時仕入)
                             <Tooltip content="当日仕入れた商品を即座に在庫へ反映するフローです。" position="bottom" />
                         </button>
                     </div>
@@ -268,7 +275,9 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                 >
                                     <option value="ordered_pending">発注未（予定）</option>
                                     <option value="ordered">発注済み</option>
-                                    <option value="completed">入荷済み</option>
+                                    <option value="waiting">仕入待ち</option>
+                                    <option value="received">仕入済み（在庫反映）</option>
+                                    <option value="paid">支払済</option>
                                 </select>
                             </div>
                         </div>

@@ -188,12 +188,14 @@ export interface PurchaseItem {
 export interface Purchase extends BaseEntity {
     id: string;
     type: 'A' | 'B';
-    status: 'ordered_pending' | 'ordered' | 'completed';
+    status: 'ordered_pending' | 'ordered' | 'waiting' | 'received' | 'paid';
     supplierId: string;
     items: PurchaseItem[];
     totalAmount: number;
     orderDate: string;
-    arrivalDate?: string;
+    arrivalDate?: string;      // 実際の仕入日 (receivedDateとしても機能)
+    receivedDate?: string;     // 仕入日 (一貫性のため追加)
+    paymentDate?: string;      // 支払い日
     expectedArrivalDate?: string;
     createdAt?: string | any;
 
@@ -729,8 +731,8 @@ export function useStore() {
             createdAt: new Date().toISOString(),
         };
 
-        // If status is completed, increment stock
-        if (purchaseData.status === 'completed') {
+        // If status is received/paid, increment stock
+        if (purchaseData.status === 'received' || purchaseData.status === 'paid') {
             const items = purchaseData.items || [];
             for (const item of items) {
                 const product = products.find(p => p.id === item.productId);
@@ -753,8 +755,12 @@ export function useStore() {
         const currentPurchase = purchases.find(p => p.id === id);
         if (!currentPurchase) return;
 
-        // If shifting to completed status, increment stock
-        if (purchaseUpdate.status === 'completed' && currentPurchase.status !== 'completed') {
+        // If shifting to received status, increment stock
+        // Note: 'received' or 'paid' both mean the items have arrived.
+        const isNowReceived = (purchaseUpdate.status === 'received' || purchaseUpdate.status === 'paid');
+        const wasReceived = (currentPurchase.status === 'received' || currentPurchase.status === 'paid');
+
+        if (isNowReceived && !wasReceived) {
             const items = purchaseUpdate.items || currentPurchase.items || [];
             for (const item of items) {
                 const product = products.find(p => p.id === item.productId);
@@ -763,6 +769,15 @@ export function useStore() {
                     await updateProduct(product.id, { stock: newStock });
                 }
             }
+        }
+        
+        // Auto-set dates based on status
+        if (purchaseUpdate.status === 'received' && !purchaseUpdate.receivedDate) {
+            purchaseUpdate.receivedDate = new Date().toISOString().split('T')[0];
+            purchaseUpdate.arrivalDate = purchaseUpdate.receivedDate;
+        }
+        if (purchaseUpdate.status === 'paid' && !purchaseUpdate.paymentDate) {
+            purchaseUpdate.paymentDate = new Date().toISOString().split('T')[0];
         }
 
         mutatePurchases(purchases.map((p) => p.id === id ? { ...p, ...purchaseUpdate } : p) as Purchase[], false);
@@ -775,8 +790,9 @@ export function useStore() {
         const purchase = purchases.find(p => p.id === id);
         if (!purchase) return;
 
-        // Correct stock if the purchase was completed
-        if (purchase.status === 'completed' && !purchase.isTrashed) {
+        // Correct stock if the purchase was received
+        const wasReceived = (purchase.status === 'received' || purchase.status === 'paid');
+        if (wasReceived && !purchase.isTrashed) {
             const items = purchase.items || [];
             for (const item of items) {
                 const product = products.find(p => p.id === item.productId);
@@ -795,8 +811,9 @@ export function useStore() {
         const purchase = purchases.find(p => p.id === id);
         if (!purchase) return;
 
-        // Redo stock if the purchase was completed
-        if (purchase.status === 'completed') {
+        // Redo stock if the purchase was received
+        const wasReceived = (purchase.status === 'received' || purchase.status === 'paid');
+        if (wasReceived) {
             const items = purchase.items || [];
             for (const item of items) {
                 const product = products.find(p => p.id === item.productId);
@@ -1501,7 +1518,8 @@ export function useStore() {
             }
         } else if (item.collectionName === 'inbound_shipments') {
             const purchase = item.data as Purchase;
-            if (purchase.status === 'completed') {
+            const isReceived = (purchase.status === 'received' || purchase.status === 'paid');
+            if (isReceived) {
                 const purchaseItems = purchase.items || [];
                 for (const pItem of purchaseItems) {
                     const product = products.find(p => p.id === pItem.productId);
