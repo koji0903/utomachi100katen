@@ -1304,25 +1304,58 @@ function ReportsPageContent() {
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                                    <button 
-                                        onClick={handleDownloadPdf}
-                                        disabled={isExportingPdf || monthlyReportData.totals.length === 0}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white font-bold rounded-2xl transition-all text-xs"
-                                    >
-                                        {isExportingPdf ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <UploadCloud className="w-4 h-4" />
-                                        )}
-                                        PDFをダウンロード
-                                    </button>
-                                    <button 
-                                        onClick={() => setMonthlyReportData(null)}
-                                        className="flex-1 px-4 py-3 border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 font-bold rounded-2xl transition-all text-xs"
-                                    >
-                                        集計を閉じる
-                                    </button>
+                                {/* Monthly Report Action Buttons */}
+                                <div className="p-5 bg-white border-t border-slate-100 flex flex-col gap-4">
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        <button 
+                                            onClick={handleDownloadPdf}
+                                            disabled={isExportingPdf || monthlyReportData.totals.length === 0}
+                                            className="flex-1 flex items-center justify-center gap-2 px-5 py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-bold rounded-2xl shadow-lg shadow-indigo-100 active:scale-95 transition-all text-sm h-[52px]"
+                                        >
+                                            {isExportingPdf ? (
+                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                            ) : (
+                                                <FileText className="w-5 h-5" />
+                                            )}
+                                            PDFをダウンロード
+                                        </button>
+                                        
+                                        <button 
+                                            onClick={() => setMonthlyReportData(null)}
+                                            className="flex-1 px-5 py-4 bg-white hover:bg-slate-50 text-slate-500 font-bold rounded-2xl border border-slate-200 active:scale-95 transition-all text-sm h-[52px]"
+                                        >
+                                            集計を閉じる
+                                        </button>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-slate-100">
+                                        <div className="flex flex-col gap-3">
+                                            <div className="flex-1">
+                                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">送信先メールアドレス</label>
+                                                <div className="flex flex-col sm:flex-row gap-2">
+                                                    <input 
+                                                        type="email" 
+                                                        value={recipientEmail}
+                                                        onChange={(e) => setRecipientEmail(e.target.value)}
+                                                        placeholder="info@matching-k.jp"
+                                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                                    />
+                                                    <button
+                                                        onClick={handleSendEmail}
+                                                        disabled={isSendingEmail || !recipientEmail}
+                                                        className="flex items-center justify-center gap-2 px-8 py-3.5 bg-slate-900 hover:bg-black disabled:bg-slate-300 text-white font-bold rounded-2xl shadow-md active:scale-95 transition-all text-sm min-w-[140px] h-[52px]"
+                                                    >
+                                                        {isSendingEmail ? (
+                                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                                        ) : (
+                                                            <Mail className="w-5 h-5" />
+                                                        )}
+                                                        メール送信
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
