@@ -10,6 +10,9 @@ import {
 import { useStore, Transaction, IssuedDocument, InvoicePayment, TransactionItem } from "@/lib/store";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { TransactionModal } from "@/components/TransactionModal";
+import { NewDocumentModal } from "@/components/NewDocumentModal";
 
 const BRAND = "#1e3a8a";
 const BRAND_LIGHT = "#eff6ff";
@@ -24,6 +27,8 @@ interface TransactionDetailViewProps {
 export function TransactionDetailView({ id }: TransactionDetailViewProps) {
     const { isLoaded, transactions, issuedDocuments, invoicePayments, transactionItems } = useStore();
     const router = useRouter();
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isNewDocModalOpen, setIsNewDocModalOpen] = useState(false);
 
     const transaction = useMemo(() => transactions.find(t => t.id === id), [transactions, id]);
     
@@ -83,8 +88,19 @@ export function TransactionDetailView({ id }: TransactionDetailViewProps) {
                     </div>
                 </div>
                 <div className="flex gap-2">
-                    <button className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition-all">取引を編集</button>
-                    <button className="px-5 py-2.5 text-white rounded-xl text-sm font-bold shadow-lg hover:opacity-90 transition-all active:scale-95" style={{ backgroundColor: BRAND }}>新規帳票を作成</button>
+                    <button 
+                        onClick={() => setIsEditModalOpen(true)}
+                        className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition-all"
+                    >
+                        取引を編集
+                    </button>
+                    <button 
+                        onClick={() => setIsNewDocModalOpen(true)}
+                        className="px-5 py-2.5 text-white rounded-xl text-sm font-bold shadow-lg hover:opacity-90 transition-all active:scale-95" 
+                        style={{ backgroundColor: BRAND }}
+                    >
+                        新規帳票を作成
+                    </button>
                 </div>
             </div>
 
@@ -210,7 +226,10 @@ export function TransactionDetailView({ id }: TransactionDetailViewProps) {
                                     </div>
                                 ))
                             )}
-                            <button className="w-full py-4 text-xs font-black text-slate-400 hover:text-blue-600 border border-dashed border-slate-200 rounded-2xl hover:bg-blue-50/50 hover:border-blue-200 transition-all flex items-center justify-center gap-2 group">
+                            <button 
+                                onClick={() => setIsNewDocModalOpen(true)}
+                                className="w-full py-4 text-xs font-black text-slate-400 hover:text-blue-600 border border-dashed border-slate-200 rounded-2xl hover:bg-blue-50/50 hover:border-blue-200 transition-all flex items-center justify-center gap-2 group"
+                            >
                                 <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
                                 新しい帳票を紐付ける
                             </button>
@@ -272,6 +291,21 @@ export function TransactionDetailView({ id }: TransactionDetailViewProps) {
                     </div>
                 </div>
             </div>
+
+            {isEditModalOpen && (
+                <TransactionModal 
+                    isOpen={isEditModalOpen} 
+                    onClose={() => setIsEditModalOpen(false)} 
+                    initialData={transaction}
+                />
+            )}
+
+            {isNewDocModalOpen && (
+                <NewDocumentModal 
+                    onClose={() => setIsNewDocModalOpen(false)} 
+                    initialTransactionId={id}
+                />
+            )}
         </div>
     );
 }
