@@ -44,16 +44,17 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
                     * { 
                         box-sizing: border-box; 
                         -webkit-print-color-adjust: exact; 
-                        line-height: 1.6; /* Prevent text clipping and improve readability */
+                        line-height: 2.0 !important; /* Radical line spacing for Japanese characters */
+                        overflow: visible !important;
                     }
                     html, body { 
                         margin: 0; 
                         padding: 0; 
-                        background: #f8fafc; /* Subtle background for the page */
+                        background: #f8fafc;
                     }
                     body { 
                         color: #1e293b; 
-                        font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+                        font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "BIZ UDPGothic", "Meiryo", "Helvetica Neue", Arial, sans-serif;
                     }
                     #report-container {
                         margin: 15mm; /* Professional margin */

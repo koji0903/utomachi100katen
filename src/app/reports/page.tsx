@@ -1216,15 +1216,23 @@ function ReportsPageContent() {
                                                     </div>
                                                     <div>
                                                         {store.items.map((item, i) => (
-                                                            <div key={item.productId} style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: i === store.items.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
+                                                            <div key={item.productId} style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: i === store.items.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
                                                                 <div style={{ flex: '1', paddingRight: '20px' }}>
-                                                                    <p style={{ fontSize: '14px', fontWeight: '500', color: '#475569', margin: '0', lineHeight: '1.6' }}>
+                                                                    <div style={{ 
+                                                                        fontSize: '15px', 
+                                                                        fontWeight: '500', 
+                                                                        color: '#334155', 
+                                                                        margin: '0', 
+                                                                        lineHeight: '2.0', 
+                                                                        paddingBottom: '8px',
+                                                                        overflow: 'visible'
+                                                                    }}>
                                                                         {item.productName}
-                                                                    </p>
+                                                                    </div>
                                                                 </div>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexShrink: '0' }}>
-                                                                    <span style={{ fontSize: '14px', width: '45px', textAlign: 'right', fontWeight: '500', color: '#64748b' }}>{item.quantity}個</span>
-                                                                    <span style={{ fontSize: '14px', fontWeight: 'bold', width: '90px', textAlign: 'right', color: '#1e293b' }}>¥{item.amount.toLocaleString()}</span>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexShrink: '0' }}>
+                                                                    <span style={{ fontSize: '15px', width: '50px', textAlign: 'right', fontWeight: '500', color: '#64748b' }}>{item.quantity}個</span>
+                                                                    <span style={{ fontSize: '15px', fontWeight: 'bold', width: '100px', textAlign: 'right', color: '#0f172a' }}>¥{item.amount.toLocaleString()}</span>
                                                                 </div>
                                                             </div>
                                                         ))}
