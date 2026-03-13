@@ -1183,14 +1183,14 @@ function ReportsPageContent() {
                                     </div>
 
                                     {/* Summary Card */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-                                        <div style={{ backgroundColor: '#f5f7ff', border: '1px solid #e0e7ff', borderRadius: '16px', padding: '16px' }}>
-                                            <p style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#818cf8', marginBottom: '4px', margin: '0' }}>合計売上</p>
-                                            <p style={{ fontSize: '20px', fontWeight: '900', color: '#1e1b4b', margin: '0' }}>¥{monthlyReportData.grandTotalAmount.toLocaleString()}</p>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+                                        <div style={{ backgroundColor: '#f5f7ff', border: '2px solid #e0e7ff', borderRadius: '16px', padding: '20px' }}>
+                                            <p style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6366f1', marginBottom: '6px', margin: '0' }}>合計売上</p>
+                                            <p style={{ fontSize: '24px', fontWeight: '900', color: '#1e1b4b', margin: '0' }}>¥{monthlyReportData.grandTotalAmount.toLocaleString()}</p>
                                         </div>
-                                        <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px' }}>
-                                            <p style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: '4px', margin: '0' }}>合計個数</p>
-                                            <p style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', margin: '0' }}>{monthlyReportData.grandTotalQuantity.toLocaleString()} 個</p>
+                                        <div style={{ backgroundColor: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '16px', padding: '20px' }}>
+                                            <p style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: '6px', margin: '0' }}>合計個数</p>
+                                            <p style={{ fontSize: '24px', fontWeight: '900', color: '#1e293b', margin: '0' }}>{monthlyReportData.grandTotalQuantity.toLocaleString()} 個</p>
                                         </div>
                                     </div>
 
@@ -1203,15 +1203,15 @@ function ReportsPageContent() {
                                             </div>
                                         ) : (
                                             monthlyReportData.totals.map((store) => (
-                                                <div key={store.storeId} style={{ backgroundColor: '#ffffff', border: '1px solid #f1f5f9', borderRadius: '16px', overflow: 'hidden' }}>
-                                                    <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1' }}>
-                                                            <span style={{ fontSize: '14px' }}>🏪</span>
-                                                            <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e293b', margin: '0' }}>{store.storeName}</h3>
+                                                <div key={store.storeId} style={{ backgroundColor: '#ffffff', border: '2px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', marginBottom: '12px' }}>
+                                                    <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1' }}>
+                                                            <span style={{ fontSize: '16px' }}>🏪</span>
+                                                            <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#0f172a', margin: '0' }}>{store.storeName}</h3>
                                                         </div>
                                                         <div style={{ textAlign: 'right' }}>
-                                                            <span style={{ fontSize: '12px', fontWeight: '900', color: '#0f172a' }}>¥{store.storeTotalAmount.toLocaleString()}</span>
-                                                            <span style={{ fontSize: '10px', color: '#94a3b8', marginLeft: '8px' }}>({store.storeTotalQuantity}個)</span>
+                                                            <span style={{ fontSize: '14px', fontWeight: '900', color: '#000000' }}>¥{store.storeTotalAmount.toLocaleString()}</span>
+                                                            <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '10px' }}>({store.storeTotalQuantity}個)</span>
                                                         </div>
                                                     </div>
                                                     <div>

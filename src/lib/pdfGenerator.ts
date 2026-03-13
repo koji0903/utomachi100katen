@@ -41,41 +41,58 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
             <html>
             <head>
                 <style>
-                    * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
-                    body { 
+                    * { 
+                        box-sizing: border-box; 
+                        -webkit-print-color-adjust: exact; 
+                        line-height: 1.6; /* Prevent text clipping and improve readability */
+                    }
+                    html, body { 
                         margin: 0; 
                         padding: 0; 
-                        background: white; 
-                        color: #1e293b; 
-                        font-family: sans-serif;
+                        background: #f8fafc; /* Subtle background for the page */
                     }
-                    /* Ensure layout matches as much as possible without Tailwind */
-                    div, p, h1, h2, h3, h4, span { display: block; position: relative; }
+                    body { 
+                        color: #1e293b; 
+                        font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+                    }
+                    #report-container {
+                        margin: 15mm; /* Professional margin */
+                        padding: 10mm;
+                        background: white;
+                        min-height: calc(297mm - 30mm); /* A4 height minus margins */
+                        border: 1px solid #e2e8f0; /* The frame */
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                        border-radius: 8px;
+                    }
+                    /* Layout Utilities */
+                    div, p, h1, h2, h3, h4, span { display: block; position: relative; margin: 0; padding: 0; }
                     .flex { display: flex; }
                     .items-center { align-items: center; }
                     .justify-between { justify-content: space-between; }
                     .grid { display: grid; }
                     .grid-cols-2 { grid-template-columns: 1fr 1fr; }
-                    .gap-4 { gap: 16px; }
-                    .mb-6 { margin-bottom: 24px; }
-                    .mt-1 { margin-top: 4px; }
-                    .p-4 { padding: 16px; }
+                    .gap-4 { gap: 20px; }
+                    .mb-6 { margin-bottom: 32px; }
+                    .mt-1 { margin-top: 6px; }
+                    .p-4 { padding: 20px; }
+                    
+                    /* Typography Refinements */
                     .text-center { text-align: center; }
-                    .text-xl { font-size: 20px; }
+                    .text-xl { font-size: 24px; } /* Increased */
                     .font-bold { font-weight: bold; }
-                    .rounded-2xl { border-radius: 16px; }
+                    .rounded-2xl { border-radius: 20px; }
                     .border { border: 1px solid #e2e8f0; }
                     .overflow-hidden { overflow: hidden; }
                     .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                    .text-xs { font-size: 12px; }
-                    .text-[10px] { font-size: 10px; }
+                    .text-xs { font-size: 14px; } /* Increased from 12px */
+                    .text-[10px] { font-size: 11px; } /* Increased from 10px */
                     .font-black { font-weight: 900; }
                     .shrink-0 { flex-shrink: 0; }
                     .divide-y > * + * { border-top: 1px solid #f1f5f9; }
                 </style>
             </head>
             <body>
-                <div style="padding: 24px;">${reportHtml}</div>
+                <div id="report-container">${reportHtml}</div>
             </body>
             </html>
         `);
