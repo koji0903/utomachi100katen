@@ -22,17 +22,26 @@ export async function POST(req: Request) {
         const reportMonth = month.replace(/-/g, "/");
         const subject = `【売上レポート】${reportMonth}月分 月次売上報告書`;
 
+        // Generate store-wise summary for the email body
+        const storeBreakdown = summaryData.totals.map((s: any) => 
+            `・${s.storeName.padEnd(20)}: ${s.storeTotalQuantity.toLocaleString().padStart(5)}個 / ¥${s.storeTotalAmount.toLocaleString().padStart(10)}`
+        ).join('\n');
+
         // Generate text body for the email
         const textBody = `
 ウトマチ 運営担当者 様
 
 ${reportMonth}月の月次売上レポートをお送りいたします。
+売上概況および店舗別の集計結果を以下の通りお知らせいたします。
 詳細は添付のPDFファイルをご確認ください。
 
 【${reportMonth}月 売上概況】
 ・合計売上額: ¥${summaryData.grandTotalAmount.toLocaleString()}
 ・合計売上個数: ${summaryData.grandTotalQuantity.toLocaleString()} 個
-・店舗数: ${summaryData.totals.length} 店舗
+・対象店舗数: ${summaryData.totals.length} 店舗
+
+【店舗別売上サマリ】
+${storeBreakdown}
 
 ---
 ウトマチプラットフォーム
