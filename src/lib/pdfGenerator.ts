@@ -44,52 +44,29 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
                     * { 
                         box-sizing: border-box; 
                         -webkit-print-color-adjust: exact; 
-                        line-height: 2.0 !important; /* Radical line spacing for Japanese characters */
+                        line-height: 2.0 !important;
                         overflow: visible !important;
                     }
                     html, body { 
                         margin: 0; 
                         padding: 0; 
-                        background: #f8fafc;
+                        background: #ffffff;
                     }
                     body { 
                         color: #1e293b; 
                         font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "BIZ UDPGothic", "Meiryo", "Helvetica Neue", Arial, sans-serif;
                     }
                     #report-container {
-                        margin: 15mm; /* Professional margin */
+                        margin: 0;
                         padding: 10mm;
                         background: white;
-                        min-height: calc(297mm - 30mm); /* A4 height minus margins */
-                        border: 1px solid #e2e8f0; /* The frame */
-                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                        border-radius: 8px;
+                        width: 190mm; /* A4 width minus some margin */
                     }
-                    /* Layout Utilities */
-                    div, p, h1, h2, h3, h4, span { display: block; position: relative; margin: 0; padding: 0; }
-                    .flex { display: flex; }
-                    .items-center { align-items: center; }
-                    .justify-between { justify-content: space-between; }
-                    .grid { display: grid; }
-                    .grid-cols-2 { grid-template-columns: 1fr 1fr; }
-                    .gap-4 { gap: 20px; }
-                    .mb-6 { margin-bottom: 32px; }
-                    .mt-1 { margin-top: 6px; }
-                    .p-4 { padding: 20px; }
-                    
-                    /* Typography Refinements */
-                    .text-center { text-align: center; }
-                    .text-xl { font-size: 24px; } /* Increased */
-                    .font-bold { font-weight: bold; }
-                    .rounded-2xl { border-radius: 20px; }
-                    .border { border: 1px solid #e2e8f0; }
-                    .overflow-hidden { overflow: hidden; }
-                    .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                    .text-xs { font-size: 14px; } /* Increased from 12px */
-                    .text-[10px] { font-size: 11px; } /* Increased from 10px */
-                    .font-black { font-weight: 900; }
-                    .shrink-0 { flex-shrink: 0; }
-                    .divide-y > * + * { border-top: 1px solid #f1f5f9; }
+                    /* Scale specific elements for 80% feel */
+                    h3 { font-size: 16px !important; }
+                    h4 { font-size: 13px !important; }
+                    table, div, p, span { font-size: 11px !important; }
+                    .text-xl { font-size: 18px !important; }
                 </style>
             </head>
             <body>
@@ -100,10 +77,12 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
         iframeDoc.close();
 
         // Wait for iframe resources to settle
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         // 3. Capture the element inside the isolated iframe
-        const captureArea = iframeDoc.body;
+        const captureArea = iframeDoc.getElementById("report-container");
+        if (!captureArea) throw new Error("Could not find report container in iframe");
+
         const canvas = await html2canvas(captureArea, {
             scale: 2,
             useCORS: true,
@@ -119,22 +98,38 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
             throw new Error("Canvas generation failed or element has no dimensions");
         }
 
+        // 5. Multi-page PDF Logic
+        const imgWidth = 210; // A4 width in mm
+        const pageHeight = 297; // A4 height in mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+
         const pdf = new jsPDF({
             orientation: "portrait",
             unit: "mm",
             format: "a4",
         });
 
+        let position = 0;
         const imgData = canvas.toDataURL("image/jpeg", 0.95);
-        const imgWidth = 210;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        
-        pdf.addImage(imgData, "JPEG", 0, 0, imgWidth, imgHeight);
+
+        // Add first page
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        // Add subsequent pages if content overflows
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+
         pdf.save(filename);
 
     } catch (error: any) {
-        console.error("PDF Generation Error (Iframe Isolation):", error);
-        alert(`PDFの生成に失敗しました: ${error.message || "未知のエラー"}\n環境依存のスタイル解析エラーを回避するための徹底的な隔離処理を行いましたが、解決に至りませんでした。`);
+        console.error("PDF Generation Error (Multi-page Iframe):", error);
+        alert(`PDFの生成に失敗しました: ${error.message || "未知のエラー"}`);
         throw error;
     }
 }

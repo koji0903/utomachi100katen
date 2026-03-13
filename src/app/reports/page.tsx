@@ -1176,26 +1176,56 @@ function ReportsPageContent() {
                         {monthlyReportData && (
                             <div className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                                 {/* Report Content for PDF Export */}
-                                <div ref={reportRef} style={{ backgroundColor: '#ffffff', padding: '24px', borderRadius: '16px' }}>
+                                <div ref={reportRef} style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                     <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-                                        <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: '0' }}>{reportMonth.replace(/-/g, "/")} 売上レポート</h3>
-                                        <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>出力日: {new Date().toLocaleDateString("ja-JP")}</p>
+                                        <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b', margin: '0' }}>{reportMonth.replace(/-/g, "/")} 売上レポート</h3>
+                                        <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>出力日: {new Date().toLocaleDateString("ja-JP")}</p>
                                     </div>
 
-                                    {/* Summary Card */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
-                                        <div style={{ backgroundColor: '#f5f7ff', border: '2px solid #e0e7ff', borderRadius: '16px', padding: '20px' }}>
-                                            <p style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6366f1', marginBottom: '6px', margin: '0' }}>合計売上</p>
-                                            <p style={{ fontSize: '24px', fontWeight: '900', color: '#1e1b4b', margin: '0' }}>¥{monthlyReportData.grandTotalAmount.toLocaleString()}</p>
+                                    {/* Grand Summary Section */}
+                                    <div style={{ marginBottom: '24px' }}>
+                                        <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>
+                                            <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: '#475569', margin: '0' }}>【売上サマリ】</h4>
                                         </div>
-                                        <div style={{ backgroundColor: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '16px', padding: '20px' }}>
-                                            <p style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: '6px', margin: '0' }}>合計個数</p>
-                                            <p style={{ fontSize: '24px', fontWeight: '900', color: '#1e293b', margin: '0' }}>{monthlyReportData.grandTotalQuantity.toLocaleString()} 個</p>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                                            <div style={{ backgroundColor: '#f5f7ff', border: '1.5px solid #e0e7ff', borderRadius: '12px', padding: '16px' }}>
+                                                <p style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6366f1', marginBottom: '4px', margin: '0' }}>合計売上</p>
+                                                <p style={{ fontSize: '20px', fontWeight: '900', color: '#1e1b4b', margin: '0' }}>¥{monthlyReportData.grandTotalAmount.toLocaleString()}</p>
+                                            </div>
+                                            <div style={{ backgroundColor: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
+                                                <p style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: '4px', margin: '0' }}>合計個数</p>
+                                                <p style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', margin: '0' }}>{monthlyReportData.grandTotalQuantity.toLocaleString()} 個</p>
+                                            </div>
                                         </div>
+
+                                        {/* Per-Store Summary Table */}
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', color: '#334155' }}>
+                                            <thead>
+                                                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
+                                                    <th style={{ textAlign: 'left', padding: '10px 12px' }}>店舗名</th>
+                                                    <th style={{ textAlign: 'right', padding: '10px 12px' }}>売上個数</th>
+                                                    <th style={{ textAlign: 'right', padding: '10px 12px' }}>売上金額</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody style={{ borderBottom: '1.5px solid #e2e8f0' }}>
+                                                {monthlyReportData.totals.map((store) => (
+                                                    <tr key={store.storeId} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                        <td style={{ padding: '8px 12px', fontWeight: '500' }}>{store.storeName}</td>
+                                                        <td style={{ padding: '8px 12px', textAlign: 'right' }}>{store.storeTotalQuantity.toLocaleString()}個</td>
+                                                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 'bold' }}>¥{store.storeTotalAmount.toLocaleString()}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
 
-                                    {/* Table Content */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    {/* Detailed Section Indicator */}
+                                    <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginTop: '32px', marginBottom: '16px' }}>
+                                        <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: '#475569', margin: '0' }}>【店舗別商品明細】</h4>
+                                    </div>
+
+                                    {/* Detailed Table Content */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                         {monthlyReportData.totals.length === 0 ? (
                                             <div style={{ textAlign: 'center', padding: '40px 0', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '16px' }}>
                                                 <div style={{ color: '#fbbf24', fontSize: '32px', marginBottom: '8px' }}>⚠️</div>
@@ -1203,36 +1233,35 @@ function ReportsPageContent() {
                                             </div>
                                         ) : (
                                             monthlyReportData.totals.map((store) => (
-                                                <div key={store.storeId} style={{ backgroundColor: '#ffffff', border: '2px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', marginBottom: '12px' }}>
-                                                    <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1' }}>
-                                                            <span style={{ fontSize: '16px' }}>🏪</span>
-                                                            <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#0f172a', margin: '0' }}>{store.storeName}</h3>
+                                                <div key={store.storeId} style={{ border: '1.5px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                                                    <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1.5px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1' }}>
+                                                            <span style={{ fontSize: '14px' }}>🏪</span>
+                                                            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#0f172a', margin: '0' }}>{store.storeName}</h3>
                                                         </div>
                                                         <div style={{ textAlign: 'right' }}>
-                                                            <span style={{ fontSize: '14px', fontWeight: '900', color: '#000000' }}>¥{store.storeTotalAmount.toLocaleString()}</span>
-                                                            <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '10px' }}>({store.storeTotalQuantity}個)</span>
+                                                            <span style={{ fontSize: '12px', fontWeight: '900', color: '#000000' }}>¥{store.storeTotalAmount.toLocaleString()}</span>
                                                         </div>
                                                     </div>
                                                     <div>
                                                         {store.items.map((item, i) => (
-                                                            <div key={item.productId} style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: i === store.items.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
-                                                                <div style={{ flex: '1', paddingRight: '20px' }}>
+                                                            <div key={item.productId} style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: i === store.items.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
+                                                                <div style={{ flex: '1', paddingRight: '16px' }}>
                                                                     <div style={{ 
-                                                                        fontSize: '15px', 
+                                                                        fontSize: '12px', 
                                                                         fontWeight: '500', 
                                                                         color: '#334155', 
                                                                         margin: '0', 
                                                                         lineHeight: '2.0', 
-                                                                        paddingBottom: '8px',
+                                                                        paddingBottom: '4px',
                                                                         overflow: 'visible'
                                                                     }}>
                                                                         {item.productName}
                                                                     </div>
                                                                 </div>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexShrink: '0' }}>
-                                                                    <span style={{ fontSize: '15px', width: '50px', textAlign: 'right', fontWeight: '500', color: '#64748b' }}>{item.quantity}個</span>
-                                                                    <span style={{ fontSize: '15px', fontWeight: 'bold', width: '100px', textAlign: 'right', color: '#0f172a' }}>¥{item.amount.toLocaleString()}</span>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: '0' }}>
+                                                                    <span style={{ fontSize: '12px', width: '45px', textAlign: 'right', fontWeight: '500', color: '#64748b' }}>{item.quantity}個</span>
+                                                                    <span style={{ fontSize: '12px', fontWeight: 'bold', width: '90px', textAlign: 'right', color: '#0f172a' }}>¥{item.amount.toLocaleString()}</span>
                                                                 </div>
                                                             </div>
                                                         ))}
