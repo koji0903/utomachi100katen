@@ -17,7 +17,7 @@ const BRAND_LIGHT = "#fdf5f5";
 export function AutoReportSettings() {
     const {
         reportConfig, updateReportConfig,
-        sales, products, retailStores, dailyReports
+        sales, products, retailStores, dailyReports, spotRecipients
     } = useStore();
 
     const [isSaving, setIsSaving] = useState(false);
@@ -34,8 +34,8 @@ export function AutoReportSettings() {
     }, [reportConfig.emailRecipient]);
 
     const reportData = useMemo(() => {
-        return generateReportData(sales, products, retailStores, dailyReports);
-    }, [sales, products, retailStores, dailyReports]);
+        return generateReportData(sales, products, retailStores, dailyReports, spotRecipients);
+    }, [sales, products, retailStores, dailyReports, spotRecipients]);
 
     const handleEmailBlur = () => {
         if (localEmail !== reportConfig.emailRecipient) {

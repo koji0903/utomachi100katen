@@ -1034,7 +1034,7 @@ function ReportCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 function ReportsPageContent() {
     const searchParams = useSearchParams();
-    const { products, retailStores, sales, dailyReports, deleteDailyReport, restoreDailyReport, permanentlyDeleteDailyReport, isLoaded } = useStore();
+    const { products, retailStores, sales, dailyReports, spotRecipients, deleteDailyReport, restoreDailyReport, permanentlyDeleteDailyReport, isLoaded } = useStore();
     const [showForm, setShowForm] = useState(false);
     const [editTarget, setEditTarget] = useState<DailyReport | null>(null);
     const [toast, setToast] = useState<"saved" | "updated" | null>(null);
@@ -1064,7 +1064,7 @@ function ReportsPageContent() {
         setIsGenerating(true);
         // Simulate a small delay for better UX
         setTimeout(() => {
-            const data = generateMonthlySalesReport(reportMonth, sales, products, retailStores);
+            const data = generateMonthlySalesReport(reportMonth, sales, products, retailStores, spotRecipients);
             setMonthlyReportData(data);
             setIsGenerating(false);
         }, 600);

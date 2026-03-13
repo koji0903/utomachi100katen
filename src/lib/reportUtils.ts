@@ -1,5 +1,5 @@
 // src/lib/reportUtils.ts
-import { Sale, Product, RetailStore, DailyReport } from "./store";
+import { Sale, Product, RetailStore, DailyReport, SpotRecipient } from "./store";
 
 export interface ReportData {
     period: {
@@ -36,7 +36,8 @@ export function generateReportData(
     sales: Sale[],
     products: Product[],
     retailStores: RetailStore[],
-    dailyReports: DailyReport[]
+    dailyReports: DailyReport[],
+    spotRecipients: SpotRecipient[]
 ): ReportData {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -63,10 +64,14 @@ export function generateReportData(
         storeTotals[s.storeId] = (storeTotals[s.storeId] || 0) + s.totalAmount;
     });
     const storeRanking = Object.entries(storeTotals)
-        .map(([id, amount]) => ({
-            name: retailStores.find(rs => rs.id === id)?.name || "Unknown Store",
-            amount
-        }))
+        .map(([id, amount]) => {
+            const store = retailStores.find(rs => rs.id === id);
+            const spot = !store ? spotRecipients.find(sr => sr.id === id) : null;
+            return {
+                name: store?.name || spot?.name || "Unknown Store",
+                amount
+            };
+        })
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 5);
 
@@ -179,7 +184,8 @@ export function generateMonthlySalesReport(
     targetMonth: string, // YYYY-MM
     sales: Sale[],
     products: Product[],
-    retailStores: RetailStore[]
+    retailStores: RetailStore[],
+    spotRecipients: SpotRecipient[]
 ): MonthlySalesReportData {
     const monthSales = sales.filter(s => s.period.startsWith(targetMonth) && !s.isTrashed);
     
@@ -192,8 +198,9 @@ export function generateMonthlySalesReport(
 
     monthSales.forEach(sale => {
         const store = retailStores.find(rs => rs.id === sale.storeId);
+        const spot = !store ? spotRecipients.find(sr => sr.id === sale.storeId) : null;
         const storeId = sale.storeId;
-        const storeName = store?.name || "未知の店舗";
+        const storeName = store?.name || spot?.name || "未知の店舗";
 
         if (!storeMap[storeId]) {
             storeMap[storeId] = { storeName, items: {}, storeTotalAmount: 0, storeTotalQuantity: 0 };
