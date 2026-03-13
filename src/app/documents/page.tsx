@@ -5,7 +5,8 @@ import {
     FileText, Receipt, Search, Filter, Copy, Eye,
     Pencil, Trash2, CheckCircle2, Clock, ChevronDown,
     ChevronUp, Store, Users, UserCircle, Plus, X,
-    Download, RotateCcw, FilePlus, Link2, CreditCard, Package, Check
+    Download, RotateCcw, FilePlus, Link2, CreditCard, Package, Check,
+    Loader2, FileStack
 } from "lucide-react";
 import { useStore, IssuedDocument } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
@@ -115,7 +116,7 @@ function FulfillmentBadge({ doc, onUpdate }: { doc: IssuedDocument, onUpdate: (s
 
 // ─── Documents Page ───────────────────────────────────────────────────────────
 export default function DocumentsPage() {
-    const { isLoaded, issuedDocuments, invoicePayments, duplicateDocument, convertToInvoice, deleteIssuedDocument, restoreIssuedDocument, permanentlyDeleteIssuedDocument, updateIssuedDocument } = useStore();
+    const { isLoaded, issuedDocuments, invoicePayments, duplicateDocument, convertToInvoice, convertMultipleToInvoice, deleteIssuedDocument, restoreIssuedDocument, permanentlyDeleteIssuedDocument, updateIssuedDocument } = useStore();
 
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<DocStatus>("all");
@@ -129,6 +130,8 @@ export default function DocumentsPage() {
     const [convertingId, setConvertingId] = useState<string | null>(null);
     const [downloadingDoc, setDownloadingDoc] = useState<IssuedDocument | null>(null);
     const [showTrash, setShowTrash] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [isConvertingMultiple, setIsConvertingMultiple] = useState(false);
 
     // ── Filter + sort ─────────────────────────────────────────────────────────
     const filtered = useMemo(() => {
@@ -218,6 +221,32 @@ export default function DocumentsPage() {
         }
     };
 
+    const handleConvertMultipleToInvoice = async () => {
+        if (selectedIds.length === 0) return;
+        setIsConvertingMultiple(true);
+        try {
+            const result = await convertMultipleToInvoice(selectedIds);
+            if (result) {
+                alert("合算請求書を作成しました。");
+                setSelectedIds([]);
+            }
+        } finally {
+            setIsConvertingMultiple(false);
+        }
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.length === filtered.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filtered.map(d => d.id));
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    };
+
 
     if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
 
@@ -244,6 +273,36 @@ export default function DocumentsPage() {
                     </button>
                 </div>
             </div>
+
+            {/* Bulk Actions */}
+            {selectedIds.length > 0 && (
+                <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-rose-100 text-rose-600 px-3 py-1 rounded-full text-xs font-black">
+                            {selectedIds.length} 件選択中
+                        </div>
+                        <p className="text-sm font-medium text-rose-700">
+                            同じ宛先の納品書を選択して合算請求書を作成できます
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleConvertMultipleToInvoice}
+                            disabled={isConvertingMultiple}
+                            className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white text-sm font-bold rounded-xl shadow-sm hover:bg-rose-700 transition-all disabled:opacity-50"
+                        >
+                            {isConvertingMultiple ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileStack className="w-4 h-4" />}
+                            選択した納品書を合算して請求書を作成
+                        </button>
+                        <button
+                            onClick={() => setSelectedIds([])}
+                            className="px-4 py-2 text-rose-600 text-sm font-bold hover:bg-rose-100/50 rounded-xl transition-all"
+                        >
+                            キャンセル
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Financial Overview (For Invoices) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -356,6 +415,14 @@ export default function DocumentsPage() {
                         <table className="w-full text-sm border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <th className="px-4 py-3 text-center w-10">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.length === filtered.length && filtered.length > 0}
+                                            onChange={toggleSelectAll}
+                                            className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                                        />
+                                    </th>
                                     <th className="px-4 py-3 text-left">書類番号</th>
                                     <th className="px-4 py-3 text-left">種別</th>
                                     <th className="px-4 py-3 text-left">宛先</th>
@@ -371,7 +438,15 @@ export default function DocumentsPage() {
                             <tbody>
                                 {filtered.map((doc, idx) => (
                                     <tr key={doc.id}
-                                        className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-50/20"}`}>
+                                        className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-50/20"} ${selectedIds.includes(doc.id) ? "bg-rose-50/50" : ""}`}>
+                                        <td className="px-4 py-3 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.includes(doc.id)}
+                                                onChange={() => toggleSelect(doc.id)}
+                                                className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                                            />
+                                        </td>
                                         <td className="px-4 py-3">
                                             <span className="font-mono font-bold text-slate-800 text-xs tracking-wide">{doc.docNumber}</span>
                                         </td>

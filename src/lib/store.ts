@@ -265,6 +265,7 @@ export interface IssuedDocument extends BaseEntity {
     paymentMethod?: '銀行振込' | '現金' | 'QR決済' | 'その他'; // Used for receipts
     transactionId?: string;
     sourceDocId?: string;       // 元になった帳票のID（納品書から請求書を作った場合など）
+    sourceDocIds?: string[];    // 元になった複数の帳票ID（合算請求書の場合）
     fulfillmentStatus?: 'pending' | 'sent' | 'paid'; // 請求書の状態管理
     createdAt?: string | any;
 }
@@ -1107,6 +1108,69 @@ export function useStore() {
         });
     };
 
+    const convertMultipleToInvoice = async (ids: string[]): Promise<IssuedDocument | null> => {
+        const originals = issuedDocuments.filter(d => ids.includes(d.id) && d.type === 'delivery_note');
+        if (originals.length === 0) return null;
+
+        // Ensure all have same recipient
+        const first = originals[0];
+        const allSameRecipient = originals.every(d => 
+            d.recipientType === first.recipientType && 
+            d.storeId === first.storeId && 
+            d.supplierId === first.supplierId && 
+            d.spotRecipientId === first.spotRecipientId
+        );
+        if (!allSameRecipient) {
+            alert("異なる宛先の納品書を合算することはできません。");
+            return null;
+        }
+
+        const year = new Date().getFullYear().toString();
+        const newDocNumber = generateDocNumber('invoice', year);
+
+        // Aggregate items
+        const itemMap = new Map<string, InvoiceItem>();
+        for (const doc of originals) {
+            if (!doc.details) continue;
+            for (const item of doc.details) {
+                // Use productId + unitPrice + label as key for aggregation
+                const key = `${item.productId || 'none'}-${item.unitPrice}-${item.label}`;
+                if (itemMap.has(key)) {
+                    const existing = itemMap.get(key)!;
+                    existing.quantity += item.quantity;
+                    existing.subtotal += item.subtotal;
+                } else {
+                    itemMap.set(key, { ...item, id: crypto.randomUUID() });
+                }
+            }
+        }
+
+        const aggregatedItems = Array.from(itemMap.values());
+        const totalAmount = aggregatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+        return saveIssuedDocument({
+            type: 'invoice',
+            docNumber: newDocNumber,
+            status: 'draft',
+            issuedDate: new Date().toISOString().split('T')[0],
+            period: first.period, // Use first as default
+            recipientType: first.recipientType,
+            storeId: first.storeId,
+            supplierId: first.supplierId,
+            spotRecipientId: first.spotRecipientId,
+            recipientName: first.recipientName,
+            totalAmount: totalAmount,
+            taxRate: first.taxRate || 8,
+            taxType: first.taxType || 'exclusive',
+            details: aggregatedItems,
+            adjustments: [],
+            finalAdjustment: 0,
+            memo: originals.map(d => d.docNumber).join(', ') + " の合算請求書",
+            sourceDocIds: ids,
+            fulfillmentStatus: 'pending',
+        });
+    };
+
     const updateIssuedDocument = async (id: string, data: Partial<Omit<IssuedDocument, 'id' | 'createdAt'>>) => {
         mutateIssuedDocuments(issuedDocuments.map(d => d.id === id ? { ...d, ...data } : d), false);
         await updateDoc(doc(db, 'issued_documents', id), cleanObject(data));
@@ -1513,6 +1577,7 @@ export function useStore() {
         saveIssuedDocument,
         duplicateDocument,
         convertToInvoice,
+        convertMultipleToInvoice,
         updateIssuedDocument,
         deleteIssuedDocument,
         // Invoice Payments

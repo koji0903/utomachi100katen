@@ -769,6 +769,19 @@ export function DocumentPreviewModal({
                             </div>
                         )}
 
+                        {/* ── Source Documents Info (For Combined Invoices) ── */}
+                        {isInvoice && existingDoc?.sourceDocIds && existingDoc.sourceDocIds.length > 0 && (
+                            <div style={{ marginTop: "16px", padding: "8px 12px", backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "4px", fontSize: "10px", color: "#6b7280", breakInside: "avoid", pageBreakInside: "avoid" }}>
+                                <div style={{ fontWeight: 700, marginBottom: "4px" }}>元になった納品書：</div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                                    {existingDoc.sourceDocIds.map(sid => {
+                                        const sdoc = issuedDocuments.find(d => d.id === sid);
+                                        return sdoc ? <span key={sid}>[ {sdoc.docNumber} ]</span> : null;
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                         {/* ── Tax note ── */}
                         {(taxSummary.reduced.subtotal > 0 && !isReceipt) && (
                             <div style={{ marginTop: "16px", fontSize: "10px", color: "#888" }}>
