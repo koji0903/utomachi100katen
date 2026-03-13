@@ -98,9 +98,14 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
             throw new Error("Canvas generation failed or element has no dimensions");
         }
 
-        // 5. Multi-page PDF Logic
-        const imgWidth = 210; // A4 width in mm
+        // 5. Multi-page PDF Logic with Margins
+        const pageWidth = 210; // A4 width in mm
         const pageHeight = 297; // A4 height in mm
+        const topMargin = 15; // 15mm top margin
+        const bottomMargin = 15; // 15mm bottom margin
+        const printableHeight = pageHeight - topMargin - bottomMargin;
+
+        const imgWidth = pageWidth;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
         let heightLeft = imgHeight;
 
@@ -110,19 +115,36 @@ export async function generatePdfFromElement(el: HTMLElement, filename = "docume
             format: "a4",
         });
 
-        let position = 0;
         const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        let srcYOffset = 0; // The current vertical offset in the source image (in mm scale relative to pageWidth)
 
-        // Add first page
-        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+        // Function to add a white mask for margins
+        const addMarginMasks = () => {
+            pdf.setFillColor(255, 255, 255);
+            // Top mask
+            pdf.rect(0, 0, pageWidth, topMargin, "F");
+            // Bottom mask
+            pdf.rect(0, pageHeight - bottomMargin, pageWidth, bottomMargin, "F");
+        };
 
-        // Add subsequent pages if content overflows
+        // Add pages
+        let firstPage = true;
         while (heightLeft > 0) {
-            position = heightLeft - imgHeight;
-            pdf.addPage();
-            pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
+            if (!firstPage) {
+                pdf.addPage();
+            }
+            
+            // Draw the image segment
+            // We draw the full image but offset it so the correct segment is in the printable area
+            const currentImgY = topMargin - srcYOffset;
+            pdf.addImage(imgData, "JPEG", 0, currentImgY, imgWidth, imgHeight);
+
+            // Cover the margins with white rectangles to "cut" the content cleanly
+            addMarginMasks();
+
+            srcYOffset += printableHeight;
+            heightLeft -= printableHeight;
+            firstPage = false;
         }
 
         pdf.save(filename);
