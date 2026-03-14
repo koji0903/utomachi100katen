@@ -144,7 +144,7 @@ export function DocumentPreviewModal({
             const matchSupplier = supplierId ? p.supplierId === supplierId : true;
             const dateStr = p.arrivalDate || p.orderDate;
             const matchMonth = month ? dateStr?.startsWith(month) : true;
-            return matchSupplier && p.status === "completed" && matchMonth;
+            return matchSupplier && (p.status === "received" || p.status === "paid") && matchMonth;
         });
 
         for (const p of filteredPurchases) {
