@@ -19,7 +19,7 @@ import { useStore } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
 
 export const CalendarView: React.FC = () => {
-    const { sales, dailyReports, purchases } = useStore();
+    const { sales, dailyReports, purchases, suppliers } = useStore();
     const [currentDate, setCurrentDate] = useState(new Date());
 
     const year = currentDate.getFullYear();
@@ -68,6 +68,13 @@ export const CalendarView: React.FC = () => {
         const dayReceived = purchases.filter(p => !p.isTrashed && (p.receivedDate === dateStr || (p.status === 'received' && p.arrivalDate === dateStr)));
         const dayPaid = purchases.filter(p => !p.isTrashed && p.paymentDate === dateStr);
 
+        const getSupplierNames = (purchaseList: typeof purchases) => {
+            return purchaseList.map(p => {
+                const s = suppliers.find(s => s.id === p.supplierId);
+                return s ? s.name : "不明";
+            });
+        };
+
         const holidayName = getHolidayName(dateStr);
 
         return {
@@ -80,8 +87,11 @@ export const CalendarView: React.FC = () => {
             },
             purchaseEvents: {
                 ordered: dayOrdered.length,
+                orderedSuppliers: getSupplierNames(dayOrdered),
                 received: dayReceived.length,
+                receivedSuppliers: getSupplierNames(dayReceived),
                 paid: dayPaid.length,
+                paidSuppliers: getSupplierNames(dayPaid),
             },
             holidayName
         };
@@ -173,10 +183,13 @@ export const CalendarView: React.FC = () => {
                         <Link
                             href={`/purchases?date=${dayDate}`}
                             className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-bold text-amber-600 truncate hover:bg-amber-100/50 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
-                            title="発注"
+                            title={`発注:\n${data.purchaseEvents.orderedSuppliers.join('\n')}`}
                         >
                             <ShoppingCart className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
-                            <span>発注 {data.purchaseEvents.ordered}</span>
+                            <span>
+                                発注: {data.purchaseEvents.orderedSuppliers[0]}
+                                {data.purchaseEvents.ordered > 1 && ` 他${data.purchaseEvents.ordered - 1}件`}
+                            </span>
                         </Link>
                     )}
 
@@ -184,10 +197,13 @@ export const CalendarView: React.FC = () => {
                         <Link
                             href={`/purchases?date=${dayDate}`}
                             className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-bold text-emerald-600 truncate hover:bg-emerald-100/50 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
-                            title="仕入"
+                            title={`仕入:\n${data.purchaseEvents.receivedSuppliers.join('\n')}`}
                         >
                             <CheckCircle className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
-                            <span>仕入 {data.purchaseEvents.received}</span>
+                            <span>
+                                仕入: {data.purchaseEvents.receivedSuppliers[0]}
+                                {data.purchaseEvents.received > 1 && ` 他${data.purchaseEvents.received - 1}件`}
+                            </span>
                         </Link>
                     )}
 
@@ -195,10 +211,13 @@ export const CalendarView: React.FC = () => {
                         <Link
                             href={`/purchases?date=${dayDate}`}
                             className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-bold text-indigo-600 truncate hover:bg-indigo-100/50 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
-                            title="支払"
+                            title={`支払:\n${data.purchaseEvents.paidSuppliers.join('\n')}`}
                         >
                             <CreditCard className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
-                            <span>支払 {data.purchaseEvents.paid}</span>
+                            <span>
+                                支払: {data.purchaseEvents.paidSuppliers[0]}
+                                {data.purchaseEvents.paid > 1 && ` 他${data.purchaseEvents.paid - 1}件`}
+                            </span>
                         </Link>
                     )}
                 </div>
