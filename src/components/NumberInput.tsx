@@ -51,6 +51,16 @@ export function NumberInput({
         const isValid = allowNegative ? /^-?\d*$/.test(val) : /^\d*$/.test(val);
 
         if (isValid) {
+            // If the current value is "0" and we type a digit, replace the "0" unless we're typing another "0"
+            if (localValue === "0" && val.length === 2 && val.startsWith("0")) {
+                val = val.substring(1);
+            }
+            
+            // Prevent multiple leading zeros (e.g., "00")
+            if (val.length > 1 && val.startsWith("0") && !val.startsWith("0.")) {
+                val = val.replace(/^0+/, "") || "0";
+            }
+
             setLocalValue(val);
             const num = parseInt(val, 10);
             if (!isNaN(num)) {
@@ -58,6 +68,8 @@ export function NumberInput({
                 if (min !== undefined && clamped < min) clamped = min;
                 if (max !== undefined && clamped > max) clamped = max;
                 onChange(clamped);
+            } else if (val === "" || (allowNegative && val === "-")) {
+                onChange(fallbackValue !== undefined ? fallbackValue : undefined);
             }
         }
     };
@@ -88,7 +100,11 @@ export function NumberInput({
             onChange={handleChange}
             onBlur={handleBlur}
             onFocus={(e) => {
-                e.target.select();
+                // Select all text on focus for easier overwriting
+                const target = e.target as HTMLInputElement;
+                setTimeout(() => {
+                    target.setSelectionRange(0, target.value.length);
+                }, 10);
                 if (onFocus) onFocus(e);
             }}
             className={className}

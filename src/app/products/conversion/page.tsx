@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight, History, Box, Plus, Save, ChevronLeft, AlertCircle } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
+import { NumberInput } from "@/components/NumberInput";
 import Link from "next/link";
 
 export default function StockConversionPage() {
@@ -107,13 +108,12 @@ export default function StockConversionPage() {
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-600">使用量</label>
                                     <div className="relative">
-                                        <input
-                                            type="number"
-                                            required
-                                            min="1"
-                                            value={inputQty || ""}
-                                            onChange={(e) => setInputQty(Number(e.target.value))}
-                                            className="w-full pl-4 pr-10 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                        <NumberInput
+                                            value={inputQty}
+                                            onChange={(val) => setInputQty(val || 0)}
+                                            fallbackValue={0}
+                                            min={0}
+                                            className="w-full pl-4 pr-10 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
                                             placeholder="数量"
                                         />
                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">個/kg</span>
@@ -147,13 +147,12 @@ export default function StockConversionPage() {
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-600">生成量</label>
                                     <div className="relative">
-                                        <input
-                                            type="number"
-                                            required
-                                            min="1"
-                                            value={outputQty || ""}
-                                            onChange={(e) => setOutputQty(Number(e.target.value))}
-                                            className="w-full pl-4 pr-10 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
+                                        <NumberInput
+                                            value={outputQty}
+                                            onChange={(val) => setOutputQty(val || 0)}
+                                            fallbackValue={0}
+                                            min={0}
+                                            className="w-full pl-4 pr-10 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all font-bold"
                                             placeholder="数量"
                                         />
                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">個/kg</span>

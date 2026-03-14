@@ -8,6 +8,7 @@ import { useStore, IssuedDocument, SpotRecipient, InvoiceItem, InvoiceAdjustment
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
 import { SpotRecipientInput } from "@/components/SpotRecipientInput";
 import { InvoiceEditor } from "@/components/InvoiceEditor";
+import { NumberInput } from "@/components/NumberInput";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -283,10 +284,10 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">領収金額</label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                                    <input
-                                        type="number"
+                                    <NumberInput
                                         value={totalAmountState}
-                                        onChange={e => setTotalAmountState(Number(e.target.value))}
+                                        onChange={(val) => setTotalAmountState(val || 0)}
+                                        fallbackValue={0}
                                         className="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2"
                                     />
                                 </div>
