@@ -20,7 +20,7 @@ import { useStore, type Sale } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
 
 export const CalendarView: React.FC = () => {
-    const { sales, dailyReports, purchases, suppliers, retailStores } = useStore();
+    const { sales, dailyReports, purchases, suppliers, retailStores, spotRecipients } = useStore();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
 
@@ -82,8 +82,9 @@ export const CalendarView: React.FC = () => {
 
         const salesByStore = daySales.map((s: Sale) => {
             const store = retailStores.find(rs => rs.id === s.storeId);
+            const spot = !store ? spotRecipients.find(sr => sr.id === s.storeId) : null;
             return {
-                name: store ? store.name : "不明な店舗",
+                name: store ? store.name : (spot ? spot.name : "不明な店舗"),
                 amount: s.totalAmount
             };
         });
