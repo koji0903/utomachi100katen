@@ -15,11 +15,11 @@ import {
     CheckCircle,
     CreditCard
 } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { useStore, type Sale } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
 
 export const CalendarView: React.FC = () => {
-    const { sales, dailyReports, purchases, suppliers } = useStore();
+    const { sales, dailyReports, purchases, suppliers, retailStores } = useStore();
     const [currentDate, setCurrentDate] = useState(new Date());
 
     const year = currentDate.getFullYear();
@@ -58,6 +58,14 @@ export const CalendarView: React.FC = () => {
         const daySales = sales.filter(s => s.period === dateStr);
         const totalSales = daySales.reduce((sum, s) => sum + s.totalAmount, 0);
 
+        const salesByStore = daySales.map((s: Sale) => {
+            const store = retailStores.find(rs => rs.id === s.storeId);
+            return {
+                name: store ? store.name : "不明な店舗",
+                amount: s.totalAmount
+            };
+        });
+
         const reports = dailyReports.filter(r => r.date === dateStr);
         const hasStoreReport = reports.some(r => r.type === 'store');
         const hasActivityReport = reports.some(r => r.type === 'activity');
@@ -79,6 +87,7 @@ export const CalendarView: React.FC = () => {
 
         return {
             totalSales,
+            salesByStore,
             reports: {
                 store: hasStoreReport,
                 activity: hasActivityReport,
@@ -140,6 +149,7 @@ export const CalendarView: React.FC = () => {
                         <Link
                             href={`/sales?tab=log&date=${dayDate}`}
                             className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-black text-blue-600 truncate hover:bg-blue-100/50 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
+                            title={`売上内訳:\n${data.salesByStore.map((s: any) => `${s.name}: ¥${s.amount.toLocaleString()}`).join('\n')}`}
                         >
                             <BarChart3 className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
                             <span>¥{data.totalSales.toLocaleString()}</span>
