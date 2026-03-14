@@ -112,10 +112,34 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
+                    {/* v1.4.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
-                            <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - 2026.03.13</div>
+                            <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">仕入管理の刷新と入力UXの大幅向上</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "「仕入管理」機能の刷新：発注・仕入待ち・仕入済み・支払済のフルワークフローに対応",
+                                    "カレンダー連携：発注・仕入・支払予定がカレンダー上で一目で確認可能に",
+                                    "数値入力UXの改善：フォーカス時の全選択、スマートな「0」処理を導入し操作性を向上",
+                                    "業務日報の改善：関連商品選択に全件表示と高速検索フィルターを導入",
+                                    "システム修正：Vercelデプロイ時のTypeScript型エラーを解消"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.3.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.3.0 - 2026.03.13</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">月次売上レポート機能の追加</h3>
                             <ul className="space-y-2">
                                 {[
