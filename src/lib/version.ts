@@ -11,8 +11,8 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.4.0";
-export const RELEASE_DATE = "2026.03.14";
+export const CURRENT_VERSION = "v1.5.0";
+export const RELEASE_DATE = "2026.03.16";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
@@ -53,6 +53,11 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
         name: "月次売上レポート",
         description: "対象月ごとの店舗別・商品別売上集計およびPDF出力機能。",
+        status: "completed"
+    },
+    {
+        name: "Amazon 販売連携",
+        description: "Amazon SP-API と連携した在庫同期および注文データの自動取り込み機能。",
         status: "completed"
     }
 ];

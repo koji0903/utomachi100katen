@@ -42,11 +42,11 @@ function StatusBadge({ status }: { status: FeatureStatus['status'] }) {
 export default function UpdatesPage() {
     return (
         <div className="max-w-4xl mx-auto px-6 py-10 space-y-12">
-            
+
             {/* Header */}
             <div className="space-y-4">
-                <Link 
-                    href="/" 
+                <Link
+                    href="/"
                     className="inline-flex items-center gap-2 text-slate-400 hover:text-[#1e3a8a] transition-colors text-sm font-bold group"
                 >
                     <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
@@ -84,8 +84,8 @@ export default function UpdatesPage() {
 
                 <div className="grid grid-cols-1 gap-4">
                     {FEATURE_STATUS_LIST.map((feature, idx) => (
-                        <div 
-                            key={idx} 
+                        <div
+                            key={idx}
                             className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-md transition-shadow"
                         >
                             <div className="space-y-1">
@@ -112,11 +112,34 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.4.0 */}
+                    {/* v1.5.0 */}
                     <div className="relative">
-                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-orange-500 border-4 border-white shadow-sm ring-4 ring-orange-50" />
                         <div>
-                            <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <div className="text-xs font-black text-orange-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-orange-200 underline-offset-4 decoration-2">Amazon SP-API 販売連携の導入</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "Amazon SP-API 連携基盤の実装：在庫同期・注文データの自動取り込みに対応",
+                                    "Amazon 出品商品紐付け：各商品ごとに ASIN / SKU の設定および同期スイッチを導入",
+                                    "手動同期機能：商品一覧ページからワンクリックで Amazon データの最新化が可能に",
+                                    "取引管理への自動計上：Amazon での注文を「ECチャネル」の取引として自動登録",
+                                    "環境変数管理の強化：SP-API 認証情報の安全な管理フローを確立"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.4.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.4.0 - 2026.03.14</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">仕入管理の刷新と入力UXの大幅向上</h3>
                             <ul className="space-y-2">
                                 {[
