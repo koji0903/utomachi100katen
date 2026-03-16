@@ -264,7 +264,7 @@ export default function ProductsPage() {
                 const res = await fetch("/api/amazon/sync", { method: "POST" });
                 const data = await res.json();
                 if (data.success) {
-                  showNotification(`同期完了: 商品 ${data.syncedProducts.length}件, 新規注文 ${data.newOrdersCount}件`);
+                  showNotification(`同期完了: 商品 ${data.syncedProducts.length}件, 新規注文 ${data.newOrdersCount}件\n「取引管理」ページで確認できます。`);
                 } else {
                   throw new Error(data.error);
                 }

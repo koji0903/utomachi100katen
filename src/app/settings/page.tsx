@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useStore, CompanySettings } from "@/lib/store";
+import { useStore, CompanySettings, DEFAULT_COMPANY_SETTINGS } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
 import {
     Building2, Phone, MapPin, Hash, Calculator,
@@ -23,14 +23,7 @@ export default function SettingsPage() {
     const { companySettings, saveCompanySettings } = useStore();
     const { zipStatus, lookupZip } = useZipCode();
 
-    const [form, setForm] = useState<CompanySettings>({
-        companyName: "",
-        zipCode: "",
-        address: "",
-        tel: "",
-        invoiceNumber: "",
-        roundingMode: "floor",
-    });
+    const [form, setForm] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS);
 
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -43,7 +36,10 @@ export default function SettingsPage() {
     // Populate form when data loads
     useEffect(() => {
         if (companySettings) {
-            setForm(companySettings);
+            setForm({
+                ...DEFAULT_COMPANY_SETTINGS,
+                ...companySettings
+            });
             setLogoPreview(companySettings.logoUrl || null);
             setSealPreview(companySettings.sealUrl || null);
         }

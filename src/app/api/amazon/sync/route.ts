@@ -1,7 +1,7 @@
 // src/app/api/amazon/sync/route.ts
 
 import { NextResponse } from "next/server";
-import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getAmazonProduct, getAmazonOrders } from "@/lib/amazon";
 
@@ -42,13 +42,57 @@ export async function POST(req: Request) {
 
         // 2. 注文情報の取得 (Mock)
         const orders = await getAmazonOrders();
-        // TODO: 取得した注文情報を Firestore の transactions 等に登録する処理
+        for (const order of orders) {
+            // 既に登録済みかチェック（amazonOrderId で検索）
+            const existingQuery = query(collection(db, "transactions"), where("amazonOrderId", "==", order.amazonOrderId));
+            const existingDocs = await getDocs(existingQuery);
+
+            if (existingDocs.empty) {
+                // 新規取引として登録
+                const transactionData = {
+                    customerName: "Amazon Customer",
+                    channel: "EC",
+                    transactionType: "Amazon注文",
+                    orderDate: order.purchaseDate.split('T')[0],
+                    deliveryDate: "",
+                    invoiceDate: "",
+                    dueDate: "",
+                    transactionStatus: "受注",
+                    subtotal: order.totalAmount, // 簡易化のため
+                    tax: 0,
+                    totalAmount: order.totalAmount,
+                    paidAmount: 0,
+                    balanceAmount: order.totalAmount,
+                    remarks: `Amazon Order ID: ${order.amazonOrderId}`,
+                    amazonOrderId: order.amazonOrderId,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                };
+
+                const newDocRef = doc(collection(db, "transactions"));
+                await setDoc(newDocRef, transactionData);
+
+                // 明細の登録
+                for (const item of order.items) {
+                    await setDoc(doc(collection(db, "transactionItems")), {
+                        transactionId: newDocRef.id,
+                        productName: `Amazon商品 (${item.sku})`,
+                        quantity: item.quantity,
+                        unitPrice: item.price,
+                        amount: item.quantity * item.price,
+                        taxRate: 10,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                    });
+                }
+            }
+        }
 
         return NextResponse.json({
             success: true,
             syncedProducts: syncResults,
             newOrdersCount: orders.length,
-            message: "Amazon同期が正常に完了しました。"
+            message: "Amazon同期が正常に完了しました。新しい取引が「取引管理」に追加されました。"
         });
 
     } catch (error: any) {
