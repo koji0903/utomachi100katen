@@ -206,7 +206,7 @@ export default function InventoryPage() {
                                             className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-[#1e3a8a] transition-all outline-none appearance-none cursor-pointer hover:bg-slate-50 min-w-[160px]"
                                         >
                                             <option value="">店舗を選択</option>
-                                            {retailStores.filter(s => !s.isTrashed).map(store => (
+                                            {retailStores.filter(s => !s.isTrashed && s.type === 'A').map(store => (
                                                 <option key={store.id} value={store.id}>{store.name}</option>
                                             ))}
                                         </select>

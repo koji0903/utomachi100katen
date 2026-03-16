@@ -943,7 +943,10 @@ export function useStore() {
 
                         // Store stock deduction
                         if (saleData.storeId && (saleData.recipientType === 'store' || !saleData.recipientType)) {
-                            await updateStoreStock(saleData.storeId, compProduct.id, -(comp.quantity * item.quantity), 'sale', newRef.id, saleData.period.split('T')[0]);
+                            const retailStore = retailStores.find(s => s.id === saleData.storeId);
+                            if (retailStore?.type === 'A') {
+                                await updateStoreStock(saleData.storeId, compProduct.id, -(comp.quantity * item.quantity), 'sale', newRef.id, saleData.period.split('T')[0]);
+                            }
                         }
                     }
                 }
@@ -963,7 +966,10 @@ export function useStore() {
 
                 // Store stock deduction
                 if (saleData.storeId && (saleData.recipientType === 'store' || !saleData.recipientType)) {
-                    await updateStoreStock(saleData.storeId, product.id, -item.quantity, 'sale', newRef.id, saleData.period.split('T')[0]);
+                    const retailStore = retailStores.find(s => s.id === saleData.storeId);
+                    if (retailStore?.type === 'A') {
+                        await updateStoreStock(saleData.storeId, product.id, -item.quantity, 'sale', newRef.id, saleData.period.split('T')[0]);
+                    }
                 }
             }
         }
@@ -1137,7 +1143,10 @@ export function useStore() {
                     });
 
                     // 2. Add to store stock
-                    await updateStoreStock(reportData.storeId, product.id, item.qty, 'restock', newRef.id, reportData.date);
+                    const retailStore = retailStores.find(s => s.id === reportData.storeId);
+                    if (retailStore?.type === 'A') {
+                        await updateStoreStock(reportData.storeId, product.id, item.qty, 'restock', newRef.id, reportData.date);
+                    }
                 }
             }
         }

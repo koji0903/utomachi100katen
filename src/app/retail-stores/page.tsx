@@ -282,15 +282,17 @@ function StoreCard({
                 </div>
 
                 {/* Inventory Access */}
-                <div className="mt-4">
-                    <button
-                        onClick={onShowInventory}
-                        className="w-full py-2.5 bg-slate-50 text-slate-700 font-black rounded-xl text-xs hover:bg-[#1e3a8a] hover:text-white transition-all border border-slate-100 flex items-center justify-center gap-2 group/inv"
-                    >
-                        <Package className="w-4 h-4 text-[#1e3a8a] group-hover/inv:text-white transition-colors" />
-                        在庫・履歴を確認
-                    </button>
-                </div>
+                {store.type === 'A' && (
+                    <div className="mt-4">
+                        <button
+                            onClick={onShowInventory}
+                            className="w-full py-2.5 bg-slate-50 text-slate-700 font-black rounded-xl text-xs hover:bg-[#1e3a8a] hover:text-white transition-all border border-slate-100 flex items-center justify-center gap-2 group/inv"
+                        >
+                            <Package className="w-4 h-4 text-[#1e3a8a] group-hover/inv:text-white transition-colors" />
+                            在庫・履歴を確認
+                        </button>
+                    </div>
+                )}
 
                 {/* Memo */}
                 {store.memo && (
