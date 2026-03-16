@@ -289,6 +289,8 @@ export interface Transaction extends BaseEntity {
     id: string;
     transactionType: string;
     customerName: string;
+    storeId?: string;       // 関連する販売店舗ID
+    storeName?: string;     // 関連する販売店舗名 (非正規化)
     channel: 'スポット注文' | '卸販売' | '委託販売' | '店頭販売' | 'EC' | 'イベント販売';
     orderDate: string;
     deliveryDate: string;
@@ -322,11 +324,11 @@ export interface TransactionItem extends BaseEntity {
 // Helper function to calculate the remaining balance of an invoice
 export const calculateInvoiceBalance = (invoice: IssuedDocument, payments: InvoicePayment[]): number => {
     if (invoice.type !== 'invoice') return 0;
-    
+
     const totalPaid = payments
         .filter(p => !p.isTrashed && p.invoiceId === invoice.id)
         .reduce((sum, p) => sum + p.amount, 0);
-        
+
     return Math.max(0, invoice.totalAmount - totalPaid);
 };
 
@@ -465,7 +467,7 @@ const fetcher = async <T>(collectionName: string): Promise<T[]> => {
     const querySnapshot = await getDocs(collection(db, collectionName));
     return querySnapshot.docs.map((doc) => {
         let data = { id: doc.id, ...doc.data() } as any;
-        
+
         // Migrate legacy purchases to new format
         if (collectionName === 'inbound_shipments') {
             if (!data.items && data.productId) {
@@ -478,7 +480,7 @@ const fetcher = async <T>(collectionName: string): Promise<T[]> => {
                 data.totalAmount = data.totalCost || 0;
             }
         }
-        
+
         return data as T;
     });
 };
@@ -774,7 +776,7 @@ export function useStore() {
                 }
             }
         }
-        
+
         // Auto-set dates based on status
         if (purchaseUpdate.status === 'received' && !purchaseUpdate.receivedDate) {
             purchaseUpdate.receivedDate = new Date().toISOString().split('T')[0];
@@ -1136,10 +1138,10 @@ export function useStore() {
 
         // Ensure all have same recipient
         const first = originals[0];
-        const allSameRecipient = originals.every(d => 
-            d.recipientType === first.recipientType && 
-            d.storeId === first.storeId && 
-            d.supplierId === first.supplierId && 
+        const allSameRecipient = originals.every(d =>
+            d.recipientType === first.recipientType &&
+            d.storeId === first.storeId &&
+            d.supplierId === first.supplierId &&
             d.spotRecipientId === first.spotRecipientId
         );
         if (!allSameRecipient) {
@@ -1247,7 +1249,7 @@ export function useStore() {
     };
 
     // --- Transaction Actions ---
-    
+
     // 計算済みの transactions を導出
     const transactions = useMemo(() => {
         return rawTransactions.map(t => {

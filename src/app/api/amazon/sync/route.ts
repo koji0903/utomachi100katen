@@ -40,17 +40,32 @@ export async function POST(req: Request) {
             }
         }
 
+        // 1.5. 販売店舗・事業者の中から「Amazon」という名前の店舗を探す
+        const storesRef = collection(db, "retailStores");
+        const storeQuery = query(storesRef, where("name", "==", "Amazon"), where("isTrashed", "==", false));
+        const storeSnap = await getDocs(storeQuery);
+        let amazonStore: { id: string, name: string } | null = null;
+        if (!storeSnap.empty) {
+            amazonStore = { id: storeSnap.docs[0].id, name: storeSnap.docs[0].data().name };
+            console.log(`[Amazon Sync] Found linked store: ${amazonStore.name} (${amazonStore.id})`);
+        }
+
         // 2. 注文情報の取得 (Mock)
         const orders = await getAmazonOrders();
+        let newOrdersCount = 0;
+
         for (const order of orders) {
             // 既に登録済みかチェック（amazonOrderId で検索）
             const existingQuery = query(collection(db, "transactions"), where("amazonOrderId", "==", order.amazonOrderId));
             const existingDocs = await getDocs(existingQuery);
 
             if (existingDocs.empty) {
+                newOrdersCount++;
                 // 新規取引として登録
                 const transactionData = {
-                    customerName: "Amazon Customer",
+                    customerName: amazonStore ? amazonStore.name : "Amazon Customer",
+                    storeId: amazonStore?.id || null,
+                    storeName: amazonStore?.name || null,
                     channel: "EC",
                     transactionType: "Amazon注文",
                     orderDate: order.purchaseDate.split('T')[0],
@@ -58,7 +73,7 @@ export async function POST(req: Request) {
                     invoiceDate: "",
                     dueDate: "",
                     transactionStatus: "受注",
-                    subtotal: order.totalAmount, // 簡易化のため
+                    subtotal: order.totalAmount,
                     tax: 0,
                     totalAmount: order.totalAmount,
                     paidAmount: 0,
@@ -69,13 +84,14 @@ export async function POST(req: Request) {
                     updatedAt: serverTimestamp(),
                 };
 
-                const newDocRef = doc(collection(db, "transactions"));
-                await setDoc(newDocRef, transactionData);
+                const newRef = doc(collection(db, "transactions"));
+                await setDoc(newRef, transactionData);
 
-                // 明細の登録
+                // 明細の登録と売上レコードの作成準備
+                const saleItems = [];
                 for (const item of order.items) {
                     await setDoc(doc(collection(db, "transactionItems")), {
-                        transactionId: newDocRef.id,
+                        transactionId: newRef.id,
                         productName: `Amazon商品 (${item.sku})`,
                         quantity: item.quantity,
                         unitPrice: item.price,
@@ -84,6 +100,48 @@ export async function POST(req: Request) {
                         createdAt: serverTimestamp(),
                         updatedAt: serverTimestamp(),
                     });
+
+                    // 商品マスタから商品を特定（SKU または ASIN）
+                    const pQuery = query(collection(db, "products"), where("amazonSku", "==", item.sku));
+                    const pSnap = await getDocs(pQuery);
+
+                    let productId = null;
+                    if (!pSnap.empty) {
+                        productId = pSnap.docs[0].id;
+                        const pData = pSnap.docs[0].data();
+
+                        // 在庫の減算
+                        const currentStock = pData.stock || 0;
+                        await updateDoc(doc(db, "products", productId), {
+                            stock: currentStock - item.quantity,
+                            updatedAt: serverTimestamp()
+                        });
+
+                        saleItems.push({
+                            productId,
+                            quantity: item.quantity,
+                            priceAtSale: item.price,
+                            subtotal: item.quantity * item.price,
+                            commission: 0, // Amazon手数料ロジックが必要ならここに追加
+                            netProfit: item.quantity * item.price
+                        });
+                    }
+                }
+
+                // 売上レコードとして登録（ダッシュボード等に反映させるため）
+                if (amazonStore && saleItems.length > 0) {
+                    const saleData = {
+                        storeId: amazonStore.id,
+                        type: 'daily',
+                        period: order.purchaseDate.split('T')[0],
+                        items: saleItems,
+                        totalAmount: order.totalAmount,
+                        isTrashed: false,
+                        transactionId: newRef.id,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                    };
+                    await setDoc(doc(collection(db, "sales")), saleData);
                 }
             }
         }
@@ -91,8 +149,8 @@ export async function POST(req: Request) {
         return NextResponse.json({
             success: true,
             syncedProducts: syncResults,
-            newOrdersCount: orders.length,
-            message: "Amazon同期が正常に完了しました。新しい取引が「取引管理」に追加されました。"
+            newOrdersCount: newOrdersCount,
+            message: `Amazon同期が完了しました。${newOrdersCount}件の新規注文を登録し、売上に反映しました。`
         });
 
     } catch (error: any) {
