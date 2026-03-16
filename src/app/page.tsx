@@ -166,13 +166,31 @@ export default function DashboardPage() {
     const currentMonthStats = useMemo(() => {
         const now = new Date();
         const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const monthlySales = sales.filter(s => !s.isTrashed && s.period.startsWith(monthPrefix));
+        
+        // 店舗ごとの売上集計
+        const storeSalesMap = new Map<string, number>();
+        monthlySales.forEach(s => {
+            const current = storeSalesMap.get(s.storeId) || 0;
+            storeSalesMap.set(s.storeId, current + s.totalAmount);
+        });
+
+        const storeSales = Array.from(storeSalesMap.entries()).map(([storeId, amount]) => {
+            const store = retailStores.find(rs => rs.id === storeId);
+            return {
+                name: store?.name || "不明な店舗",
+                amount
+            };
+        }).sort((a, b) => b.amount - a.amount);
+
         return {
-            sales: sales.filter(s => !s.isTrashed && s.period.startsWith(monthPrefix)).reduce((sum, s) => sum + s.totalAmount, 0),
+            sales: monthlySales.reduce((sum, s) => sum + s.totalAmount, 0),
+            storeSales,
             reports: dailyReports.filter(r => !r.isTrashed && r.date.startsWith(monthPrefix)).length,
             purchases: purchases.filter(p => !p.isTrashed && (p.orderDate?.startsWith(monthPrefix) || p.arrivalDate?.startsWith(monthPrefix))).length,
             label: `${now.getMonth() + 1}月の実績`
         };
-    }, [sales, dailyReports, purchases]);
+    }, [sales, dailyReports, purchases, retailStores]);
 
     // Stats
     const totalProducts = products.filter(p => !p.isTrashed).length;
@@ -309,11 +327,30 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 flex-1 max-w-4xl w-full">
-                        <div className="bg-white/5 backdrop-blur-xl rounded-[2rem] p-6 border border-white/10 hover:bg-white/10 transition-colors">
-                            <div className="flex items-center gap-2 text-blue-200 text-[10px] font-black uppercase tracking-widest mb-3">
-                                <BarChart3 className="w-4 h-4 opacity-50" /> 売上合計
+                        <div className="bg-white/5 backdrop-blur-xl rounded-[2rem] p-6 border border-white/10 hover:bg-white/10 transition-all flex flex-col justify-between min-h-[140px]">
+                            <div>
+                                <div className="flex items-center gap-2 text-blue-200 text-[10px] font-black uppercase tracking-widest mb-3">
+                                    <BarChart3 className="w-4 h-4 opacity-50" /> 売上合計
+                                </div>
+                                <div className="text-3xl font-black tracking-tighter">¥{currentMonthStats.sales.toLocaleString()}</div>
                             </div>
-                            <div className="text-3xl font-black tracking-tighter">¥{currentMonthStats.sales.toLocaleString()}</div>
+                            
+                            {/* 店舗別売上の内訳 */}
+                            {currentMonthStats.storeSales.length > 0 && (
+                                <div className="mt-4 pt-3 border-t border-white/10 space-y-1.5 overflow-hidden">
+                                    {currentMonthStats.storeSales.slice(0, 3).map((ss, i) => (
+                                        <div key={i} className="flex justify-between items-center text-[10px] font-bold">
+                                            <span className="text-blue-100/60 truncate mr-2">{ss.name}</span>
+                                            <span className="text-white whitespace-nowrap">¥{ss.amount.toLocaleString()}</span>
+                                        </div>
+                                    ))}
+                                    {currentMonthStats.storeSales.length > 3 && (
+                                        <div className="text-[9px] text-blue-200/40 font-black text-right pt-0.5">
+                                            他 {currentMonthStats.storeSales.length - 3} 店舗
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <div className="bg-white/5 backdrop-blur-xl rounded-[2rem] p-6 border border-white/10 hover:bg-white/10 transition-colors">
                             <div className="flex items-center gap-2 text-emerald-200 text-[10px] font-black uppercase tracking-widest mb-3">
