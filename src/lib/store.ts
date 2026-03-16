@@ -453,6 +453,10 @@ export interface Product extends BaseEntity {
     janCode?: string; // JANコード (CSV連携用)
     isComposite?: boolean; // セット商品フラグ
     components?: { productId: string; quantity: number }[]; // 構成要素
+    // Amazon Integration fields
+    amazonAsin?: string;
+    amazonSku?: string;
+    amazonSyncEnabled?: boolean;
     createdAt?: string | any;
 }
 

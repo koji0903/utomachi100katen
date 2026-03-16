@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw, RefreshCw } from "lucide-react";
 import { useStore, Product, Brand, Supplier } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
@@ -256,6 +256,27 @@ export default function ProductsPage() {
             <History className="w-4 h-4" />
             在庫変換
           </Link>
+          <button
+            onClick={async () => {
+              if (!confirm("Amazonとの同期を開始しますか？")) return;
+              try {
+                showNotification("Amazonと同期中...");
+                const res = await fetch("/api/amazon/sync", { method: "POST" });
+                const data = await res.json();
+                if (data.success) {
+                  showNotification(`同期完了: 商品 ${data.syncedProducts.length}件, 新規注文 ${data.newOrdersCount}件`);
+                } else {
+                  throw new Error(data.error);
+                }
+              } catch (err: any) {
+                showNotification("同期に失敗しました: " + err.message, "error");
+              }
+            }}
+            className="flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2.5 rounded-lg border border-amber-200 hover:bg-amber-100 transition-colors shadow-sm font-bold"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Amazon同期
+          </button>
           <button
             onClick={handleCreate}
             className="flex items-center gap-2 bg-[#1e3a8a] text-white px-4 py-2.5 rounded-lg hover:bg-blue-800 transition-colors shadow-sm font-medium"

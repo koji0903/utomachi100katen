@@ -50,6 +50,9 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         shippingMethod: "",
         precautions: "",
         dimensions: { width: 0, height: 0, depth: 0 },
+        amazonAsin: "",
+        amazonSku: "",
+        amazonSyncEnabled: false,
     };
 
     const [formData, setFormData] = useState(defaultFormData);
@@ -91,6 +94,9 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     shippingMethod: initialData.shippingMethod || "",
                     precautions: initialData.precautions || "",
                     dimensions: initialData.dimensions || { width: 0, height: 0, depth: 0 },
+                    amazonAsin: initialData.amazonAsin || "",
+                    amazonSku: initialData.amazonSku || "",
+                    amazonSyncEnabled: initialData.amazonSyncEnabled || false,
                 });
 
                 setImagePreview(initialData.imageUrl || null);
@@ -101,6 +107,9 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     supplierId: suppliers.length > 0 ? suppliers[0].id : "",
                     storePrices: [],
                     janCode: "",
+                    amazonAsin: "",
+                    amazonSku: "",
+                    amazonSyncEnabled: false,
                 });
                 setImagePreview(null);
             }
@@ -722,6 +731,50 @@ JANコード: ${formData.janCode || "なし"}
                                                 ))}
                                             </div>
                                         </div>
+                                    </div>
+
+                                    {/* Amazon Settings Section */}
+                                    <div className="bg-amber-50/50 p-6 rounded-2xl border border-amber-100 space-y-4 shadow-sm mt-6">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-xs font-black text-amber-700 uppercase tracking-widest flex items-center gap-2">
+                                                <Store className="w-3.5 h-3.5" /> Amazon 販売連携
+                                            </h3>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <span className="text-[10px] font-bold text-amber-600">在庫同期を有効にする</span>
+                                                <div className="relative inline-flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.amazonSyncEnabled}
+                                                        onChange={(e) => setFormData({ ...formData, amazonSyncEnabled: e.target.checked })}
+                                                        className="sr-only peer"
+                                                    />
+                                                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label className="text-[11px] font-bold text-slate-700">Amazon ASIN</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.amazonAsin}
+                                                    onChange={(e) => setFormData({ ...formData, amazonAsin: e.target.value })}
+                                                    className="w-full p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500/20"
+                                                    placeholder="B00XXXXXXX"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[11px] font-bold text-slate-700">Amazon SKU</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.amazonSku}
+                                                    onChange={(e) => setFormData({ ...formData, amazonSku: e.target.value })}
+                                                    className="w-full p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500/20"
+                                                    placeholder="UT-SEA-WEED-01"
+                                                />
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] text-amber-700/70 italic">※ ASINとSKUを設定すると、Amazon在庫との自動同期が可能になります。</p>
                                     </div>
                                 </div>
                             )}
