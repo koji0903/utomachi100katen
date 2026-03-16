@@ -16,9 +16,9 @@ interface ProductModalProps {
 }
 
 export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps) {
-    const { products, brands, suppliers, retailStores, addProduct, updateProduct } = useStore();
+    const { products, brands, suppliers, retailStores, addProduct, updateProduct, stockMovements } = useStore();
 
-    const [activeTab, setActiveTab] = useState<'basic' | 'ec' | 'marketing'>('basic');
+    const [activeTab, setActiveTab] = useState<'basic' | 'ec' | 'marketing' | 'history'>('basic');
     const [instaCopy, setInstaCopy] = useState("");
     const [imagePrompt, setImagePrompt] = useState("");
     const [isGeneratingMarketing, setIsGeneratingMarketing] = useState(false);
@@ -393,7 +393,7 @@ JANコード: ${formData.janCode || "なし"}
                 <div className="flex-1 overflow-y-auto">
                     {/* Tab Navigation */}
                     <div className="flex border-b border-slate-100 px-6 sticky top-0 bg-white z-10">
-                        {(['basic', 'ec', 'marketing'] as const).map((tab) => (
+                        {(['basic', 'ec', 'marketing', 'history'] as const).map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -403,10 +403,11 @@ JANコード: ${formData.janCode || "なし"}
                                 {tab === 'ec' && "詳細・EC連携"}
                                 {tab === 'marketing' && (
                                     <span className="flex items-center gap-1.5">
-                                        マーケティング支援
+                                        マーケ支援
                                         <Sparkles className="w-3.5 h-3.5 text-pink-500" />
                                     </span>
                                 )}
+                                {tab === 'history' && "在庫履歴"}
                                 {activeTab === tab && (
                                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1e3a8a] animate-in fade-in slide-in-from-bottom-1" />
                                 )}

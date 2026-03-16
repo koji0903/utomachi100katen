@@ -117,6 +117,19 @@ export async function POST(req: Request) {
                             updatedAt: serverTimestamp()
                         });
 
+                        // 在庫移動の記録
+                        const movementRef = doc(collection(db, "stock_movements"));
+                        await setDoc(movementRef, {
+                            productId: productId,
+                            productName: pData.name,
+                            type: 'out',
+                            quantity: item.quantity,
+                            reason: 'amazon_sync',
+                            referenceId: newRef.id,
+                            date: order.purchaseDate.split('T')[0],
+                            createdAt: serverTimestamp()
+                        });
+
                         saleItems.push({
                             productId,
                             quantity: item.quantity,

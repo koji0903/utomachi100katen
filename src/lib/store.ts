@@ -424,6 +424,41 @@ export interface BaseEntity {
     isTrashed?: boolean;
 }
 
+// ─── 在庫移動履歴（Stock Movements） ────────────────────────────────────
+export interface StockMovement extends BaseEntity {
+    id: string;
+    productId: string;
+    productName: string; // 非正規化
+    type: 'in' | 'out' | 'adjustment'; // 入庫, 出庫, 調整
+    quantity: number; // 変動量
+    reason: 'sale' | 'purchase' | 'audit' | 'return' | 'waste' | 'amazon_sync' | 'manual';
+    referenceId?: string; // 関連する取引IDや仕入ID
+    date: string; // YYYY-MM-DD
+    remarks?: string;
+    createdAt?: string | any;
+}
+
+// ─── 棚卸し（Inventory Audits） ──────────────────────────────────────────
+export interface InventoryAuditItem {
+    productId: string;
+    productName: string;
+    expectedStock: number; // システム上の在庫
+    actualStock: number;   // 実在庫
+    diff: number;          // 差異
+    remarks?: string;
+}
+
+export interface InventoryAudit extends BaseEntity {
+    id: string;
+    date: string; // YYYY-MM-DD
+    status: 'draft' | 'completed';
+    items: InventoryAuditItem[];
+    performedBy?: string;
+    remarks?: string;
+    createdAt?: string | any;
+    completedAt?: string | any;
+}
+
 export interface Product extends BaseEntity {
     id: string;
     name: string;
@@ -511,6 +546,8 @@ export function useStore() {
     const { data: stockConversions = [], mutate: mutateStockConversions } = useSWR<StockConversion[]>("stock_conversions", () => fetcher<StockConversion>("stock_conversions"), swrConfig);
     const { data: activities = [], mutate: mutateActivities } = useSWR<Activity[]>("activities", () => fetcher<Activity>("activities"), swrConfig);
     const { data: trash = [], mutate: mutateTrash } = useSWR<TrashItem[]>("trash", () => fetcher<TrashItem>("trash"), swrConfig);
+    const { data: stockMovements = [], mutate: mutateStockMovements } = useSWR<StockMovement[]>("stock_movements", () => fetcher<StockMovement>("stock_movements"), swrConfig);
+    const { data: inventoryAudits = [], mutate: mutateInventoryAudits } = useSWR<InventoryAudit[]>("inventory_audits", () => fetcher<InventoryAudit>("inventory_audits"), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -745,6 +782,15 @@ export function useStore() {
                 if (product) {
                     const newStock = (product.stock || 0) + item.quantity;
                     await updateProduct(product.id, { stock: newStock });
+                    await logStockMovement({
+                        productId: product.id,
+                        productName: product.name,
+                        type: 'in',
+                        quantity: item.quantity,
+                        reason: 'purchase',
+                        referenceId: newRef.id,
+                        date: purchaseData.arrivalDate || purchaseData.orderDate
+                    });
                 }
             }
         }
@@ -860,12 +906,30 @@ export function useStore() {
                     if (compProduct) {
                         const newStock = (compProduct.stock || 0) - (comp.quantity * item.quantity);
                         await updateProduct(compProduct.id, { stock: newStock });
+                        await logStockMovement({
+                            productId: compProduct.id,
+                            productName: compProduct.name,
+                            type: 'out',
+                            quantity: comp.quantity * item.quantity,
+                            reason: 'sale',
+                            referenceId: newRef.id,
+                            date: saleData.period.split('T')[0]
+                        });
                     }
                 }
             } else {
                 // Adjust simple product result
                 const newStock = (product.stock || 0) - item.quantity;
                 await updateProduct(product.id, { stock: newStock });
+                await logStockMovement({
+                    productId: product.id,
+                    productName: product.name,
+                    type: 'out',
+                    quantity: item.quantity,
+                    reason: 'sale',
+                    referenceId: newRef.id,
+                    date: saleData.period.split('T')[0]
+                });
             }
         }
 
@@ -1560,6 +1624,97 @@ export function useStore() {
         await deleteDoc(doc(db, "trash", id));
         mutateTrash();
     };
+    const logStockMovement = async (movement: Omit<StockMovement, "id" | "createdAt">) => {
+        const newRef = doc(collection(db, "stock_movements"));
+        const newMovement = {
+            id: newRef.id,
+            ...movement,
+            createdAt: new Date().toISOString()
+        };
+        mutateStockMovements([newMovement as StockMovement, ...stockMovements], false);
+        await setDoc(newRef, {
+            ...movement,
+            createdAt: serverTimestamp()
+        });
+        mutateStockMovements();
+    };
+
+    const addInventoryAudit = async (auditData: Omit<InventoryAudit, "id" | "createdAt">) => {
+        const newRef = doc(collection(db, "inventory_audits"));
+        const newAudit = {
+            id: newRef.id,
+            ...auditData,
+            createdAt: new Date().toISOString()
+        };
+        mutateInventoryAudits([newAudit as InventoryAudit, ...inventoryAudits], false);
+        await setDoc(newRef, {
+            ...auditData,
+            createdAt: serverTimestamp()
+        });
+        mutateInventoryAudits();
+        return newRef.id;
+    };
+
+    const updateInventoryAudit = async (id: string, auditUpdate: Partial<Omit<InventoryAudit, "id" | "createdAt">>) => {
+        mutateInventoryAudits(inventoryAudits.map(a => a.id === id ? { ...a, ...auditUpdate } : a), false);
+        await updateDoc(doc(db, "inventory_audits", id), cleanObject(auditUpdate));
+        mutateInventoryAudits();
+    };
+
+    const completeInventoryAudit = async (id: string, audit: InventoryAudit) => {
+        const batch = writeBatch(db);
+        const now = new Date().toISOString();
+        const date = now.split('T')[0];
+
+        // 1. Update each product stock and log movement
+        for (const item of audit.items) {
+            if (item.diff !== 0) {
+                // Adjust product stock
+                const productRef = doc(db, "products", item.productId);
+                const currentProduct = products.find(p => p.id === item.productId);
+                const newStock = (currentProduct?.stock || 0) + item.diff;
+                batch.update(productRef, {
+                    stock: newStock,
+                    updatedAt: serverTimestamp()
+                });
+
+                // Log movement
+                const moveRef = doc(collection(db, "stock_movements"));
+                batch.set(moveRef, {
+                    productId: item.productId,
+                    productName: item.productName,
+                    type: 'adjustment',
+                    quantity: item.diff,
+                    reason: 'audit',
+                    referenceId: id,
+                    date: date,
+                    createdAt: serverTimestamp()
+                });
+            }
+        }
+
+        // 2. Mark audit as completed
+        const auditRef = doc(db, "inventory_audits", id);
+        batch.update(auditRef, {
+            status: 'completed',
+            completedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+
+        await batch.commit();
+
+        mutateProducts();
+        mutateStockMovements();
+        mutateInventoryAudits();
+
+        logActivity({
+            type: 'system',
+            category: 'other',
+            title: `棚卸し（${audit.date}）を完了しました`,
+            detail: `${audit.items.filter(i => i.diff !== 0).length}件の在庫差異を調整しました`
+        });
+    };
+
 
 
     return {
@@ -1681,6 +1836,14 @@ export function useStore() {
         permanentlyDeleteFromTrash,
         // Auto Report
         reportConfig,
-        updateReportConfig
+        updateReportConfig,
+        // Inventory
+        stockMovements,
+        inventoryAudits,
+        logStockMovement,
+        addInventoryAudit,
+        updateInventoryAudit,
+        completeInventoryAudit,
+        loadingProducts
     };
 }

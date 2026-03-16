@@ -30,6 +30,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       items: [
         { name: "商品管理", href: "/products", icon: Package },
         { name: "仕入管理", href: "/purchases", icon: Truck },
+        { name: "在庫管理", href: "/inventory", icon: Archive },
         { name: "支払い管理", href: "/payments", icon: CreditCard },
         { name: "注文管理", href: "/orders", icon: ShoppingCart },
       ]
@@ -141,7 +142,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       </div>
       <div className="pb-6 px-6 text-[10px] font-bold text-slate-300 tracking-widest text-center uppercase flex flex-col items-center gap-1">
         <Link href="/updates" className="hover:text-[#1e3a8a] transition-colors cursor-pointer">
-            {CURRENT_VERSION}
+          {CURRENT_VERSION}
         </Link>
         <span>© {new Date().getFullYear()} ウトマチ平台 / UTOMACHI Platform</span>
       </div>
