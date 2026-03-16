@@ -54,7 +54,8 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
                 const res = await fetch(`/api/weather?lat=${store.lat}&lon=${store.lng}`, {
                     signal: controller.signal
                 });
-                if (!res.ok) throw new Error("Weather API failed");
+
+                if (!res.ok) throw new Error(`Weather API failed: ${res.status}`);
                 const data = await res.json();
 
                 if (!isCurrent) return;
@@ -67,7 +68,10 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
                     setState({ status: "ok", data });
                 }
             } catch (err: any) {
-                if (err.name === 'AbortError' || !isCurrent) return;
+                // If it's an abort or the component unmounted, silence it completely
+                if (err.name === 'AbortError' || controller.signal.aborted || !isCurrent) {
+                    return;
+                }
                 console.error("WeatherWidget fetch error:", err);
                 setState({ status: "error" });
             }
@@ -77,10 +81,9 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
 
         return () => {
             isCurrent = false;
-            try {
+            // Only abort if the signal isn't already aborted
+            if (!controller.signal.aborted) {
                 controller.abort();
-            } catch (e) {
-                // Ignore abort errors
             }
         };
     }, [store.lat, store.lng, refresh]);
@@ -162,11 +165,10 @@ function StoreCard({
     const isDirect = store.type === 'C';
 
     return (
-        <div className={`rounded-2xl border transition-all overflow-hidden group relative ${
-            isDirect 
-                ? "bg-gradient-to-br from-blue-50/50 to-white border-blue-200 shadow-blue-100/50 shadow-md ring-1 ring-blue-100" 
+        <div className={`rounded-2xl border transition-all overflow-hidden group relative ${isDirect
+                ? "bg-gradient-to-br from-blue-50/50 to-white border-blue-200 shadow-blue-100/50 shadow-md ring-1 ring-blue-100"
                 : "bg-white border-slate-200 shadow-sm hover:shadow-md"
-        }`}>
+            }`}>
             {isDirect && (
                 <div className="absolute top-0 right-0 p-3 z-10">
                     <div className="bg-blue-600 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl rounded-tr-lg shadow-sm flex items-center gap-1">
@@ -196,11 +198,10 @@ function StoreCard({
                         <div className="min-w-0">
                             <h3 className="font-bold text-slate-900 truncate">{store.name}</h3>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${
-                                    store.type === 'B' ? "bg-indigo-500 text-white" : 
-                                    store.type === 'C' ? "bg-blue-600 text-white" :
-                                    "bg-emerald-500 text-white"
-                                }`}>
+                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${store.type === 'B' ? "bg-indigo-500 text-white" :
+                                        store.type === 'C' ? "bg-blue-600 text-white" :
+                                            "bg-emerald-500 text-white"
+                                    }`}>
                                     {store.type === 'B' ? "卸 (B)" : store.type === 'C' ? "直営 (C)" : "委託 (A)"}
                                 </span>
                                 {(store.type === 'A' || store.type === 'B') && (
@@ -425,7 +426,7 @@ export default function RetailStoresPage() {
                             style={{ "--tw-ring-color": BRAND } as React.CSSProperties}
                         />
                         {searchQuery && (
-                            <button 
+                            <button
                                 onClick={() => setSearchQuery("")}
                                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"
                             >
