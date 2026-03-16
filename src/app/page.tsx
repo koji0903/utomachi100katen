@@ -156,7 +156,7 @@ function ActivityTimeline() {
 }
 
 export default function DashboardPage() {
-    const { isLoaded, products, brands, retailStores, sales, dailyReports, purchases } = useStore();
+    const { isLoaded, products, brands, retailStores, spotRecipients, sales, dailyReports, purchases } = useStore();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -176,9 +176,12 @@ export default function DashboardPage() {
         });
 
         const storeSales = Array.from(storeSalesMap.entries()).map(([storeId, amount]) => {
+            // retailStores または spotRecipients から名前を取得
             const store = retailStores.find(rs => rs.id === storeId);
+            const spot = !store ? spotRecipients.find(sr => sr.id === storeId) : null;
+            
             return {
-                name: store?.name || "不明な店舗",
+                name: store?.name || spot?.name || "不明な店舗",
                 amount
             };
         }).sort((a, b) => b.amount - a.amount);
@@ -190,7 +193,7 @@ export default function DashboardPage() {
             purchases: purchases.filter(p => !p.isTrashed && (p.orderDate?.startsWith(monthPrefix) || p.arrivalDate?.startsWith(monthPrefix))).length,
             label: `${now.getMonth() + 1}月の実績`
         };
-    }, [sales, dailyReports, purchases, retailStores]);
+    }, [sales, dailyReports, purchases, retailStores, spotRecipients]);
 
     // Stats
     const totalProducts = products.filter(p => !p.isTrashed).length;
