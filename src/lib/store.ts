@@ -475,7 +475,7 @@ export interface StoreStockMovement extends BaseEntity {
     productName: string;
     type: 'in' | 'out' | 'adjustment';
     quantity: number;
-    reason: 'restock' | 'sale' | 'loss' | 'return' | 'manual';
+    reason: 'restock' | 'sale' | 'loss' | 'return' | 'manual' | 'audit';
     referenceId?: string; // DailyReport ID or Sale ID
     date: string;
     remarks?: string;
@@ -1713,12 +1713,24 @@ export function useStore() {
         mutateStoreStockMovements();
     };
 
-    const updateStoreStock = async (storeId: string, productId: string, qty: number, reason: StoreStockMovement['reason'], referenceId?: string, date?: string) => {
+    const updateStoreStock = async (storeId: string, productId: string, qty: number, reason: StoreStockMovement['reason'], referenceId?: string, date?: string, isAbsolute: boolean = false) => {
         const docId = `${storeId}_${productId}`;
         const storeStockRef = doc(db, "store_stocks", docId);
         const currentSS = storeStocks.find(ss => ss.id === docId);
         const currentStock = currentSS?.stock || 0;
-        const newStock = currentStock + qty;
+
+        let newStock: number;
+        let diff: number;
+
+        if (isAbsolute) {
+            newStock = qty;
+            diff = newStock - currentStock;
+        } else {
+            diff = qty;
+            newStock = currentStock + diff;
+        }
+
+        if (diff === 0 && !isAbsolute) return; // No change needed
 
         const product = products.find(p => p.id === productId);
 
@@ -1741,8 +1753,8 @@ export function useStore() {
             storeId,
             productId,
             productName: product?.name || "不明な商品",
-            type: qty >= 0 ? 'in' : 'out',
-            quantity: Math.abs(qty),
+            type: diff >= 0 ? 'in' : 'out',
+            quantity: Math.abs(diff),
             reason,
             referenceId,
             date: date || new Date().toISOString().split('T')[0]

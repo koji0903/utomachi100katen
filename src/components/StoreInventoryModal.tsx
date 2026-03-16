@@ -23,18 +23,32 @@ export function StoreInventoryModal({ isOpen, onClose, store }: StoreInventoryMo
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState<'stock' | 'history'>('stock');
     const [adjustmentTarget, setAdjustmentTarget] = useState<{ productId: string; productName: string; currentStock: number } | null>(null);
+    const { retailStores } = useStore();
 
     if (!isOpen || !store) return null;
 
-    const storeCurrentStocks = storeStocks.filter(ss => ss.storeId === store.id);
+    const storeData = retailStores.find(s => s.id === store.id);
+    const activeIds = storeData?.activeProductIds || [];
+
+    const displayStock = activeIds.map(pid => {
+        const product = products.find(p => p.id === pid);
+        if (!product) return null;
+        if (searchTerm && !product.name.toLowerCase().includes(searchTerm.toLowerCase())) return null;
+
+        const ss = storeStocks.find(s => s.storeId === store.id && s.productId === pid);
+        return {
+            id: ss?.id || `${store.id}_${pid}`,
+            productId: pid,
+            productName: product.name,
+            sku: product.amazonSku,
+            supplierId: product.supplierId,
+            stock: ss?.stock || 0
+        };
+    }).filter(item => item !== null) as any[];
+
     const storeHistory = storeStockMovements
         .filter(sm => sm.storeId === store.id)
         .sort((a, b) => new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime());
-
-    const filteredStock = storeCurrentStocks.filter(ss => {
-        const product = products.find(p => p.id === ss.productId);
-        return product?.name.toLowerCase().includes(searchTerm.toLowerCase());
-    });
 
     const getReasonLabel = (reason: string) => {
         switch (reason) {
@@ -43,6 +57,7 @@ export function StoreInventoryModal({ isOpen, onClose, store }: StoreInventoryMo
             case 'loss': return '紛失';
             case 'return': return '返品';
             case 'manual': return '調整';
+            case 'audit': return '棚卸・確定';
             default: return reason;
         }
     };
@@ -99,41 +114,37 @@ export function StoreInventoryModal({ isOpen, onClose, store }: StoreInventoryMo
                 <div className="flex-1 overflow-y-auto p-8">
                     {activeTab === 'stock' ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {filteredStock.length === 0 ? (
+                            {displayStock.length === 0 ? (
                                 <div className="col-span-full py-20 text-center text-slate-400 font-bold">
-                                    配置されている在庫はありません
+                                    表示可能な商品はありません
                                 </div>
                             ) : (
-                                filteredStock.map(ss => {
-                                    const product = products.find(p => p.id === ss.productId);
-                                    if (!product) return null;
-                                    return (
-                                        <div key={ss.id} className="p-5 bg-white border border-slate-200 rounded-3xl hover:border-blue-200 hover:shadow-lg hover:shadow-blue-900/5 transition-all group">
-                                            <div className="flex items-start justify-between">
-                                                <div className="space-y-1">
-                                                    <div className="text-xs font-black text-[#1e3a8a] uppercase tracking-wider">
-                                                        {suppliers.find(s => s.id === product.supplierId)?.name || "未設定"}
-                                                    </div>
-                                                    <h3 className="font-bold text-slate-900">{product.name}</h3>
-                                                    <p className="text-[10px] text-slate-400 font-mono tracking-tight">{product.amazonSku || "No SKU"}</p>
+                                displayStock.map(item => (
+                                    <div key={item.id} className="p-5 bg-white border border-slate-200 rounded-3xl hover:border-blue-200 hover:shadow-lg hover:shadow-blue-900/5 transition-all group">
+                                        <div className="flex items-start justify-between">
+                                            <div className="space-y-1">
+                                                <div className="text-xs font-black text-[#1e3a8a] uppercase tracking-wider">
+                                                    {suppliers.find(s => s.id === item.supplierId)?.name || "未設定"}
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">現在の配置数</p>
-                                                    <p className="text-3xl font-black text-slate-900">{ss.stock}</p>
-                                                </div>
+                                                <h3 className="font-bold text-slate-900">{item.productName}</h3>
+                                                <p className="text-[10px] text-slate-400 font-mono tracking-tight">{item.sku || "No SKU"}</p>
                                             </div>
-                                            <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-end">
-                                                <button
-                                                    onClick={() => setAdjustmentTarget({ productId: ss.productId, productName: product.name, currentStock: ss.stock })}
-                                                    className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 font-bold rounded-xl text-xs hover:bg-blue-50 hover:text-[#1e3a8a] transition-all"
-                                                >
-                                                    <Settings className="w-3.5 h-3.5" />
-                                                    補正・ロス入力
-                                                </button>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">現在の配置数</p>
+                                                <p className="text-3xl font-black text-slate-900">{item.stock}</p>
                                             </div>
                                         </div>
-                                    );
-                                })
+                                        <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-end">
+                                            <button
+                                                onClick={() => setAdjustmentTarget({ productId: item.productId, productName: item.productName, currentStock: item.stock })}
+                                                className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 font-bold rounded-xl text-xs hover:bg-blue-50 hover:text-[#1e3a8a] transition-all"
+                                            >
+                                                <Settings className="w-3.5 h-3.5" />
+                                                補正・ロス入力
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
                             )}
                         </div>
                     ) : (
@@ -158,8 +169,8 @@ export function StoreInventoryModal({ isOpen, onClose, store }: StoreInventoryMo
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${move.type === 'in' ? 'bg-blue-50 text-blue-600' :
-                                                        move.type === 'out' ? 'bg-orange-50 text-orange-600' :
-                                                            'bg-slate-100 text-slate-600'
+                                                    move.type === 'out' ? 'bg-orange-50 text-orange-600' :
+                                                        'bg-slate-100 text-slate-600'
                                                     }`}>
                                                     {getReasonLabel(move.reason)}
                                                 </span>
@@ -227,15 +238,17 @@ export function StoreInventoryModal({ isOpen, onClose, store }: StoreInventoryMo
 function AdjustmentForm({ target, storeId, onComplete }: { target: { productId: string; currentStock: number }; storeId: string; onComplete: () => void }) {
     const { updateStoreStock } = useStore();
     const [qty, setQty] = useState<number>(0);
-    const [reason, setReason] = useState<StoreStockMovement['reason']>('loss');
+    const [inputType, setInputType] = useState<'diff' | 'absolute'>('diff');
+    const [reason, setReason] = useState<StoreStockMovement['reason']>('manual');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (qty === 0) return;
+        if (inputType === 'diff' && qty === 0) return;
         setIsSubmitting(true);
         try {
-            await updateStoreStock(storeId, target.productId, qty, reason);
+            const finalReason = inputType === 'absolute' ? 'audit' : reason;
+            await updateStoreStock(storeId, target.productId, qty, finalReason, undefined, undefined, inputType === 'absolute');
             onComplete();
         } catch (error) {
             console.error(error);
@@ -252,42 +265,65 @@ function AdjustmentForm({ target, storeId, onComplete }: { target: { productId: 
                     <p className="text-2xl font-black text-slate-900 mt-1">{target.currentStock}</p>
                 </div>
                 <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                    <p className="text-[10px] font-black text-[#1e3a8a]">調整後</p>
-                    <p className="text-2xl font-black text-[#1e3a8a] mt-1">{target.currentStock + qty}</p>
+                    <p className="text-[10px] font-black text-[#1e3a8a]">更新後</p>
+                    <p className="text-2xl font-black text-[#1e3a8a] mt-1">
+                        {inputType === 'absolute' ? qty : target.currentStock + qty}
+                    </p>
                 </div>
+            </div>
+
+            <div className="flex p-1 bg-slate-100 rounded-xl">
+                <button
+                    type="button"
+                    onClick={() => { setInputType('diff'); setQty(0); }}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-black transition-all ${inputType === 'diff' ? 'bg-white text-[#1e3a8a] shadow-sm' : 'text-slate-500'}`}
+                >
+                    増減入力
+                </button>
+                <button
+                    type="button"
+                    onClick={() => { setInputType('absolute'); setQty(target.currentStock); }}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-black transition-all ${inputType === 'absolute' ? 'bg-white text-[#1e3a8a] shadow-sm' : 'text-slate-500'}`}
+                >
+                    実数を直接入力
+                </button>
             </div>
 
             <div className="space-y-4">
                 <div>
-                    <label className="block text-sm font-black text-slate-700 mb-2">数量 (ロスはマイナスで入力)</label>
+                    <label className="block text-sm font-black text-slate-700 mb-2">
+                        {inputType === 'diff' ? '数量 (ロスはマイナスで入力)' : '現在の正確な在庫数'}
+                    </label>
                     <input
                         type="number"
                         value={qty}
                         onChange={(e) => setQty(Number(e.target.value))}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-black outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[#1e3a8a]"
-                        placeholder="例: -1"
+                        placeholder={inputType === 'diff' ? "例: -1" : "現在の個数を入力"}
                     />
                 </div>
-                <div>
-                    <label className="block text-sm font-black text-slate-700 mb-2">理由</label>
-                    <select
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value as any)}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none appearance-none"
-                    >
-                        <option value="loss">紛失</option>
-                        <option value="manual">手動調整</option>
-                        <option value="return">外部在庫から戻り</option>
-                    </select>
-                </div>
+                {inputType === 'diff' && (
+                    <div>
+                        <label className="block text-sm font-black text-slate-700 mb-2">理由</label>
+                        <select
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value as any)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none appearance-none"
+                        >
+                            <option value="manual">手動調整</option>
+                            <option value="loss">紛失・破損</option>
+                            <option value="return">外部在庫から戻り</option>
+                        </select>
+                    </div>
+                )}
             </div>
 
             <button
                 type="submit"
-                disabled={isSubmitting || qty === 0}
+                disabled={isSubmitting || (inputType === 'diff' && qty === 0)}
                 className="w-full py-4 bg-[#1e3a8a] text-white font-black rounded-2xl hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xl shadow-blue-900/10"
             >
-                調整を保存する
+                {isSubmitting ? '処理中...' : (inputType === 'absolute' ? '在庫数を確定する' : '調整を保存する')}
             </button>
         </form>
     );
