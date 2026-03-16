@@ -10,13 +10,19 @@ import {
     ArrowDownRight,
     Search,
     ClipboardList,
-    Plus
+    Plus,
+    Filter,
+    ChevronUp,
+    ChevronDown,
+    ArrowUpDown
 } from "lucide-react";
 import Link from "next/link";
 
 export default function InventoryPage() {
-    const { products, stockMovements, inventoryAudits, loadingProducts } = useStore();
+    const { products, stockMovements, suppliers, loadingProducts } = useStore();
     const [searchTerm, setSearchTerm] = useState("");
+    const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
     // Get low stock products
     const lowStockProducts = products.filter(p => !p.isTrashed && (p.stock || 0) <= (p.alertThreshold || 5));
@@ -26,12 +32,45 @@ export default function InventoryPage() {
         .sort((a, b) => new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime())
         .slice(0, 10);
 
-    // Filter products for the list
-    const filteredProducts = products.filter(p =>
-        !p.isTrashed &&
-        (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.amazonSku?.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    // Filter and Sort products
+    const filteredProducts = products
+        .filter(p => {
+            const matchesSearch = !p.isTrashed &&
+                (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    p.amazonSku?.toLowerCase().includes(searchTerm.toLowerCase()));
+
+            const matchesSupplier = selectedSupplierId === "all" || p.supplierId === selectedSupplierId;
+
+            return matchesSearch && matchesSupplier;
+        })
+        .sort((a, b) => {
+            if (!sortConfig) return 0;
+
+            let valA: any = a[sortConfig.key as keyof typeof a];
+            let valB: any = b[sortConfig.key as keyof typeof b];
+
+            // Handle numeric values
+            if (typeof valA === 'number' && typeof valB === 'number') {
+                return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+            }
+
+            // Handle string values
+            valA = (valA || "").toString().toLowerCase();
+            valB = (valB || "").toString().toLowerCase();
+
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+    const handleSort = (key: string) => {
+        setSortConfig(prev => {
+            if (prev?.key === key) {
+                return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'asc' };
+        });
+    };
 
     const getReasonLabel = (reason: string) => {
         switch (reason) {
@@ -136,24 +175,70 @@ export default function InventoryPage() {
                                 <Package className="w-5 h-5 text-slate-400" />
                                 在庫一覧
                             </h2>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder="商品名・SKUで検索"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
-                                />
+                            <div className="flex items-center gap-3">
+                                <div className="relative group">
+                                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#1e3a8a] transition-colors" />
+                                    <select
+                                        value={selectedSupplierId}
+                                        onChange={(e) => setSelectedSupplierId(e.target.value)}
+                                        className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-[#1e3a8a] transition-all outline-none appearance-none cursor-pointer hover:bg-slate-50"
+                                    >
+                                        <option value="all">すべての仕入先</option>
+                                        {suppliers.filter(s => !s.isTrashed).map(supplier => (
+                                            <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="relative group">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#1e3a8a] transition-colors" />
+                                    <input
+                                        type="text"
+                                        placeholder="商品名・SKUで検索"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-[#1e3a8a] transition-all outline-none w-64"
+                                    />
+                                </div>
                             </div>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
                                     <tr>
-                                        <th className="px-6 py-4">商品名</th>
-                                        <th className="px-6 py-4 text-right">現在庫</th>
-                                        <th className="px-6 py-4 text-right">アラート閾値</th>
+                                        <th
+                                            className="px-6 py-4 cursor-pointer hover:bg-slate-100/50 transition-colors group"
+                                            onClick={() => handleSort('name')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                商品名
+                                                {sortConfig?.key === 'name' ? (
+                                                    sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 text-[#1e3a8a]" /> : <ChevronDown className="w-3 h-3 text-[#1e3a8a]" />
+                                                ) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                            </div>
+                                        </th>
+                                        <th className="px-6 py-4">仕入先</th>
+                                        <th
+                                            className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100/50 transition-colors group"
+                                            onClick={() => handleSort('stock')}
+                                        >
+                                            <div className="flex items-center justify-end gap-1">
+                                                現在庫
+                                                {sortConfig?.key === 'stock' ? (
+                                                    sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 text-[#1e3a8a]" /> : <ChevronDown className="w-3 h-3 text-[#1e3a8a]" />
+                                                ) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100/50 transition-colors group"
+                                            onClick={() => handleSort('alertThreshold')}
+                                        >
+                                            <div className="flex items-center justify-end gap-1">
+                                                アラート閾値
+                                                {sortConfig?.key === 'alertThreshold' ? (
+                                                    sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 text-[#1e3a8a]" /> : <ChevronDown className="w-3 h-3 text-[#1e3a8a]" />
+                                                ) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                            </div>
+                                        </th>
                                         <th className="px-6 py-4 text-center">ステータス</th>
                                     </tr>
                                 </thead>
@@ -163,6 +248,11 @@ export default function InventoryPage() {
                                             <td className="px-6 py-4">
                                                 <div className="font-bold text-slate-900">{product.name}</div>
                                                 <div className="text-[10px] text-slate-400 font-mono mt-0.5">{product.amazonSku || "No SKU"}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-xs font-bold text-slate-500">
+                                                    {suppliers.find(s => s.id === product.supplierId)?.name || "未設定"}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <span className={`text-lg font-black ${(product.stock || 0) <= (product.alertThreshold || 5) ? 'text-red-600' : 'text-slate-900'}`}>
@@ -209,8 +299,8 @@ export default function InventoryPage() {
                                                 <div className="text-xs font-bold text-slate-900 line-clamp-1">{move.productName}</div>
                                                 <div className="flex items-center gap-2">
                                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${move.type === 'in' ? 'bg-blue-50 text-blue-600' :
-                                                            move.type === 'out' ? 'bg-orange-50 text-orange-600' :
-                                                                'bg-slate-100 text-slate-600'
+                                                        move.type === 'out' ? 'bg-orange-50 text-orange-600' :
+                                                            'bg-slate-100 text-slate-600'
                                                         }`}>
                                                         {getReasonLabel(move.reason)}
                                                     </span>
@@ -218,8 +308,8 @@ export default function InventoryPage() {
                                                 </div>
                                             </div>
                                             <div className={`flex items-center font-black ${move.type === 'in' ? 'text-blue-600' :
-                                                    move.type === 'out' ? 'text-orange-600' :
-                                                        'text-slate-900'
+                                                move.type === 'out' ? 'text-orange-600' :
+                                                    'text-slate-900'
                                                 }`}>
                                                 {move.type === 'in' ? <ArrowUpRight className="w-4 h-4 mr-0.5" /> : <ArrowDownRight className="w-4 h-4 mr-0.5" />}
                                                 {move.quantity}
