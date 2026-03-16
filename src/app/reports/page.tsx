@@ -145,7 +145,11 @@ function ReportForm({
 
         // Abort previous request
         if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
+            try {
+                abortControllerRef.current.abort();
+            } catch (e) {
+                // Ignore errors during abort
+            }
         }
         const controller = new AbortController();
         abortControllerRef.current = controller;
@@ -154,32 +158,36 @@ function ReportForm({
 
         // Fetch via store.ts and also fetch locally for immediate display
         const fetchWeather = async () => {
-             try {
-                 // 1. Trigger the background save to Firestore
-                 fetchAndSaveWeatherIfNeeded(selectedStore.id, selectedStore.lat!, selectedStore.lng!, date);
+            try {
+                // 1. Trigger the background save to Firestore
+                fetchAndSaveWeatherIfNeeded(selectedStore.id, selectedStore.lat!, selectedStore.lng!, date);
 
-                 // 2. Fetch locally to populate the component state right now
-                 const res = await fetch(`/api/weather?lat=${selectedStore.lat}&lon=${selectedStore.lng}`, {
-                     signal: controller.signal
-                 });
-                 const d = await res.json();
-                 if (!d.error && !controller.signal.aborted) {
-                     setWeather(d);
-                 }
-             } catch (err: any) {
-                 if (err.name === 'AbortError') return;
-                 console.error("Weather fetch error:", err);
-             } finally {
-                 if (!controller.signal.aborted) {
-                     setFetchingWeather(false);
-                 }
-             }
+                // 2. Fetch locally to populate the component state right now
+                const res = await fetch(`/api/weather?lat=${selectedStore.lat}&lon=${selectedStore.lng}`, {
+                    signal: controller.signal
+                });
+                const d = await res.json();
+                if (!d.error && !controller.signal.aborted) {
+                    setWeather(d);
+                }
+            } catch (err: any) {
+                if (err.name === 'AbortError') return;
+                console.error("Weather fetch error:", err);
+            } finally {
+                if (!controller.signal.aborted) {
+                    setFetchingWeather(false);
+                }
+            }
         };
 
         fetchWeather();
 
         return () => {
-            controller.abort();
+            try {
+                controller.abort();
+            } catch (e) {
+                // Ignore errors during abort
+            }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [storeId, selectedStore?.lat, selectedStore?.lng, date, type, fetchAndSaveWeatherIfNeeded]);
@@ -330,14 +338,14 @@ function ReportForm({
 
             const payload: Omit<DailyReport, "id" | "createdAt"> = {
                 date, worker, type,
-                ...(weather ? { 
-                    weather: weather.weather, 
-                    weatherMain: weather.main, 
-                    temperature: weather.temp, 
-                    temperatureMin: weather.tempMin, 
-                    temperatureMax: weather.tempMax, 
-                    humidity: weather.humidity, 
-                    windSpeed: weather.windSpeed 
+                ...(weather ? {
+                    weather: weather.weather,
+                    weatherMain: weather.main,
+                    temperature: weather.temp,
+                    temperatureMin: weather.tempMin,
+                    temperatureMax: weather.tempMax,
+                    humidity: weather.humidity,
+                    windSpeed: weather.windSpeed
                 } : {}),
                 title,
                 content,
@@ -496,21 +504,21 @@ function ReportForm({
                                         </span>
                                     )}
                                 </label>
-                                
+
                                 {/* Product Search */}
                                 <div className="relative mb-3">
                                     <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                                         <Search className="w-4 h-4 text-slate-400" />
                                     </div>
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         value={productSearchQuery}
                                         onChange={e => setProductSearchQuery(e.target.value)}
                                         placeholder="商品名で検索..."
                                         className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#b27f79]/20 transition-all placeholder:text-slate-400"
                                     />
                                     {productSearchQuery && (
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={() => setProductSearchQuery("")}
                                             className="absolute inset-y-0 right-3 flex items-center text-slate-300 hover:text-slate-500"
@@ -525,8 +533,8 @@ function ReportForm({
                                         .filter(p => {
                                             if (!productSearchQuery) return true;
                                             const query = productSearchQuery.toLowerCase();
-                                            return p.name.toLowerCase().includes(query) || 
-                                                   (p.variantName?.toLowerCase().includes(query));
+                                            return p.name.toLowerCase().includes(query) ||
+                                                (p.variantName?.toLowerCase().includes(query));
                                         })
                                         .map(p => {
                                             const isSelected = involvedProductIds.includes(p.id);
@@ -596,7 +604,7 @@ function ReportForm({
                                                 <WeatherIcon main={weather.main} size={7} />
                                                 <div>
                                                     <div className="font-bold text-slate-800 flex items-center gap-2">
-                                                        {weather.temp}°C 
+                                                        {weather.temp}°C
                                                         {(weather.tempMin !== undefined && weather.tempMax !== undefined) && (
                                                             <span className="text-xs font-bold leading-none">
                                                                 <span className="text-red-400">{weather.tempMax}°</span>
@@ -1217,13 +1225,13 @@ function ReportsPageContent() {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="p-5 space-y-4">
                         <div className="flex flex-col sm:flex-row gap-3">
                             <div className="flex-1">
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">対象月を選択</label>
-                                <input 
-                                    type="month" 
+                                <input
+                                    type="month"
                                     value={reportMonth}
                                     onChange={(e) => setReportMonth(e.target.value)}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase"
@@ -1319,12 +1327,12 @@ function ReportsPageContent() {
                                                         {store.items.map((item, i) => (
                                                             <div key={item.productId} style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: i === store.items.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
                                                                 <div style={{ flex: '1', paddingRight: '16px' }}>
-                                                                    <div style={{ 
-                                                                        fontSize: '12px', 
-                                                                        fontWeight: '500', 
-                                                                        color: '#334155', 
-                                                                        margin: '0', 
-                                                                        lineHeight: '2.0', 
+                                                                    <div style={{
+                                                                        fontSize: '12px',
+                                                                        fontWeight: '500',
+                                                                        color: '#334155',
+                                                                        margin: '0',
+                                                                        lineHeight: '2.0',
                                                                         paddingBottom: '4px',
                                                                         overflow: 'visible'
                                                                     }}>
@@ -1347,7 +1355,7 @@ function ReportsPageContent() {
                                 {/* Monthly Report Action Buttons */}
                                 <div className="p-5 bg-white border-t border-slate-100 flex flex-col gap-4">
                                     <div className="flex flex-col sm:flex-row gap-3">
-                                        <button 
+                                        <button
                                             onClick={handleDownloadPdf}
                                             disabled={isExportingPdf || monthlyReportData.totals.length === 0}
                                             className="flex-1 flex items-center justify-center gap-2 px-5 py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-bold rounded-2xl shadow-lg shadow-indigo-100 active:scale-95 transition-all text-sm h-[52px]"
@@ -1359,8 +1367,8 @@ function ReportsPageContent() {
                                             )}
                                             PDFをダウンロード
                                         </button>
-                                        
-                                        <button 
+
+                                        <button
                                             onClick={() => setMonthlyReportData(null)}
                                             className="flex-1 px-5 py-4 bg-white hover:bg-slate-50 text-slate-500 font-bold rounded-2xl border border-slate-200 active:scale-95 transition-all text-sm h-[52px]"
                                         >
@@ -1373,8 +1381,8 @@ function ReportsPageContent() {
                                             <div className="flex-1">
                                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">送信先メールアドレス</label>
                                                 <div className="flex flex-col sm:flex-row gap-2">
-                                                    <input 
-                                                        type="email" 
+                                                    <input
+                                                        type="email"
                                                         value={recipientEmail}
                                                         onChange={(e) => setRecipientEmail(e.target.value)}
                                                         placeholder="info@matching-k.jp"

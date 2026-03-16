@@ -82,9 +82,13 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
 
         return () => {
             isCurrent = false;
-            // Only abort if the signal isn't already aborted
-            if (!controller.signal.aborted) {
-                controller.abort();
+            try {
+                // Only abort if the signal isn't already aborted
+                if (!controller.signal.aborted) {
+                    controller.abort();
+                }
+            } catch (e) {
+                // Ignore errors during abort
             }
         };
     }, [store.lat, store.lng, refresh]);
