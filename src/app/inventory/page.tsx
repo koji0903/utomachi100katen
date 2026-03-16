@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useStore } from "@/lib/store";
+import { useStore, StoreStockMovement } from "@/lib/store";
 import {
     Package,
     History,
@@ -14,15 +14,20 @@ import {
     Filter,
     ChevronUp,
     ChevronDown,
-    ArrowUpDown
+    ArrowUpDown,
+    Settings,
+    X
 } from "lucide-react";
 import Link from "next/link";
 
 export default function InventoryPage() {
-    const { products, stockMovements, suppliers, loadingProducts } = useStore();
+    const { products, stockMovements, suppliers, storeStocks, retailStores, loadingProducts, updateStoreStock } = useStore();
+    const [viewType, setViewType] = useState<'global' | 'store'>('global');
+    const [selectedStoreId, setSelectedStoreId] = useState<string>("");
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+    const [adjustmentTarget, setAdjustmentTarget] = useState<{ storeId: string; productId: string; productName: string; currentStock: number } | null>(null);
 
     // Get low stock products
     const lowStockProducts = products.filter(p => !p.isTrashed && (p.stock || 0) <= (p.alertThreshold || 5));
@@ -166,6 +171,22 @@ export default function InventoryPage() {
                 </div>
             </div>
 
+            {/* View Switcher */}
+            <div className="flex p-1 bg-slate-100 rounded-2xl w-fit">
+                <button
+                    onClick={() => setViewType('global')}
+                    className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${viewType === 'global' ? 'bg-white text-[#1e3a8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    全体在庫
+                </button>
+                <button
+                    onClick={() => setViewType('store')}
+                    className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${viewType === 'store' ? 'bg-white text-[#1e3a8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    店舗別配置
+                </button>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Inventory List */}
                 <div className="lg:col-span-2 space-y-6">
@@ -173,32 +194,51 @@ export default function InventoryPage() {
                         <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                             <h2 className="font-black text-slate-900 flex items-center gap-2">
                                 <Package className="w-5 h-5 text-slate-400" />
-                                在庫一覧
+                                {viewType === 'global' ? '在庫一覧' : '店舗在庫一覧'}
                             </h2>
                             <div className="flex items-center gap-3">
-                                <div className="relative group">
-                                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#1e3a8a] transition-colors" />
-                                    <select
-                                        value={selectedSupplierId}
-                                        onChange={(e) => setSelectedSupplierId(e.target.value)}
-                                        className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-[#1e3a8a] transition-all outline-none appearance-none cursor-pointer hover:bg-slate-50"
-                                    >
-                                        <option value="all">すべての仕入先</option>
-                                        {suppliers.filter(s => !s.isTrashed).map(supplier => (
-                                            <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="relative group">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#1e3a8a] transition-colors" />
-                                    <input
-                                        type="text"
-                                        placeholder="商品名・SKUで検索"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-[#1e3a8a] transition-all outline-none w-64"
-                                    />
-                                </div>
+                                {viewType === 'store' && (
+                                    <div className="relative group">
+                                        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#1e3a8a] transition-colors" />
+                                        <select
+                                            value={selectedStoreId}
+                                            onChange={(e) => setSelectedStoreId(e.target.value)}
+                                            className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-[#1e3a8a] transition-all outline-none appearance-none cursor-pointer hover:bg-slate-50 min-w-[160px]"
+                                        >
+                                            <option value="">店舗を選択</option>
+                                            {retailStores.filter(s => !s.isTrashed).map(store => (
+                                                <option key={store.id} value={store.id}>{store.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                                {viewType === 'global' && (
+                                    <>
+                                        <div className="relative group">
+                                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#1e3a8a] transition-colors" />
+                                            <select
+                                                value={selectedSupplierId}
+                                                onChange={(e) => setSelectedSupplierId(e.target.value)}
+                                                className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-[#1e3a8a] transition-all outline-none appearance-none cursor-pointer hover:bg-slate-50"
+                                            >
+                                                <option value="all">すべての仕入先</option>
+                                                {suppliers.filter(s => !s.isTrashed).map(supplier => (
+                                                    <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="relative group">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#1e3a8a] transition-colors" />
+                                            <input
+                                                type="text"
+                                                placeholder="商品名・SKUで検索"
+                                                value={searchTerm}
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                                className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-[#1e3a8a] transition-all outline-none w-64"
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                         <div className="overflow-x-auto">
@@ -243,34 +283,83 @@ export default function InventoryPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {filteredProducts.map((product) => (
-                                        <tr key={product.id} className="hover:bg-slate-50/80 transition-colors">
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-slate-900">{product.name}</div>
-                                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">{product.amazonSku || "No SKU"}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-xs font-bold text-slate-500">
-                                                    {suppliers.find(s => s.id === product.supplierId)?.name || "未設定"}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <span className={`text-lg font-black ${(product.stock || 0) <= (product.alertThreshold || 5) ? 'text-red-600' : 'text-slate-900'}`}>
-                                                    {product.stock || 0}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-right font-bold text-slate-400">
-                                                {product.alertThreshold || 5}
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                {(product.stock || 0) <= (product.alertThreshold || 5) ? (
-                                                    <span className="px-2 py-1 bg-red-50 text-red-600 text-[10px] font-black rounded-lg">要発注</span>
-                                                ) : (
-                                                    <span className="px-2 py-1 bg-green-50 text-green-600 text-[10px] font-black rounded-lg">適正</span>
-                                                )}
+                                    {viewType === 'global' ? (
+                                        filteredProducts.map((product) => (
+                                            <tr key={product.id} className="hover:bg-slate-50/80 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="font-bold text-slate-900">{product.name}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{product.amazonSku || "No SKU"}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-xs font-bold text-slate-500">
+                                                        {suppliers.find(s => s.id === product.supplierId)?.name || "未設定"}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <span className={`text-lg font-black ${(product.stock || 0) <= (product.alertThreshold || 5) ? 'text-red-600' : 'text-slate-900'}`}>
+                                                        {product.stock || 0}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right font-bold text-slate-400">
+                                                    {product.alertThreshold || 5}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    {(product.stock || 0) <= (product.alertThreshold || 5) ? (
+                                                        <span className="px-2 py-1 bg-red-50 text-red-600 text-[10px] font-black rounded-lg">要発注</span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 bg-green-50 text-green-600 text-[10px] font-black rounded-lg">適正</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        storeStocks
+                                            .filter(ss => ss.storeId === selectedStoreId)
+                                            .map(ss => {
+                                                const product = products.find(p => p.id === ss.productId);
+                                                if (!product) return null;
+                                                return (
+                                                    <tr key={ss.id} className="hover:bg-slate-50/80 transition-colors">
+                                                        <td className="px-6 py-4">
+                                                            <div className="font-bold text-slate-900">{product.name}</div>
+                                                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">{product.amazonSku || "No SKU"}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="text-xs font-bold text-slate-500">
+                                                                {suppliers.find(s => s.id === product.supplierId)?.name || "未設定"}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <span className="text-lg font-black text-slate-900">
+                                                                {ss.stock || 0}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right font-bold text-slate-400 italic">
+                                                            -
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <span className="px-2 py-1 bg-slate-50 text-slate-500 text-[10px] font-black rounded-lg">店舗保管</span>
+                                                                <button
+                                                                    onClick={() => setAdjustmentTarget({ storeId: ss.storeId, productId: ss.productId, productName: product.name, currentStock: ss.stock })}
+                                                                    className="p-1.5 text-slate-400 hover:text-[#1e3a8a] hover:bg-slate-100 rounded-lg transition-all"
+                                                                    title="在庫調整"
+                                                                >
+                                                                    <Settings className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                    )}
+                                    {viewType === 'store' && !selectedStoreId && (
+                                        <tr>
+                                            <td colSpan={5} className="px-6 py-20 text-center text-slate-400 font-bold">
+                                                店舗を選択してください
                                             </td>
                                         </tr>
-                                    ))}
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -321,6 +410,109 @@ export default function InventoryPage() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Adjustment Modal */}
+            {adjustmentTarget && (
+                <StoreStockAdjustmentModal
+                    target={adjustmentTarget}
+                    onClose={() => setAdjustmentTarget(null)}
+                />
+            )}
+        </div>
+    );
+}
+
+function StoreStockAdjustmentModal({ target, onClose }: { target: { storeId: string; productId: string; productName: string; currentStock: number }; onClose: () => void }) {
+    const { updateStoreStock } = useStore();
+    const [qty, setQty] = useState<number>(0);
+    const [reason, setReason] = useState<StoreStockMovement['reason']>('loss');
+    const [remarks, setRemarks] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (qty === 0) return;
+        setIsSubmitting(true);
+        try {
+            await updateStoreStock(target.storeId, target.productId, qty, reason, undefined, new Date().toISOString().split('T')[0]);
+            onClose();
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="p-6 bg-[#1e3a8a] text-white flex items-center justify-between">
+                    <div>
+                        <h3 className="text-xl font-black">在庫調整</h3>
+                        <p className="text-blue-100/70 text-sm font-bold mt-0.5">{target.productName}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+                <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">現在庫</p>
+                            <p className="text-2xl font-black text-slate-900 mt-1">{target.currentStock}</p>
+                        </div>
+                        <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                            <p className="text-[10px] font-black text-[#1e3a8a] uppercase tracking-widest">調整後</p>
+                            <p className="text-2xl font-black text-[#1e3a8a] mt-1">{target.currentStock + qty}</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-black text-slate-700 mb-2">調整内容 (増分/減分)</label>
+                            <input
+                                type="number"
+                                value={qty}
+                                onChange={(e) => setQty(Number(e.target.value))}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-black focus:ring-4 focus:ring-blue-500/10 focus:border-[#1e3a8a] outline-none transition-all"
+                                placeholder="例: -1 (紛失), 2 (入庫)"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-black text-slate-700 mb-2">理由</label>
+                            <select
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value as any)}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-[#1e3a8a] outline-none transition-all appearance-none"
+                            >
+                                <option value="loss">紛失</option>
+                                <option value="manual">手動調整</option>
+                                <option value="return">返品</option>
+                                <option value="restock">補充</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-black text-slate-700 mb-2">備考</label>
+                            <textarea
+                                value={remarks}
+                                onChange={(e) => setRemarks(e.target.value)}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-[#1e3a8a] outline-none transition-all h-24 resize-none"
+                                placeholder="詳細な理由など"
+                            />
+                        </div>
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={isSubmitting || qty === 0}
+                        className="w-full py-4 bg-[#1e3a8a] text-white font-black rounded-2xl hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-blue-900/10"
+                    >
+                        {isSubmitting ? '処理中...' : '調整を実行する'}
+                    </button>
+                </form>
             </div>
         </div>
     );

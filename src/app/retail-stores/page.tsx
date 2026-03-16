@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon, ArrowUpDown, RotateCcw, X, Filter, ChevronDown, Check } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon, ArrowUpDown, RotateCcw, X, Filter, ChevronDown, Check, Package } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { RetailStoreModal } from "@/components/RetailStoreModal";
 import { WeatherHistoryModal } from "@/components/WeatherHistoryModal";
+import { StoreInventoryModal } from "@/components/StoreInventoryModal";
 import { showNotification } from "@/lib/notifications";
 
 const BRAND = "#b27f79";
@@ -149,6 +150,7 @@ function StoreCard({
     onRestore,
     onPermanentDelete,
     onShowHistory,
+    onShowInventory,
 }: {
     store: RetailStore;
     refresh: number;
@@ -157,6 +159,7 @@ function StoreCard({
     onRestore: () => void;
     onPermanentDelete: () => void;
     onShowHistory: () => void;
+    onShowInventory: () => void;
 }) {
     const gmapsUrl = store.address
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`
@@ -166,8 +169,8 @@ function StoreCard({
 
     return (
         <div className={`rounded-2xl border transition-all overflow-hidden group relative ${isDirect
-                ? "bg-gradient-to-br from-blue-50/50 to-white border-blue-200 shadow-blue-100/50 shadow-md ring-1 ring-blue-100"
-                : "bg-white border-slate-200 shadow-sm hover:shadow-md"
+            ? "bg-gradient-to-br from-blue-50/50 to-white border-blue-200 shadow-blue-100/50 shadow-md ring-1 ring-blue-100"
+            : "bg-white border-slate-200 shadow-sm hover:shadow-md"
             }`}>
             {isDirect && (
                 <div className="absolute top-0 right-0 p-3 z-10">
@@ -199,8 +202,8 @@ function StoreCard({
                             <h3 className="font-bold text-slate-900 truncate">{store.name}</h3>
                             <div className="flex items-center gap-1.5 mt-0.5">
                                 <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${store.type === 'B' ? "bg-indigo-500 text-white" :
-                                        store.type === 'C' ? "bg-blue-600 text-white" :
-                                            "bg-emerald-500 text-white"
+                                    store.type === 'C' ? "bg-blue-600 text-white" :
+                                        "bg-emerald-500 text-white"
                                     }`}>
                                     {store.type === 'B' ? "卸 (B)" : store.type === 'C' ? "直営 (C)" : "委託 (A)"}
                                 </span>
@@ -278,6 +281,17 @@ function StoreCard({
                     <WeatherWidget store={store} refresh={refresh} />
                 </div>
 
+                {/* Inventory Access */}
+                <div className="mt-4">
+                    <button
+                        onClick={onShowInventory}
+                        className="w-full py-2.5 bg-slate-50 text-slate-700 font-black rounded-xl text-xs hover:bg-[#1e3a8a] hover:text-white transition-all border border-slate-100 flex items-center justify-center gap-2 group/inv"
+                    >
+                        <Package className="w-4 h-4 text-[#1e3a8a] group-hover/inv:text-white transition-colors" />
+                        在庫・履歴を確認
+                    </button>
+                </div>
+
                 {/* Memo */}
                 {store.memo && (
                     <div className="mt-3 pt-3 border-t border-slate-100">
@@ -297,6 +311,7 @@ export default function RetailStoresPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStore, setEditingStore] = useState<RetailStore | null>(null);
     const [historyStore, setHistoryStore] = useState<RetailStore | null>(null);
+    const [inventoryStore, setInventoryStore] = useState<RetailStore | null>(null);
     const [refresh, setRefresh] = useState(0);
     const [sortBy, setSortBy] = useState<'name' | 'type' | 'commission'>('name');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -515,6 +530,7 @@ export default function RetailStoresPage() {
                             onRestore={() => handleRestore(store.id)}
                             onPermanentDelete={() => handlePermanentDelete(store.id)}
                             onShowHistory={() => setHistoryStore(store)}
+                            onShowInventory={() => setInventoryStore(store)}
                         />
                     ))}
                 </div>
@@ -549,6 +565,12 @@ export default function RetailStoresPage() {
                 isOpen={!!historyStore}
                 onClose={() => setHistoryStore(null)}
                 store={historyStore}
+            />
+
+            <StoreInventoryModal
+                isOpen={!!inventoryStore}
+                onClose={() => setInventoryStore(null)}
+                store={inventoryStore}
             />
         </div>
     );

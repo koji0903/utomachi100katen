@@ -459,6 +459,29 @@ export interface InventoryAudit extends BaseEntity {
     completedAt?: string | any;
 }
 
+// ─── 店舗別在庫（Store Stocks） ──────────────────────────────────────────
+export interface StoreStock extends BaseEntity {
+    id: string; // storeId_productId
+    storeId: string;
+    productId: string;
+    stock: number;
+    updatedAt?: string | any;
+}
+
+export interface StoreStockMovement extends BaseEntity {
+    id: string;
+    storeId: string;
+    productId: string;
+    productName: string;
+    type: 'in' | 'out' | 'adjustment';
+    quantity: number;
+    reason: 'restock' | 'sale' | 'loss' | 'return' | 'manual';
+    referenceId?: string; // DailyReport ID or Sale ID
+    date: string;
+    remarks?: string;
+    createdAt?: string | any;
+}
+
 export interface Product extends BaseEntity {
     id: string;
     name: string;
@@ -548,6 +571,8 @@ export function useStore() {
     const { data: trash = [], mutate: mutateTrash } = useSWR<TrashItem[]>("trash", () => fetcher<TrashItem>("trash"), swrConfig);
     const { data: stockMovements = [], mutate: mutateStockMovements } = useSWR<StockMovement[]>("stock_movements", () => fetcher<StockMovement>("stock_movements"), swrConfig);
     const { data: inventoryAudits = [], mutate: mutateInventoryAudits } = useSWR<InventoryAudit[]>("inventory_audits", () => fetcher<InventoryAudit>("inventory_audits"), swrConfig);
+    const { data: storeStocks = [], mutate: mutateStoreStocks } = useSWR<StoreStock[]>("store_stocks", () => fetcher<StoreStock>("store_stocks"), swrConfig);
+    const { data: storeStockMovements = [], mutate: mutateStoreStockMovements } = useSWR<StoreStockMovement[]>("store_stock_movements", () => fetcher<StoreStockMovement>("store_stock_movements"), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -915,6 +940,11 @@ export function useStore() {
                             referenceId: newRef.id,
                             date: saleData.period.split('T')[0]
                         });
+
+                        // Store stock deduction
+                        if (saleData.storeId && (saleData.recipientType === 'store' || !saleData.recipientType)) {
+                            await updateStoreStock(saleData.storeId, compProduct.id, -(comp.quantity * item.quantity), 'sale', newRef.id, saleData.period.split('T')[0]);
+                        }
                     }
                 }
             } else {
@@ -930,6 +960,11 @@ export function useStore() {
                     referenceId: newRef.id,
                     date: saleData.period.split('T')[0]
                 });
+
+                // Store stock deduction
+                if (saleData.storeId && (saleData.recipientType === 'store' || !saleData.recipientType)) {
+                    await updateStoreStock(saleData.storeId, product.id, -item.quantity, 'sale', newRef.id, saleData.period.split('T')[0]);
+                }
             }
         }
 
@@ -1082,6 +1117,30 @@ export function useStore() {
         const newReport: DailyReport = { id: newRef.id, ...reportData, createdAt: new Date().toISOString() };
         mutateDailyReports([newReport, ...dailyReports], false);
         await setDoc(newRef, { ...reportData, createdAt: serverTimestamp() });
+
+        // Restocking logic: Transfer from main inventory to store inventory
+        if (reportData.type === 'store' && reportData.storeId && reportData.restocking && reportData.restocking.length > 0) {
+            for (const item of reportData.restocking) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    // 1. Deduct from main stock
+                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    await logStockMovement({
+                        productId: product.id,
+                        productName: product.name,
+                        type: 'out',
+                        quantity: item.qty,
+                        reason: 'manual', // or add 'restock' to reasons
+                        remarks: `${reportData.storeName}への補充`,
+                        referenceId: newRef.id,
+                        date: reportData.date
+                    });
+
+                    // 2. Add to store stock
+                    await updateStoreStock(reportData.storeId, product.id, item.qty, 'restock', newRef.id, reportData.date);
+                }
+            }
+        }
         logActivity({
             type: 'create',
             category: 'report',
@@ -1639,6 +1698,59 @@ export function useStore() {
         mutateStockMovements();
     };
 
+    const logStoreStockMovement = async (movement: Omit<StoreStockMovement, "id" | "createdAt">) => {
+        const newRef = doc(collection(db, "store_stock_movements"));
+        const newMovement = {
+            id: newRef.id,
+            ...movement,
+            createdAt: new Date().toISOString()
+        };
+        mutateStoreStockMovements([newMovement as StoreStockMovement, ...storeStockMovements], false);
+        await setDoc(newRef, {
+            ...movement,
+            createdAt: serverTimestamp()
+        });
+        mutateStoreStockMovements();
+    };
+
+    const updateStoreStock = async (storeId: string, productId: string, qty: number, reason: StoreStockMovement['reason'], referenceId?: string, date?: string) => {
+        const docId = `${storeId}_${productId}`;
+        const storeStockRef = doc(db, "store_stocks", docId);
+        const currentSS = storeStocks.find(ss => ss.id === docId);
+        const currentStock = currentSS?.stock || 0;
+        const newStock = currentStock + qty;
+
+        const product = products.find(p => p.id === productId);
+
+        // Update Store Stock
+        await setDoc(storeStockRef, {
+            storeId,
+            productId,
+            stock: newStock,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        mutateStoreStocks((prev = []) => {
+            const exists = prev.some(ss => ss.id === docId);
+            if (exists) return prev.map(ss => ss.id === docId ? { ...ss, stock: newStock } : ss);
+            return [{ id: docId, storeId, productId, stock: newStock } as StoreStock, ...prev];
+        }, false);
+
+        // Log Store Movement
+        await logStoreStockMovement({
+            storeId,
+            productId,
+            productName: product?.name || "不明な商品",
+            type: qty >= 0 ? 'in' : 'out',
+            quantity: Math.abs(qty),
+            reason,
+            referenceId,
+            date: date || new Date().toISOString().split('T')[0]
+        });
+
+        mutateStoreStocks();
+    };
+
     const addInventoryAudit = async (auditData: Omit<InventoryAudit, "id" | "createdAt">) => {
         const newRef = doc(collection(db, "inventory_audits"));
         const newAudit = {
@@ -1844,6 +1956,10 @@ export function useStore() {
         addInventoryAudit,
         updateInventoryAudit,
         completeInventoryAudit,
-        loadingProducts
+        loadingProducts,
+        // Store Stocks
+        storeStocks,
+        storeStockMovements,
+        updateStoreStock
     };
 }
