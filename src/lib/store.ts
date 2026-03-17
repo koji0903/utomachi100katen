@@ -17,6 +17,7 @@ const cleanObject = (obj: any) => {
     return newObj;
 };
 import type { RoundingMode } from "@/lib/taxUtils";
+import type { PrintArchive, PrintArchiveHistory } from "./types/printArchive";
 
 // ─── 自社情報 / 会計設定 ─────────────────────────────────────────────
 export interface CompanySettings {
@@ -573,6 +574,7 @@ export function useStore() {
     const { data: inventoryAudits = [], mutate: mutateInventoryAudits } = useSWR<InventoryAudit[]>("inventory_audits", () => fetcher<InventoryAudit>("inventory_audits"), swrConfig);
     const { data: storeStocks = [], mutate: mutateStoreStocks } = useSWR<StoreStock[]>("store_stocks", () => fetcher<StoreStock>("store_stocks"), swrConfig);
     const { data: storeStockMovements = [], mutate: mutateStoreStockMovements } = useSWR<StoreStockMovement[]>("store_stock_movements", () => fetcher<StoreStockMovement>("store_stock_movements"), swrConfig);
+    const { data: printArchives = [], mutate: mutatePrintArchives, isLoading: loadingPrintArchives } = useSWR<PrintArchive[]>("print_archives", () => fetcher<PrintArchive>("print_archives"), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -596,7 +598,7 @@ export function useStore() {
         { ...swrConfig, revalidateOnFocus: false }
     );
 
-    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports;
+    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingPrintArchives;
 
     const updateReportConfig = async (data: Partial<AutoReportConfig>) => {
         const newConfig = { ...reportConfig, ...data, updatedAt: serverTimestamp() };
@@ -1897,6 +1899,76 @@ export function useStore() {
         });
     };
 
+    // --- Print Archive Actions ---
+    const addPrintArchive = async (data: Omit<PrintArchive, "id" | "createdAt" | "updatedAt" | "history">) => {
+        const newRef = doc(collection(db, "print_archives"));
+        const newArchive: PrintArchive = {
+            id: newRef.id,
+            ...data,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            history: [{
+                id: Math.random().toString(36).substring(2, 9),
+                action: 'upload',
+                timestamp: new Date().toISOString(),
+                detail: 'ファイルをアップロードしました'
+            }]
+        };
+        mutatePrintArchives([newArchive, ...printArchives], false);
+        await setDoc(newRef, {
+            ...data,
+            history: newArchive.history,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        mutatePrintArchives();
+    };
+
+    const updatePrintArchive = async (id: string, data: Partial<Omit<PrintArchive, "id" | "createdAt" | "updatedAt">>) => {
+        mutatePrintArchives(printArchives.map(a => a.id === id ? { ...a, ...data, updatedAt: new Date().toISOString() } : a), false);
+        await updateDoc(doc(db, "print_archives", id), {
+            ...data,
+            updatedAt: serverTimestamp()
+        });
+        mutatePrintArchives();
+    };
+
+    const deletePrintArchive = async (id: string) => {
+        await updateDoc(doc(db, "print_archives", id), { isTrashed: true });
+        mutatePrintArchives();
+    };
+
+    const logArchiveActivity = async (id: string, action: PrintArchiveHistory['action'], detail?: string) => {
+        const archive = printArchives.find(a => a.id === id);
+        if (!archive) return;
+
+        const newHistory: PrintArchiveHistory = {
+            id: Math.random().toString(36).substring(2, 9),
+            action,
+            timestamp: new Date().toISOString(),
+            detail
+        };
+
+        const updatedHistory = [newHistory, ...(archive.history || [])];
+        mutatePrintArchives(printArchives.map(a => a.id === id ? { ...a, history: updatedHistory, updatedAt: new Date().toISOString() } : a), false);
+        
+        await updateDoc(doc(db, "print_archives", id), {
+            history: updatedHistory,
+            updatedAt: serverTimestamp()
+        });
+        mutatePrintArchives();
+    };
+
+    const restorePrintArchive = async (id: string) => {
+        await updateDoc(doc(db, "print_archives", id), { isTrashed: false });
+        mutatePrintArchives();
+    };
+
+    const permanentlyDeletePrintArchive = async (id: string) => {
+        await deleteDoc(doc(db, "print_archives", id));
+        mutatePrintArchives();
+    };
+
 
 
     return {
@@ -2030,6 +2102,14 @@ export function useStore() {
         // Store Stocks
         storeStocks,
         storeStockMovements,
-        updateStoreStock
+        updateStoreStock,
+        // Print Archives
+        printArchives,
+        addPrintArchive,
+        updatePrintArchive,
+        deletePrintArchive,
+        logArchiveActivity,
+        restorePrintArchive,
+        permanentlyDeletePrintArchive
     };
 }

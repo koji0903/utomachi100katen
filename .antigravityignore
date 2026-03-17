@@ -1,0 +1,17 @@
+# 重い依存関係フォルダを除外
+node_modules/
+vendor/
+
+# ビルド生成物を除外
+dist/
+build/
+out/
+.next/
+
+# キャッシュやログを除外
+.cache/
+logs/
+*.log
+
+# Gitフォルダ（通常は自動除外されますが念のため）
+.git/
