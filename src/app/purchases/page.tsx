@@ -63,7 +63,7 @@ function PurchasesPageContent() {
                 for (const supplierId of supplierIds) {
                     const items = supplierOrders[supplierId];
                     const totalAmount = items.reduce((sum, item) => sum + item.totalCost, 0);
-                    
+
                     await addPurchase({
                         type: 'A',
                         status: 'ordered_pending',
@@ -120,20 +120,31 @@ function PurchasesPageContent() {
     const handleToggleStatus = (purchase: Purchase) => {
         const statusOrder: Purchase['status'][] = ['ordered_pending', 'ordered', 'waiting', 'received', 'paid'];
         const currentIndex = statusOrder.indexOf(purchase.status);
+
+        let nextStatus: Purchase['status'];
         if (currentIndex < statusOrder.length - 1) {
-            const nextStatus = statusOrder[currentIndex + 1];
-            const update: Partial<Purchase> = { status: nextStatus };
-            
-            // Auto-set dates
-            if (nextStatus === 'received') {
-                update.receivedDate = new Date().toISOString().split('T')[0];
-                update.arrivalDate = update.receivedDate;
-            } else if (nextStatus === 'paid') {
-                update.paymentDate = new Date().toISOString().split('T')[0];
-            }
-            
-            updatePurchase(purchase.id, update);
+            nextStatus = statusOrder[currentIndex + 1];
+        } else {
+            // Loop back to the beginning
+            nextStatus = statusOrder[0];
         }
+
+        const update: Partial<Purchase> = { status: nextStatus };
+
+        // Auto-set dates (or reset them if looping back)
+        if (nextStatus === 'received') {
+            update.receivedDate = new Date().toISOString().split('T')[0];
+            update.arrivalDate = update.receivedDate;
+        } else if (nextStatus === 'paid') {
+            update.paymentDate = new Date().toISOString().split('T')[0];
+        } else if (nextStatus === 'ordered_pending') {
+            // Reset dates when looping back
+            update.receivedDate = "";
+            update.arrivalDate = "";
+            update.paymentDate = "";
+        }
+
+        updatePurchase(purchase.id, update);
     };
 
     const handleDelete = (id: string) => {
@@ -317,8 +328,7 @@ function PurchasesPageContent() {
                                         <td className="p-5 text-center">
                                             <button
                                                 onClick={() => handleToggleStatus(purchase)}
-                                                disabled={purchase.status === 'paid'}
-                                                className={`transition-all ${purchase.status !== 'paid' ? 'hover:scale-105 active:scale-95' : 'cursor-default'}`}
+                                                className="transition-all hover:scale-105 active:scale-95"
                                             >
                                                 {getStatusBadge(purchase.status)}
                                             </button>

@@ -814,7 +814,7 @@ export function useStore() {
                         quantity: item.quantity,
                         reason: 'purchase',
                         referenceId: newRef.id,
-                        date: purchaseData.arrivalDate || purchaseData.orderDate
+                        date: purchaseData.arrivalDate || purchaseData.receivedDate || purchaseData.orderDate
                     });
                 }
             }
@@ -832,18 +832,47 @@ export function useStore() {
         const currentPurchase = purchases.find(p => p.id === id);
         if (!currentPurchase) return;
 
-        // If shifting to received status, increment stock
-        // Note: 'received' or 'paid' both mean the items have arrived.
-        const isNowReceived = (purchaseUpdate.status === 'received' || purchaseUpdate.status === 'paid');
-        const wasReceived = (currentPurchase.status === 'received' || currentPurchase.status === 'paid');
+        const wasReceived = (currentPurchase.status === 'received' || currentPurchase.status === 'paid') && !currentPurchase.isTrashed;
+        const isNowReceived = (purchaseUpdate.status === 'received' || purchaseUpdate.status === 'paid' || (!purchaseUpdate.status && wasReceived)) && !currentPurchase.isTrashed;
 
-        if (isNowReceived && !wasReceived) {
+        // 1. If it WAS received, undo the previous stock first
+        if (wasReceived) {
+            const items = currentPurchase.items || [];
+            for (const item of items) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) - item.quantity });
+                    await logStockMovement({
+                        productId: product.id,
+                        productName: product.name,
+                        type: 'out',
+                        quantity: item.quantity,
+                        reason: 'manual', // adjustment for update
+                        remarks: `仕入情報の更新による在庫差し戻し (ID: ${id})`,
+                        referenceId: id,
+                        date: currentPurchase.arrivalDate || currentPurchase.receivedDate || new Date().toISOString().split('T')[0]
+                    });
+                }
+            }
+        }
+
+        // 2. If it IS NOW received (or remains received), apply the new stock
+        if (isNowReceived) {
             const items = purchaseUpdate.items || currentPurchase.items || [];
             for (const item of items) {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
-                    const newStock = (product.stock || 0) + item.quantity;
-                    await updateProduct(product.id, { stock: newStock });
+                    await updateProduct(product.id, { stock: (product.stock || 0) + item.quantity });
+                    await logStockMovement({
+                        productId: product.id,
+                        productName: product.name,
+                        type: 'in',
+                        quantity: item.quantity,
+                        reason: 'purchase',
+                        remarks: `仕入情報の更新による在庫反映 (ID: ${id})`,
+                        referenceId: id,
+                        date: purchaseUpdate.arrivalDate || purchaseUpdate.receivedDate || currentPurchase.arrivalDate || currentPurchase.receivedDate || new Date().toISOString().split('T')[0]
+                    });
                 }
             }
         }
@@ -876,6 +905,16 @@ export function useStore() {
                 if (product) {
                     const newStock = (product.stock || 0) - item.quantity;
                     await updateProduct(product.id, { stock: newStock });
+                    await logStockMovement({
+                        productId: product.id,
+                        productName: product.name,
+                        type: 'out',
+                        quantity: item.quantity,
+                        reason: 'manual',
+                        remarks: `仕入記録の削除による在庫差し戻し (ID: ${id})`,
+                        referenceId: id,
+                        date: new Date().toISOString().split('T')[0]
+                    });
                 }
             }
         }
@@ -897,6 +936,16 @@ export function useStore() {
                 if (product) {
                     const newStock = (product.stock || 0) + item.quantity;
                     await updateProduct(product.id, { stock: newStock });
+                    await logStockMovement({
+                        productId: product.id,
+                        productName: product.name,
+                        type: 'in',
+                        quantity: item.quantity,
+                        reason: 'purchase',
+                        remarks: `仕入記録の復元による在庫反映 (ID: ${id})`,
+                        referenceId: id,
+                        date: purchase.arrivalDate || purchase.receivedDate || new Date().toISOString().split('T')[0]
+                    });
                 }
             }
         }
