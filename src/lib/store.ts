@@ -383,6 +383,7 @@ export interface BusinessChallenge extends BaseEntity {
     id: string;
     title: string;
     description: string;
+    author?: string; // 投稿者
     category: 'system' | 'product' | 'customer' | 'store' | 'strategy' | 'other';
     priority: 'high' | 'medium' | 'low';
     status: 'todo' | 'doing' | 'done';
@@ -1951,7 +1952,7 @@ export function useStore() {
 
         const updatedHistory = [newHistory, ...(archive.history || [])];
         mutatePrintArchives(printArchives.map(a => a.id === id ? { ...a, history: updatedHistory, updatedAt: new Date().toISOString() } : a), false);
-        
+
         await updateDoc(doc(db, "print_archives", id), {
             history: updatedHistory,
             updatedAt: serverTimestamp()

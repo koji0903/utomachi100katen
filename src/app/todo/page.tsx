@@ -85,12 +85,12 @@ const ChallengeCard = ({
 
     return (
         <div className={`group transition-all relative overflow-hidden flex border 
-            ${isDone 
-                ? 'bg-slate-50/40 border-slate-200 p-2 px-3 items-center gap-3 rounded-xl' 
-                : compact 
-                    ? 'bg-white border-slate-200 p-3 items-center gap-3 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-200' 
+            ${isDone
+                ? 'bg-slate-50/40 border-slate-200 p-2 px-3 items-center gap-3 rounded-xl'
+                : compact
+                    ? 'bg-white border-slate-200 p-3 items-center gap-3 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-200'
                     : 'bg-white border-slate-200 p-5 md:p-6 flex-col md:flex-row md:items-start gap-4 md:gap-6 rounded-3xl shadow-sm hover:shadow-md hover:border-blue-200'}`}>
-            
+
             {/* Category Icon */}
             <div className={`${isDone ? 'w-6 h-6 rounded-lg' : compact ? 'w-8 h-8 rounded-xl' : 'w-10 h-10 md:w-12 md:h-12 rounded-2xl'} ${cat.bg} flex items-center justify-center shrink-0`}>
                 <cat.icon className={`${isDone ? 'w-3 h-3' : compact ? 'w-4 h-4' : 'w-5 h-5 md:w-6 md:h-6'} ${cat.color}`} />
@@ -107,6 +107,7 @@ const ChallengeCard = ({
                             優先度: {prio.label}
                         </span>
                         <span className="text-[10px] font-bold text-slate-400 ml-auto flex items-center gap-1">
+                            {challenge.author && <span className="mr-2">by {challenge.author}</span>}
                             <Clock className="w-3 h-3" />
                             {formattedDate(challenge.createdAt)}
                         </span>
@@ -218,6 +219,7 @@ export default function TodoPage() {
     const [formData, setFormData] = useState({
         title: "",
         description: "",
+        author: "山口",
         category: "system" as any,
         priority: "medium" as any,
         status: "todo" as any,
@@ -229,6 +231,7 @@ export default function TodoPage() {
             setFormData({
                 title: challenge.title,
                 description: challenge.description,
+                author: challenge.author || "",
                 category: challenge.category,
                 priority: challenge.priority,
                 status: challenge.status,
@@ -238,6 +241,7 @@ export default function TodoPage() {
             setFormData({
                 title: "",
                 description: "",
+                author: "山口",
                 category: "system",
                 priority: "medium",
                 status: "todo",
@@ -466,6 +470,18 @@ export default function TodoPage() {
                                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                                         className="w-full px-5 py-3 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
                                         placeholder="例：商品Aのパッケージ破損について"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">投稿者</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={formData.author}
+                                        onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                                        className="w-full px-5 py-3 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
+                                        placeholder="例：山口"
                                     />
                                 </div>
 
