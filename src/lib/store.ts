@@ -1795,6 +1795,36 @@ export function useStore() {
         mutateChallenges();
     };
 
+    const updateChallengeComment = async (challengeId: string, commentId: string, content: string) => {
+        const challenge = (challenges || []).find(c => c.id === challengeId);
+        if (!challenge || !challenge.comments) return;
+
+        const updatedComments = challenge.comments.map(c => 
+            c.id === commentId ? { ...c, content, updatedAt: new Date().toISOString() } : c
+        );
+
+        mutateChallenges(challenges.map(c => c.id === challengeId ? { ...c, comments: updatedComments } : c), false);
+        await updateDoc(doc(db, "business_challenges", challengeId), {
+            comments: updatedComments,
+            updatedAt: serverTimestamp()
+        });
+        mutateChallenges();
+    };
+
+    const deleteChallengeComment = async (challengeId: string, commentId: string) => {
+        const challenge = (challenges || []).find(c => c.id === challengeId);
+        if (!challenge || !challenge.comments) return;
+
+        const updatedComments = challenge.comments.filter(c => c.id !== commentId);
+
+        mutateChallenges(challenges.map(c => c.id === challengeId ? { ...c, comments: updatedComments } : c), false);
+        await updateDoc(doc(db, "business_challenges", challengeId), {
+            comments: updatedComments,
+            updatedAt: serverTimestamp()
+        });
+        mutateChallenges();
+    };
+
     const updateChallenge = async (id: string, data: Partial<Omit<BusinessChallenge, 'id' | 'createdAt'>>) => {
         mutateChallenges(challenges.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c), false);
         await updateDoc(doc(db, 'business_challenges', id), { ...cleanObject(data), updatedAt: serverTimestamp() });
@@ -2230,6 +2260,8 @@ export function useStore() {
         challenges,
         addChallenge,
         addChallengeComment,
+        updateChallengeComment,
+        deleteChallengeComment,
         updateChallenge,
         deleteChallenge,
         // Stock Conversions

@@ -244,6 +244,8 @@ export default function TodoPage() {
         addChallenge, 
         updateChallenge, 
         addChallengeComment,
+        updateChallengeComment,
+        deleteChallengeComment,
         deleteChallenge, 
         restoreChallenge, 
         permanentlyDeleteChallenge, 
@@ -251,6 +253,8 @@ export default function TodoPage() {
     } = useStore();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingChallenge, setEditingChallenge] = useState<BusinessChallenge | null>(null);
+    const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+    const [editingCommentText, setEditingCommentText] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [filterCategory, setFilterCategory] = useState<string>("all");
     const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -328,12 +332,16 @@ export default function TodoPage() {
     };
 
     const handleStatusChange = async (id: string, status: any) => {
-        const comment = window.prompt("ステータス変更の理由やメモがあれば入力してください（任意）:");
+        const challenge = challenges.find(c => c.id === id);
+        const statLabel = (STATUSES as any)[status]?.label;
+        const comment = window.prompt(`ステータスを「${statLabel}」に変更します。\n変更の理由やメモを詳しく入力してください（任意）:`);
+        if (comment === null) return; // Cancelled
+        
         try {
             await updateChallenge(id, { status });
-            if (comment) {
+            if (comment.trim()) {
                 await addChallengeComment(id, {
-                    content: `ステータスを「${(STATUSES as any)[status]?.label}」に変更しました: ${comment}`,
+                    content: `ステータス変更「${statLabel}」: ${comment}`,
                     author: formData.author || "山口"
                 });
             }
@@ -615,36 +623,97 @@ export default function TodoPage() {
 
                                 {currentChallenge && (
                                     <div className="pt-6 border-t border-slate-100">
-                                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4">コメント履歴</label>
-                                        <div className="space-y-4 max-h-60 overflow-y-auto mb-4 pr-2 custom-scrollbar">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">コメント履歴</label>
+                                            <span className="text-[10px] text-slate-300">Cmd+Enterで送信 / Enterで改行</span>
+                                        </div>
+                                        <div className="space-y-4 max-h-[300px] overflow-y-auto mb-6 pr-2 custom-scrollbar">
                                             {currentChallenge.comments && currentChallenge.comments.length > 0 ? (
                                                 currentChallenge.comments.map((comment) => (
-                                                    <div key={comment.id} className="bg-slate-50 p-4 rounded-2xl relative group">
-                                                        <div className="flex items-center justify-between mb-1">
-                                                            <span className="text-[10px] font-black text-blue-600">{comment.author}</span>
-                                                            <span className="text-[9px] text-slate-400">
-                                                                {new Date(comment.createdAt).toLocaleString("ja-JP")}
-                                                            </span>
+                                                    <div key={comment.id} className="bg-slate-50 p-4 rounded-2xl relative group hover:bg-slate-100/50 transition-colors">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-black text-blue-600">{comment.author}</span>
+                                                                <span className="text-[9px] text-slate-400">
+                                                                    {new Date(comment.createdAt).toLocaleString("ja-JP")}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setEditingCommentId(comment.id);
+                                                                        setEditingCommentText(comment.content);
+                                                                    }}
+                                                                    className="p-1 px-2 text-[9px] font-bold text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all"
+                                                                >
+                                                                    編集
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (window.confirm("このコメントを削除しますか？")) {
+                                                                            deleteChallengeComment(currentChallenge.id, comment.id);
+                                                                        }
+                                                                    }}
+                                                                    className="p-1 px-2 text-[9px] font-bold text-slate-400 hover:text-red-600 hover:bg-white rounded-lg transition-all"
+                                                                >
+                                                                    削除
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                        <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+                                                        {editingCommentId === comment.id ? (
+                                                            <div className="space-y-2">
+                                                                <textarea
+                                                                    value={editingCommentText}
+                                                                    onChange={(e) => setEditingCommentText(e.target.value)}
+                                                                    className="w-full p-3 bg-white border border-blue-100 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/10 transition-all font-medium resize-none"
+                                                                    rows={3}
+                                                                    autoFocus
+                                                                />
+                                                                <div className="flex justify-end gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setEditingCommentId(null)}
+                                                                        className="px-3 py-1 text-[10px] font-bold text-slate-400 hover:text-slate-600"
+                                                                    >
+                                                                        キャンセル
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={async () => {
+                                                                            if (editingCommentText.trim()) {
+                                                                                await updateChallengeComment(currentChallenge.id, comment.id, editingCommentText);
+                                                                                setEditingCommentId(null);
+                                                                            }
+                                                                        }}
+                                                                        className="px-3 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700"
+                                                                    >
+                                                                        更新
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+                                                        )}
                                                     </div>
                                                 ))
                                             ) : (
                                                 <p className="text-xs text-slate-400 italic py-2 text-center">コメントはまだありません</p>
                                             )}
                                         </div>
-                                        <div className="flex gap-2">
-                                            <input
-                                                id="new-comment-input"
-                                                type="text"
-                                                placeholder="コメントを入力..."
-                                                className="flex-1 px-4 py-2 bg-slate-50 border-none rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
+                                        <div className="space-y-3">
+                                            <textarea
+                                                id="new-comment-textarea"
+                                                placeholder="新しいコメントを追記... (Cmd+Enterで送信)"
+                                                rows={3}
+                                                className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-blue-500/20 transition-all font-medium resize-none shadow-inner"
                                                 onKeyDown={async (e) => {
-                                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                                                         e.preventDefault();
-                                                        const target = e.target as HTMLInputElement;
+                                                        const target = e.target as HTMLTextAreaElement;
                                                         if (target.value.trim()) {
-                                                            await addChallengeComment(currentChallenge.id, {
+                                                                await addChallengeComment(currentChallenge.id, {
                                                                 content: target.value,
                                                                 author: formData.author || "山口"
                                                             });
@@ -653,22 +722,24 @@ export default function TodoPage() {
                                                     }
                                                 }}
                                             />
-                                            <button
-                                                type="button"
-                                                onClick={async () => {
-                                                    const input = document.getElementById('new-comment-input') as HTMLInputElement;
-                                                    if (input.value.trim()) {
-                                                        await addChallengeComment(currentChallenge.id, {
-                                                            content: input.value,
-                                                            author: formData.author || "山口"
-                                                        });
-                                                        input.value = "";
-                                                    }
-                                                }}
-                                                className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition-all"
-                                            >
-                                                追加
-                                            </button>
+                                            <div className="flex justify-end">
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        const textarea = document.getElementById('new-comment-textarea') as HTMLTextAreaElement;
+                                                        if (textarea.value.trim()) {
+                                                            await addChallengeComment(currentChallenge.id, {
+                                                                content: textarea.value,
+                                                                author: formData.author || "山口"
+                                                            });
+                                                            textarea.value = "";
+                                                        }
+                                                    }}
+                                                    className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-sm shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all"
+                                                >
+                                                    コメントを投稿
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
