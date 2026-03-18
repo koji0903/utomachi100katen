@@ -18,6 +18,7 @@ const cleanObject = (obj: any) => {
 };
 import type { RoundingMode } from "@/lib/taxUtils";
 import type { PrintArchive, PrintArchiveHistory } from "./types/printArchive";
+import type { Expense, ExpenseCategory } from "./types/expense";
 
 // ─── 自社情報 / 会計設定 ─────────────────────────────────────────────
 export interface CompanySettings {
@@ -576,6 +577,7 @@ export function useStore() {
     const { data: storeStocks = [], mutate: mutateStoreStocks } = useSWR<StoreStock[]>("store_stocks", () => fetcher<StoreStock>("store_stocks"), swrConfig);
     const { data: storeStockMovements = [], mutate: mutateStoreStockMovements } = useSWR<StoreStockMovement[]>("store_stock_movements", () => fetcher<StoreStockMovement>("store_stock_movements"), swrConfig);
     const { data: printArchives = [], mutate: mutatePrintArchives, isLoading: loadingPrintArchives } = useSWR<PrintArchive[]>("print_archives", () => fetcher<PrintArchive>("print_archives"), swrConfig);
+    const { data: expenses = [], mutate: mutateExpenses, isLoading: loadingExpenses } = useSWR<Expense[]>("expenses", () => fetcher<Expense>("expenses"), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -2281,6 +2283,45 @@ export function useStore() {
         deletePrintArchive,
         logArchiveActivity,
         restorePrintArchive,
-        permanentlyDeletePrintArchive
+        permanentlyDeletePrintArchive,
+        // Expenses
+        expenses,
+        addExpense: async (data: Omit<Expense, "id" | "createdAt" | "updatedAt">) => {
+            const newRef = doc(collection(db, "expenses"));
+            const newExpense: Expense = {
+                id: newRef.id,
+                ...data,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            mutateExpenses([newExpense, ...expenses], false);
+            await setDoc(newRef, {
+                ...data,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+            mutateExpenses();
+            return newRef.id;
+        },
+        updateExpense: async (id: string, data: Partial<Omit<Expense, "id" | "createdAt" | "updatedAt">>) => {
+            mutateExpenses(expenses.map(e => e.id === id ? { ...e, ...data, updatedAt: new Date().toISOString() } : e), false);
+            await updateDoc(doc(db, "expenses", id), {
+                ...data,
+                updatedAt: serverTimestamp()
+            });
+            mutateExpenses();
+        },
+        deleteExpense: async (id: string) => {
+            await updateDoc(doc(db, "expenses", id), { isTrashed: true });
+            mutateExpenses();
+        },
+        restoreExpense: async (id: string) => {
+            await updateDoc(doc(db, "expenses", id), { isTrashed: false });
+            mutateExpenses();
+        },
+        permanentlyDeleteExpense: async (id: string) => {
+            await deleteDoc(doc(db, "expenses", id));
+            mutateExpenses();
+        }
     };
 }

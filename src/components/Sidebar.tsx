@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen, AlertCircle, Trash2, Building2, Mail, Sparkles, Printer } from "lucide-react";
+import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen, AlertCircle, Trash2, Building2, Mail, Sparkles, Printer, Receipt } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { CURRENT_VERSION } from "@/lib/version";
@@ -40,6 +40,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       label: "分析・報告",
       items: [
         { name: "分析・事業報告", href: "/analytics", icon: BarChart2 },
+        { name: "支出・経費管理", href: "/expenses", icon: Receipt },
         { name: "取引管理", href: "/transactions", icon: BookOpen },
         { name: "帳票アーカイブ", href: "/documents", icon: Archive },
       ]
