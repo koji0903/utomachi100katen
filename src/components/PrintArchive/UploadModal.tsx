@@ -5,8 +5,6 @@ import { X, Upload, FileText, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { ArchiveCategory } from "@/lib/types/printArchive";
 import { showNotification } from "@/lib/notifications";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { storage } from "@/lib/firebase";
 
 interface UploadModalProps {
     isOpen: boolean;
@@ -22,7 +20,6 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
     const [category, setCategory] = useState<ArchiveCategory>('その他');
     const [memo, setMemo] = useState("");
     const [isUploading, setIsUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
 
     if (!isOpen) return null;
 
@@ -45,50 +42,24 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
         if (!file || !title) return;
 
         setIsUploading(true);
-        setUploadProgress(0);
         
         try {
-            // Generate a unique filename and storage path on the client
-            const uniqueFileName = `${Date.now()}_${file.name}`;
-            const storagePath = `print-archives/${uniqueFileName}`;
-            const storageRef = ref(storage, storagePath);
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("folderPath", "print-archives");
 
-            // Direct upload to Firebase Storage with Progress Tracking
-            const uploadTask = uploadBytesResumable(storageRef, file, {
-                contentType: file.type,
+            const response = await fetch("/api/upload", {
+                method: "POST",
+                body: formData,
             });
 
-            // Implement a 60-second timeout
-            const timeoutId = setTimeout(() => {
-                uploadTask.cancel();
-                // This will trigger the error observer
-            }, 60000);
+            const result = await response.json();
 
-            // Wrap the resumable upload in a Promise to use it with async/await
-            const url = await new Promise<string>((resolve, reject) => {
-                uploadTask.on('state_changed',
-                    (snapshot) => {
-                        // Observe state change events such as progress, pause, and resume
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        setUploadProgress(Math.round(progress));
-                    },
-                    (error) => {
-                        // Handle unsuccessful uploads
-                        clearTimeout(timeoutId);
-                        if (error.code === 'storage/canceled') {
-                            reject(new Error("アップロードがタイムアウトしました。通信環境を確認してください。"));
-                        } else {
-                            reject(error);
-                        }
-                    },
-                    async () => {
-                        // Handle successful uploads on complete
-                        clearTimeout(timeoutId);
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        resolve(downloadURL);
-                    }
-                );
-            });
+            if (!response.ok) {
+                throw new Error(result.details || result.error || "アップロードに失敗しました。");
+            }
+
+            const { url, storagePath } = result;
 
             await addPrintArchive({
                 title,
@@ -228,7 +199,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
                             {isUploading ? (
                                 <>
                                     <Loader2 className="w-5 h-5 animate-spin" />
-                                    アップロード中... ({uploadProgress}%)
+                                    アップロード中...
                                 </>
                             ) : (
                                 "保存する"

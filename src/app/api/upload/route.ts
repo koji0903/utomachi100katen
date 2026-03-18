@@ -12,22 +12,31 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "No file provided" }, { status: 400 });
         }
 
-        console.log(`[API-Upload] Received file: ${file.name}, size: ${file.size}, folder: ${folderPath}`);
+        // Validate storage configuration
+        const bucketName = storage.app.options.storageBucket;
+        console.log(`[API-Upload] Initializing upload for ${file.name}. Size: ${file.size} bytes. Bucket: ${bucketName}`);
+
+        if (!bucketName) {
+            console.error("[API-Upload] Storage bucket is not configured in firebaseConfig");
+            return NextResponse.json({ error: "Storage bucket configuration missing" }, { status: 500 });
+        }
 
         // Generate a unique filename
         const uniqueFileName = `${Date.now()}_${file.name}`;
         const fullStoragePath = `${folderPath}/${uniqueFileName}`;
         const storageRef = ref(storage, fullStoragePath);
 
-        // Convert File to ArrayBuffer for Firebase Upload
-        const bytes = await file.arrayBuffer();
+        // Convert File to Uint8Array for stable Node.js upload
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
 
         // Upload to Firebase Storage
-        const uploadResult = await uploadBytes(storageRef, bytes, {
-            contentType: file.type,
+        console.log(`[API-Upload] Starting uploadBytes to ${fullStoragePath}...`);
+        const uploadResult = await uploadBytes(storageRef, uint8Array, {
+            contentType: file.type || 'application/pdf',
         });
 
-        console.log(`[API-Upload] Upload successful for ${file.name} to ${fullStoragePath}`);
+        console.log(`[API-Upload] Upload successful: ${uploadResult.metadata.fullPath}`);
 
         // Get download URL
         const downloadURL = await getDownloadURL(uploadResult.ref);
@@ -37,9 +46,19 @@ export async function POST(req: NextRequest) {
             storagePath: fullStoragePath
         });
     } catch (error: any) {
-        console.error("[API-Upload] Detailed error:", error);
+        console.error("[API-Upload] Error details:", {
+            message: error.message,
+            code: error.code,
+            name: error.name,
+            stack: error.stack
+        });
+        
         return NextResponse.json(
-            { error: "Upload failed", details: error.message },
+            { 
+                error: "Upload failed", 
+                details: error.message,
+                code: error.code
+            },
             { status: 500 }
         );
     }
