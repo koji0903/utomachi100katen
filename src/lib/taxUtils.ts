@@ -59,7 +59,7 @@ export function calcTax(
 export function summarizeTaxByRate(
     items: { amount: number; rateType?: TaxRateType }[],
     rounding: RoundingMode = 'floor',
-    taxType: 'inclusive' | 'exclusive' = 'exclusive'
+    taxType: 'inclusive' | 'exclusive' = 'inclusive'
 ): {
     standard: { subtotal: number; taxAmount: number; total: number };
     reduced: { subtotal: number; taxAmount: number; total: number };

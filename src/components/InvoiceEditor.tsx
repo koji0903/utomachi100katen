@@ -17,7 +17,7 @@ interface InvoiceEditorProps {
     onChange: (data: { items: InvoiceItem[]; adjustments: InvoiceAdjustment[]; taxRate: 8 | 10; taxType: 'inclusive' | 'exclusive'; totalAmount: number; finalAdjustment?: number }) => void;
 }
 
-export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'exclusive', onChange, finalAdjustment = 0 }: InvoiceEditorProps) {
+export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusive', onChange, finalAdjustment = 0 }: InvoiceEditorProps) {
     const { products } = useStore();
     const [searchQuery, setSearchQuery] = useState("");
     const [showProductSearch, setShowProductSearch] = useState(false);
