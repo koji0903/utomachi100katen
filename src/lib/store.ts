@@ -972,6 +972,9 @@ export function useStore() {
         };
 
         // Stock adjustment logic
+        const targetStore = saleData.storeId ? retailStores.find(s => s.id === saleData.storeId) : null;
+        const isConsignment = targetStore?.type === 'A';
+
         for (const item of saleData.items) {
             const product = products.find(p => p.id === item.productId);
             if (!product) continue;
@@ -981,47 +984,47 @@ export function useStore() {
                 for (const comp of product.components) {
                     const compProduct = products.find(p => p.id === comp.productId);
                     if (compProduct) {
-                        const newStock = (compProduct.stock || 0) - (comp.quantity * item.quantity);
-                        await updateProduct(compProduct.id, { stock: newStock });
-                        await logStockMovement({
-                            productId: compProduct.id,
-                            productName: compProduct.name,
-                            type: 'out',
-                            quantity: comp.quantity * item.quantity,
-                            reason: 'sale',
-                            referenceId: newRef.id,
-                            date: saleData.period.split('T')[0]
-                        });
+                        // Overall stock deduction (only if NOT consignment)
+                        if (!isConsignment) {
+                            const newStock = (compProduct.stock || 0) - (comp.quantity * item.quantity);
+                            await updateProduct(compProduct.id, { stock: newStock });
+                            await logStockMovement({
+                                productId: compProduct.id,
+                                productName: compProduct.name,
+                                type: 'out',
+                                quantity: comp.quantity * item.quantity,
+                                reason: 'sale',
+                                referenceId: newRef.id,
+                                date: saleData.period.split('T')[0]
+                            });
+                        }
 
-                        // Store stock deduction
-                        if (saleData.storeId && (saleData.recipientType === 'store' || !saleData.recipientType)) {
-                            const retailStore = retailStores.find(s => s.id === saleData.storeId);
-                            if (retailStore?.type === 'A') {
-                                await updateStoreStock(saleData.storeId, compProduct.id, -(comp.quantity * item.quantity), 'sale', newRef.id, saleData.period.split('T')[0]);
-                            }
+                        // Store stock deduction (only if consignment)
+                        if (isConsignment) {
+                            await updateStoreStock(saleData.storeId!, compProduct.id, -(comp.quantity * item.quantity), 'sale', newRef.id, saleData.period.split('T')[0]);
                         }
                     }
                 }
             } else {
-                // Adjust simple product result
-                const newStock = (product.stock || 0) - item.quantity;
-                await updateProduct(product.id, { stock: newStock });
-                await logStockMovement({
-                    productId: product.id,
-                    productName: product.name,
-                    type: 'out',
-                    quantity: item.quantity,
-                    reason: 'sale',
-                    referenceId: newRef.id,
-                    date: saleData.period.split('T')[0]
-                });
+                // Adjust simple product
+                // Overall stock deduction (only if NOT consignment)
+                if (!isConsignment) {
+                    const newStock = (product.stock || 0) - item.quantity;
+                    await updateProduct(product.id, { stock: newStock });
+                    await logStockMovement({
+                        productId: product.id,
+                        productName: product.name,
+                        type: 'out',
+                        quantity: item.quantity,
+                        reason: 'sale',
+                        referenceId: newRef.id,
+                        date: saleData.period.split('T')[0]
+                    });
+                }
 
-                // Store stock deduction
-                if (saleData.storeId && (saleData.recipientType === 'store' || !saleData.recipientType)) {
-                    const retailStore = retailStores.find(s => s.id === saleData.storeId);
-                    if (retailStore?.type === 'A') {
-                        await updateStoreStock(saleData.storeId, product.id, -item.quantity, 'sale', newRef.id, saleData.period.split('T')[0]);
-                    }
+                // Store stock deduction (only if consignment)
+                if (isConsignment) {
+                    await updateStoreStock(saleData.storeId!, product.id, -item.quantity, 'sale', newRef.id, saleData.period.split('T')[0]);
                 }
             }
         }
@@ -1065,6 +1068,67 @@ export function useStore() {
     };
 
     const updateSale = async (id: string, saleData: Partial<Sale>) => {
+        const currentSale = sales.find(s => s.id === id);
+        if (!currentSale) return;
+
+        const newSale = { ...currentSale, ...saleData } as Sale;
+
+        // 1. Reverse old stock adjustments
+        const oldStore = currentSale.storeId ? retailStores.find(s => s.id === currentSale.storeId) : null;
+        const wasConsignment = oldStore?.type === 'A';
+
+        for (const item of currentSale.items) {
+            const product = products.find(p => p.id === item.productId);
+            if (!product) continue;
+
+            if (product.isComposite && product.components) {
+                for (const comp of product.components) {
+                    const compProduct = products.find(p => p.id === comp.productId);
+                    if (compProduct) {
+                        if (!wasConsignment) {
+                            await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) + (comp.quantity * item.quantity) });
+                        } else {
+                            await updateStoreStock(currentSale.storeId, compProduct.id, (comp.quantity * item.quantity), 'return', id, new Date().toISOString().split('T')[0]);
+                        }
+                    }
+                }
+            } else {
+                if (!wasConsignment) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) + item.quantity });
+                } else {
+                    await updateStoreStock(currentSale.storeId, product.id, item.quantity, 'return', id, new Date().toISOString().split('T')[0]);
+                }
+            }
+        }
+
+        // 2. Apply new stock adjustments
+        const newStore = newSale.storeId ? retailStores.find(s => s.id === newSale.storeId) : null;
+        const isNowConsignment = newStore?.type === 'A';
+
+        for (const item of newSale.items) {
+            const product = products.find(p => p.id === item.productId);
+            if (!product) continue;
+
+            if (product.isComposite && product.components) {
+                for (const comp of product.components) {
+                    const compProduct = products.find(p => p.id === comp.productId);
+                    if (compProduct) {
+                        if (!isNowConsignment) {
+                            await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - (comp.quantity * item.quantity) });
+                        } else {
+                            await updateStoreStock(newSale.storeId, compProduct.id, -(comp.quantity * item.quantity), 'sale', id, newSale.period.split('T')[0]);
+                        }
+                    }
+                }
+            } else {
+                if (!isNowConsignment) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) - item.quantity });
+                } else {
+                    await updateStoreStock(newSale.storeId, product.id, -item.quantity, 'sale', id, newSale.period.split('T')[0]);
+                }
+            }
+        }
+
         mutateSales(sales.map((s) => s.id === id ? { ...s, ...saleData } : s) as Sale[], false);
         const docRef = doc(db, "sales", id);
         await updateDoc(docRef, {
@@ -1079,6 +1143,9 @@ export function useStore() {
         if (!sale) return;
 
         // Reverse stock adjustments
+        const targetStore = sale.storeId ? retailStores.find(s => s.id === sale.storeId) : null;
+        const isConsignment = targetStore?.type === 'A';
+
         for (const item of sale.items) {
             const product = products.find(p => p.id === item.productId);
             if (!product) continue;
@@ -1088,14 +1155,28 @@ export function useStore() {
                 for (const comp of product.components) {
                     const compProduct = products.find(p => p.id === comp.productId);
                     if (compProduct) {
-                        const restoredStock = (compProduct.stock || 0) + (comp.quantity * item.quantity);
-                        await updateProduct(compProduct.id, { stock: restoredStock });
+                        // Revert Overall stock (only if NOT consignment)
+                        if (!isConsignment) {
+                            const restoredStock = (compProduct.stock || 0) + (comp.quantity * item.quantity);
+                            await updateProduct(compProduct.id, { stock: restoredStock });
+                        }
+                        // Revert Store stock (only if consignment)
+                        if (isConsignment) {
+                            await updateStoreStock(sale.storeId, compProduct.id, (comp.quantity * item.quantity), 'return', id, new Date().toISOString().split('T')[0]);
+                        }
                     }
                 }
             } else {
                 // Reverse simple product
-                const restoredStock = (product.stock || 0) + item.quantity;
-                await updateProduct(product.id, { stock: restoredStock });
+                // Revert Overall stock (only if NOT consignment)
+                if (!isConsignment) {
+                    const restoredStock = (product.stock || 0) + item.quantity;
+                    await updateProduct(product.id, { stock: restoredStock });
+                }
+                // Revert Store stock (only if consignment)
+                if (isConsignment) {
+                    await updateStoreStock(sale.storeId, product.id, item.quantity, 'return', id, new Date().toISOString().split('T')[0]);
+                }
             }
         }
 
@@ -1108,6 +1189,9 @@ export function useStore() {
         if (!sale) return;
 
         // Re-apply stock adjustments
+        const targetStore = sale.storeId ? retailStores.find(s => s.id === sale.storeId) : null;
+        const isConsignment = targetStore?.type === 'A';
+
         for (const item of sale.items) {
             const product = products.find(p => p.id === item.productId);
             if (!product) continue;
@@ -1116,13 +1200,28 @@ export function useStore() {
                 for (const comp of product.components) {
                     const compProduct = products.find(p => p.id === comp.productId);
                     if (compProduct) {
-                        const newStock = (compProduct.stock || 0) - (comp.quantity * item.quantity);
-                        await updateProduct(compProduct.id, { stock: newStock });
+                        // Re-apply Overall stock (only if NOT consignment)
+                        if (!isConsignment) {
+                            const newStock = (compProduct.stock || 0) - (comp.quantity * item.quantity);
+                            await updateProduct(compProduct.id, { stock: newStock });
+                        }
+                        // Re-apply Store stock (only if consignment)
+                        if (isConsignment) {
+                            await updateStoreStock(sale.storeId, compProduct.id, -(comp.quantity * item.quantity), 'sale', id, sale.period.split('T')[0]);
+                        }
                     }
                 }
             } else {
-                const newStock = (product.stock || 0) - item.quantity;
-                await updateProduct(product.id, { stock: newStock });
+                // Re-apply simple product
+                // Re-apply Overall stock (only if NOT consignment)
+                if (!isConsignment) {
+                    const newStock = (product.stock || 0) - item.quantity;
+                    await updateProduct(product.id, { stock: newStock });
+                }
+                // Re-apply Store stock (only if consignment)
+                if (isConsignment) {
+                    await updateStoreStock(sale.storeId, product.id, -item.quantity, 'sale', id, sale.period.split('T')[0]);
+                }
             }
         }
 
@@ -1212,11 +1311,48 @@ export function useStore() {
     };
 
     const deleteDailyReport = async (id: string) => {
+        const report = dailyReports.find(r => r.id === id);
+        if (!report) return;
+
+        // Reverse restocking logic
+        if (report.type === 'store' && report.storeId && report.restocking && report.restocking.length > 0) {
+            for (const item of report.restocking) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    // Reverse Deduction from main stock
+                    await updateProduct(product.id, { stock: (product.stock || 0) + item.qty });
+                    
+                    // Reverse Addition to store stock
+                    const retailStore = retailStores.find(s => s.id === report.storeId);
+                    if (retailStore?.type === 'A') {
+                        await updateStoreStock(report.storeId, product.id, -item.qty, 'restock', id, report.date);
+                    }
+                }
+            }
+        }
+
         await updateDoc(doc(db, "daily_reports", id), { isTrashed: true });
         mutateDailyReports();
     };
 
     const restoreDailyReport = async (id: string) => {
+        const report = dailyReports.find(r => r.id === id);
+        if (!report) return;
+
+        // Re-apply restocking logic
+        if (report.type === 'store' && report.storeId && report.restocking && report.restocking.length > 0) {
+            for (const item of report.restocking) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    const retailStore = retailStores.find(s => s.id === report.storeId);
+                    if (retailStore?.type === 'A') {
+                        await updateStoreStock(report.storeId, product.id, item.qty, 'restock', id, report.date);
+                    }
+                }
+            }
+        }
+
         await updateDoc(doc(db, "daily_reports", id), { isTrashed: false });
         mutateDailyReports();
     };
@@ -1227,8 +1363,41 @@ export function useStore() {
     };
 
     const updateDailyReport = async (id: string, data: Partial<Omit<DailyReport, "id" | "createdAt">>) => {
+        const currentReport = dailyReports.find(r => r.id === id);
+        if (!currentReport) return;
+
+        // 1. Reverse old restocking
+        if (currentReport.type === 'store' && currentReport.storeId && currentReport.restocking && currentReport.restocking.length > 0) {
+            for (const item of currentReport.restocking) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) + item.qty });
+                    const retailStore = retailStores.find(s => s.id === currentReport.storeId);
+                    if (retailStore?.type === 'A') {
+                        await updateStoreStock(currentReport.storeId, product.id, -item.qty, 'restock', id, currentReport.date);
+                    }
+                }
+            }
+        }
+
+        const newReport = { ...currentReport, ...data } as DailyReport;
+
+        // 2. Apply new restocking
+        if (newReport.type === 'store' && newReport.storeId && newReport.restocking && newReport.restocking.length > 0) {
+            for (const item of newReport.restocking) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    const retailStore = retailStores.find(s => s.id === newReport.storeId);
+                    if (retailStore?.type === 'A') {
+                        await updateStoreStock(newReport.storeId, product.id, item.qty, 'restock', id, newReport.date);
+                    }
+                }
+            }
+        }
+
         mutateDailyReports(dailyReports.map(r => r.id === id ? { ...r, ...data } : r), false);
-        await updateDoc(doc(db, "daily_reports", id), { ...data, updatedAt: serverTimestamp() });
+        await updateDoc(doc(db, "daily_reports", id), { ...cleanObject(data), updatedAt: serverTimestamp() });
         mutateDailyReports();
     };
 
