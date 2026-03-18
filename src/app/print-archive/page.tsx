@@ -38,8 +38,7 @@ function PrintArchivePageContent() {
     };
 
     const handlePreview = (archive: PrintArchive) => {
-        logArchiveActivity(archive.id, 'preview', 'ファイルをプレビューしました');
-        window.open(archive.fileUrl, '_blank');
+        openDetail(archive);
     };
 
     const handlePrint = (archive: PrintArchive) => {
@@ -123,8 +122,11 @@ function PrintArchivePageContent() {
                                             <div className="p-2 bg-indigo-50 text-indigo-500 rounded-lg">
                                                 <FileText className="w-5 h-5" />
                                             </div>
-                                            <div>
-                                                <div className="font-bold text-slate-900 leading-tight mb-0.5">{archive.title}</div>
+                                            <div 
+                                                className="cursor-pointer group/title"
+                                                onClick={() => openDetail(archive)}
+                                            >
+                                                <div className="font-bold text-slate-900 leading-tight mb-0.5 group-hover/title:text-indigo-600 transition-colors">{archive.title}</div>
                                                 <div className="text-xs text-slate-400 truncate max-w-[200px]">{archive.fileName}</div>
                                             </div>
                                         </div>
@@ -151,7 +153,7 @@ function PrintArchivePageContent() {
                                         </div>
                                     </td>
                                     <td className="p-5 text-right">
-                                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button
                                                 onClick={() => handlePreview(archive)}
                                                 className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"

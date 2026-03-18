@@ -18,6 +18,7 @@ export function ArchiveDetailModal({ isOpen, onClose, archive }: ArchiveDetailMo
     const [isEditingMemo, setIsEditingMemo] = useState(false);
     const [newTag, setNewTag] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
 
     if (!isOpen) return null;
 
@@ -55,11 +56,42 @@ export function ArchiveDetailModal({ isOpen, onClose, archive }: ArchiveDetailMo
         }
     };
 
-    const handlePrint = () => {
-        logArchiveActivity(archive.id, 'print', '印刷用プレビューを開きました');
-        const win = window.open(archive.fileUrl, '_blank');
-        if (win) {
-            win.onload = () => win.print();
+    const handlePrint = async () => {
+        setIsPrinting(true);
+        logArchiveActivity(archive.id, 'print', '印刷用データを準備しています');
+        
+        try {
+            // Fetch the PDF as a blob to bypass cross-origin print blocks
+            const response = await fetch(archive.fileUrl);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+
+            // Create a hidden iframe for printing
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = blobUrl;
+            document.body.appendChild(iframe);
+
+            iframe.onload = () => {
+                setTimeout(() => {
+                    iframe.contentWindow?.focus();
+                    iframe.contentWindow?.print();
+                    // Cleanup
+                    setTimeout(() => {
+                        document.body.removeChild(iframe);
+                        URL.revokeObjectURL(blobUrl);
+                        setIsPrinting(false);
+                    }, 1000);
+                }, 500);
+            };
+        } catch (error) {
+            console.error("Print failed, falling back to new tab:", error);
+            // Fallback: Open in new tab
+            const win = window.open(archive.fileUrl, '_blank');
+            if (win) {
+                win.onload = () => win.print();
+            }
+            setIsPrinting(false);
         }
     };
 
@@ -83,19 +115,33 @@ export function ArchiveDetailModal({ isOpen, onClose, archive }: ArchiveDetailMo
                             <FileText className="w-5 h-5 text-indigo-600" />
                             <span className="font-bold text-slate-800 truncate max-w-[300px]">{archive.title}</span>
                         </div>
-                        <button 
-                            onClick={handlePrint}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-sm font-bold shadow-sm"
-                        >
-                            <Printer className="w-4 h-4" /> 印刷
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={handlePrint}
+                                disabled={isPrinting}
+                                className={`flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-sm font-bold shadow-sm ${isPrinting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <Printer className={`w-4 h-4 ${isPrinting ? 'animate-pulse' : ''}`} /> 
+                                {isPrinting ? '準備中...' : '印刷'}
+                            </button>
+                            <a 
+                                href={archive.fileUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+                                title="ブラウザで直接開く"
+                            >
+                                <Eye className="w-4 h-4" />
+                            </a>
+                        </div>
                     </div>
-                    <div className="flex-1 relative">
+                    <div className="flex-1 relative bg-slate-200 shadow-inner overflow-hidden">
                         <iframe 
-                            src={`${archive.fileUrl}#toolbar=0`} 
+                            src={`${archive.fileUrl}#toolbar=0&navpanes=0&scrollbar=1`} 
                             className="w-full h-full border-none"
                             title="PDF Preview"
                         />
+                        {/* Overlay to detect initial load if needed, but standard iframe usually works */}
                     </div>
                 </div>
 
