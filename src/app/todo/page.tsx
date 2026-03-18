@@ -255,6 +255,7 @@ export default function TodoPage() {
     const [editingChallenge, setEditingChallenge] = useState<BusinessChallenge | null>(null);
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
     const [editingCommentText, setEditingCommentText] = useState("");
+    const [commentAuthor, setCommentAuthor] = useState("山口");
     const [searchQuery, setSearchQuery] = useState("");
     const [filterCategory, setFilterCategory] = useState<string>("all");
     const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -281,6 +282,7 @@ export default function TodoPage() {
                 priority: challenge.priority,
                 status: challenge.status,
             });
+            setCommentAuthor(challenge.author || "山口");
         } else {
             setEditingChallenge(null);
             setFormData({
@@ -291,6 +293,7 @@ export default function TodoPage() {
                 priority: "medium",
                 status: "todo",
             });
+            setCommentAuthor("山口");
         }
         setIsModalOpen(true);
     };
@@ -703,25 +706,40 @@ export default function TodoPage() {
                                             )}
                                         </div>
                                         <div className="space-y-3">
-                                            <textarea
-                                                id="new-comment-textarea"
-                                                placeholder="新しいコメントを追記... (Cmd+Enterで送信)"
-                                                rows={3}
-                                                className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-blue-500/20 transition-all font-medium resize-none shadow-inner"
-                                                onKeyDown={async (e) => {
-                                                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                                                        e.preventDefault();
-                                                        const target = e.target as HTMLTextAreaElement;
-                                                        if (target.value.trim()) {
-                                                                await addChallengeComment(currentChallenge.id, {
-                                                                content: target.value,
-                                                                author: formData.author || "山口"
-                                                            });
-                                                            target.value = "";
-                                                        }
-                                                    }
-                                                }}
-                                            />
+                                            <div className="flex gap-2 mb-2">
+                                                <div className="w-1/3">
+                                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">投稿者</label>
+                                                    <input
+                                                        type="text"
+                                                        value={commentAuthor}
+                                                        onChange={(e) => setCommentAuthor(e.target.value)}
+                                                        className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 transition-all font-bold"
+                                                        placeholder="名前"
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">コメント本文</label>
+                                                    <textarea
+                                                        id="new-comment-textarea"
+                                                        placeholder="新しいコメントを追記... (Cmd+Enterで送信)"
+                                                        rows={2}
+                                                        className="w-full px-5 py-3 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-blue-500/20 transition-all font-medium resize-none shadow-inner"
+                                                        onKeyDown={async (e) => {
+                                                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                                                e.preventDefault();
+                                                                const target = e.target as HTMLTextAreaElement;
+                                                                if (target.value.trim()) {
+                                                                        await addChallengeComment(currentChallenge.id, {
+                                                                        content: target.value,
+                                                                        author: commentAuthor || "山口"
+                                                                    });
+                                                                    target.value = "";
+                                                                }
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
                                             <div className="flex justify-end">
                                                 <button
                                                     type="button"
@@ -730,7 +748,7 @@ export default function TodoPage() {
                                                         if (textarea.value.trim()) {
                                                             await addChallengeComment(currentChallenge.id, {
                                                                 content: textarea.value,
-                                                                author: formData.author || "山口"
+                                                                author: commentAuthor || "山口"
                                                             });
                                                             textarea.value = "";
                                                         }
