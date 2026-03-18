@@ -71,8 +71,6 @@ const ChallengeCard = ({
     const prio = (PRIORITIES as any)[challenge.priority] || PRIORITIES.medium;
     const stat = (STATUSES as any)[challenge.status] || STATUSES.todo;
 
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-
     const formattedDate = (createdAt: any) => {
         if (!createdAt) return "";
         let date: Date;
@@ -144,37 +142,22 @@ const ChallengeCard = ({
             {/* Status & Actions */}
             <div className={`flex items-center justify-end shrink-0 ${isDone || compact ? '' : 'pt-3 border-t border-slate-50 md:pt-0 md:border-t-0 md:flex-col md:h-full gap-2'}`}>
                 {!compact && !isDone && (
-                    <div className="relative group/status flex justify-end w-full">
-                        <button
-                            onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            className={`flex items-center justify-end gap-1.5 ${stat.color} font-black text-xs px-2 py-1 rounded-lg hover:bg-slate-50 transition-colors`}
-                        >
-                            <stat.icon className="w-3.5 h-3.5" />
-                            {stat.label}
-                            <ChevronDown className="w-3 h-3 opacity-50" />
-                        </button>
-
-                        {isMenuOpen && (
-                            <>
-                                <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)} />
-                                <div className="absolute top-full right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl py-1.5 z-20 min-w-[120px] animate-in fade-in slide-in-from-top-1 duration-200">
-                                    {Object.entries(STATUSES).map(([key, val]) => (
-                                        <button
-                                            key={key}
-                                            onClick={() => {
-                                                onStatusChange(challenge.id, key);
-                                                setIsMenuOpen(false);
-                                            }}
-                                            className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold transition-colors hover:bg-slate-50 ${challenge.status === key ? val.color : 'text-slate-600'}`}
-                                        >
-                                            <val.icon className="w-3.5 h-3.5" />
-                                            {val.label}
-                                            {challenge.status === key && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-current" />}
-                                        </button>
-                                    ))}
-                                </div>
-                            </>
-                        )}
+                    <div className="flex bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/50 self-end">
+                        {Object.entries(STATUSES).map(([key, val]) => (
+                            <button
+                                key={key}
+                                onClick={() => onStatusChange(challenge.id, key)}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-[10px] transition-all text-[9px] font-black
+                                    ${challenge.status === key
+                                        ? `bg-white shadow-sm ${val.color}`
+                                        : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
+                                    }`}
+                                title={val.label}
+                            >
+                                <val.icon className="w-3 h-3" />
+                                {challenge.status === key && <span>{val.label}</span>}
+                            </button>
+                        ))}
                     </div>
                 )}
 
