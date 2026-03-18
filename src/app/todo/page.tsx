@@ -18,7 +18,8 @@ import {
     PlusCircle,
     X,
     ChevronDown,
-    RotateCcw
+    RotateCcw,
+    Eye
 } from "lucide-react";
 import { useStore, BusinessChallenge } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
@@ -41,6 +42,7 @@ const PRIORITIES = {
 const STATUSES = {
     todo: { label: "未着手", icon: Clock, color: "text-slate-500" },
     doing: { label: "進行中", icon: TrendingUp, color: "text-blue-600" },
+    waiting: { label: "確認待ち", icon: Eye, color: "text-purple-600" },
     done: { label: "完了", icon: CheckCircle2, color: "text-emerald-600" },
 };
 
@@ -50,6 +52,7 @@ const ChallengeCard = ({
     challenge,
     onEdit,
     onDelete,
+    onStatusChange,
     onRestore,
     onPermanentDelete,
     compact = false,
@@ -58,6 +61,7 @@ const ChallengeCard = ({
     challenge: BusinessChallenge;
     onEdit: (c: BusinessChallenge) => void;
     onDelete: (id: string) => void;
+    onStatusChange: (id: string, status: any) => void;
     onRestore?: (id: string) => void;
     onPermanentDelete?: (id: string) => void;
     compact?: boolean;
@@ -66,6 +70,9 @@ const ChallengeCard = ({
     const cat = (CATEGORIES as any)[challenge.category] || CATEGORIES.other;
     const prio = (PRIORITIES as any)[challenge.priority] || PRIORITIES.medium;
     const stat = (STATUSES as any)[challenge.status] || STATUSES.todo;
+
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+
     const formattedDate = (createdAt: any) => {
         if (!createdAt) return "";
         let date: Date;
@@ -137,9 +144,37 @@ const ChallengeCard = ({
             {/* Status & Actions */}
             <div className={`flex items-center justify-end shrink-0 ${isDone || compact ? '' : 'pt-3 border-t border-slate-50 md:pt-0 md:border-t-0 md:flex-col md:h-full gap-2'}`}>
                 {!compact && !isDone && (
-                    <div className={`flex items-center justify-end gap-1.5 ${stat.color} font-black text-xs w-full`}>
-                        <stat.icon className="w-4 h-4" />
-                        {stat.label}
+                    <div className="relative group/status flex justify-end w-full">
+                        <button
+                            onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            className={`flex items-center justify-end gap-1.5 ${stat.color} font-black text-xs px-2 py-1 rounded-lg hover:bg-slate-50 transition-colors`}
+                        >
+                            <stat.icon className="w-3.5 h-3.5" />
+                            {stat.label}
+                            <ChevronDown className="w-3 h-3 opacity-50" />
+                        </button>
+
+                        {isMenuOpen && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)} />
+                                <div className="absolute top-full right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl py-1.5 z-20 min-w-[120px] animate-in fade-in slide-in-from-top-1 duration-200">
+                                    {Object.entries(STATUSES).map(([key, val]) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => {
+                                                onStatusChange(challenge.id, key);
+                                                setIsMenuOpen(false);
+                                            }}
+                                            className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold transition-colors hover:bg-slate-50 ${challenge.status === key ? val.color : 'text-slate-600'}`}
+                                        >
+                                            <val.icon className="w-3.5 h-3.5" />
+                                            {val.label}
+                                            {challenge.status === key && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-current" />}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -286,6 +321,16 @@ export default function TodoPage() {
         }
     };
 
+    const handleStatusChange = async (id: string, status: any) => {
+        try {
+            await updateChallenge(id, { status });
+            showNotification("ステータスを更新しました。");
+        } catch (error) {
+            console.error("Failed to update status:", error);
+            showNotification("更新に失敗しました。", "error");
+        }
+    };
+
     const filteredChallenges = (challenges || [])
         .filter(c => !!c.isTrashed === showTrash)
         .filter((c: BusinessChallenge) =>
@@ -389,6 +434,7 @@ export default function TodoPage() {
                                 challenge={challenge}
                                 onEdit={handleOpenModal}
                                 onDelete={handleDelete}
+                                onStatusChange={handleStatusChange}
                                 onRestore={handleRestore}
                                 onPermanentDelete={handlePermanentDelete}
                             />
@@ -429,6 +475,7 @@ export default function TodoPage() {
                                                 challenge={challenge}
                                                 onEdit={handleOpenModal}
                                                 onDelete={handleDelete}
+                                                onStatusChange={handleStatusChange}
                                                 compact={statusKey === 'done'}
                                                 showFullDescription={statusKey === 'todo'}
                                             />
@@ -520,13 +567,13 @@ export default function TodoPage() {
 
                                 <div>
                                     <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">ステータス</label>
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                         {Object.entries(STATUSES).map(([key, val]) => (
                                             <button
                                                 key={key}
                                                 type="button"
                                                 onClick={() => setFormData({ ...formData, status: key as any })}
-                                                className={`py-3 rounded-2xl text-xs font-black transition-all border ${formData.status === key
+                                                className={`py-3 rounded-2xl text-[10px] font-black transition-all border ${formData.status === key
                                                     ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-600/20'
                                                     : 'bg-slate-50 text-slate-500 border-transparent hover:bg-slate-100'
                                                     }`}

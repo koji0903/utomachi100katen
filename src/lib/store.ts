@@ -386,7 +386,7 @@ export interface BusinessChallenge extends BaseEntity {
     author?: string; // 投稿者
     category: 'system' | 'product' | 'customer' | 'store' | 'strategy' | 'other';
     priority: 'high' | 'medium' | 'low';
-    status: 'todo' | 'doing' | 'done';
+    status: 'todo' | 'doing' | 'waiting' | 'done';
     createdAt: string | any;
     updatedAt?: string | any;
 }
