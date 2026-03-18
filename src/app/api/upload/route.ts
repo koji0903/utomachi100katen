@@ -16,23 +16,26 @@ export async function POST(req: NextRequest) {
 
         // Generate a unique filename
         const uniqueFileName = `${Date.now()}_${file.name}`;
-        const storageRef = ref(storage, `${folderPath}/${uniqueFileName}`);
+        const fullStoragePath = `${folderPath}/${uniqueFileName}`;
+        const storageRef = ref(storage, fullStoragePath);
 
-        // Convert File to ArrayBuffer for Firebase Upload in Node environment
+        // Convert File to ArrayBuffer for Firebase Upload
         const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
 
-        // Upload to Firebase Storage (Server-to-Server doesn't have CORS issues)
-        const uploadResult = await uploadBytes(storageRef, buffer, {
+        // Upload to Firebase Storage
+        const uploadResult = await uploadBytes(storageRef, bytes, {
             contentType: file.type,
         });
 
-        console.log(`[API-Upload] Upload successful for ${file.name}`);
+        console.log(`[API-Upload] Upload successful for ${file.name} to ${fullStoragePath}`);
 
         // Get download URL
         const downloadURL = await getDownloadURL(uploadResult.ref);
 
-        return NextResponse.json({ url: downloadURL });
+        return NextResponse.json({ 
+            url: downloadURL,
+            storagePath: fullStoragePath
+        });
     } catch (error: any) {
         console.error("[API-Upload] Detailed error:", error);
         return NextResponse.json(

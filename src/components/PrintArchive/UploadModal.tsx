@@ -52,17 +52,19 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
                 body: formData,
             });
 
+            const result = await response.json();
+
             if (!response.ok) {
-                throw new Error("アップロードに失敗しました。");
+                throw new Error(result.details || result.error || "アップロードに失敗しました。");
             }
 
-            const { url } = await response.json();
+            const { url, storagePath } = result;
 
             await addPrintArchive({
                 title,
                 fileName: file.name,
                 fileUrl: url,
-                storagePath: `print-archives/${file.name}`, // Simplify for metadata
+                storagePath: storagePath, 
                 category,
                 memo,
                 tags: [] // Tags can be added later
