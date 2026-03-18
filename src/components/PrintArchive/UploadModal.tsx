@@ -5,6 +5,8 @@ import { X, Upload, FileText, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { ArchiveCategory } from "@/lib/types/printArchive";
 import { showNotification } from "@/lib/notifications";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "@/lib/firebase";
 
 interface UploadModalProps {
     isOpen: boolean;
@@ -43,22 +45,18 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
 
         setIsUploading(true);
         try {
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("folderPath", "print-archives");
+            // Generate a unique filename and storage path on the client
+            const uniqueFileName = `${Date.now()}_${file.name}`;
+            const storagePath = `print-archives/${uniqueFileName}`;
+            const storageRef = ref(storage, storagePath);
 
-            const response = await fetch("/api/upload", {
-                method: "POST",
-                body: formData,
+            // Direct upload to Firebase Storage
+            const uploadResult = await uploadBytes(storageRef, file, {
+                contentType: file.type,
             });
 
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.details || result.error || "アップロードに失敗しました。");
-            }
-
-            const { url, storagePath } = result;
+            // Get the download URL
+            const url = await getDownloadURL(uploadResult.ref);
 
             await addPrintArchive({
                 title,
