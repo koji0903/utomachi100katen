@@ -137,6 +137,20 @@ const ChallengeCard = ({
                         </span>
                     </div>
                 )}
+                <div className="flex items-center gap-3 mt-3">
+                    <button
+                        onClick={() => onEdit(challenge)}
+                        className="text-[11px] font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-blue-50 transition-all"
+                    >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        {challenge.comments?.length || 0} 件のコメント
+                    </button>
+                    {challenge.updatedAt && (
+                        <span className="text-[10px] text-slate-300 ml-auto">
+                            最終更新: {formattedDate(challenge.updatedAt)}
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Status & Actions */}
@@ -225,7 +239,16 @@ const EmptyState = ({ showTrash, onNewClick }: { showTrash: boolean; onNewClick:
 );
 
 export default function TodoPage() {
-    const { challenges, addChallenge, updateChallenge, deleteChallenge, restoreChallenge, permanentlyDeleteChallenge, isLoaded } = useStore();
+    const { 
+        challenges, 
+        addChallenge, 
+        updateChallenge, 
+        addChallengeComment,
+        deleteChallenge, 
+        restoreChallenge, 
+        permanentlyDeleteChallenge, 
+        isLoaded 
+    } = useStore();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingChallenge, setEditingChallenge] = useState<BusinessChallenge | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -305,8 +328,15 @@ export default function TodoPage() {
     };
 
     const handleStatusChange = async (id: string, status: any) => {
+        const comment = window.prompt("ステータス変更の理由やメモがあれば入力してください（任意）:");
         try {
             await updateChallenge(id, { status });
+            if (comment) {
+                await addChallengeComment(id, {
+                    content: `ステータスを「${(STATUSES as any)[status]?.label}」に変更しました: ${comment}`,
+                    author: formData.author || "山口"
+                });
+            }
             showNotification("ステータスを更新しました。");
         } catch (error) {
             console.error("Failed to update status:", error);
@@ -479,18 +509,23 @@ export default function TodoPage() {
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl relative z-10 animate-in fade-in zoom-in duration-200">
-                        <div className="p-8 pb-0 flex items-center justify-between">
-                            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                                {editingChallenge ? "課題を編集" : "新しい課題を登録"}
-                            </h2>
-                            <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
+            <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl relative z-10 animate-in fade-in zoom-in duration-200">
+                        {(() => {
+                            const currentChallenge = editingChallenge ? challenges.find(c => c.id === editingChallenge.id) || editingChallenge : null;
+                            return (
+                                <>
+                                    <div className="p-8 pb-0 flex items-center justify-between">
+                                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                                            {editingChallenge ? "課題を編集" : "新しい課題を登録"}
+                                        </h2>
+                                        <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+                                            <X className="w-6 h-6" />
+                                        </button>
+                                    </div>
 
-                        <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                            <div className="space-y-4">
+                                    <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                                        <div className="space-y-4">
+                                            {/* ... existing form fields ... */}
                                 <div>
                                     <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">タイトル</label>
                                     <input
@@ -577,6 +612,66 @@ export default function TodoPage() {
                                         placeholder="具体的な内容や発生した状況、背景などを入力してください..."
                                     />
                                 </div>
+
+                                {currentChallenge && (
+                                    <div className="pt-6 border-t border-slate-100">
+                                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4">コメント履歴</label>
+                                        <div className="space-y-4 max-h-60 overflow-y-auto mb-4 pr-2 custom-scrollbar">
+                                            {currentChallenge.comments && currentChallenge.comments.length > 0 ? (
+                                                currentChallenge.comments.map((comment) => (
+                                                    <div key={comment.id} className="bg-slate-50 p-4 rounded-2xl relative group">
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <span className="text-[10px] font-black text-blue-600">{comment.author}</span>
+                                                            <span className="text-[9px] text-slate-400">
+                                                                {new Date(comment.createdAt).toLocaleString("ja-JP")}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-xs text-slate-400 italic py-2 text-center">コメントはまだありません</p>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <input
+                                                id="new-comment-input"
+                                                type="text"
+                                                placeholder="コメントを入力..."
+                                                className="flex-1 px-4 py-2 bg-slate-50 border-none rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
+                                                onKeyDown={async (e) => {
+                                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                                        e.preventDefault();
+                                                        const target = e.target as HTMLInputElement;
+                                                        if (target.value.trim()) {
+                                                            await addChallengeComment(currentChallenge.id, {
+                                                                content: target.value,
+                                                                author: formData.author || "山口"
+                                                            });
+                                                            target.value = "";
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    const input = document.getElementById('new-comment-input') as HTMLInputElement;
+                                                    if (input.value.trim()) {
+                                                        await addChallengeComment(currentChallenge.id, {
+                                                            content: input.value,
+                                                            author: formData.author || "山口"
+                                                        });
+                                                        input.value = "";
+                                                    }
+                                                }}
+                                                className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition-all"
+                                            >
+                                                追加
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <button
@@ -585,7 +680,10 @@ export default function TodoPage() {
                             >
                                 {editingChallenge ? "変更を保存する" : "課題を登録する"}
                             </button>
-                        </form>
+                                    </form>
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
             )}

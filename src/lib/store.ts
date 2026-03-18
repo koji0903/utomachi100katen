@@ -380,6 +380,13 @@ export interface PaymentRecord {
     createdAt?: string | any;
 }
 
+export interface ChallengeComment {
+    id: string;
+    content: string;
+    author: string;
+    createdAt: string | any;
+}
+
 export interface BusinessChallenge extends BaseEntity {
     id: string;
     title: string;
@@ -390,6 +397,7 @@ export interface BusinessChallenge extends BaseEntity {
     status: 'todo' | 'doing' | 'waiting' | 'done';
     createdAt: string | any;
     updatedAt?: string | any;
+    comments?: ChallengeComment[];
 }
 
 export interface StockConversion {
@@ -1767,6 +1775,26 @@ export function useStore() {
         mutateChallenges();
     };
 
+    const addChallengeComment = async (id: string, comment: Omit<ChallengeComment, 'id' | 'createdAt'>) => {
+        const challenge = (challenges || []).find(c => c.id === id);
+        if (!challenge) return;
+
+        const newComment: ChallengeComment = {
+            id: crypto.randomUUID(),
+            ...comment,
+            createdAt: new Date().toISOString()
+        };
+
+        const updatedComments = [...(challenge.comments || []), newComment];
+        
+        mutateChallenges(challenges.map(c => c.id === id ? { ...c, comments: updatedComments } : c), false);
+        await updateDoc(doc(db, "business_challenges", id), { 
+            comments: updatedComments,
+            updatedAt: serverTimestamp()
+        });
+        mutateChallenges();
+    };
+
     const updateChallenge = async (id: string, data: Partial<Omit<BusinessChallenge, 'id' | 'createdAt'>>) => {
         mutateChallenges(challenges.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c), false);
         await updateDoc(doc(db, 'business_challenges', id), { ...cleanObject(data), updatedAt: serverTimestamp() });
@@ -2201,6 +2229,7 @@ export function useStore() {
         // Business Challenges
         challenges,
         addChallenge,
+        addChallengeComment,
         updateChallenge,
         deleteChallenge,
         // Stock Conversions
