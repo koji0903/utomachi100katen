@@ -119,5 +119,5 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         await setDoc(doc(collection(db, "sales")), saleData);
     }
 
-    return { success: true, transactionId: newRef.id };
+    return { success: true, transactionId: newRef.id, orderId: order.shopifyOrderId };
 }

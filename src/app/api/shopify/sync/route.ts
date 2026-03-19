@@ -39,22 +39,39 @@ export async function POST(req: Request) {
             }
         }
 
-        // 2. 注文情報（最新）の取得
+        // 2. 注文情報の取得
         const orders = await getShopifyOrders();
         let newOrdersCount = 0;
+        const processedOrders = [];
 
         for (const order of orders) {
             const result = await processShopifyOrder(order);
             if (result.success) {
                 newOrdersCount++;
+                processedOrders.push(result.orderId);
             }
         }
+
+        // 3. 同期ログの保存
+        const logData = {
+            type: 'Shopify',
+            timestamp: serverTimestamp(),
+            status: 'success',
+            productCount: syncResults.length,
+            orderCount: newOrdersCount,
+            details: {
+                syncedProducts: syncResults.map(p => p.name),
+                newOrderIds: processedOrders
+            }
+        };
+        await setDoc(doc(collection(db, "sync_logs")), logData);
 
         return NextResponse.json({
             success: true,
             syncedProducts: syncResults,
             newOrdersCount: newOrdersCount,
-            message: `Shopify同期が完了しました。${newOrdersCount}件の新規注文を登録しました。`
+            newOrderIds: processedOrders,
+            message: `Shopify同期が完了しました。${syncResults.length}件の商品と${newOrdersCount}件の注文を処理しました。`
         });
 
     } catch (error: any) {

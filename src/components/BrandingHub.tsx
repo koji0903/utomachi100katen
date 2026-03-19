@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { X, Sparkles, Copy, Check, ChevronRight, BookOpen, ShoppingBag, Share2, AlertCircle, UploadCloud, Image as ImageIcon, Printer, Download, Video, RefreshCw } from "lucide-react";
+import { X, Sparkles, Copy, Check, ChevronRight, BookOpen, ShoppingBag, Share2, AlertCircle, UploadCloud, Image as ImageIcon, Printer, Download, Video, RefreshCw, History, Package, ClipboardCheck } from "lucide-react";
+import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useStore, Product } from "@/lib/store";
 import { AIPromptDisplay } from "./AIPromptDisplay";
 import { generateCopyPrompt } from "@/lib/aiPromptUtils";
@@ -105,6 +107,27 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
     const [shopifyVariantId, setShopifyVariantId] = useState(product.shopifyVariantId || "");
     const [shopifySyncEnabled, setShopifySyncEnabled] = useState(!!product.shopifySyncEnabled);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [syncReport, setSyncReport] = useState<{ products: string[], orders: string[] } | null>(null);
+
+    // Amazon states
+    const [amazonAsin, setAmazonAsin] = useState(product.amazonAsin || "");
+    const [amazonSku, setAmazonSku] = useState(product.amazonSku || "");
+    const [amazonSyncEnabled, setAmazonSyncEnabled] = useState(!!product.amazonSyncEnabled);
+    const [isSyncingAmazon, setIsSyncingAmazon] = useState(false);
+
+    // Sync History
+    const [syncLogs, setSyncLogs] = useState<any[]>([]);
+    const [showHistory, setShowHistory] = useState(false);
+
+    const fetchSyncLogs = async () => {
+        try {
+            const q = query(collection(db, "sync_logs"), orderBy("timestamp", "desc"), limit(10));
+            const snap = await getDocs(q);
+            setSyncLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch (e) {
+            console.error("Failed to fetch sync logs:", e);
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -126,7 +149,11 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
             });
             const data = await res.json();
             if (res.ok) {
-                alert(data.message || "Shopifyとの同期が完了しました。");
+                setSyncReport({
+                    products: data.syncedProducts.map((p: any) => p.name),
+                    orders: data.newOrderIds || []
+                });
+                fetchSyncLogs(); // 履歴を更新
             } else {
                 setError(data.error || "Shopifyとの同期に失敗しました。");
             }
@@ -134,6 +161,39 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
             setError("同期中にエラーが発生しました。");
         } finally {
             setIsSyncing(false);
+        }
+    };
+
+    const handleSyncAmazon = async () => {
+        setIsSyncingAmazon(true);
+        setError("");
+        setSyncReport(null);
+        try {
+            await updateProduct(product.id, {
+                amazonAsin,
+                amazonSku,
+                amazonSyncEnabled,
+            });
+
+            const res = await fetch("/api/amazon/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productId: product.id }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setSyncReport({
+                    products: data.syncedProducts.map((p: any) => p.name),
+                    orders: data.newOrderIds || []
+                });
+                fetchSyncLogs();
+            } else {
+                setError(data.error || "Amazonとの同期に失敗しました。");
+            }
+        } catch (e) {
+            setError("同期中にエラーが発生しました。");
+        } finally {
+            setIsSyncingAmazon(false);
         }
     };
 
@@ -206,6 +266,9 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                 shopifyProductId,
                 shopifyVariantId,
                 shopifySyncEnabled,
+                amazonAsin,
+                amazonSku,
+                amazonSyncEnabled,
             });
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 2500);
@@ -398,42 +461,118 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                                 {activeMode === 'marketplace' && (
                                     <div className="space-y-4 mb-6 border-b border-slate-100 pb-6">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <ShoppingBag className="w-4 h-4 text-blue-600" />
-                                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Shopify 連携設定</h4>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-[10px] font-bold text-slate-400 block mb-1">商品ID</label>
-                                                <input type="text" value={shopifyProductId}
-                                                    onChange={e => setShopifyProductId(e.target.value)}
-                                                    className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 outline-none"
-                                                    placeholder="gid://shopify/Product/..." />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-bold text-slate-400 block mb-1">バリアントID</label>
-                                                <input type="text" value={shopifyVariantId}
-                                                    onChange={e => setShopifyVariantId(e.target.value)}
-                                                    className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 outline-none"
-                                                    placeholder="gid://shopify/ProductVariant/..." />
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="checkbox" checked={shopifySyncEnabled}
-                                                    onChange={e => setShopifySyncEnabled(e.target.checked)}
-                                                    className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                                                <span className="text-[10px] font-bold text-slate-600">自動在庫同期を有効にする</span>
-                                            </label>
-                                            <button onClick={handleSyncShopify} disabled={isSyncing || !shopifyVariantId}
-                                                className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center gap-1.5">
-                                                {isSyncing ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> 同期中</> : <><RefreshCw className="w-3 h-3" /> 今すぐ同期</>}
-                                            </button>
-                                        </div>
-                                        {product.lastShopifySyncAt && (
+                                        {product.lastShopifySyncAt && !syncReport && (
                                             <p className="text-[9px] text-slate-400 text-right">
                                                 最終同期: {new Date(product.lastShopifySyncAt.seconds ? product.lastShopifySyncAt.seconds * 1000 : product.lastShopifySyncAt).toLocaleString()}
                                             </p>
                                         )}
+
+                                        {/* Amazon 同期設定 */}
+                                        <div className="pt-4 mt-4 border-t border-slate-100">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <ShoppingBag className="w-4 h-4 text-amber-600" />
+                                                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Amazon 連携設定</h4>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4 mb-3">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-400 block mb-1">ASIN</label>
+                                                    <input type="text" value={amazonAsin}
+                                                        onChange={e => setAmazonAsin(e.target.value)}
+                                                        className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-amber-500/20 outline-none"
+                                                        placeholder="B0XXXX..." />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-400 block mb-1">SKU</label>
+                                                    <input type="text" value={amazonSku}
+                                                        onChange={e => setAmazonSku(e.target.value)}
+                                                        className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-amber-500/20 outline-none"
+                                                        placeholder="AMZ-SKU-..." />
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input type="checkbox" checked={amazonSyncEnabled}
+                                                        onChange={e => setAmazonSyncEnabled(e.target.checked)}
+                                                        className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
+                                                    <span className="text-[10px] font-bold text-slate-600">自動在庫同期を有効にする</span>
+                                                </label>
+                                                <button onClick={handleSyncAmazon} disabled={isSyncingAmazon || !amazonAsin}
+                                                    className="px-4 py-1.5 bg-amber-600 text-white text-[10px] font-bold rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-all flex items-center gap-1.5">
+                                                    {isSyncingAmazon ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> 同期中</> : <><RefreshCw className="w-3 h-3" /> 今すぐ同期</>}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* 同期レポート */}
+                                        {syncReport && (
+                                            <div className="mt-4 p-3 bg-blue-50/80 border border-blue-100 rounded-lg animate-in fade-in slide-in-from-top-2">
+                                                <h5 className="text-[10px] font-bold text-blue-800 mb-2 flex items-center gap-1">
+                                                    <ClipboardCheck className="w-3.5 h-3.5" /> 同期レポート
+                                                </h5>
+                                                <div className="space-y-2">
+                                                    <div>
+                                                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mb-1">同期された商品 ({syncReport.products.length})</p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {syncReport.products.map((p, i) => (
+                                                                <span key={i} className="px-1.5 py-0.5 bg-white border border-blue-100 rounded text-[9px] text-blue-700 font-medium">{p}</span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    {syncReport.orders.length > 0 && (
+                                                        <div>
+                                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mb-1">新規注文取込 ({syncReport.orders.length})</p>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {syncReport.orders.map((o, i) => (
+                                                                    <span key={i} className="px-1.5 py-0.5 bg-blue-600 text-white rounded text-[9px] font-mono tracking-tighter">{o}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 同期履歴 */}
+                                        <div className="mt-6 border-t border-slate-100 pt-4">
+                                            <button 
+                                                onClick={() => {
+                                                    if (!showHistory) fetchSyncLogs();
+                                                    setShowHistory(!showHistory);
+                                                }}
+                                                className="w-full flex items-center justify-between text-slate-500 hover:text-slate-800 transition-colors"
+                                            >
+                                                <div className="flex items-center gap-1.5">
+                                                    <History className="w-4 h-4" />
+                                                    <span className="text-xs font-bold">同期履歴を表示</span>
+                                                </div>
+                                                <ChevronRight className={`w-4 h-4 transition-transform ${showHistory ? "rotate-90" : ""}`} />
+                                            </button>
+
+                                            {showHistory && (
+                                                <div className="mt-3 space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-hide animate-in fade-in slide-in-from-top-1">
+                                                    {syncLogs.length === 0 ? (
+                                                        <p className="text-[10px] text-slate-400 text-center py-4 italic">履歴がありません</p>
+                                                    ) : syncLogs.map(log => (
+                                                        <div key={log.id} className="p-2 border border-slate-50 bg-slate-50/50 rounded-lg text-[10px]">
+                                                            <div className="flex justify-between items-start mb-1">
+                                                                <span className={`font-bold ${log.type === 'Shopify' ? 'text-blue-600' : 'text-amber-600'}`}>{log.type}</span>
+                                                                <span className="text-slate-400 font-medium">
+                                                                    {log.timestamp?.seconds ? new Date(log.timestamp.seconds * 1000).toLocaleString() : '---'}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-slate-600">
+                                                                商品: {log.productCount}件 / 注文: {log.orderCount}件
+                                                            </p>
+                                                            {log.details?.syncedProducts?.length > 0 && (
+                                                                <p className="text-slate-400 text-[9px] mt-1 line-clamp-1">
+                                                                    対象: {log.details.syncedProducts.join(', ')}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 
