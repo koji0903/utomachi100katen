@@ -53,6 +53,9 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         amazonAsin: "",
         amazonSku: "",
         amazonSyncEnabled: false,
+        shopifyProductId: "",
+        shopifyVariantId: "",
+        shopifySyncEnabled: false,
     };
 
     const [formData, setFormData] = useState(defaultFormData);
@@ -97,6 +100,9 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     amazonAsin: initialData.amazonAsin || "",
                     amazonSku: initialData.amazonSku || "",
                     amazonSyncEnabled: initialData.amazonSyncEnabled || false,
+                    shopifyProductId: initialData.shopifyProductId || "",
+                    shopifyVariantId: initialData.shopifyVariantId || "",
+                    shopifySyncEnabled: initialData.shopifySyncEnabled || false,
                 });
 
                 setImagePreview(initialData.imageUrl || null);
@@ -110,6 +116,9 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     amazonAsin: "",
                     amazonSku: "",
                     amazonSyncEnabled: false,
+                    shopifyProductId: "",
+                    shopifyVariantId: "",
+                    shopifySyncEnabled: false,
                 });
                 setImagePreview(null);
             }
@@ -776,6 +785,50 @@ JANコード: ${formData.janCode || "なし"}
                                             </div>
                                         </div>
                                         <p className="text-[10px] text-amber-700/70 italic">※ ASINとSKUを設定すると、Amazon在庫との自動同期が可能になります。</p>
+                                    </div>
+
+                                    {/* Shopify Settings Section */}
+                                    <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 space-y-4 shadow-sm mt-6">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-xs font-black text-blue-700 uppercase tracking-widest flex items-center gap-2">
+                                                <Store className="w-3.5 h-3.5" /> Shopify 販売連携
+                                            </h3>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <span className="text-[10px] font-bold text-blue-600">在庫同期を有効にする</span>
+                                                <div className="relative inline-flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.shopifySyncEnabled}
+                                                        onChange={(e) => setFormData({ ...formData, shopifySyncEnabled: e.target.checked })}
+                                                        className="sr-only peer"
+                                                    />
+                                                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label className="text-[11px] font-bold text-slate-700">Shopify 商品ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.shopifyProductId}
+                                                    onChange={(e) => setFormData({ ...formData, shopifyProductId: e.target.value })}
+                                                    className="w-full p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
+                                                    placeholder="gid://shopify/Product/..."
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[11px] font-bold text-slate-700">Shopify バリアントID</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.shopifyVariantId}
+                                                    onChange={(e) => setFormData({ ...formData, shopifyVariantId: e.target.value })}
+                                                    className="w-full p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
+                                                    placeholder="gid://shopify/ProductVariant/..."
+                                                />
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] text-blue-700/70 italic">※ 商品IDとバリアントIDを設定すると、Shopify在庫との自動同期が可能になります。</p>
                                     </div>
                                 </div>
                             )}
