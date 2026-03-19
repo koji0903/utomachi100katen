@@ -461,6 +461,37 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                                 {activeMode === 'marketplace' && (
                                     <div className="space-y-4 mb-6 border-b border-slate-100 pb-6">
                                         <div className="flex items-center gap-2 mb-2">
+                                            <ShoppingBag className="w-4 h-4 text-blue-600" />
+                                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Shopify 連携設定</h4>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 block mb-1">商品ID</label>
+                                                <input type="text" value={shopifyProductId}
+                                                    onChange={e => setShopifyProductId(e.target.value)}
+                                                    className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                                    placeholder="gid://shopify/Product/..." />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 block mb-1">バリアントID</label>
+                                                <input type="text" value={shopifyVariantId}
+                                                    onChange={e => setShopifyVariantId(e.target.value)}
+                                                    className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                                    placeholder="gid://shopify/ProductVariant/..." />
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" checked={shopifySyncEnabled}
+                                                    onChange={e => setShopifySyncEnabled(e.target.checked)}
+                                                    className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                                <span className="text-[10px] font-bold text-slate-600">自動在庫同期を有効にする</span>
+                                            </label>
+                                            <button onClick={handleSyncShopify} disabled={isSyncing || !shopifyVariantId}
+                                                className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center gap-1.5">
+                                                {isSyncing ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> 同期中</> : <><RefreshCw className="w-3 h-3" /> 今すぐ同期</>}
+                                            </button>
+                                        </div>
                                         {product.lastShopifySyncAt && !syncReport && (
                                             <p className="text-[9px] text-slate-400 text-right">
                                                 最終同期: {new Date(product.lastShopifySyncAt.seconds ? product.lastShopifySyncAt.seconds * 1000 : product.lastShopifySyncAt).toLocaleString()}
