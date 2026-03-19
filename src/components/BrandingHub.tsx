@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { X, Sparkles, Copy, Check, ChevronRight, BookOpen, ShoppingBag, Share2, AlertCircle, UploadCloud, Image as ImageIcon, Printer, Download, Video } from "lucide-react";
+import { X, Sparkles, Copy, Check, ChevronRight, BookOpen, ShoppingBag, Share2, AlertCircle, UploadCloud, Image as ImageIcon, Printer, Download, Video, RefreshCw } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { AIPromptDisplay } from "./AIPromptDisplay";
 import { generateCopyPrompt } from "@/lib/aiPromptUtils";
@@ -100,7 +100,42 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
     const [storyImageFile, setStoryImageFile] = useState<File | null>(null);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
 
+    // Shopify states
+    const [shopifyProductId, setShopifyProductId] = useState(product.shopifyProductId || "");
+    const [shopifyVariantId, setShopifyVariantId] = useState(product.shopifyVariantId || "");
+    const [shopifySyncEnabled, setShopifySyncEnabled] = useState(!!product.shopifySyncEnabled);
+    const [isSyncing, setIsSyncing] = useState(false);
+
     if (!isOpen) return null;
+
+    const handleSyncShopify = async () => {
+        setIsSyncing(true);
+        setError("");
+        try {
+            // まず設定を保存
+            await updateProduct(product.id, {
+                shopifyProductId,
+                shopifyVariantId,
+                shopifySyncEnabled,
+            });
+
+            const res = await fetch("/api/shopify/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productId: product.id }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.message || "Shopifyとの同期が完了しました。");
+            } else {
+                setError(data.error || "Shopifyとの同期に失敗しました。");
+            }
+        } catch (e) {
+            setError("同期中にエラーが発生しました。");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     const handleGenerate = async () => {
         setIsGenerating(true);
@@ -168,6 +203,9 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                 regionBackground,
                 servingSuggestion,
                 storyImageUrl,
+                shopifyProductId,
+                shopifyVariantId,
+                shopifySyncEnabled,
             });
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 2500);
@@ -357,6 +395,48 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
 
                             {/* Result Area */}
                             <div className={`rounded-xl border p-4 min-h-[200px] relative transition-all ${currentCopy || activeMode === 'pop' ? colors.result : "bg-slate-50 border-slate-200"}`}>
+                                {activeMode === 'marketplace' && (
+                                    <div className="space-y-4 mb-6 border-b border-slate-100 pb-6">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <ShoppingBag className="w-4 h-4 text-blue-600" />
+                                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Shopify 連携設定</h4>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 block mb-1">商品ID</label>
+                                                <input type="text" value={shopifyProductId}
+                                                    onChange={e => setShopifyProductId(e.target.value)}
+                                                    className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                                    placeholder="gid://shopify/Product/..." />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 block mb-1">バリアントID</label>
+                                                <input type="text" value={shopifyVariantId}
+                                                    onChange={e => setShopifyVariantId(e.target.value)}
+                                                    className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                                    placeholder="gid://shopify/ProductVariant/..." />
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" checked={shopifySyncEnabled}
+                                                    onChange={e => setShopifySyncEnabled(e.target.checked)}
+                                                    className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                                <span className="text-[10px] font-bold text-slate-600">自動在庫同期を有効にする</span>
+                                            </label>
+                                            <button onClick={handleSyncShopify} disabled={isSyncing || !shopifyVariantId}
+                                                className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center gap-1.5">
+                                                {isSyncing ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> 同期中</> : <><RefreshCw className="w-3 h-3" /> 今すぐ同期</>}
+                                            </button>
+                                        </div>
+                                        {product.lastShopifySyncAt && (
+                                            <p className="text-[9px] text-slate-400 text-right">
+                                                最終同期: {new Date(product.lastShopifySyncAt.seconds ? product.lastShopifySyncAt.seconds * 1000 : product.lastShopifySyncAt).toLocaleString()}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
                                 {activeMode === 'pop' ? (
                                     <div className="space-y-4">
                                         <div className="flex flex-wrap gap-2 mb-2">

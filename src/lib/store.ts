@@ -528,6 +528,11 @@ export interface Product extends BaseEntity {
     amazonAsin?: string;
     amazonSku?: string;
     amazonSyncEnabled?: boolean;
+    // Shopify Integration fields
+    shopifyProductId?: string;
+    shopifyVariantId?: string;
+    shopifySyncEnabled?: boolean;
+    lastShopifySyncAt?: string | any;
     createdAt?: string | any;
 }
 
