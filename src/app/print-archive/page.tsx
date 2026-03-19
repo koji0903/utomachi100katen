@@ -9,7 +9,7 @@ import { UploadModal } from "@/components/PrintArchive/UploadModal";
 import { ArchiveDetailModal } from "@/components/PrintArchive/ArchiveDetailModal";
 
 function PrintArchivePageContent() {
-    const { isLoaded, printArchives, deletePrintArchive, logArchiveActivity } = useStore();
+    const { isLoaded, printArchives, deletePrintArchive, logArchiveActivity, restorePrintArchive, permanentlyDeletePrintArchive } = useStore();
     const [searchQuery, setSearchQuery] = useState("");
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [selectedArchive, setSelectedArchive] = useState<PrintArchive | null>(null);
@@ -31,9 +31,23 @@ function PrintArchivePageContent() {
         .sort((a, b) => new Date(b.updatedAt?.seconds ? b.updatedAt.seconds * 1000 : b.updatedAt).getTime() - new Date(a.updatedAt?.seconds ? a.updatedAt.seconds * 1000 : a.updatedAt).getTime());
 
     const handleDelete = (id: string) => {
-        if (window.confirm("このアーカイブをゴミ箱に移動してもよろしいですか？")) {
-            deletePrintArchive(id);
-            showNotification("ゴミ箱に移動しました。");
+        if (showTrash) {
+            if (window.confirm("このアーカイブを完全に削除してもよろしいですか？この操作は取り消せません。")) {
+                permanentlyDeletePrintArchive(id);
+                showNotification("完全に削除しました。");
+            }
+        } else {
+            if (window.confirm("このアーカイブをゴミ箱に移動してもよろしいですか？")) {
+                deletePrintArchive(id);
+                showNotification("ゴミ箱に移動しました。");
+            }
+        }
+    };
+
+    const handleRestore = (id: string) => {
+        if (window.confirm("このアーカイブを元に戻しますか？")) {
+            restorePrintArchive(id);
+            showNotification("復元しました。");
         }
     };
 
@@ -154,36 +168,50 @@ function PrintArchivePageContent() {
                                     </td>
                                     <td className="p-5 text-right">
                                         <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                onClick={() => handlePreview(archive)}
-                                                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                                                title="プレビュー"
-                                            >
-                                                <Eye className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => handlePrint(archive)}
-                                                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                                                title="印刷"
-                                            >
-                                                <Printer className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => openDetail(archive)}
-                                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                title="詳細・履歴・メモ"
-                                            >
-                                                <MoreVertical className="w-4 h-4" />
-                                            </button>
+                                            {!showTrash && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handlePreview(archive)}
+                                                        className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                                        title="プレビュー"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handlePrint(archive)}
+                                                        className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                                        title="印刷"
+                                                    >
+                                                        <Printer className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openDetail(archive)}
+                                                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                        title="詳細・履歴・メモ"
+                                                    >
+                                                        <MoreVertical className="w-4 h-4" />
+                                                    </button>
+                                                </>
+                                            )}
+                                            {showTrash && (
+                                                <button
+                                                    onClick={() => handleRestore(archive.id)}
+                                                    className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                                                    title="元に戻す"
+                                                >
+                                                    <History className="w-4 h-4" />
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => handleDelete(archive.id)}
                                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                title="削除"
+                                                title={showTrash ? "完全に削除" : "削除"}
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </div>
                                     </td>
+
                                 </tr>
                             ))}
                             {filteredArchives.length === 0 && (
