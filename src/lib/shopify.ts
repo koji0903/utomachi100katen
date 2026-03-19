@@ -1,11 +1,8 @@
 // src/lib/shopify.ts
 
-/**
- * Shopify Admin API Integration Utility (Mock Implementation)
- * 
- * TODO: 実運用の際は 'shopify-api-node' などのライブラリを使用し、
- * Shopify Admin API のアクセストークンを用いた認証を実装する必要があります。
- */
+const SHOPIFY_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
+const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+const API_VERSION = "2024-01";
 
 export interface ShopifyProduct {
     id: string;
@@ -27,47 +24,85 @@ export interface ShopifyOrder {
     }[];
 }
 
+async function shopifyFetch(path: string, options: RequestInit = {}) {
+    if (!SHOPIFY_DOMAIN || !SHOPIFY_ACCESS_TOKEN) {
+        throw new Error("Shopify API configuration missing (Domain or Access Token).");
+    }
+
+    const url = `https://${SHOPIFY_DOMAIN}/admin/api/${API_VERSION}${path}`;
+    const response = await fetch(url, {
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+            ...options.headers,
+        },
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        console.error(`[Shopify API Error] ${path}:`, error);
+        throw new Error(error.errors || `Shopify API error: ${response.statusText}`);
+    }
+
+    return response.json();
+}
+
 /**
  * Shopify から商品情報を取得します
- * @param productId Shopify商品ID
  */
-export async function getShopifyProduct(productId: string): Promise<ShopifyProduct | null> {
-    console.log(`[Shopify] Fetching product: ${productId}`);
-
-    // モックデータ: 実際は Shopify Admin API の Product / Variant API を使用
-    return {
-        id: productId,
-        variantId: `VAR-${productId}`,
-        inventoryLevel: Math.floor(Math.random() * 100),
-        price: 3200,
-    };
+export async function getShopifyProduct(productId: string): Promise<any> {
+    const cleanId = productId.replace("gid://shopify/Product/", "");
+    const data = await shopifyFetch(`/products/${cleanId}.json`);
+    return data.product;
 }
 
 /**
- * Shopify から注文一覧を取得します
+ * Shopify から最近の注文一覧を取得します
  */
 export async function getShopifyOrders(): Promise<ShopifyOrder[]> {
-    console.log(`[Shopify] Fetching latest orders...`);
-
-    // モックデータ: 実際は Shopify Admin API の Order API を使用
-    return [
-        {
-            shopifyOrderId: "SHP-1001",
-            createdAt: new Date().toISOString(),
-            financialStatus: "paid",
-            totalPrice: 6400,
-            lineItems: [
-                { variantId: "VAR-GID-123", sku: "SKU-SHOPIFY-001", quantity: 2, price: 3200 }
-            ]
-        }
-    ];
+    const data = await shopifyFetch("/orders.json?status=any&limit=10");
+    return data.orders.map((order: any) => ({
+        shopifyOrderId: order.id.toString(),
+        createdAt: order.created_at,
+        financialStatus: order.financial_status,
+        totalPrice: parseFloat(order.total_price),
+        lineItems: order.line_items.map((item: any) => ({
+            variantId: item.variant_id?.toString() || "",
+            sku: item.sku || "",
+            quantity: item.quantity,
+            price: parseFloat(item.price),
+        })),
+    }));
 }
 
 /**
- * Shopify の在庫数を更新します (Sync)
+ * Shopify の在庫数を更新します
+ * @param variantId gid://shopify/ProductVariant/12345 または 12345
+ * @param quantity 在庫数
  */
 export async function updateShopifyInventory(variantId: string, quantity: number) {
-    console.log(`[Shopify] Updating inventory for variant ${variantId} to ${quantity}`);
-    // 実際は Shopify Admin API の InventoryLevel API を使用
+    const cleanVariantId = variantId.replace("gid://shopify/ProductVariant/", "");
+    
+    // 1. バリアント情報を取得して inventory_item_id を特定
+    const variantData = await shopifyFetch(`/variants/${cleanVariantId}.json`);
+    const inventoryItemId = variantData.variant.inventory_item_id;
+
+    // 2. ロケーションIDを取得 (最初の有効なロケーションを使用)
+    const locationsData = await shopifyFetch("/locations.json");
+    const locationId = locationsData.locations[0]?.id;
+
+    if (!locationId) throw new Error("No Shopify locations found.");
+
+    // 3. 在庫数を設定
+    await shopifyFetch("/inventory_levels/set.json", {
+        method: "POST",
+        body: JSON.stringify({
+            location_id: locationId,
+            inventory_item_id: inventoryItemId,
+            available: quantity,
+        }),
+    });
+
     return true;
 }
