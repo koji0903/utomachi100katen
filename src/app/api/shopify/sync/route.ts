@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getShopifyProduct, getShopifyOrders, updateShopifyInventory } from "@/lib/shopify";
+import { processShopifyOrder } from "@/lib/shopify-processor";
 
 export async function POST(req: Request) {
     try {
