@@ -4,7 +4,8 @@ import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
-import { Box } from "lucide-react";
+import { useAuth } from "@/lib/authContext";
+import { Box, PlayCircle } from "lucide-react";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -12,6 +13,7 @@ export default function LoginPage() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const { loginAsDemo } = useAuth();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,6 +29,11 @@ export default function LoginPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleDemoLogin = () => {
+        loginAsDemo();
+        router.push("/");
     };
 
     return (
@@ -81,6 +88,23 @@ export default function LoginPage() {
                                 {loading ? "ログイン中..." : "ログイン"}
                             </button>
                         </form>
+
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t border-slate-200"></span>
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-white px-2 text-slate-400">または</span>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={handleDemoLogin}
+                            className="w-full flex items-center justify-center py-3 px-4 bg-white border-2 border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-4 focus:ring-slate-100 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+                        >
+                            <PlayCircle className="w-5 h-5 mr-2 text-blue-500" />
+                            デモ環境を体験する
+                        </button>
                     </div>
                 </div>
             </div>

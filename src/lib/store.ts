@@ -5,6 +5,8 @@ import { useMemo } from "react";
 import useSWR from "swr";
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/lib/authContext";
+import { getMockData } from "@/lib/mockData";
 
 // Helper to remove undefined properties before sending to Firestore
 const cleanObject = (obj: any) => {
@@ -537,7 +539,10 @@ export interface Product extends BaseEntity {
 }
 
 // Reusable fetcher for SWR
-const fetcher = async <T>(collectionName: string): Promise<T[]> => {
+const fetcher = async <T>(collectionName: string, isDemoMode: boolean): Promise<T[]> => {
+    if (isDemoMode) {
+        return getMockData(collectionName);
+    }
     const querySnapshot = await getDocs(collection(db, collectionName));
     return querySnapshot.docs.map((doc) => {
         let data = { id: doc.id, ...doc.data() } as any;
@@ -566,31 +571,41 @@ const swrConfig = {
 };
 
 export function useStore() {
+    const { isAuthLoading, user, isDemoMode } = useAuth() as any; // Temporary fix for type mismatch if any
+
+    const checkDemoMode = () => {
+        if (isDemoMode) {
+            alert("デモモードではデータの変更・保存はできません。実際の運用データには影響ありません。");
+            return true;
+        }
+        return false;
+    };
+
     // Fetch data using SWR
-    const { data: brands = [], mutate: mutateBrands, isLoading: loadingBrands } = useSWR<Brand[]>("brands", () => fetcher<Brand>("brands"), swrConfig);
-    const { data: suppliers = [], mutate: mutateSuppliers, isLoading: loadingSuppliers } = useSWR<Supplier[]>("suppliers", () => fetcher<Supplier>("suppliers"), swrConfig);
-    const { data: products = [], mutate: mutateProducts, isLoading: loadingProducts } = useSWR<Product[]>("products", () => fetcher<Product>("products"), swrConfig);
-    const { data: retailStores = [], mutate: mutateRetailStores, isLoading: loadingRetailStores } = useSWR<RetailStore[]>("retailStores", () => fetcher<RetailStore>("retailStores"), swrConfig);
-    const { data: purchases = [], mutate: mutatePurchases, isLoading: loadingPurchases } = useSWR<Purchase[]>("inbound_shipments", () => fetcher<Purchase>("inbound_shipments"), swrConfig);
-    const { data: sales = [], mutate: mutateSales, isLoading: loadingSales } = useSWR<Sale[]>("sales", () => fetcher<Sale>("sales"), swrConfig);
-    const { data: paymentRecords = [], mutate: mutatePaymentRecords, isLoading: loadingPayments } = useSWR<PaymentRecord[]>("payment_records", () => fetcher<PaymentRecord>("payment_records"), swrConfig);
-    const { data: dailyReports = [], mutate: mutateDailyReports, isLoading: loadingReports } = useSWR<DailyReport[]>("daily_reports", () => fetcher<DailyReport>("daily_reports"), swrConfig);
-    const { data: issuedDocuments = [], mutate: mutateIssuedDocuments } = useSWR<IssuedDocument[]>("issued_documents", () => fetcher<IssuedDocument>("issued_documents"), swrConfig);
-    const { data: dailyWeather = [], mutate: mutateDailyWeather } = useSWR<DailyWeather[]>("daily_weather", () => fetcher<DailyWeather>("daily_weather"), swrConfig);
-    const { data: invoicePayments = [], mutate: mutateInvoicePayments } = useSWR<InvoicePayment[]>("invoice_payments", () => fetcher<InvoicePayment>("invoice_payments"), swrConfig);
-    const { data: rawTransactions = [], mutate: mutateTransactions } = useSWR<Transaction[]>("transactions", () => fetcher<Transaction>("transactions"), swrConfig);
-    const { data: transactionItems = [], mutate: mutateTransactionItems } = useSWR<TransactionItem[]>("transaction_items", () => fetcher<TransactionItem>("transaction_items"), swrConfig);
-    const { data: spotRecipients = [], mutate: mutateSpotRecipients } = useSWR<SpotRecipient[]>("spot_recipients", () => fetcher<SpotRecipient>("spot_recipients"), swrConfig);
-    const { data: challenges = [], mutate: mutateChallenges } = useSWR<BusinessChallenge[]>("business_challenges", () => fetcher<BusinessChallenge>("business_challenges"), swrConfig);
-    const { data: stockConversions = [], mutate: mutateStockConversions } = useSWR<StockConversion[]>("stock_conversions", () => fetcher<StockConversion>("stock_conversions"), swrConfig);
-    const { data: activities = [], mutate: mutateActivities } = useSWR<Activity[]>("activities", () => fetcher<Activity>("activities"), swrConfig);
-    const { data: trash = [], mutate: mutateTrash } = useSWR<TrashItem[]>("trash", () => fetcher<TrashItem>("trash"), swrConfig);
-    const { data: stockMovements = [], mutate: mutateStockMovements } = useSWR<StockMovement[]>("stock_movements", () => fetcher<StockMovement>("stock_movements"), swrConfig);
-    const { data: inventoryAudits = [], mutate: mutateInventoryAudits } = useSWR<InventoryAudit[]>("inventory_audits", () => fetcher<InventoryAudit>("inventory_audits"), swrConfig);
-    const { data: storeStocks = [], mutate: mutateStoreStocks } = useSWR<StoreStock[]>("store_stocks", () => fetcher<StoreStock>("store_stocks"), swrConfig);
-    const { data: storeStockMovements = [], mutate: mutateStoreStockMovements } = useSWR<StoreStockMovement[]>("store_stock_movements", () => fetcher<StoreStockMovement>("store_stock_movements"), swrConfig);
-    const { data: printArchives = [], mutate: mutatePrintArchives, isLoading: loadingPrintArchives } = useSWR<PrintArchive[]>("print_archives", () => fetcher<PrintArchive>("print_archives"), swrConfig);
-    const { data: expenses = [], mutate: mutateExpenses, isLoading: loadingExpenses } = useSWR<Expense[]>("expenses", () => fetcher<Expense>("expenses"), swrConfig);
+    const { data: brands = [], mutate: mutateBrands, isLoading: loadingBrands } = useSWR<Brand[]>(["brands", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Brand>(col, demo), swrConfig);
+    const { data: suppliers = [], mutate: mutateSuppliers, isLoading: loadingSuppliers } = useSWR<Supplier[]>(["suppliers", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Supplier>(col, demo), swrConfig);
+    const { data: products = [], mutate: mutateProducts, isLoading: loadingProducts } = useSWR<Product[]>(["products", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Product>(col, demo), swrConfig);
+    const { data: retailStores = [], mutate: mutateRetailStores, isLoading: loadingRetailStores } = useSWR<RetailStore[]>(["retailStores", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<RetailStore>(col, demo), swrConfig);
+    const { data: purchases = [], mutate: mutatePurchases, isLoading: loadingPurchases } = useSWR<Purchase[]>(["inbound_shipments", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Purchase>(col, demo), swrConfig);
+    const { data: sales = [], mutate: mutateSales, isLoading: loadingSales } = useSWR<Sale[]>(["sales", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Sale>(col, demo), swrConfig);
+    const { data: paymentRecords = [], mutate: mutatePaymentRecords, isLoading: loadingPayments } = useSWR<PaymentRecord[]>(["payment_records", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<PaymentRecord>(col, demo), swrConfig);
+    const { data: dailyReports = [], mutate: mutateDailyReports, isLoading: loadingReports } = useSWR<DailyReport[]>(["daily_reports", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<DailyReport>(col, demo), swrConfig);
+    const { data: issuedDocuments = [], mutate: mutateIssuedDocuments } = useSWR<IssuedDocument[]>(["issued_documents", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<IssuedDocument>(col, demo), swrConfig);
+    const { data: dailyWeather = [], mutate: mutateDailyWeather } = useSWR<DailyWeather[]>(["daily_weather", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<DailyWeather>(col, demo), swrConfig);
+    const { data: invoicePayments = [], mutate: mutateInvoicePayments } = useSWR<InvoicePayment[]>(["invoice_payments", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<InvoicePayment>(col, demo), swrConfig);
+    const { data: rawTransactions = [], mutate: mutateTransactions } = useSWR<Transaction[]>(["transactions", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Transaction>(col, demo), swrConfig);
+    const { data: transactionItems = [], mutate: mutateTransactionItems } = useSWR<TransactionItem[]>(["transaction_items", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<TransactionItem>(col, demo), swrConfig);
+    const { data: spotRecipients = [], mutate: mutateSpotRecipients } = useSWR<SpotRecipient[]>(["spot_recipients", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<SpotRecipient>(col, demo), swrConfig);
+    const { data: challenges = [], mutate: mutateChallenges } = useSWR<BusinessChallenge[]>(["business_challenges", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<BusinessChallenge>(col, demo), swrConfig);
+    const { data: stockConversions = [], mutate: mutateStockConversions } = useSWR<StockConversion[]>(["stock_conversions", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StockConversion>(col, demo), swrConfig);
+    const { data: activities = [], mutate: mutateActivities } = useSWR<Activity[]>(["activities", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Activity>(col, demo), swrConfig);
+    const { data: trash = [], mutate: mutateTrash } = useSWR<TrashItem[]>(["trash", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<TrashItem>(col, demo), swrConfig);
+    const { data: stockMovements = [], mutate: mutateStockMovements } = useSWR<StockMovement[]>(["stock_movements", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StockMovement>(col, demo), swrConfig);
+    const { data: inventoryAudits = [], mutate: mutateInventoryAudits } = useSWR<InventoryAudit[]>(["inventory_audits", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<InventoryAudit>(col, demo), swrConfig);
+    const { data: storeStocks = [], mutate: mutateStoreStocks } = useSWR<StoreStock[]>(["store_stocks", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StoreStock>(col, demo), swrConfig);
+    const { data: storeStockMovements = [], mutate: mutateStoreStockMovements } = useSWR<StoreStockMovement[]>(["store_stock_movements", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StoreStockMovement>(col, demo), swrConfig);
+    const { data: printArchives = [], mutate: mutatePrintArchives, isLoading: loadingPrintArchives } = useSWR<PrintArchive[]>(["print_archives", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<PrintArchive>(col, demo), swrConfig);
+    const { data: expenses = [], mutate: mutateExpenses, isLoading: loadingExpenses } = useSWR<Expense[]>(["expenses", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Expense>(col, demo), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -617,6 +632,7 @@ export function useStore() {
     const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingPrintArchives;
 
     const updateReportConfig = async (data: Partial<AutoReportConfig>) => {
+        if (checkDemoMode()) return;
         const newConfig = { ...reportConfig, ...data, updatedAt: serverTimestamp() };
         mutateReportConfig(newConfig as AutoReportConfig, false);
         await setDoc(doc(db, "settings", "auto_report"), newConfig, { merge: true });
@@ -625,6 +641,7 @@ export function useStore() {
 
     // --- Activity Logging Helper ---
     const logActivity = async (activity: Omit<Activity, "id" | "createdAt">) => {
+        if (isDemoMode) return; // Silent return for activity logging
         const newRef = doc(collection(db, "activities"));
         const newActivity = {
             id: newRef.id,
@@ -641,6 +658,7 @@ export function useStore() {
 
     // --- Brand Actions ---
     const addBrand = async (brandData: Omit<Brand, "id">) => {
+        if (checkDemoMode()) return;
         const newRef = doc(collection(db, "brands"));
         const newBrand = { id: newRef.id, ...brandData };
         mutateBrands([newBrand, ...brands], false);
@@ -649,17 +667,20 @@ export function useStore() {
     };
 
     const updateBrand = async (id: string, data: Partial<Omit<Brand, "id">>) => {
+        if (checkDemoMode()) return;
         mutateBrands(brands.map((b) => (b.id === id ? { ...b, ...data } : b)), false);
         await updateDoc(doc(db, "brands", id), data);
         mutateBrands();
     };
 
     const deleteBrand = async (id: string) => {
+        if (checkDemoMode()) return;
         await updateDoc(doc(db, "brands", id), { isTrashed: true });
         mutateBrands();
     };
 
     const restoreBrand = async (id: string) => {
+        if (checkDemoMode()) return;
         await updateDoc(doc(db, "brands", id), { isTrashed: false });
         mutateBrands();
     };
@@ -671,6 +692,7 @@ export function useStore() {
 
     // --- Product Actions ---
     const addProduct = async (productData: Omit<Product, "id" | "createdAt">) => {
+        if (checkDemoMode()) return;
         const newRef = doc(collection(db, "products"));
         const newProduct = {
             id: newRef.id,
@@ -694,6 +716,7 @@ export function useStore() {
     };
 
     const updateProduct = async (id: string, productUpdate: Partial<Omit<Product, "id" | "createdAt">>) => {
+        if (checkDemoMode()) return;
         mutateProducts(products.map((p) => p.id === id ? { ...p, ...productUpdate } : p) as Product[], false);
 
         const docRef = doc(db, "products", id);
@@ -708,6 +731,7 @@ export function useStore() {
     };
 
     const deleteProduct = async (id: string) => {
+        if (checkDemoMode()) return;
         const product = products.find(p => p.id === id);
         await updateDoc(doc(db, "products", id), { isTrashed: true });
         logActivity({
@@ -720,6 +744,7 @@ export function useStore() {
     };
 
     const restoreProduct = async (id: string) => {
+        if (checkDemoMode()) return;
         await updateDoc(doc(db, "products", id), { isTrashed: false });
         mutateProducts();
     };
@@ -731,6 +756,7 @@ export function useStore() {
 
     // --- Supplier Actions ---
     const addSupplier = async (supplierData: Omit<Supplier, "id">) => {
+        if (checkDemoMode()) return;
         const newRef = doc(collection(db, "suppliers"));
         const newSupplier = { id: newRef.id, ...supplierData };
         mutateSuppliers([...suppliers, newSupplier], false);
@@ -739,6 +765,7 @@ export function useStore() {
     };
 
     const updateSupplier = async (id: string, supplierUpdate: Partial<Omit<Supplier, "id">>) => {
+        if (checkDemoMode()) return;
         mutateSuppliers(suppliers.map((s) => (s.id === id ? { ...s, ...supplierUpdate } : s)), false);
         const docRef = doc(db, "suppliers", id);
         await updateDoc(docRef, supplierUpdate);
@@ -746,6 +773,7 @@ export function useStore() {
     };
 
     const deleteSupplier = async (id: string) => {
+        if (checkDemoMode()) return;
         await updateDoc(doc(db, "suppliers", id), { isTrashed: true });
         mutateSuppliers();
     };
@@ -762,6 +790,7 @@ export function useStore() {
 
     // --- RetailStore Actions ---
     const addRetailStore = async (storeData: Omit<RetailStore, "id" | "createdAt" | "updatedAt">) => {
+        if (checkDemoMode()) return;
         const newRef = doc(collection(db, "retailStores"));
         const newStore = { id: newRef.id, ...storeData, createdAt: new Date().toISOString() };
         mutateRetailStores([...retailStores, newStore as RetailStore], false);
@@ -778,6 +807,7 @@ export function useStore() {
     };
 
     const updateRetailStore = async (id: string, storeUpdate: Partial<Omit<RetailStore, "id" | "updatedAt">>) => {
+        if (checkDemoMode()) return;
         mutateRetailStores(retailStores.map((s) => (s.id === id ? { ...s, ...storeUpdate } : s)), false);
         const docRef = doc(db, "retailStores", id);
         await updateDoc(docRef, {
@@ -794,6 +824,7 @@ export function useStore() {
     };
 
     const deleteRetailStore = async (id: string) => {
+        if (checkDemoMode()) return;
         await updateDoc(doc(db, "retailStores", id), { isTrashed: true });
         mutateRetailStores();
     };
@@ -810,6 +841,7 @@ export function useStore() {
 
     // --- Purchase Actions (Inbound Shipments) ---
     const addPurchase = async (purchaseData: Omit<Purchase, "id" | "createdAt">) => {
+        if (checkDemoMode()) return;
         const newRef = doc(collection(db, "inbound_shipments"));
         const newPurchase = {
             id: newRef.id,

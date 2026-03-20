@@ -36,12 +36,23 @@ export const mockSuppliers: Supplier[] = [
     { id: "sup_003", name: "宇土マリーナ", contact: "0964-zz-zzzz" },
 ];
 
-export const mockProducts: Product[] = [
+export const mockBrands = [
+    { id: "brand_001", name: "宇土マチブランド" },
+    { id: "brand_002", name: "網田ネーブル" },
+];
+
+export const mockRetailStores = [
+    { id: "store_001", name: "宇土マリーナ おみやげ館", type: "A", address: "宇土市下網田町" },
+    { id: "store_002", name: "道の駅 宇土マリーナ", type: "B", address: "宇土市下網田町" },
+];
+
+export const mockProducts: any[] = [
     {
         id: "prod_001",
         name: "宇土の恵み 焼き海苔",
         categoryId: "cat_002",
         supplierId: "sup_001",
+        brandId: "brand_001",
         costPrice: 300,
         sellingPrice: 540,
         stock: 120,
@@ -53,6 +64,7 @@ export const mockProducts: Product[] = [
         name: "合格祈願 天然塩",
         categoryId: "cat_001",
         supplierId: "sup_002",
+        brandId: "brand_001",
         costPrice: 150,
         sellingPrice: 380,
         stock: 50,
@@ -64,6 +76,7 @@ export const mockProducts: Product[] = [
         name: "炙りタコめしの素",
         categoryId: "cat_003",
         supplierId: "sup_003",
+        brandId: "brand_002",
         costPrice: 400,
         sellingPrice: 850,
         stock: 30,
@@ -71,3 +84,24 @@ export const mockProducts: Product[] = [
         createdAt: "2026-03-05T09:15:00Z",
     },
 ];
+
+export const mockSales = [
+    {
+        id: "sale_001",
+        storeId: "store_001",
+        period: "2026-03-20",
+        totalAmount: 1500,
+        items: [{ productId: "prod_001", quantity: 2, subtotal: 1080 }],
+    }
+];
+
+export const getMockData = (collectionName: string): any[] => {
+    switch (collectionName) {
+        case "brands": return mockBrands;
+        case "suppliers": return mockSuppliers;
+        case "products": return mockProducts;
+        case "retailStores": return mockRetailStores;
+        case "sales": return mockSales;
+        default: return [];
+    }
+};
