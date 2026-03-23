@@ -19,6 +19,25 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "ウトマチ百貨店 統合管理ツール",
   description: "ウトマチ百貨店の特産品管理",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ウトマチ百貨店",
+    startupImage: ["/logo.jpg"],
+  },
+  icons: {
+    apple: "/logo.jpg",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport = {
+  themeColor: "#ffffff",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
