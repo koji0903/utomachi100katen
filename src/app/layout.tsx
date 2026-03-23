@@ -23,11 +23,11 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "ウトマチ百貨店",
-    startupImage: ["/logo.png"],
+    startupImage: ["/apple-touch-icon.png"],
   },
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
   },
   formatDetection: {
     telephone: false,
