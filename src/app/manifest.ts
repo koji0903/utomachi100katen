@@ -2,10 +2,14 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
+    start_url: "/",
     name: "ウトマチ百貨店 統合管理ツール",
     short_name: "ウトマチ百貨店",
     description: "ウトマチ百貨店の特産品・業務管理ツール",
-    start_url: "/",
+    lang: "ja",
+    dir: "ltr",
+    orientation: "any",
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#ffffff",
