@@ -26,6 +26,7 @@ export const metadata: Metadata = {
     startupImage: ["/logo.jpg"],
   },
   icons: {
+    icon: "/logo.jpg",
     apple: "/logo.jpg",
   },
   formatDetection: {
