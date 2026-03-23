@@ -16,15 +16,30 @@ export default function manifest(): MetadataRoute.Manifest {
     icons: [
       {
         src: "/logo.jpg",
-        sizes: "192x192",
+        sizes: "800x800",
         type: "image/jpeg",
         purpose: "any",
       },
       {
         src: "/logo.jpg",
-        sizes: "512x512",
+        sizes: "800x800",
         type: "image/jpeg",
         purpose: "maskable",
+      },
+    ],
+    screenshots: [
+      {
+        src: "/screenshot-desktop.png",
+        sizes: "1280x720",
+        type: "image/png",
+        form_factor: "wide",
+        label: "デスクトップ版 ダッシュボード",
+      },
+      {
+        src: "/screenshot-mobile.png",
+        sizes: "750x1334",
+        type: "image/png",
+        label: "モバイル版 ダッシュボード",
       },
     ],
   };
