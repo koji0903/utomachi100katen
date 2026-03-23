@@ -29,16 +29,16 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     screenshots: [
       {
-        src: "/screenshot-desktop.png",
-        sizes: "1280x720",
-        type: "image/png",
+        src: "/screenshot-desktop.jpg",
+        sizes: "640x640",
+        type: "image/jpeg",
         form_factor: "wide",
         label: "デスクトップ版 ダッシュボード",
       },
       {
-        src: "/screenshot-mobile.png",
-        sizes: "750x1334",
-        type: "image/png",
+        src: "/screenshot-mobile.jpg",
+        sizes: "640x640",
+        type: "image/jpeg",
         label: "モバイル版 ダッシュボード",
       },
     ],
