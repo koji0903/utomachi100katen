@@ -40,11 +40,9 @@ export async function POST(req: Request) {
         let responseText = "";
         // Prioritize Pro models for maximum intelligence
         const modelsToTry = [
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite-preview-02-05",
-            "gemini-1.5-flash",
-            "gemini-1.5-flash-latest",
-            "gemini-1.5-pro",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash-001",
             "gemini-1.5-pro-latest"
         ];
         let lastError: any = null;
