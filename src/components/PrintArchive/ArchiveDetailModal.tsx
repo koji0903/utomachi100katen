@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { X, FileText, Printer, Eye, MessageSquare, History, Calendar, User, Save, Trash2, Tag, Plus } from "lucide-react";
+import { X, FileText, Printer, Eye, MessageSquare, History, Calendar, User, Save, Trash2, Tag, Plus, Check, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { PrintArchive, PrintArchiveHistory } from "@/lib/types/printArchive";
+import { PrintArchive, PrintArchiveHistory, ArchiveCategory } from "@/lib/types/printArchive";
 import { showNotification } from "@/lib/notifications";
+
+const CATEGORIES: ArchiveCategory[] = ['出荷伝票', '請求書', '領収書', '納品書', 'その他'];
 
 interface ArchiveDetailModalProps {
     isOpen: boolean;
@@ -16,8 +18,11 @@ export function ArchiveDetailModal({ isOpen, onClose, archive }: ArchiveDetailMo
     const { updatePrintArchive, logArchiveActivity, deletePrintArchive } = useStore();
     const [memo, setMemo] = useState(archive.memo || "");
     const [isEditingMemo, setIsEditingMemo] = useState(false);
+    const [isEditingCategory, setIsEditingCategory] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState<ArchiveCategory>(archive.category);
     const [newTag, setNewTag] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    const [isSavingCategory, setIsSavingCategory] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
 
     if (!isOpen) return null;
@@ -36,7 +41,27 @@ export function ArchiveDetailModal({ isOpen, onClose, archive }: ArchiveDetailMo
         }
     };
 
+    const handleUpdateCategory = async (newCategory: ArchiveCategory) => {
+        if (newCategory === archive.category) {
+            setIsEditingCategory(false);
+            return;
+        }
+        setSelectedCategory(newCategory);
+        setIsSavingCategory(true);
+        try {
+            await updatePrintArchive(archive.id, { category: newCategory });
+            await logArchiveActivity(archive.id, 'update_category', `カテゴリーを「${newCategory}」に変更しました`);
+            showNotification("カテゴリーを更新しました。");
+            setIsEditingCategory(false);
+        } catch (error) {
+            showNotification("更新に失敗しました。");
+        } finally {
+            setIsSavingCategory(false);
+        }
+    };
+
     const handleAddTag = async () => {
+// ... (omitted for brevity in replacement chunk, but I'll use multi_replace or ensure context)
         if (!newTag) return;
         const updatedTags = [...(archive.tags || []), newTag];
         try {
@@ -101,6 +126,7 @@ export function ArchiveDetailModal({ isOpen, onClose, archive }: ArchiveDetailMo
             case 'preview': return 'プレビュー表示';
             case 'print': return '印刷';
             case 'update_memo': return 'メモ更新';
+            case 'update_category': return 'カテゴリー更新';
             default: return action;
         }
     };
@@ -158,10 +184,44 @@ export function ArchiveDetailModal({ isOpen, onClose, archive }: ArchiveDetailMo
                         {/* Meta Info */}
                         <div className="space-y-4">
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">カテゴリー</label>
-                                <div className="text-sm font-bold text-slate-900 px-3 py-2 bg-indigo-50 rounded-lg text-indigo-700 border border-indigo-100 inline-block">
-                                    {archive.category}
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">カテゴリー</label>
+                                    {!isEditingCategory ? (
+                                        <button 
+                                            onClick={() => setIsEditingCategory(true)}
+                                            className="text-[10px] font-bold text-indigo-600 hover:underline"
+                                        >
+                                            編集
+                                        </button>
+                                    ) : (
+                                        <button 
+                                            onClick={() => setIsEditingCategory(false)}
+                                            className="text-[10px] font-bold text-slate-400 hover:underline"
+                                        >
+                                            キャンセル
+                                        </button>
+                                    )}
                                 </div>
+                                {!isEditingCategory ? (
+                                    <div className="text-sm font-bold text-slate-900 px-3 py-2 bg-indigo-50 rounded-lg text-indigo-700 border border-indigo-100 inline-block">
+                                        {archive.category}
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2 mt-2">
+                                        {CATEGORIES.map(cat => (
+                                            <button
+                                                key={cat}
+                                                onClick={() => handleUpdateCategory(cat)}
+                                                disabled={isSavingCategory}
+                                                className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all flex items-center justify-between ${archive.category === cat ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}
+                                            >
+                                                {cat}
+                                                {archive.category === cat && <Check className="w-3 h-3" />}
+                                                {isSavingCategory && selectedCategory === cat && <Loader2 className="w-3 h-3 animate-spin" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">タグ</label>

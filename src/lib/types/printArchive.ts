@@ -5,7 +5,7 @@ export type ArchiveCategory = '出荷伝票' | '請求書' | '領収書' | '納�
 
 export interface PrintArchiveHistory {
     id: string;
-    action: 'upload' | 'preview' | 'print' | 'update_memo';
+    action: 'upload' | 'preview' | 'print' | 'update_memo' | 'update_category';
     timestamp: string; // ISO String
     userId?: string;
     userName?: string;
