@@ -328,6 +328,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                     type={docType}
                     storeId={recipientType === "store" ? storeId : undefined}
                     supplierId={recipientType === "supplier" ? supplierId : undefined}
+                    spotRecipientId={recipientType === "spot" ? spotRecipient?.id : undefined}
                     period={(docType === "delivery_note" || docType === "invoice") ? period : undefined}
                     month={docType === "payment_summary" ? period : undefined}
                     customDetails={(docType === "invoice" || docType === "delivery_note") ? invoiceItems : undefined}

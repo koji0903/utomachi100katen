@@ -41,6 +41,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         billingAddress: "",
         billingTel: "",
         dailySalesGoal: 0,
+        honorific: '御中' as '様' | '御中',
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -76,10 +77,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     billingAddress: initialData.billingAddress || "",
                     billingTel: initialData.billingTel || "",
                     dailySalesGoal: initialData.dailySalesGoal || 0,
+                    honorific: initialData.honorific || '御中',
                 });
                 setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0 });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0, honorific: '御中' });
                 setPreviews([]);
             }
             setImageFiles([]);
@@ -307,9 +309,23 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                             </p>
                         </div>
 
-                        {/* 店舗名 */}
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">店舗・事業者名 <span className="text-red-400">*</span></label>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="block text-xs font-semibold text-slate-600">店舗・事業者名 <span className="text-red-400">*</span></label>
+                                <div className="flex gap-4">
+                                    {(['様', '御中'] as const).map(h => (
+                                        <label key={h} className="flex items-center gap-1.5 cursor-pointer group">
+                                            <input
+                                                type="radio"
+                                                checked={formData.honorific === h}
+                                                onChange={() => setFormData({ ...formData, honorific: h })}
+                                                className="w-3.5 h-3.5 text-[#b27f79] focus:ring-[#b27f79]"
+                                            />
+                                            <span className="text-xs font-medium text-slate-600">{h}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
                             <input type="text" required value={formData.name}
                                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                                 className={inputCls} placeholder="例: 道の駅 宇土マリーナ" />

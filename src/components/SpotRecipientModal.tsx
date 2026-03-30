@@ -22,6 +22,7 @@ export function SpotRecipientModal({ isOpen, onClose, initialData }: SpotRecipie
         address: "",
         tel: "",
         memo: "",
+        honorific: '御中' as '様' | '御中',
     });
 
     useEffect(() => {
@@ -32,6 +33,7 @@ export function SpotRecipientModal({ isOpen, onClose, initialData }: SpotRecipie
                 address: initialData.address || "",
                 tel: initialData.tel || "",
                 memo: initialData.memo || "",
+                honorific: initialData.honorific || '御中',
             });
         } else {
             setFormData({
@@ -40,6 +42,7 @@ export function SpotRecipientModal({ isOpen, onClose, initialData }: SpotRecipie
                 address: "",
                 tel: "",
                 memo: "",
+                honorific: '御中',
             });
         }
     }, [initialData, isOpen]);
@@ -92,9 +95,23 @@ export function SpotRecipientModal({ isOpen, onClose, initialData }: SpotRecipie
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-5 h-auto max-h-[70vh] overflow-y-auto">
-                    {/* 名称 */}
                     <div className="space-y-1.5">
-                        <label className="block text-xs font-bold text-slate-500 ml-1">宛先名 <span className="text-red-500">*</span></label>
+                        <div className="flex items-center justify-between ml-1">
+                            <label className="block text-xs font-bold text-slate-500">宛先名 <span className="text-red-500">*</span></label>
+                            <div className="flex gap-4">
+                                {(['様', '御中'] as const).map(h => (
+                                    <label key={h} className="flex items-center gap-1.5 cursor-pointer group">
+                                        <input
+                                            type="radio"
+                                            checked={formData.honorific === h}
+                                            onChange={() => setFormData({ ...formData, honorific: h })}
+                                            className="w-3.5 h-3.5 text-[#1e3a8a] focus:ring-[#1e3a8a]"
+                                        />
+                                        <span className="text-xs font-medium text-slate-600">{h}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
                         <div className="relative">
                             <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input

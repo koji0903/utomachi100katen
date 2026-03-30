@@ -114,6 +114,7 @@ export interface RetailStore extends BaseEntity {
     billingAddress?: string;
     billingTel?: string;
     dailySalesGoal?: number; // 1日の売上目標額
+    honorific?: '様' | '御中';
 }
 
 
@@ -345,6 +346,7 @@ export interface SpotRecipient extends BaseEntity {
     tel?: string;
     memo?: string;
     lastUsedAt?: string;        // ISO date — 最終使用日（名寄せ優先順位用）
+    honorific?: '様' | '御中';
     createdAt?: string | any;
 }
 

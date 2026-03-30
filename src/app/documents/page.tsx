@@ -583,6 +583,7 @@ export default function DocumentsPage() {
                     month={previewDoc.period}
                     docNumber={previewDoc.docNumber}
                     recipientName={previewDoc.recipientName}
+                    spotRecipientId={previewDoc.spotRecipientId}
                     customDetails={previewDoc.details}
                     customAdjustments={previewDoc.adjustments}
                     customTaxRate={previewDoc.taxRate}
@@ -599,6 +600,7 @@ export default function DocumentsPage() {
                     month={downloadingDoc.type === 'payment_summary' ? downloadingDoc.period : undefined}
                     docNumber={downloadingDoc.docNumber}
                     recipientName={downloadingDoc.recipientName}
+                    spotRecipientId={downloadingDoc.spotRecipientId}
                     customDetails={downloadingDoc.details}
                     customAdjustments={downloadingDoc.adjustments}
                     customTaxRate={downloadingDoc.taxRate}

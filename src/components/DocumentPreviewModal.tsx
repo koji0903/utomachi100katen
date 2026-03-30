@@ -28,6 +28,7 @@ interface DocumentPreviewModalProps {
     month?: string;    // YYYY-MM
     docNumber?: string; // Optional override
     recipientName?: string; // Optional override
+    spotRecipientId?: string;
     customDetails?: IssuedDocument['details'];
     customAdjustments?: IssuedDocument['adjustments'];
     customTaxRate?: IssuedDocument['taxRate'];
@@ -53,6 +54,7 @@ export function DocumentPreviewModal({
     month,
     docNumber: propDocNumber,
     recipientName: propRecipientName,
+    spotRecipientId,
     customDetails,
     customAdjustments,
     customTaxRate,
@@ -212,6 +214,18 @@ export function DocumentPreviewModal({
             ? (store?.useDifferentBilling ? (store.billingName || store.name) : (store?.name ?? "（客先名）"))
             : (supplier?.name ?? "（仕入先名）")
     );
+
+    // Get honorific dynamically
+    const honorific = useMemo(() => {
+        if (storeId) {
+            return retailStores.find(s => s.id === storeId)?.honorific || '御中';
+        }
+        if (spotRecipientId) {
+            return spotRecipients.find(r => r.id === spotRecipientId)?.honorific || '御中';
+        }
+        // If it's a supplier or other, default to 御中 for now
+        return '御中';
+    }, [storeId, spotRecipientId, retailStores, spotRecipients]);
 
     const recipientAddress = (isDeliveryNote || isInvoice) && store?.useDifferentBilling ? {
         zipCode: store.billingZipCode,
@@ -475,7 +489,7 @@ export function DocumentPreviewModal({
                                 )}
                                 <div style={{ borderBottom: "2px solid #1a1a1a", paddingBottom: "4px", display: "inline-block", minWidth: "320px" }}>
                                     <span style={{ fontSize: "22px", fontWeight: "700" }}>{recipient}</span>
-                                    <span style={{ fontSize: "15px", marginLeft: "8px", color: "#333" }}>御中</span>
+                                    <span style={{ fontSize: "15px", marginLeft: "8px", color: "#333" }}>{honorific}</span>
                                 </div>
                             </div>
                         </div>
