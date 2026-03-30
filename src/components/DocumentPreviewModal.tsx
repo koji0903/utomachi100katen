@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { useStore, IssuedDocument, calculateInvoiceBalance } from "@/lib/store";
 import { summarizeTaxByRate, TAX_RATE_LABELS } from "@/lib/taxUtils";
 import { downloadPdfFromElement as generatePdfFromElement, getPdfBlobFromElement } from "@/lib/pdfGenerator";
