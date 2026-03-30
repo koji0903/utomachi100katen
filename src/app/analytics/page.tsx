@@ -12,6 +12,8 @@ import {
 import { TrendingUp, DollarSign, Percent, ShoppingBag, Store, Filter, ChevronLeft, ChevronRight, FileText, BarChart3, PieChart as PieIcon, ListFilter } from "lucide-react";
 import { showNotification } from "@/lib/notifications";
 
+import { MonthlySalesReport } from "@/components/Analytics/MonthlySalesReport";
+
 type ViewMode = "monthly" | "daily";
 
 const CHART_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316"];
@@ -799,6 +801,9 @@ export default function AnalyticsPage() {
                         </table>
                     </div>
                 </div>
+
+                {/* Monthly Sales Report Generator */}
+                <MonthlySalesReport />
             </div>
             {pdfModal && (
                 <DocumentPreviewModal
