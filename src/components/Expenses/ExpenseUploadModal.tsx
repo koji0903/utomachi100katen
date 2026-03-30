@@ -13,6 +13,8 @@ import { showNotification } from "@/lib/notifications";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
 import { FilePreviewModal } from "./FilePreviewModal";
+import { ensureProcessableImage } from "@/lib/imageUpload";
+import imageCompression from "browser-image-compression";
 
 interface ExpenseUploadModalProps {
     isOpen: boolean;
@@ -53,9 +55,33 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            setFile(selectedFile);
-            analyzeFile(selectedFile);
+        if (!selectedFile) return;
+
+        setIsAnalyzing(true);
+        try {
+            // 1. Format correction (HEIC -> JPEG) and compression
+            let optimizedFile = await ensureProcessableImage(selectedFile);
+            
+            // 2. Further compression for AI analysis (Keep under 1MB)
+            if (optimizedFile.type.startsWith('image/')) {
+                const options = {
+                    maxSizeMB: 1,
+                    maxWidthOrHeight: 1280,
+                    useWebWorker: true,
+                };
+                try {
+                    optimizedFile = await imageCompression(optimizedFile, options);
+                } catch (ce) {
+                    console.warn("[ExpenseUpload] Compression failed, using original:", ce);
+                }
+            }
+            
+            setFile(optimizedFile);
+            analyzeFile(optimizedFile);
+        } catch (error: any) {
+            console.error("[ExpenseUpload] Error processing file:", error);
+            showNotification(`ファイルの処理に失敗しました: ${error.message}`);
+            setIsAnalyzing(false);
         }
     };
 
