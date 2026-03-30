@@ -20,14 +20,14 @@ async function listModels() {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const testModels = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-2.0-flash-lite-preview-02-05"];
+    const testModels = ["gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
     for (const m of testModels) {
         try {
             console.log(`Testing model: ${m}...`);
             const model = genAI.getGenerativeModel({ model: m });
             const result = await model.generateContent("Hi");
             console.log(`Model ${m} works! Response: ${result.response.text().substring(0, 10)}...`);
-            break; // Found one!
+            return; // Found a working one
         } catch (err) {
             console.log(`Model ${m} failed: ${err.message}`);
         }
