@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen, AlertCircle, Trash2, Building2, Mail, Sparkles, Printer, Receipt } from "lucide-react";
 import { auth } from "@/lib/firebase";
-import { signOut } from "firebase/auth";
+import { useAuth } from "@/lib/authContext";
 import { CURRENT_VERSION } from "@/lib/version";
 
 interface SidebarProps {
@@ -66,11 +66,12 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   ];
 
   const router = useRouter();
+  const { logout } = useAuth();
 
   const handleLogout = async () => {
     if (window.confirm("ログアウトしてもよろしいですか？")) {
       try {
-        await signOut(auth);
+        await logout();
         router.push("/login");
       } catch (error) {
         console.error("Logout failed:", error);
