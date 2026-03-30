@@ -11,8 +11,8 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.5.0";
-export const RELEASE_DATE = "2026.03.16";
+export const CURRENT_VERSION = "v1.6.0";
+export const RELEASE_DATE = "2026.03.31";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
@@ -58,6 +58,11 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
         name: "Amazon 販売連携",
         description: "Amazon SP-API と連携した在庫同期および注文データの自動取り込み機能。",
+        status: "completed"
+    },
+    {
+        name: "AI支出・経費管理",
+        description: "Gemini AIによるレシート解析。画像・PDFプレビューおよび編集・検索機能。",
         status: "completed"
     }
 ];

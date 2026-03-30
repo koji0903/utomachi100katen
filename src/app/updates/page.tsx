@@ -112,11 +112,34 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.5.0 */}
+                    {/* v1.6.0 */}
                     <div className="relative">
-                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-orange-500 border-4 border-white shadow-sm ring-4 ring-orange-50" />
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-rose-500 border-4 border-white shadow-sm ring-4 ring-rose-50" />
                         <div>
-                            <div className="text-xs font-black text-orange-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <div className="text-xs font-black text-rose-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-rose-200 underline-offset-4 decoration-2">AI支出・経費管理の導入とUX改善</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "Gemini AIによるレシート解析：写真やPDFから日付・金額・品目などを自動抽出",
+                                    "内蔵プレイヤーによるプレビュー：別タブを開かずPDFや画像を詳細に確認可能",
+                                    "支出データの編集機能：AI抽出結果の微調整や手動での内容修正に対応",
+                                    "モバイルカメラ連携：デバイスのカメラで領収書を直接撮影してアップロード可能",
+                                    "セッション管理の改善：デモ環境でのログアウト挙動およびリダイレクト処理の安定化"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.5.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.5.0 - 2026.03.16</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-orange-200 underline-offset-4 decoration-2">Amazon SP-API 販売連携の導入</h3>
                             <ul className="space-y-2">
                                 {[
