@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 export async function POST(req: NextRequest) {
     try {
@@ -19,20 +19,29 @@ export async function POST(req: NextRequest) {
         const mimeType = file.type || "image/jpeg";
 
         const prompt = `
-            添付された領収書またはレシート画像から、以下の情報を抽出してJSON形式で返してください。
-            日本語で回答してください。
+            添付された領収書、レシート、または請求書の画像・PDFから、経理処理に必要な情報を正確に抽出してJSON形式で返してください。
+            文字が不鮮明な場合でも、文脈から推測して最適な値を入力してください。
             
             返却するJSONフォーマット:
             {
-                "date": "YYYY-MM-DD",
-                "vendor": "店名・発行元",
-                "amount": 数値(合計金額),
-                "item": "購入品目の要約",
+                "date": "YYYY-MM-DD (見当たらない場合は空欄)",
+                "vendor": "発行元・店名 (正式名称)",
+                "amount": 数値 (税込合計金額のみ、カンマや円記号は含めない)",
+                "item": "購入内容の簡潔な要約 (例: 事務用品代、タクシー代)",
                 "category": "以下のうち最も適切なもの: 備品, 消耗品, 飲食費, 交通費, 通信費, 光熱費, 広告宣伝費, 支払手数料, その他"
             }
             
-            ※日付が不明な場合は、本日(${new Date().toISOString().split('T')[0]})を基準に推測するか、空欄にしてください。
-            ※JSONのみを返却し、説明文などは含めないでください。
+            カテゴリーの判定基準:
+            - 備品: PC、家具、10万円以上の高額な物品
+            - 消耗品: 文房具、日用品、コピー用紙
+            - 飲食費: 会食、カフェ、弁当、打ち合わせ時の茶菓子
+            - 交通費: 電車、バス、タクシー、ガソリン代
+            - 通信費: 切手、インターネット、携帯電話
+            - 光熱費: 電気、水道、ガス
+            - 広告宣伝費: チラシ、Web広告、SNS広告
+            - 支払手数料: 振込手数料、各種登録料
+            
+            ※JSONのみを返却し、Markdownのコードブロックなどは含めないでください。
         `;
 
         const result = await model.generateContent([
@@ -46,10 +55,12 @@ export async function POST(req: NextRequest) {
         ]);
 
         const responseText = result.response.text();
-        // Remove markdown code blocks if present
+        
+        // Match JSON object even if there's surrounding text or markdown
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-            throw new Error("Could not parse AI response as JSON");
+            console.error("[AI-Analyze] Raw Response:", responseText);
+            throw new Error("AIのレスポンスからJSONを抽出できませんでした");
         }
         
         const analysis = JSON.parse(jsonMatch[0]);

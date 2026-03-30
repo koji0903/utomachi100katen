@@ -1,8 +1,12 @@
 // src/components/Expenses/ExpenseUploadModal.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Upload, FileText, Loader2, Check, AlertCircle, Receipt, Store, Calendar, CreditCard, Plus, Tag } from "lucide-react";
+import { useState, useRef } from "react";
+import { 
+    X, Upload, FileText, Loader2, Check, 
+    Receipt, Store, Calendar, CreditCard, 
+    Plus, Tag, Camera, RefreshCcw, File
+} from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Expense, ExpenseCategory } from "@/lib/types/expense";
 import { showNotification } from "@/lib/notifications";
@@ -31,6 +35,10 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
     const [memo, setMemo] = useState("");
 
     const [isAnalyzed, setIsAnalyzed] = useState(false);
+    const [analyzedFields, setAnalyzedFields] = useState<Set<string>>(new Set());
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     if (!isOpen) return null;
 
@@ -45,6 +53,8 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
     const analyzeFile = async (selectedFile: File) => {
         setIsAnalyzing(true);
         setIsAnalyzed(false);
+        setAnalyzedFields(new Set());
+        
         try {
             const formData = new FormData();
             formData.append("file", selectedFile);
@@ -54,24 +64,43 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                 body: formData,
             });
 
-            if (!response.ok) throw new Error("AI分析に失敗しました");
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.details || "AI分析に失敗しました");
+            }
 
             const data = await response.json();
             
+            const newAnalyzedFields = new Set<string>();
+            
             // Fill form with AI results
-            if (data.date) setDate(data.date);
-            if (data.vendor) setVendor(data.vendor);
-            if (data.amount) setAmount(data.amount);
-            if (data.item) setItem(data.item);
+            if (data.date) {
+                setDate(data.date);
+                newAnalyzedFields.add("date");
+            }
+            if (data.vendor) {
+                setVendor(data.vendor);
+                newAnalyzedFields.add("vendor");
+            }
+            if (data.amount) {
+                setAmount(data.amount);
+                newAnalyzedFields.add("amount");
+            }
+            if (data.item) {
+                setItem(data.item);
+                newAnalyzedFields.add("item");
+            }
             if (data.category && CATEGORIES.includes(data.category)) {
                 setCategory(data.category as ExpenseCategory);
+                newAnalyzedFields.add("category");
             }
             
+            setAnalyzedFields(newAnalyzedFields);
             setIsAnalyzed(true);
             showNotification("AIによる解析が完了しました。内容を確認してください。");
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            showNotification("AI解析に失敗しました。手動で入力してください。");
+            showNotification(`AI解析に失敗しました: ${error.message}`);
         } finally {
             setIsAnalyzing(false);
         }
@@ -104,21 +133,13 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                 fileUrl,
                 storagePath,
                 isAnalyzed: true,
-                isConfirmed: true, // User clicked "Save" after review
-                isTrashed: false
+                isConfirmed: true,
+                isTrashed: false,
             });
 
             showNotification("支出を記録しました。");
+            resetState();
             onClose();
-            // Reset
-            setFile(null);
-            setDate("");
-            setVendor("");
-            setAmount(0);
-            setItem("");
-            setCategory('消耗品');
-            setMemo("");
-            setIsAnalyzed(false);
         } catch (error) {
             console.error(error);
             showNotification("保存に失敗しました。");
@@ -127,109 +148,195 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
         }
     };
 
+    const resetState = () => {
+        setFile(null);
+        setDate("");
+        setVendor("");
+        setAmount(0);
+        setItem("");
+        setCategory('消耗品');
+        setMemo("");
+        setIsAnalyzed(false);
+        setAnalyzedFields(new Set());
+    };
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in duration-300">
                 {/* Left: Upload & Preview */}
-                <div className="flex-1 bg-slate-50 p-8 flex flex-col border-b md:border-b-0 md:border-r border-slate-100">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                            <Plus className="w-6 h-6 text-rose-500" />
-                            記録を追加
-                        </h2>
+                <div className="flex-1 bg-slate-50 p-6 md:p-10 flex flex-col border-b md:border-b-0 md:border-r border-slate-100">
+                    <div className="flex items-center justify-between mb-8">
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                                <span className="p-2 bg-rose-50 rounded-xl">
+                                    <Plus className="w-6 h-6 text-rose-500" />
+                                </span>
+                                記録を追加
+                            </h2>
+                            <p className="text-slate-400 text-xs mt-1 font-bold">画像またはPDFで支出を自動記録します</p>
+                        </div>
                     </div>
 
                     <div className="flex-1 flex flex-col items-center justify-center relative">
                         {file ? (
-                            <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-2xl border-2 border-slate-200 p-4 shadow-sm overflow-hidden">
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-3xl border-2 border-slate-100 p-8 shadow-sm overflow-hidden group relative">
                                 {file.type.startsWith('image/') ? (
-                                    <img 
-                                        src={URL.createObjectURL(file)} 
-                                        alt="Receipt" 
-                                        className="max-w-full max-h-[400px] object-contain rounded-lg"
-                                    />
+                                    <div className="relative w-full h-full flex items-center justify-center group">
+                                        <img 
+                                            src={URL.createObjectURL(file)} 
+                                            alt="Receipt Preview" 
+                                            className="max-w-full max-h-[500px] object-contain rounded-2xl shadow-lg transition-transform group-hover:scale-[1.02]"
+                                        />
+                                    </div>
                                 ) : (
-                                    <div className="flex flex-col items-center gap-4 text-slate-400">
-                                        <FileText className="w-24 h-24" />
-                                        <span className="font-bold text-sm">{file.name}</span>
+                                    <div className="flex flex-col items-center gap-6 text-slate-400 bg-slate-50 w-full max-w-sm p-12 rounded-[2rem] border border-slate-100">
+                                        <div className="p-6 bg-white rounded-2xl shadow-sm">
+                                            <FileText className="w-16 h-16 text-rose-400" />
+                                        </div>
+                                        <div className="text-center">
+                                            <span className="block font-black text-slate-700 text-lg mb-1 break-all">{file.name}</span>
+                                            <span className="text-xs font-bold text-slate-400">PDF Document • {(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                                        </div>
                                     </div>
                                 )}
-                                <button 
-                                    onClick={() => setFile(null)}
-                                    className="mt-4 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors"
-                                >
-                                    ファイルを変更
-                                </button>
+                                
+                                <div className="absolute bottom-6 flex items-center gap-3">
+                                    <button 
+                                        onClick={() => {
+                                            resetState();
+                                            fileInputRef.current?.click();
+                                        }}
+                                        className="bg-white/90 backdrop-blur px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-black text-slate-600 hover:bg-white hover:text-rose-600 transition-all flex items-center gap-2 shadow-sm"
+                                    >
+                                        <RefreshCcw className="w-3.5 h-3.5" /> 再選択
+                                    </button>
+                                </div>
                             </div>
                         ) : (
-                            <label className="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl bg-white hover:bg-rose-50/30 hover:border-rose-300 transition-all cursor-pointer group">
-                                <div className="p-6 bg-rose-50 rounded-full text-rose-500 mb-4 group-hover:scale-110 transition-transform">
-                                    <Upload className="w-10 h-10" />
-                                </div>
-                                <span className="font-bold text-slate-600">レシート・領収書をアップロード</span>
-                                <span className="text-xs text-slate-400 mt-2">PDFまたは画像 (JPG, PNG)</span>
-                                <input type="file" onChange={handleFileChange} className="hidden" accept="image/*,application/pdf" />
-                            </label>
+                            <div className="w-full h-full flex flex-col gap-4">
+                                <button
+                                    onClick={() => cameraInputRef.current?.click()}
+                                    className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-white hover:bg-rose-50/30 hover:border-rose-300 transition-all cursor-pointer group"
+                                >
+                                    <div className="p-6 bg-rose-50 rounded-2xl text-rose-500 mb-4 group-hover:scale-110 transition-transform">
+                                        <Camera className="w-10 h-10" />
+                                    </div>
+                                    <span className="font-black text-slate-700 text-lg">写真を撮る</span>
+                                    <span className="text-xs text-slate-400 mt-2 font-bold italic tracking-wide">RECEIPT PHOTO</span>
+                                </button>
+
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="h-32 flex items-center justify-center border-2 border-slate-100 rounded-2xl bg-slate-50 hover:bg-white hover:border-rose-200 transition-all cursor-pointer group gap-4 px-8"
+                                >
+                                    <div className="p-3 bg-white rounded-xl text-slate-400 group-hover:text-rose-400 transition-colors shadow-sm">
+                                        <Upload className="w-6 h-6" />
+                                    </div>
+                                    <div className="text-left">
+                                        <span className="block font-black text-slate-600">ファイルを選択</span>
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">IMAGE OR PDF</span>
+                                    </div>
+                                </button>
+                            </div>
                         )}
 
+                        <input 
+                            type="file" 
+                            ref={fileInputRef}
+                            onChange={handleFileChange} 
+                            className="hidden" 
+                            accept="image/*,application/pdf" 
+                        />
+                        <input 
+                            type="file" 
+                            ref={cameraInputRef}
+                            onChange={handleFileChange} 
+                            className="hidden" 
+                            accept="image/*" 
+                            capture="environment" 
+                        />
+
                         {isAnalyzing && (
-                            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-2xl">
-                                <Loader2 className="w-12 h-12 text-rose-500 animate-spin mb-4" />
-                                <p className="font-bold text-slate-900">AIが内容を分析中...</p>
-                                <p className="text-xs text-slate-500 mt-1">数秒お待ちください</p>
+                            <div className="absolute inset-0 bg-white/90 backdrop-blur-md flex flex-col items-center justify-center z-10 rounded-[2rem]">
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-rose-500 blur-2xl opacity-20 animate-pulse"></div>
+                                    <Loader2 className="w-16 h-16 text-rose-500 animate-spin mb-6 relative" />
+                                </div>
+                                <p className="font-black text-slate-900 text-xl tracking-tight">AIが内容を分析中</p>
+                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-[0.2em]">Analyzing receipt details...</p>
+                                
+                                <div className="mt-8 flex gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-[bounce_1s_infinite_0ms]"></div>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-[bounce_1s_infinite_200ms]"></div>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-[bounce_1s_infinite_400ms]"></div>
+                                </div>
                             </div>
                         )}
                     </div>
                 </div>
 
                 {/* Right: Form */}
-                <div className="w-full md:w-[400px] bg-white p-8 overflow-y-auto custom-scrollbar">
-                    <div className="flex justify-end mb-4">
+                <div className="w-full md:w-[450px] bg-white p-6 md:p-10 overflow-y-auto custom-scrollbar">
+                    <div className="flex justify-end mb-6">
                         <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
                             <X className="w-6 h-6 text-slate-400" />
                         </button>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <form onSubmit={handleSubmit} className="space-y-8">
                         {isAnalyzed && (
-                            <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-start gap-3">
-                                <Check className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                                <div className="text-xs text-emerald-700 font-medium">
-                                    AI分析が完了しました。自動入力された内容を確認・修正してください。
+                            <div className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl flex items-start gap-4 animate-in slide-in-from-top-4 duration-500">
+                                <div className="p-2 bg-white rounded-lg shadow-sm">
+                                    <Check className="w-5 h-5 text-emerald-500" />
+                                </div>
+                                <div>
+                                    <p className="text-xs text-emerald-800 font-black mb-1 uppercase tracking-wider">AI ANALYSIS COMPLETE</p>
+                                    <p className="text-xs text-emerald-700/80 font-bold leading-relaxed">
+                                        自動入力された内容を確認・修正して保存してください。
+                                    </p>
                                 </div>
                             </div>
                         )}
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                                    <Calendar className="w-3 h-3" /> 日付
+                        <div className="space-y-6">
+                            <div className="group">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-between mb-2">
+                                    <span className="flex items-center gap-2">
+                                        <Calendar className="w-3.5 h-3.5 text-slate-300" /> 日付
+                                    </span>
+                                    {analyzedFields.has("date") && <span className="text-[9px] text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded italic">AI</span>}
                                 </label>
                                 <input 
                                     type="date" 
                                     required
                                     value={date}
                                     onChange={(e) => setDate(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all text-sm font-bold"
+                                    className={`w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all text-sm font-black text-slate-700 ${analyzedFields.has("date") ? 'bg-emerald-50/10 border-emerald-100' : ''}`}
                                 />
                             </div>
 
-                            <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                                    <Store className="w-3 h-3" /> 購入先
+                            <div className="group">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-between mb-2">
+                                    <span className="flex items-center gap-2">
+                                        <Store className="w-3.5 h-3.5 text-slate-300" /> 購入先
+                                    </span>
+                                    {analyzedFields.has("vendor") && <span className="text-[9px] text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded italic">AI</span>}
                                 </label>
                                 <input 
                                     type="text" 
                                     placeholder="例: セブンイレブン, Amazon"
                                     value={vendor}
                                     onChange={(e) => setVendor(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all text-sm font-bold"
+                                    className={`w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all text-sm font-black text-slate-700 ${analyzedFields.has("vendor") ? 'bg-emerald-50/10 border-emerald-100' : ''}`}
                                 />
                             </div>
 
-                            <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                                    <Receipt className="w-3 h-3" /> 品目・内容
+                            <div className="group">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-between mb-2">
+                                    <span className="flex items-center gap-2">
+                                        <Receipt className="w-3.5 h-3.5 text-slate-300" /> 品目・内容
+                                    </span>
+                                    {analyzedFields.has("item") && <span className="text-[9px] text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded italic">AI</span>}
                                 </label>
                                 <input 
                                     type="text" 
@@ -237,37 +344,40 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                                     placeholder="例: 事務手数料, 飲料代"
                                     value={item}
                                     onChange={(e) => setItem(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all text-sm font-bold"
+                                    className={`w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all text-sm font-black text-slate-700 ${analyzedFields.has("item") ? 'bg-emerald-50/10 border-emerald-100' : ''}`}
                                 />
                             </div>
 
-                            <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                                    <CreditCard className="w-3 h-3" /> 金額
+                            <div className="group">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-between mb-2">
+                                    <span className="flex items-center gap-2">
+                                        <CreditCard className="w-3.5 h-3.5 text-slate-300" /> 金額
+                                    </span>
+                                    {analyzedFields.has("amount") && <span className="text-[9px] text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded italic">AI</span>}
                                 </label>
                                 <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
+                                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg">¥</span>
                                     <input 
                                         type="number" 
                                         required
                                         value={amount || ""}
                                         onChange={(e) => setAmount(Number(e.target.value))}
-                                        className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all text-sm font-black"
+                                        className={`w-full pl-10 pr-5 py-4 bg-slate-900 border-none rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all text-xl font-black text-white ${analyzedFields.has("amount") ? 'bg-slate-800' : ''}`}
                                     />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                                    <Tag className="w-3 h-3" /> カテゴリー
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-3">
+                                    <Tag className="w-3.5 h-3.5 text-slate-300" /> カテゴリー
                                 </label>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-3 gap-2">
                                     {CATEGORIES.map(cat => (
                                         <button
                                             key={cat}
                                             type="button"
                                             onClick={() => setCategory(cat)}
-                                            className={`px-3 py-2 text-[10px] font-bold rounded-lg border transition-all ${category === cat ? 'bg-rose-600 text-white border-rose-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-rose-300'}`}
+                                            className={`px-3 py-2 text-[10px] font-black rounded-xl border transition-all ${category === cat ? 'bg-rose-600 text-white border-rose-600 shadow-lg shadow-rose-100' : 'bg-slate-50 text-slate-400 border-slate-100 hover:border-rose-200 hover:bg-white'}`}
                                         >
                                             {cat}
                                         </button>
@@ -275,29 +385,50 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
+                            <div className="group">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
                                     メモ
                                 </label>
                                 <textarea 
                                     value={memo}
                                     onChange={(e) => setMemo(e.target.value)}
                                     rows={2}
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all text-sm font-medium resize-none"
+                                    placeholder="補足事項があれば入力してください"
+                                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all text-sm font-bold text-slate-700 resize-none"
                                 />
                             </div>
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={isSaving || !file}
-                            className={`w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-xl shadow-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2 ${isSaving || !file ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800'}`}
-                        >
-                            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : "この内容で保存する"}
-                        </button>
+                        <div className="pt-4">
+                            <button
+                                type="submit"
+                                disabled={isSaving || !file}
+                                className={`w-full py-5 bg-rose-600 text-white font-black text-lg rounded-[1.5rem] shadow-xl shadow-rose-200 active:scale-95 transition-all flex items-center justify-center gap-3 ${isSaving || !file ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:bg-rose-700 hover:-translate-y-1'}`}
+                            >
+                                {isSaving ? (
+                                    <>
+                                        <Loader2 className="w-6 h-6 animate-spin" />
+                                        <span>保存中...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="w-6 h-6" />
+                                        <span>支出を記録する</span>
+                                    </>
+                                )}
+                            </button>
+                            <p className="text-[10px] text-slate-400 text-center mt-4 font-bold uppercase tracking-widest">Confirm & Save Record</p>
+                        </div>
                     </form>
                 </div>
             </div>
+            
+            <style jsx global>{`
+                @keyframes bounce {
+                    0%, 100% { transform: translateY(0); }
+                    50% { transform: translateY(-5px); }
+                }
+            `}</style>
         </div>
     );
 }
