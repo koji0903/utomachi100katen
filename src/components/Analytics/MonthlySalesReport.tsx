@@ -174,7 +174,7 @@ export function MonthlySalesReport() {
                                 ) : (
                                     monthlyReportData.totals.map((store) => (
                                         <div key={store.storeId} style={{ border: '1.5px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-                                            <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyBetween: 'space-between', borderBottom: '1.5px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                                            <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1.5px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1' }}>
                                                     <span style={{ fontSize: '14px' }}>🏪</span>
                                                     <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#0f172a', margin: '0' }}>{store.storeName}</h3>
@@ -185,7 +185,7 @@ export function MonthlySalesReport() {
                                             </div>
                                             <div>
                                                 {store.items.map((item, i) => (
-                                                    <div key={item.productId} style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyBetween: 'space-between', borderBottom: i === store.items.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
+                                                    <div key={item.productId} style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: i === store.items.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
                                                         <div style={{ flex: '1', paddingRight: '16px' }}>
                                                             <div style={{
                                                                 fontSize: '12px',
