@@ -54,13 +54,38 @@ export default function GuidelinesPage() {
 
     // Markdown Parser (Basic but premium looking)
     const renderMarkdown = (content: string) => {
+        const renderInlineStyles = (line: string) => {
+            // 1. Split by links [label](url)
+            const parts = line.split(/(\[[^\]]+\]\([^)]+\))/g);
+            return parts.flatMap((part, i) => {
+                const linkMatch = part.match(/\[([^\]]+)\]\(([^)]+)\)/);
+                if (linkMatch) {
+                    return (
+                        <a key={`l-${i}`} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold transition-colors">
+                            {linkMatch[1]}
+                        </a>
+                    );
+                }
+                
+                // 2. Split by bold **text**
+                const boldParts = part.split(/(\*\*[^*]+\*\*)/g);
+                return boldParts.map((bp, j) => {
+                    const boldMatch = bp.match(/\*\*([^*]+)\*\*/);
+                    if (boldMatch) {
+                        return <strong key={`b-${i}-${j}`} className="font-black text-slate-900">{boldMatch[1]}</strong>;
+                    }
+                    return bp;
+                });
+            });
+        };
+
         return content.split("\n").map((line, i) => {
             if (line.startsWith("# ")) return <h1 key={i} className="text-3xl font-black mb-6 mt-8 border-b-4 border-blue-100 pb-3 text-slate-900 tracking-tight">{line.slice(2)}</h1>;
             if (line.startsWith("## ")) return <h2 key={i} className="text-2xl font-bold mb-4 mt-8 text-slate-800 border-l-4 border-blue-500 pl-4">{line.slice(3)}</h2>;
             if (line.startsWith("### ")) return <h3 key={i} className="text-xl font-bold mb-3 mt-6 text-slate-800">{line.slice(4)}</h3>;
-            if (line.startsWith("- ")) return <li key={i} className="ml-6 list-disc text-slate-600 mb-2 leading-relaxed">{line.slice(2)}</li>;
+            if (line.startsWith("- ")) return <li key={i} className="ml-6 list-disc text-slate-600 mb-2 leading-relaxed">{renderInlineStyles(line.slice(2))}</li>;
             if (line.trim() === "") return <div key={i} className="h-4" />;
-            return <p key={i} className="text-slate-600 leading-relaxed mb-4 text-base font-medium">{line}</p>;
+            return <p key={i} className="text-slate-600 leading-relaxed mb-4 text-base font-medium">{renderInlineStyles(line)}</p>;
         });
     };
 

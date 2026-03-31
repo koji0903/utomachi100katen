@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Plus, Trash2, Link as LinkIcon, BookOpen, Save } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Plus, Trash2, Link as LinkIcon, BookOpen, Save, Bold, Heading1, Heading2, Heading3, List } from "lucide-react";
 import { useStore, BusinessManual } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
 
@@ -18,6 +18,7 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
     const [content, setContent] = useState("");
     const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
     const [isPreview, setIsPreview] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
         if (manual) {
@@ -83,15 +84,88 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
         setLinks(links.filter((_, i) => i !== index));
     };
 
+    const insertMarkdown = (type: 'bold' | 'h1' | 'h2' | 'h3' | 'list' | 'link') => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = content.substring(start, end);
+        let prefix = "";
+        let suffix = "";
+        let skipFocus = false;
+
+        switch (type) {
+            case 'bold': prefix = "**"; suffix = "**"; break;
+            case 'h1': prefix = "# "; break;
+            case 'h2': prefix = "## "; break;
+            case 'h3': prefix = "### "; break;
+            case 'list': prefix = "- "; break;
+            case 'link':
+                const label = prompt("表示する文字を入力してください", selectedText) || "リンク";
+                const url = prompt("URLを入力してください", "https://");
+                if (url) {
+                    prefix = `[${label}](${url})`;
+                    suffix = "";
+                    // Special case for link insertion: we replace selected text if it was used as label
+                    const newContent = content.substring(0, start) + prefix + content.substring(end);
+                    setContent(newContent);
+                    skipFocus = true;
+                } else {
+                    return;
+                }
+                break;
+        }
+
+        if (!skipFocus) {
+            const newContent = content.substring(0, start) + prefix + selectedText + suffix + content.substring(end);
+            setContent(newContent);
+            
+            // Re-focus and set selection
+            setTimeout(() => {
+                textarea.focus();
+                textarea.setSelectionRange(
+                    start + prefix.length,
+                    start + prefix.length + selectedText.length
+                );
+            }, 10);
+        }
+    };
+
     // Very basic markdown partial renderer for preview
     const renderPreview = (text: string) => {
+        const renderInlineStyles = (line: string) => {
+            // 1. Split by links [label](url)
+            const parts = line.split(/(\[[^\]]+\]\([^)]+\))/g);
+            return parts.flatMap((part, i) => {
+                const linkMatch = part.match(/\[([^\]]+)\]\(([^)]+)\)/);
+                if (linkMatch) {
+                    return (
+                        <a key={`l-${i}`} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">
+                            {linkMatch[1]}
+                        </a>
+                    );
+                }
+                
+                // 2. Split by bold **text**
+                const boldParts = part.split(/(\*\*[^*]+\*\*)/g);
+                return boldParts.map((bp, j) => {
+                    const boldMatch = bp.match(/\*\*([^*]+)\*\*/);
+                    if (boldMatch) {
+                        return <strong key={`b-${i}-${j}`} className="font-black text-slate-900">{boldMatch[1]}</strong>;
+                    }
+                    return bp;
+                });
+            });
+        };
+
         return text.split("\n").map((line, i) => {
             if (line.startsWith("# ")) return <h1 key={i} className="text-2xl font-black mb-4 mt-6 border-b pb-2">{line.slice(2)}</h1>;
             if (line.startsWith("## ")) return <h2 key={i} className="text-xl font-bold mb-3 mt-5">{line.slice(3)}</h2>;
             if (line.startsWith("### ")) return <h3 key={i} className="text-lg font-bold mb-2 mt-4">{line.slice(4)}</h3>;
-            if (line.startsWith("- ")) return <li key={i} className="ml-4 list-disc text-slate-700">{line.slice(2)}</li>;
+            if (line.startsWith("- ")) return <li key={i} className="ml-4 list-disc text-slate-700">{renderInlineStyles(line.slice(2))}</li>;
             if (line.trim() === "") return <br key={i} />;
-            return <p key={i} className="text-slate-600 leading-relaxed mb-2">{line}</p>;
+            return <p key={i} className="text-slate-600 leading-relaxed mb-2">{renderInlineStyles(line)}</p>;
         });
     };
 
@@ -141,7 +215,7 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
 
                     <div className="space-y-4">
                         <div className="flex items-center justify-between px-1">
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-wider">マニュアル本文（Markdown）</label>
+                            <label className="text-xs font-black text-slate-400 uppercase tracking-wider">マニュアル本文</label>
                             <button
                                 onClick={() => setIsPreview(!isPreview)}
                                 className={`text-[10px] font-bold px-3 py-1 rounded-full transition-all border ${isPreview ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"}`}
@@ -155,12 +229,62 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
                                 {content ? renderPreview(content) : <p className="text-slate-300 italic">本文が空です</p>}
                             </div>
                         ) : (
-                            <textarea
-                                value={content}
-                                onChange={(e) => setContent(e.target.value)}
-                                placeholder="# 手順の概要\n1. ○○を行う\n2. △△を確認する\n\n## 注意点\n- □□は忘れずに！"
-                                className="w-full h-[300px] p-6 bg-slate-50 border border-slate-200 rounded-3xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-mono text-sm leading-relaxed"
-                            />
+                            <div className="space-y-2">
+                                {/* Toolbar */}
+                                <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-100 rounded-2xl border border-slate-200 transition-all focus-within:ring-2 focus-within:ring-blue-500/20">
+                                    <button 
+                                        onClick={() => insertMarkdown('bold')} 
+                                        className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-600 hover:text-blue-600 transition-all" 
+                                        title="太字"
+                                    >
+                                        <Bold className="w-4 h-4" />
+                                    </button>
+                                    <div className="w-px h-4 bg-slate-200 mx-1" />
+                                    <button 
+                                        onClick={() => insertMarkdown('h1')} 
+                                        className="px-2 py-1.5 hover:bg-white hover:shadow-sm rounded-xl text-[10px] font-black text-slate-600 hover:text-blue-600 transition-all"
+                                        title="大見出し"
+                                    >
+                                        H1
+                                    </button>
+                                    <button 
+                                        onClick={() => insertMarkdown('h2')} 
+                                        className="px-2 py-1.5 hover:bg-white hover:shadow-sm rounded-xl text-[10px] font-black text-slate-600 hover:text-blue-600 transition-all"
+                                        title="中見出し"
+                                    >
+                                        H2
+                                    </button>
+                                    <button 
+                                        onClick={() => insertMarkdown('h3')} 
+                                        className="px-2 py-1.5 hover:bg-white hover:shadow-sm rounded-xl text-[10px] font-black text-slate-600 hover:text-blue-600 transition-all"
+                                        title="小見出し"
+                                    >
+                                        H3
+                                    </button>
+                                    <div className="w-px h-4 bg-slate-200 mx-1" />
+                                    <button 
+                                        onClick={() => insertMarkdown('list')} 
+                                        className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-600 hover:text-blue-600 transition-all"
+                                        title="リスト"
+                                    >
+                                        <List className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                        onClick={() => insertMarkdown('link')} 
+                                        className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-600 hover:text-blue-600 transition-all"
+                                        title="リンク挿入"
+                                    >
+                                        <LinkIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <textarea
+                                    ref={textareaRef}
+                                    value={content}
+                                    onChange={(e) => setContent(e.target.value)}
+                                    placeholder="ここからマニュアルを作成... ツールバーを使って簡単に装飾できます。"
+                                    className="w-full h-[350px] p-6 bg-slate-50 border border-slate-200 rounded-3xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-mono text-sm leading-relaxed"
+                                />
+                            </div>
                         )}
                     </div>
 
