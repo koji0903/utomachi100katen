@@ -110,10 +110,19 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
                     明細編集
                 </h3>
                 <div className="flex gap-4">
-                    <div className="flex p-1 bg-slate-50 rounded-lg border border-slate-100">
-                        <span className="px-3 py-1 text-xs font-bold text-slate-500">
-                            内税（税込）
-                        </span>
+                    <div className="flex p-1 bg-slate-100 rounded-lg">
+                        <button
+                            onClick={() => onChange({ items, adjustments, taxRate, taxType: 'inclusive', totalAmount: grandTotal, finalAdjustment })}
+                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${taxType === 'inclusive' ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
+                        >
+                            内税
+                        </button>
+                        <button
+                            onClick={() => onChange({ items, adjustments, taxRate, taxType: 'exclusive', totalAmount: grandTotal, finalAdjustment })}
+                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${taxType === 'exclusive' ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
+                        >
+                            外税
+                        </button>
                     </div>
                     <div className="flex p-1 bg-slate-100 rounded-lg">
                         {[8, 10].map(rate => (
