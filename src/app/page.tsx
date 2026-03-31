@@ -553,7 +553,7 @@ export default function DashboardPage() {
                     href="/guidelines"
                     className="px-6 py-2.5 bg-white text-blue-900 rounded-xl font-black text-sm hover:scale-105 transition-transform shrink-0 relative z-10 shadow-lg"
                 >
-                    ご利用ガイドをみる
+                    業務フロー・マニュアルをみる
                 </Link>
             </div>
         </div>

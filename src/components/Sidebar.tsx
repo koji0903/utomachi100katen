@@ -59,7 +59,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     {
       label: "サポート",
       items: [
-        { name: "ご利用ガイド", href: "/guidelines", icon: BookOpen },
+        { name: "業務フロー・マニュアル", href: "/guidelines", icon: BookOpen },
         { name: "アップデート・機能一覧", href: "/updates", icon: Sparkles },
       ]
     }
