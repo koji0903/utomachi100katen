@@ -151,19 +151,24 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!file || !date || !amount || !item) {
+        if (!date || !amount || !item) {
             showNotification("必須項目を入力してください。");
             return;
         }
 
         setIsSaving(true);
         try {
-            // 1. Upload to Storage
-            const uniqueFileName = `${Date.now()}_${file.name}`;
-            const storagePath = `expenses/${uniqueFileName}`;
-            const storageRef = ref(storage, storagePath);
-            await uploadBytes(storageRef, file);
-            const fileUrl = await getDownloadURL(storageRef);
+            let fileUrl = "";
+            let storagePath = "";
+            
+            // 1. Upload to Storage if file exists
+            if (file) {
+                const uniqueFileName = `${Date.now()}_${file.name}`;
+                storagePath = `expenses/${uniqueFileName}`;
+                const storageRef = ref(storage, storagePath);
+                await uploadBytes(storageRef, file);
+                fileUrl = await getDownloadURL(storageRef);
+            }
 
             // 2. Save to Firestore
             await addExpense({
@@ -175,9 +180,9 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                 paymentMethod,
                 type: '支払',
                 memo,
-                fileUrl,
-                storagePath,
-                isAnalyzed: true,
+                fileUrl: fileUrl || undefined,
+                storagePath: storagePath || undefined,
+                isAnalyzed: !!file && isAnalyzed,
                 isConfirmed: true,
                 isTrashed: false,
             });
@@ -239,7 +244,23 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                         </div>
 
                         <div className="flex-1 flex flex-col items-center justify-center relative">
-                            {file && objectUrl ? (
+                            {!file ? (
+                                <div className="flex flex-col items-center justify-center gap-6 p-12 text-center">
+                                    <div className="p-8 bg-slate-100 rounded-[2.5rem] border border-slate-200">
+                                        <Receipt className="w-16 h-16 text-slate-300" />
+                                    </div>
+                                    <div>
+                                        <p className="text-lg font-black text-slate-400">画像がありません</p>
+                                        <p className="text-xs text-slate-300 mt-2 font-bold uppercase tracking-wider">No Receipt Selected</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="mt-4 px-6 py-3 bg-white border border-slate-200 rounded-xl text-slate-600 font-black text-xs hover:bg-slate-50 transition-all flex items-center gap-2"
+                                    >
+                                        <Upload className="w-3.5 h-3.5" /> 画像を選択する
+                                    </button>
+                                </div>
+                            ) : file && objectUrl ? (
                                 <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-3xl border-2 border-slate-100 p-4 shadow-sm overflow-hidden group relative">
                                     {file.type.startsWith('image/') ? (
                                         <div className="relative w-full h-full flex items-center justify-center">
@@ -306,6 +327,24 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                                         <div className="text-left">
                                             <span className="block font-black text-slate-600">ファイルを選択</span>
                                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Image or PDF</span>
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveTab('form');
+                                            // Set some defaults if needed
+                                            if (!date) setDate(new Date().toISOString().slice(0, 10));
+                                        }}
+                                        className="h-20 flex items-center justify-center border-2 border-slate-100 border-dashed rounded-2xl bg-white hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer group gap-4 px-8"
+                                    >
+                                        <div className="p-2 bg-slate-50 rounded-lg text-slate-400 group-hover:text-slate-600 transition-colors">
+                                            <FileText className="w-5 h-5" />
+                                        </div>
+                                        <div className="text-left">
+                                            <span className="block font-black text-slate-600 text-sm">直接入力する</span>
+                                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none">Record Without File</span>
                                         </div>
                                     </button>
                                 </div>
@@ -476,8 +515,8 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                             <div className="pt-4 md:pt-4 fixed md:static bottom-0 left-0 right-0 p-6 md:p-0 bg-white md:bg-transparent border-t md:border-0 border-slate-100 z-50">
                                 <button
                                     type="submit"
-                                    disabled={isSaving || !file}
-                                    className={`w-full py-5 bg-rose-600 text-white font-black text-lg rounded-[1.5rem] shadow-xl shadow-rose-200 active:scale-95 transition-all flex items-center justify-center gap-3 ${isSaving || !file ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:bg-rose-700 hover:-translate-y-1'}`}
+                                    disabled={isSaving}
+                                    className={`w-full py-5 bg-rose-600 text-white font-black text-lg rounded-[1.5rem] shadow-xl shadow-rose-200 active:scale-95 transition-all flex items-center justify-center gap-3 ${isSaving ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:bg-rose-700 hover:-translate-y-1'}`}
                                 >
                                     {isSaving ? (
                                         <>
