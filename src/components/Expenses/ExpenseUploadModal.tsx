@@ -5,7 +5,7 @@ import { useState, useRef, useMemo } from "react";
 import { 
     X, Upload, FileText, Loader2, Check, 
     Receipt, Store, Calendar, CreditCard, 
-    Plus, Tag, Camera, RefreshCcw, Maximize2
+    Plus, Tag, Camera, RefreshCcw, Maximize2, Sparkles, Scan
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Expense, ExpenseCategory, PaymentMethod } from "@/lib/types/expense";
@@ -14,6 +14,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
 import { FilePreviewModal } from "./FilePreviewModal";
 import { ensureProcessableImage } from "@/lib/imageUpload";
+import { scanReceipt, loadOpenCV } from "@/lib/imageScanner";
 import imageCompression from "browser-image-compression";
 
 interface ExpenseUploadModalProps {
@@ -27,6 +28,7 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
     const { addExpense } = useStore();
     const [file, setFile] = useState<File | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     
     // Form state (AI will fill these)
@@ -61,29 +63,46 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
 
         setIsAnalyzing(true);
         try {
-            // 1. Format correction (HEIC -> JPEG) and compression
-            let optimizedFile = await ensureProcessableImage(selectedFile);
+            // 1. Format correction (HEIC -> JPEG)
+            let processedFile = await ensureProcessableImage(selectedFile);
             
-            // 2. Further compression for AI analysis (Keep under 1MB)
-            if (optimizedFile.type.startsWith('image/')) {
+            // 2. Receipt Scanner (Automatic Crop & Warp)
+            if (processedFile.type.startsWith('image/')) {
+                // Ensure OpenCV is pre-loading/loaded
+                loadOpenCV().catch(e => console.warn("OpenCV preload failed:", e));
+                
+                setIsScanning(true);
+                try {
+                    const scannedFile = await scanReceipt(processedFile);
+                    processedFile = scannedFile;
+                } catch (se) {
+                    console.warn("[ExpenseUpload] Scanning failed, using original:", se);
+                } finally {
+                    setIsScanning(false);
+                }
+            }
+
+            // 3. Further compression for AI analysis (Keep under 1MB)
+            if (processedFile.type.startsWith('image/')) {
                 const options = {
                     maxSizeMB: 1,
                     maxWidthOrHeight: 1280,
                     useWebWorker: true,
                 };
                 try {
-                    optimizedFile = await imageCompression(optimizedFile, options);
+                    processedFile = await imageCompression(processedFile, options);
                 } catch (ce) {
                     console.warn("[ExpenseUpload] Compression failed, using original:", ce);
                 }
             }
             
-            setFile(optimizedFile);
-            analyzeFile(optimizedFile);
+            setFile(processedFile);
+            analyzeFile(processedFile);
         } catch (error: any) {
             console.error("[ExpenseUpload] Error processing file:", error);
             showNotification(`ファイルの処理に失敗しました: ${error.message}`);
             setIsAnalyzing(false);
+            setIsScanning(false);
         }
     };
 
@@ -366,14 +385,33 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                                 capture="environment" 
                             />
 
-                            {isAnalyzing && (
+                            {(isAnalyzing || isScanning) && (
                                 <div className="absolute inset-0 bg-white/90 backdrop-blur-md flex flex-col items-center justify-center z-30 rounded-[2rem]">
                                     <div className="relative">
                                         <div className="absolute inset-0 bg-rose-500 blur-2xl opacity-20 animate-pulse"></div>
-                                        <Loader2 className="w-16 h-16 text-rose-500 animate-spin mb-6 relative" />
+                                        <Loader2 className={`w-16 h-16 ${isScanning ? 'text-blue-500' : 'text-rose-500'} animate-spin mb-6 relative`} />
                                     </div>
-                                    <p className="font-black text-slate-900 text-xl tracking-tight">AIが内容を分析中</p>
-                                    <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-[0.2em]">Extracting data with Gemini AI...</p>
+                                    <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-2">
+                                        {isScanning ? (
+                                            <>
+                                                <div className="flex items-center gap-2 text-blue-600 mb-1">
+                                                    <Scan className="w-5 h-5 animate-pulse" />
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Smart Scanner</span>
+                                                </div>
+                                                <p className="font-black text-slate-900 text-xl tracking-tight">レシートを自動補正中</p>
+                                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-widest italic">Correcting distortion...</p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-center gap-2 text-rose-500 mb-1">
+                                                    <Sparkles className="w-5 h-5" />
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">AI Intelligence</span>
+                                                </div>
+                                                <p className="font-black text-slate-900 text-xl tracking-tight">AIが内容を分析中</p>
+                                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-widest italic">Extracting data with Gemini...</p>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
