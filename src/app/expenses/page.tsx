@@ -54,29 +54,37 @@ function ExpensePageContent() {
         )
         .sort((a, b) => b.date.localeCompare(a.date));
 
-    // Petty Cash Calculations
-    const pettyCashTransactions = expenses.filter(e => e.paymentMethod === '小口現金' && !e.isTrashed);
-    
-    // Total Replenished (All time for balance)
-    const totalReplenishedAllTime = pettyCashTransactions
-        .filter(e => e.type === '補充')
-        .reduce((sum, e) => sum + e.amount, 0);
-    
-    // Total Spent (All time for balance)
-    const totalSpentAllTime = pettyCashTransactions
-        .filter(e => !e.type || e.type === '支払')
-        .reduce((sum, e) => sum + e.amount, 0);
-    
-    const currentBalance = totalReplenishedAllTime - totalSpentAllTime;
+    // Petty Cash Calculations (Reactive to any change in expenses or period)
+    const { 
+        currentBalance,
+        monthlyReplenished,
+        monthlySpent 
+    } = useMemo(() => {
+        // Fallback for existing records without paymentMethod field
+        const pettyCashTransactions = expenses.filter(e => !e.isTrashed && (e.paymentMethod || '小口現金') === '小口現金');
+        
+        const replenishedAllTime = pettyCashTransactions
+            .filter(e => e.type === '補充')
+            .reduce((sum, e) => sum + e.amount, 0);
+        
+        const spentAllTime = pettyCashTransactions
+            .filter(e => !e.type || e.type === '支払')
+            .reduce((sum, e) => sum + e.amount, 0);
+        
+        const monthlyRefill = pettyCashTransactions
+            .filter(e => e.type === '補充' && e.date.startsWith(period))
+            .reduce((sum, e) => sum + e.amount, 0);
+        
+        const monthlyOut = pettyCashTransactions
+            .filter(e => (!e.type || e.type === '支払') && e.date.startsWith(period))
+            .reduce((sum, e) => sum + e.amount, 0);
 
-    // Monthly totals for summary
-    const monthlyReplenished = pettyCashTransactions
-        .filter(e => e.type === '補充' && e.date.startsWith(period))
-        .reduce((sum, e) => sum + e.amount, 0);
-    
-    const monthlySpent = pettyCashTransactions
-        .filter(e => (!e.type || e.type === '支払') && e.date.startsWith(period))
-        .reduce((sum, e) => sum + e.amount, 0);
+        return {
+            currentBalance: replenishedAllTime - spentAllTime,
+            monthlyReplenished: monthlyRefill,
+            monthlySpent: monthlyOut
+        };
+    }, [expenses, period]);
 
     const totalAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
