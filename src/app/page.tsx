@@ -21,7 +21,9 @@ import {
     History,
     RefreshCw,
     Clock,
-    Database
+    Database,
+    CreditCard,
+    Wallet
 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useStore, type Activity } from "@/lib/store";
@@ -224,15 +226,6 @@ export default function DashboardPage() {
 
     const quickActions = [
         {
-            name: "売上入力",
-            desc: "本日の売上実績を登録",
-            href: "/sales",
-            icon: BarChart3,
-            color: "bg-blue-600",
-            accent: "text-blue-600",
-            bg: "bg-blue-50"
-        },
-        {
             name: "業務日報",
             desc: "店舗巡回・作業の記録",
             href: "/reports",
@@ -242,6 +235,24 @@ export default function DashboardPage() {
             bg: "bg-emerald-50"
         },
         {
+            name: "経費管理",
+            desc: "支出・領収書の記録",
+            href: "/expenses",
+            icon: Wallet,
+            color: "bg-amber-600",
+            accent: "text-amber-600",
+            bg: "bg-amber-50"
+        },
+        {
+            name: "売上入力",
+            desc: "本日の売上実績を登録",
+            href: "/sales",
+            icon: BarChart3,
+            color: "bg-blue-600",
+            accent: "text-blue-600",
+            bg: "bg-blue-50"
+        },
+        {
             name: "帳票作成",
             desc: "納品書・請求書の発行",
             href: "/documents",
@@ -249,15 +260,6 @@ export default function DashboardPage() {
             color: "bg-indigo-600",
             accent: "text-indigo-600",
             bg: "bg-indigo-50"
-        },
-        {
-            name: "店舗管理",
-            desc: "店舗情報・陳列状況の管理",
-            href: "/retail-stores",
-            icon: Store,
-            color: "bg-pink-600",
-            accent: "text-pink-600",
-            bg: "bg-pink-50"
         },
     ];
 
@@ -282,6 +284,28 @@ export default function DashboardPage() {
                         最終更新: {new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
                     </div>
                 )}
+            </div>
+
+            {/* Mobile Priority Actions (Visible only on mobile) */}
+            <div className="grid grid-cols-2 gap-4 md:hidden">
+                <Link
+                    href="/reports"
+                    className="flex flex-col items-center justify-center gap-3 p-6 bg-emerald-600 text-white rounded-[2rem] shadow-lg shadow-emerald-900/20 active:scale-95 transition-transform"
+                >
+                    <div className="p-3 bg-white/20 rounded-2xl">
+                        <FileText className="w-8 h-8" />
+                    </div>
+                    <span className="font-black text-sm tracking-tight text-center">日報を書く</span>
+                </Link>
+                <Link
+                    href="/expenses"
+                    className="flex flex-col items-center justify-center gap-3 p-6 bg-amber-600 text-white rounded-[2rem] shadow-lg shadow-amber-900/20 active:scale-95 transition-transform"
+                >
+                    <div className="p-3 bg-white/20 rounded-2xl">
+                        <Wallet className="w-8 h-8" />
+                    </div>
+                    <span className="font-black text-sm tracking-tight text-center">経費を記録</span>
+                </Link>
             </div>
 
             {/* Quick Actions Section */}
