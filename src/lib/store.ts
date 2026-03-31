@@ -1497,6 +1497,7 @@ export function useStore() {
             recipientName: original.recipientName,
             totalAmount: original.totalAmount,
             taxRate: original.taxRate,
+            taxType: 'inclusive', // 固定: 内税
             details: original.details,
             adjustments: original.adjustments,
             finalAdjustment: original.finalAdjustment,
@@ -1524,7 +1525,7 @@ export function useStore() {
             recipientName: original.recipientName,
             totalAmount: original.totalAmount,
             taxRate: original.taxRate,
-            taxType: original.taxType ?? 'inclusive',
+            taxType: 'inclusive', // 強制: 内税
             details: original.details,
             adjustments: original.adjustments,
             finalAdjustment: original.finalAdjustment,
@@ -1588,7 +1589,7 @@ export function useStore() {
             recipientName: first.recipientName,
             totalAmount: totalAmount,
             taxRate: first.taxRate || 8,
-            taxType: first.taxType || 'inclusive',
+            taxType: 'inclusive', // 強制: 内税
             details: aggregatedItems,
             adjustments: [],
             finalAdjustment: 0,

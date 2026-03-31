@@ -49,7 +49,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
     const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>(editingDoc?.details ?? []);
     const [invoiceAdjustments, setInvoiceAdjustments] = useState<InvoiceAdjustment[]>(editingDoc?.adjustments ?? []);
     const [taxRate, setTaxRate] = useState<8 | 10>((editingDoc?.taxRate as 8 | 10) ?? 8);
-    const [taxType, setTaxType] = useState<'inclusive' | 'exclusive'>(editingDoc?.taxType ?? 'inclusive');
+    const [taxType, setTaxType] = useState<'inclusive' | 'exclusive'>('inclusive');
     const [finalAdjustment, setFinalAdjustment] = useState(editingDoc?.finalAdjustment ?? 0);
     const [totalAmountState, setTotalAmountState] = useState(editingDoc?.totalAmount ?? 0);
     const [paymentMethod, setPaymentMethod] = useState<IssuedDocument['paymentMethod']>(editingDoc?.paymentMethod ?? "現金");
