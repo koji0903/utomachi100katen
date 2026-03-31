@@ -405,6 +405,17 @@ export interface BusinessChallenge extends BaseEntity {
     comments?: ChallengeComment[];
 }
 
+export interface BusinessManual extends BaseEntity {
+    id: string;
+    title: string;
+    category: string;
+    content: string; // Markdown
+    links: { label: string; url: string }[];
+    order: number;
+    updatedAt?: string | any;
+    createdAt?: string | any;
+}
+
 export interface StockConversion {
     id: string;
     date: string; // YYYY-MM-DD
@@ -609,6 +620,7 @@ export function useStore() {
     const { data: storeStockMovements = [], mutate: mutateStoreStockMovements } = useSWR<StoreStockMovement[]>(["store_stock_movements", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StoreStockMovement>(col, demo), swrConfig);
     const { data: printArchives = [], mutate: mutatePrintArchives, isLoading: loadingPrintArchives } = useSWR<PrintArchive[]>(["print_archives", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<PrintArchive>(col, demo), swrConfig);
     const { data: expenses = [], mutate: mutateExpenses, isLoading: loadingExpenses } = useSWR<Expense[]>(["expenses", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Expense>(col, demo), swrConfig);
+    const { data: businessManuals = [], mutate: mutateBusinessManuals } = useSWR<BusinessManual[]>(["business_manuals", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<BusinessManual>(col, demo), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -2242,6 +2254,42 @@ export function useStore() {
         mutatePrintArchives();
     };
 
+    // --- Business Manual Actions ---
+    const addBusinessManual = async (data: Omit<BusinessManual, "id" | "updatedAt" | "createdAt">) => {
+        if (checkDemoMode()) return;
+        const newRef = doc(collection(db, "business_manuals"));
+        const newManual: BusinessManual = {
+            id: newRef.id,
+            ...data,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        mutateBusinessManuals([newManual, ...businessManuals], false);
+        await setDoc(newRef, {
+            ...data,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        mutateBusinessManuals();
+        return newRef.id;
+    };
+
+    const updateBusinessManual = async (id: string, data: Partial<Omit<BusinessManual, "id" | "createdAt" | "updatedAt">>) => {
+        if (checkDemoMode()) return;
+        mutateBusinessManuals(businessManuals.map(m => m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m), false);
+        await updateDoc(doc(db, "business_manuals", id), {
+            ...data,
+            updatedAt: serverTimestamp()
+        });
+        mutateBusinessManuals();
+    };
+
+    const deleteBusinessManual = async (id: string) => {
+        if (checkDemoMode()) return;
+        await deleteDoc(doc(db, "business_manuals", id));
+        mutateBusinessManuals();
+    };
+
 
 
     return {
@@ -2425,6 +2473,11 @@ export function useStore() {
         permanentlyDeleteExpense: async (id: string) => {
             await deleteDoc(doc(db, "expenses", id));
             mutateExpenses();
-        }
+        },
+        // Business Manuals
+        businessManuals,
+        addBusinessManual,
+        updateBusinessManual,
+        deleteBusinessManual
     };
 }
