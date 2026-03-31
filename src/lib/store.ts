@@ -1557,9 +1557,12 @@ export function useStore() {
         const year = new Date().getFullYear().toString();
         const newDocNumber = generateDocNumber('invoice', year);
 
+        // Sort originals by issuedDate (oldest first)
+        const sortedOriginals = [...originals].sort((a, b) => (a.issuedDate || "").localeCompare(b.issuedDate || ""));
+
         // New logic: Flat aggregation with remarks (preserve all items)
         const aggregatedItems: InvoiceItem[] = [];
-        for (const doc of originals) {
+        for (const doc of sortedOriginals) {
             if (!doc.details) continue;
             const dateStr = doc.issuedDate; // YYYY-MM-DD
             const formattedDate = dateStr ? `${parseInt(dateStr.split('-')[1])}月${parseInt(dateStr.split('-')[2])}日` : "";
