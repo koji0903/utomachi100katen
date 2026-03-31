@@ -139,7 +139,7 @@ export function DocumentPreviewModal({
     })();
 
     // --- Purchase Lines (Payment Summary): aggregate purchases for supplier+month ---
-    type PurchaseLine = { name: string; qty: number; unitCost: number; total: number; date: string; taxRate: "standard" | "reduced" };
+    type PurchaseLine = { name: string; qty: number; unitCost: number; total: number; date: string; taxRate: "standard" | "reduced"; remarks: string };
 
     const purchaseLines: PurchaseLine[] = (() => {
         if (!isPaymentSummary) return [];
@@ -164,6 +164,7 @@ export function DocumentPreviewModal({
                         total: item.totalCost,
                         date,
                         taxRate: product?.taxRate ?? "standard",
+                        remarks: "",
                     });
                 }
             } else if (p.productId && p.quantity !== undefined && p.unitCost !== undefined && p.totalCost !== undefined) {

@@ -1557,24 +1557,22 @@ export function useStore() {
         const year = new Date().getFullYear().toString();
         const newDocNumber = generateDocNumber('invoice', year);
 
-        // Aggregate items
-        const itemMap = new Map<string, InvoiceItem>();
+        // New logic: Flat aggregation with remarks (preserve all items)
+        const aggregatedItems: InvoiceItem[] = [];
         for (const doc of originals) {
             if (!doc.details) continue;
+            const dateStr = doc.issuedDate; // YYYY-MM-DD
+            const formattedDate = dateStr ? `${parseInt(dateStr.split('-')[1])}月${parseInt(dateStr.split('-')[2])}日` : "";
+            
             for (const item of doc.details) {
-                // Use productId + unitPrice + label as key for aggregation
-                const key = `${item.productId || 'none'}-${item.unitPrice}-${item.label}`;
-                if (itemMap.has(key)) {
-                    const existing = itemMap.get(key)!;
-                    existing.quantity += item.quantity;
-                    existing.subtotal += item.subtotal;
-                } else {
-                    itemMap.set(key, { ...item, id: crypto.randomUUID() });
-                }
+                aggregatedItems.push({
+                    ...item,
+                    id: crypto.randomUUID(),
+                    remarks: formattedDate ? `${formattedDate}分 ${item.remarks || ""}`.trim() : item.remarks
+                });
             }
         }
 
-        const aggregatedItems = Array.from(itemMap.values());
         const totalAmount = aggregatedItems.reduce((sum, item) => sum + item.subtotal, 0);
 
         return saveIssuedDocument({
