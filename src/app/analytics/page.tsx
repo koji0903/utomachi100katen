@@ -169,13 +169,27 @@ export default function AnalyticsPage() {
     // ─── Store Share Pie Data ───
     const storePieData = useMemo(() => {
         const map: Record<string, number> = {};
+        let totalRevenue = 0;
         for (const sale of periodSales) {
             map[sale.storeId] = (map[sale.storeId] || 0) + sale.totalAmount;
+            totalRevenue += sale.totalAmount;
         }
-        return Object.entries(map).map(([storeId, revenue]) => ({
+        
+        const allItems = Object.entries(map).map(([storeId, revenue]) => ({
             name: retailStores.find(s => s.id === storeId)?.name ?? "不明",
             value: revenue,
         })).sort((a, b) => b.value - a.value);
+
+        if (allItems.length <= 6) return allItems;
+
+        const threshold = totalRevenue * 0.03; // 3%
+        const largeItems = allItems.filter(item => item.value >= threshold);
+        const smallItems = allItems.filter(item => item.value < threshold);
+
+        if (smallItems.length <= 1) return allItems;
+
+        const othersValue = smallItems.reduce((sum, item) => sum + item.value, 0);
+        return [...largeItems, { name: "その他", value: othersValue }];
     }, [periodSales, retailStores]);
 
     // ─── Product Ranking Data ───
@@ -695,17 +709,22 @@ export default function AnalyticsPage() {
                             <h2 className="font-bold text-slate-800 text-sm">店舗別売上シェア</h2>
                         </div>
                         {storePieData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={240}>
+                            <ResponsiveContainer width="100%" height={320}>
                                 <PieChart>
-                                    <Pie data={storePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85}
-                                        label={(props: PieLabelRenderProps) => `${props.name ?? ""} ${(((props.percent ?? 0)) * 100).toFixed(0)}%`}
-                                        labelLine={false}>
+                                    <Pie data={storePieData} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={80}
+                                        label={(props: PieLabelRenderProps) => {
+                                            if ((props.percent ?? 0) < 0.05) return null;
+                                            return `${props.name ?? ""} ${(((props.percent ?? 0)) * 100).toFixed(0)}%`;
+                                        }}
+                                        labelLine={true}
+                                        className="focus:outline-none"
+                                    >
                                         {storePieData.map((_, i) => (
                                             <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="white" strokeWidth={2} />
                                         ))}
                                     </Pie>
-                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                     <Tooltip formatter={(v: any) => fmtYen(Number(v))} />
+                                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10, paddingTop: 20 }} />
                                 </PieChart>
                             </ResponsiveContainer>
                         ) : (
