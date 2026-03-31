@@ -8,7 +8,7 @@ import {
     Filter, Download, Mail, ArrowUpRight, Edit2
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Expense, ExpenseCategory } from "@/lib/types/expense";
+import { Expense, ExpenseCategory, PaymentMethod } from "@/lib/types/expense";
 import { showNotification } from "@/lib/notifications";
 import { ExpenseUploadModal } from "@/components/Expenses/ExpenseUploadModal";
 import { ExpenseReportModal } from "@/components/Expenses/ExpenseReportModal";
@@ -35,6 +35,7 @@ function ExpensePageContent() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const [filterCategory, setFilterCategory] = useState<ExpenseCategory | 'すべて'>('すべて');
+    const [filterPaymentMethod, setFilterPaymentMethod] = useState<PaymentMethod | 'すべて'>('すべて');
     const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
 
     const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
@@ -45,6 +46,7 @@ function ExpensePageContent() {
         .filter(e => !e.isTrashed)
         .filter(e => e.date.startsWith(period))
         .filter(e => filterCategory === 'すべて' || e.category === filterCategory)
+        .filter(e => filterPaymentMethod === 'すべて' || (e.paymentMethod || '小口現金') === filterPaymentMethod)
         .filter(e => 
             e.item.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (e.vendor || "").toLowerCase().includes(searchQuery.toLowerCase())
@@ -141,17 +143,32 @@ function ExpensePageContent() {
                             className="px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all text-sm font-black text-slate-900"
                         />
                     </div>
-                    <div className="flex items-center gap-2 overflow-x-auto pb-4 lg:pb-0 scrollbar-hide">
-                        <Filter className="w-4 h-4 text-slate-400 flex-shrink-0 mr-2" />
-                        {(['すべて', '備品', '消耗品', '飲食費', '交通費', '通信費', '光熱費', '広告宣伝費', '支払手数料', 'その他'] as const).map(cat => (
-                            <button
-                                key={cat}
-                                onClick={() => setFilterCategory(cat)}
-                                className={`px-5 py-2.5 rounded-xl text-[10px] font-black transition-all border whitespace-nowrap uppercase tracking-widest ${filterCategory === cat ? 'bg-rose-600 text-white border-rose-600 shadow-lg shadow-rose-100' : 'bg-white text-slate-400 border-slate-100 hover:border-rose-300 hover:bg-rose-50/10 hover:text-rose-500'}`}
-                            >
-                                {cat}
-                            </button>
-                        ))}
+                    </div>
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
+                            <Tag className="w-4 h-4 text-slate-400 flex-shrink-0 mr-2" />
+                            {(['すべて', '備品', '消耗品', '飲食費', '交通費', '通信費', '光熱費', '広告宣伝費', '支払手数料', 'その他'] as const).map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setFilterCategory(cat)}
+                                    className={`px-5 py-2.5 rounded-xl text-[10px] font-black transition-all border whitespace-nowrap uppercase tracking-widest ${filterCategory === cat ? 'bg-rose-600 text-white border-rose-600 shadow-lg shadow-rose-100' : 'bg-white text-slate-400 border-slate-100 hover:border-rose-300 hover:bg-rose-50/10 hover:text-rose-500'}`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex items-center gap-2 overflow-x-auto pb-4 lg:pb-0 scrollbar-hide">
+                            <CreditCard className="w-4 h-4 text-slate-400 flex-shrink-0 mr-2" />
+                            {(['すべて', 'クレジット', '小口現金'] as const).map(pm => (
+                                <button
+                                    key={pm}
+                                    onClick={() => setFilterPaymentMethod(pm)}
+                                    className={`px-5 py-2.5 rounded-xl text-[10px] font-black transition-all border whitespace-nowrap uppercase tracking-widest ${filterPaymentMethod === pm ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:bg-slate-50/10 hover:text-slate-900'}`}
+                                >
+                                    {pm}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -165,6 +182,7 @@ function ExpensePageContent() {
                                 <th className="px-8 py-6">Date</th>
                                 <th className="px-8 py-6">Description / Vendor</th>
                                 <th className="px-8 py-6">Category</th>
+                                <th className="px-8 py-6">Payment</th>
                                 <th className="px-8 py-6 text-right">Amount</th>
                                 <th className="px-8 py-6 text-center">Status</th>
                                 <th className="px-8 py-6 text-right">Actions</th>
@@ -186,6 +204,18 @@ function ExpensePageContent() {
                                         <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black border uppercase tracking-widest ${CATEGORY_COLORS[expense.category]}`}>
                                             {expense.category}
                                         </span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <div className="flex items-center gap-2">
+                                            {(expense.paymentMethod === 'クレジット') ? (
+                                                <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                                            ) : (
+                                                <div className="w-3.5 h-3.5 rounded-full bg-emerald-100 flex items-center justify-center text-[8px] font-bold text-emerald-600">¥</div>
+                                            )}
+                                            <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                                                {expense.paymentMethod || '小口現金'}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td className="px-8 py-6 text-right">
                                         <div className="text-sm font-black text-slate-900 bg-slate-900 text-white px-3 py-1 w-fit ml-auto rounded-lg shadow-sm">¥{expense.amount.toLocaleString()}</div>

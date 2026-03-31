@@ -8,7 +8,7 @@ import {
     Plus, Tag, Camera, RefreshCcw, Maximize2
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Expense, ExpenseCategory } from "@/lib/types/expense";
+import { Expense, ExpenseCategory, PaymentMethod } from "@/lib/types/expense";
 import { showNotification } from "@/lib/notifications";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
@@ -35,6 +35,7 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
     const [amount, setAmount] = useState<number>(0);
     const [item, setItem] = useState("");
     const [category, setCategory] = useState<ExpenseCategory>('消耗品');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('小口現金');
     const [memo, setMemo] = useState("");
 
     const [isAnalyzed, setIsAnalyzed] = useState(false);
@@ -129,6 +130,10 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                 setCategory(data.category as ExpenseCategory);
                 newAnalyzedFields.add("category");
             }
+            if (data.paymentMethod && (data.paymentMethod === 'クレジット' || data.paymentMethod === '小口現金')) {
+                setPaymentMethod(data.paymentMethod as PaymentMethod);
+                newAnalyzedFields.add("paymentMethod");
+            }
             
             setAnalyzedFields(newAnalyzedFields);
             setIsAnalyzed(true);
@@ -164,6 +169,7 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                 amount,
                 item,
                 category,
+                paymentMethod,
                 memo,
                 fileUrl,
                 storagePath,
@@ -190,6 +196,7 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
         setAmount(0);
         setItem("");
         setCategory('消耗品');
+        setPaymentMethod('小口現金');
         setMemo("");
         setIsAnalyzed(false);
         setAnalyzedFields(new Set());
@@ -420,6 +427,27 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                                                 className={`px-3 py-2 text-[10px] font-black rounded-xl border transition-all ${category === cat ? 'bg-rose-600 text-white border-rose-600 shadow-lg shadow-rose-100' : 'bg-slate-50 text-slate-400 border-slate-100 hover:border-rose-200 hover:bg-white'}`}
                                             >
                                                 {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-between mb-3">
+                                        <span className="flex items-center gap-2">
+                                            <CreditCard className="w-3.5 h-3.5 text-slate-300" /> 支払方法
+                                        </span>
+                                        {analyzedFields.has("paymentMethod") && <span className="text-[9px] text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded italic font-bold">AI</span>}
+                                    </label>
+                                    <div className="flex gap-2">
+                                        {(['クレジット', '小口現金'] as PaymentMethod[]).map(pm => (
+                                            <button
+                                                key={pm}
+                                                type="button"
+                                                onClick={() => setPaymentMethod(pm)}
+                                                className={`flex-1 py-3 text-xs font-black rounded-xl border transition-all ${paymentMethod === pm ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
+                                            >
+                                                {pm}
                                             </button>
                                         ))}
                                     </div>

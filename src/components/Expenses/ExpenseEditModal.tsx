@@ -8,7 +8,7 @@ import {
     Tag, Maximize2, Save
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Expense, ExpenseCategory } from "@/lib/types/expense";
+import { Expense, ExpenseCategory, PaymentMethod } from "@/lib/types/expense";
 import { showNotification } from "@/lib/notifications";
 import { FilePreviewModal } from "./FilePreviewModal";
 
@@ -30,6 +30,7 @@ export function ExpenseEditModal({ isOpen, onClose, expense }: ExpenseEditModalP
     const [amount, setAmount] = useState<number>(0);
     const [item, setItem] = useState("");
     const [category, setCategory] = useState<ExpenseCategory>('消耗品');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('小口現金');
     const [memo, setMemo] = useState("");
 
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -42,6 +43,7 @@ export function ExpenseEditModal({ isOpen, onClose, expense }: ExpenseEditModalP
             setAmount(expense.amount);
             setItem(expense.item);
             setCategory(expense.category);
+            setPaymentMethod(expense.paymentMethod || '小口現金');
             setMemo(expense.memo || "");
         }
     }, [expense, isOpen]);
@@ -63,6 +65,7 @@ export function ExpenseEditModal({ isOpen, onClose, expense }: ExpenseEditModalP
                 amount,
                 item,
                 category,
+                paymentMethod,
                 memo,
                 isConfirmed: true, // Mark as confirmed after edit
             });
@@ -215,6 +218,26 @@ export function ExpenseEditModal({ isOpen, onClose, expense }: ExpenseEditModalP
                                                 className={`px-3 py-2 text-[10px] font-black rounded-xl border transition-all ${category === cat ? 'bg-rose-600 text-white border-rose-600 shadow-lg shadow-rose-100' : 'bg-slate-50 text-slate-400 border-slate-100 hover:border-rose-200 hover:bg-white'}`}
                                             >
                                                 {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-between mb-3">
+                                        <span className="flex items-center gap-2">
+                                            <CreditCard className="w-3.5 h-3.5 text-slate-300" /> 支払方法
+                                        </span>
+                                    </label>
+                                    <div className="flex gap-2">
+                                        {(['クレジット', '小口現金'] as PaymentMethod[]).map(pm => (
+                                            <button
+                                                key={pm}
+                                                type="button"
+                                                onClick={() => setPaymentMethod(pm)}
+                                                className={`flex-1 py-3 text-xs font-black rounded-xl border transition-all ${paymentMethod === pm ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
+                                            >
+                                                {pm}
                                             </button>
                                         ))}
                                     </div>
