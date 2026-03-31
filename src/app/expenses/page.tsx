@@ -131,13 +131,13 @@ function ExpensePageContent() {
                         <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-600 group-hover:scale-110 transition-transform">
                             <Wallet className="w-6 h-6" />
                         </div>
-                        <span className="text-[10px] font-black text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest">Current Balance</span>
+                        <span className="text-[10px] font-black text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest">小口現金残金</span>
                     </div>
                     <div>
                         <div className="text-3xl font-black text-slate-900 mb-1">
                             ¥{currentBalance.toLocaleString()}
                         </div>
-                        <p className="text-xs font-bold text-slate-400">小口現金の現在高</p>
+                        <p className="text-xs font-bold text-slate-400">現在の手許現金</p>
                     </div>
                 </div>
 
@@ -146,7 +146,7 @@ function ExpensePageContent() {
                         <div className="p-3 bg-blue-50 rounded-2xl text-blue-600 group-hover:scale-110 transition-transform">
                             <ArrowDownCircle className="w-6 h-6" />
                         </div>
-                        <span className="text-[10px] font-black text-blue-500 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">Monthly Refill</span>
+                        <span className="text-[10px] font-black text-blue-500 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">今月の補充額</span>
                     </div>
                     <div>
                         <div className="text-3xl font-black text-slate-900 mb-1">
@@ -161,7 +161,7 @@ function ExpensePageContent() {
                         <div className="p-3 bg-rose-50 rounded-2xl text-rose-600 group-hover:scale-110 transition-transform">
                             <ArrowUpCircle className="w-6 h-6" />
                         </div>
-                        <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-3 py-1 rounded-full uppercase tracking-widest">Monthly Spent</span>
+                        <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-3 py-1 rounded-full uppercase tracking-widest">今月の小口支出</span>
                     </div>
                     <div>
                         <div className="text-3xl font-black text-slate-900 mb-1">
@@ -228,13 +228,13 @@ function ExpensePageContent() {
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                                <th className="px-8 py-6">Date</th>
-                                <th className="px-8 py-6">Description / Vendor</th>
-                                <th className="px-8 py-6">Category</th>
-                                <th className="px-8 py-6">Payment</th>
-                                <th className="px-8 py-6 text-right">Amount</th>
-                                <th className="px-8 py-6 text-center">Status</th>
-                                <th className="px-8 py-6 text-right">Actions</th>
+                                <th className="px-8 py-6">日付</th>
+                                <th className="px-8 py-6">品目 / 購入先</th>
+                                <th className="px-8 py-6">カテゴリー</th>
+                                <th className="px-8 py-6">支払方法</th>
+                                <th className="px-8 py-6 text-right">金額</th>
+                                <th className="px-8 py-6 text-center">ステータス</th>
+                                <th className="px-8 py-6 text-right">操作</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -292,10 +292,10 @@ function ExpensePageContent() {
                                     </td>
                                     <td className="px-8 py-6 text-center">
                                         {expense.isConfirmed ? (
-                                            <span className="text-[10px] font-black text-emerald-500 bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-100 uppercase tracking-widest">Confirmed</span>
+                                            <span className="text-[10px] font-black text-emerald-500 bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-100 uppercase tracking-widest">確認済み</span>
                                         ) : (
                                             <span className="text-[10px] font-black text-amber-500 bg-amber-50 px-4 py-1.5 rounded-full border border-amber-100 flex items-center justify-center gap-2 w-fit mx-auto uppercase tracking-widest">
-                                                <Eye className="w-3.5 h-3.5" /> Review
+                                                <Eye className="w-3.5 h-3.5" /> 要確認
                                             </span>
                                         )}
                                     </td>
@@ -340,7 +340,7 @@ function ExpensePageContent() {
                                                 <Receipt className="w-20 h-20" />
                                             </div>
                                             <div>
-                                                <p className="text-slate-400 font-black tracking-[0.3em] text-xs uppercase mb-2">No Records Found</p>
+                                                <p className="text-slate-400 font-black tracking-[0.3em] text-xs uppercase mb-2">データなし</p>
                                                 <p className="text-slate-300 text-[10px] font-bold">この期間の支出データはまだありません</p>
                                             </div>
                                         </div>
