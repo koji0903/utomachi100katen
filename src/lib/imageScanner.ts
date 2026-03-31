@@ -13,19 +13,26 @@ export const loadOpenCV = (): Promise<any> => {
 
     cvPromise = new Promise((resolve, reject) => {
         // Check if already loaded
-        if (typeof window !== "undefined" && (window as any).cv) {
+        if (typeof window !== "undefined" && (window as any).cv && (window as any).cv.Mat) {
             resolve((window as any).cv);
             return;
         }
 
+        const timeout = setTimeout(() => {
+            cvPromise = null;
+            reject(new Error("OpenCV.js loading timed out (10s)"));
+        }, 10000);
+
         const script = document.createElement("script");
-        script.src = "https://docs.opencv.org/4.11.0/opencv.js";
+        // Use a more stable URL or 4.x
+        script.src = "https://docs.opencv.org/4.x/opencv.js";
         script.async = true;
+        
         script.onload = () => {
-            // OpenCV.js isn't ready immediately even after script loads.
-            // It needs to initialize its WASM module.
+            console.log("[Scanner] OpenCV.js script loaded, waiting for runtime...");
             const checkCV = () => {
                 if ((window as any).cv && (window as any).cv.Mat) {
+                    clearTimeout(timeout);
                     console.log("[Scanner] OpenCV.js is ready.");
                     resolve((window as any).cv);
                 } else {
@@ -34,10 +41,13 @@ export const loadOpenCV = (): Promise<any> => {
             };
             checkCV();
         };
+        
         script.onerror = () => {
+            clearTimeout(timeout);
             cvPromise = null;
-            reject(new Error("Failed to load OpenCV.js"));
+            reject(new Error("Failed to load OpenCV.js script"));
         };
+        
         document.body.appendChild(script);
     });
 
@@ -51,30 +61,53 @@ export const scanReceipt = async (file: File): Promise<File> => {
     console.log("[Scanner] Starting scan for:", file.name);
     
     // 1. Ensure OpenCV is loaded
-    let cv: any;
     try {
-        cv = await loadOpenCV();
+        await loadOpenCV();
     } catch (e) {
-        console.error("[Scanner] OpenCV load failed, skipping correction:", e);
+        console.warn("[Scanner] OpenCV load failed or timed out, skipping correction:", e);
         return file;
     }
 
+    const cv = (window as any).cv;
+    if (!cv || !cv.Mat) return file;
+
     return new Promise((resolve) => {
         const reader = new FileReader();
-        reader.onload = async (e) => {
+        
+        reader.onload = (e) => {
             const imgElement = new Image();
+            
             imgElement.onload = () => {
                 try {
+                    console.log("[Scanner] Processing image data...");
                     const resultFile = processImage(cv, imgElement, file.name);
                     resolve(resultFile);
                 } catch (err) {
-                    console.error("[Scanner] Processing failed, returning original:", err);
+                    console.error("[Scanner] Processing error:", err);
                     resolve(file);
                 }
             };
+
+            imgElement.onerror = (err) => {
+                console.error("[Scanner] Image element load error:", err);
+                resolve(file);
+            };
+
             imgElement.src = e.target?.result as string;
         };
+
+        reader.onerror = (err) => {
+            console.error("[Scanner] FileReader error:", err);
+            resolve(file);
+        };
+
         reader.readAsDataURL(file);
+
+        // Safety timeout for the entire Promise
+        setTimeout(() => {
+            console.warn("[Scanner] scanReceipt timed out");
+            resolve(file);
+        }, 15000);
     });
 };
 
