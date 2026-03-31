@@ -44,8 +44,6 @@ export const PettyCashReplenishModal: React.FC<PettyCashReplenishModalProps> = (
                 memo,
                 isAnalyzed: false,
                 isConfirmed: true,
-                createdAt: new Date(),
-                updatedAt: new Date(),
             });
             showNotification("現金を補充しました");
             onClose();
