@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { BookOpen, Plus, Edit2, Trash2, ArrowRightCircle, ExternalLink, Sparkles, AlertCircle } from "lucide-react";
+import { BookOpen, Plus, Edit2, Trash2, ArrowRightCircle, ExternalLink, Sparkles, AlertCircle, Search, X } from "lucide-react";
 import { useStore, BusinessManual } from "@/lib/store";
 import { GuidelineEditorModal } from "@/components/GuidelineEditorModal";
 import { showNotification } from "@/lib/notifications";
@@ -11,17 +11,28 @@ export default function GuidelinesPage() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
     const [editingManual, setEditingManual] = useState<BusinessManual | undefined>(undefined);
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const filteredManuals = useMemo(() => {
+        if (!searchQuery.trim()) return businessManuals;
+        const q = searchQuery.toLowerCase();
+        return businessManuals.filter(m => 
+            m.title.toLowerCase().includes(q) || 
+            m.content.toLowerCase().includes(q) || 
+            m.category.toLowerCase().includes(q)
+        );
+    }, [businessManuals, searchQuery]);
 
     const categories = useMemo(() => {
-        const cats = new Set(businessManuals.map(m => m.category));
+        const cats = new Set(filteredManuals.map(m => m.category));
         return Array.from(cats).sort();
-    }, [businessManuals]);
+    }, [filteredManuals]);
 
     const activeManual = useMemo(() => {
-        if (selectedId) return businessManuals.find(m => m.id === selectedId);
-        if (businessManuals.length > 0) return businessManuals[0];
+        if (selectedId) return filteredManuals.find(m => m.id === selectedId);
+        if (filteredManuals.length > 0) return filteredManuals[0];
         return null;
-    }, [businessManuals, selectedId]);
+    }, [filteredManuals, selectedId]);
 
     const attachedDocs = useMemo(() => {
         if (!activeManual || !activeManual.attachedDocumentIds) return [];
@@ -133,12 +144,43 @@ export default function GuidelinesPage() {
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                     {/* Sidebar / Navigation */}
-                    <aside className="lg:col-span-1 space-y-10">
+                    <aside className="lg:col-span-1 space-y-8">
+                        {/* Search Bar */}
+                        <div className="px-1">
+                            <div className="relative group">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="マニュアルを検索..."
+                                    className="w-full pl-11 pr-10 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all placeholder:text-slate-300 shadow-sm"
+                                />
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => setSearchQuery("")}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {categories.length === 0 && searchQuery && (
+                            <div className="py-10 text-center space-y-3">
+                                <div className="p-3 bg-slate-50 text-slate-300 rounded-2xl inline-block">
+                                    <Search className="w-6 h-6" />
+                                </div>
+                                <p className="text-xs font-bold text-slate-400 tracking-tight">一致する手順がありません</p>
+                            </div>
+                        )}
+
                         {categories.map(cat => (
                             <div key={cat} className="space-y-4">
                                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-4">{cat}</h3>
                                 <div className="space-y-1.5 px-1">
-                                    {businessManuals.filter(m => m.category === cat).sort((a, b) => a.order - b.order).map(manual => (
+                                    {filteredManuals.filter(m => m.category === cat).sort((a, b) => a.order - b.order).map(manual => (
                                         <button
                                             key={manual.id}
                                             onClick={() => setSelectedId(manual.id)}
