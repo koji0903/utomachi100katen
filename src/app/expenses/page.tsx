@@ -41,25 +41,15 @@ function ExpensePageContent() {
 
     const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
-    if (!isLoaded) return <div className="p-8 text-slate-500 font-bold">読み込み中...</div>;
-
-    const filteredExpenses = expenses
-        .filter(e => !e.isTrashed)
-        .filter(e => e.date.startsWith(period))
-        .filter(e => filterCategory === 'すべて' || e.category === filterCategory)
-        .filter(e => filterPaymentMethod === 'すべて' || (e.paymentMethod || '小口現金') === filterPaymentMethod)
-        .filter(e => 
-            (e.vendor || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (e.memo || "").toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        .sort((a, b) => b.date.localeCompare(a.date));
-
     // Petty Cash Calculations (Reactive to any change in expenses or period)
     const { 
         currentBalance,
         monthlyReplenished,
         monthlySpent 
     } = useMemo(() => {
+        // Fallback or early exit if expenses not loaded yet
+        if (!expenses) return { currentBalance: 0, monthlyReplenished: 0, monthlySpent: 0 };
+
         // Fallback for existing records without paymentMethod field
         const pettyCashTransactions = expenses.filter(e => !e.isTrashed && (e.paymentMethod || '小口現金') === '小口現金');
         
@@ -85,6 +75,19 @@ function ExpensePageContent() {
             monthlySpent: monthlyOut
         };
     }, [expenses, period]);
+
+    if (!isLoaded) return <div className="p-8 text-slate-500 font-bold">読み込み中...</div>;
+
+    const filteredExpenses = expenses
+        .filter(e => !e.isTrashed)
+        .filter(e => e.date.startsWith(period))
+        .filter(e => filterCategory === 'すべて' || e.category === filterCategory)
+        .filter(e => filterPaymentMethod === 'すべて' || (e.paymentMethod || '小口現金') === filterPaymentMethod)
+        .filter(e => 
+            (e.vendor || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (e.memo || "").toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        .sort((a, b) => b.date.localeCompare(a.date));
 
     const totalAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
