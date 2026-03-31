@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Plus, Trash2, Link as LinkIcon, BookOpen, Save, Bold, Heading1, Heading2, Heading3, List } from "lucide-react";
+import { X, Plus, Trash2, Link as LinkIcon, BookOpen, Save, Bold, Heading1, Heading2, Heading3, List, Receipt } from "lucide-react";
 import { useStore, BusinessManual } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
 
@@ -12,7 +12,7 @@ interface GuidelineEditorModalProps {
 }
 
 export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEditorModalProps) {
-    const { addBusinessManual, updateBusinessManual, printArchives } = useStore();
+    const { addBusinessManual, updateBusinessManual, printArchives, issuedDocuments } = useStore();
     const [title, setTitle] = useState("");
     const [category, setCategory] = useState("");
     const [content, setContent] = useState("");
@@ -98,12 +98,36 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
         );
     };
 
-    const filteredArchives = printArchives.filter(archive =>
-        archive.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        archive.category.toLowerCase().includes(searchTerm.toLowerCase())
+    // Combined list for search/display
+    const allSelectableDocuments = [
+        ...printArchives.map(a => ({ 
+            id: a.id, 
+            title: a.title, 
+            category: a.category, 
+            type: 'archive' as const 
+        })),
+        ...issuedDocuments.filter(d => !d.isTrashed).map(d => {
+            const typeLabels: Record<string, string> = {
+                'delivery_note': '納品書',
+                'invoice': '請求書',
+                'receipt': '領収書',
+                'payment_summary': '支払明細'
+            };
+            return {
+                id: d.id,
+                title: `${d.docNumber} (${d.recipientName})`,
+                category: typeLabels[d.type] || '書類',
+                type: 'issued_doc' as const
+            };
+        })
+    ];
+
+    const filteredDocs = allSelectableDocuments.filter(doc =>
+        doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        doc.category.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const attachedDocs = printArchives.filter(a => attachedDocumentIds.includes(a.id));
+    const attachedDocs = allSelectableDocuments.filter(doc => attachedDocumentIds.includes(doc.id));
 
     const insertMarkdown = (type: 'bold' | 'h1' | 'h2' | 'h3' | 'list' | 'link') => {
         const textarea = textareaRef.current;
@@ -334,23 +358,23 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm font-medium"
                                 />
                                 <div className="max-h-[300px] overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
-                                    {filteredArchives.length === 0 ? (
+                                    {filteredDocs.length === 0 ? (
                                         <p className="text-center py-4 text-slate-400 text-xs italic">該当する書類が見つかりません</p>
                                     ) : (
-                                        filteredArchives.map(archive => (
+                                        filteredDocs.map(doc => (
                                             <button
-                                                key={archive.id}
-                                                onClick={() => toggleDocument(archive.id)}
-                                                className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${attachedDocumentIds.includes(archive.id) 
+                                                key={doc.id}
+                                                onClick={() => toggleDocument(doc.id)}
+                                                className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${attachedDocumentIds.includes(doc.id) 
                                                     ? "bg-blue-600 text-white shadow-lg shadow-blue-100" 
                                                     : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-100"
                                                 }`}
                                             >
                                                 <div className="flex flex-col">
-                                                    <span className="text-xs font-black truncate max-w-[400px]">{archive.title}</span>
-                                                    <span className={`text-[10px] ${attachedDocumentIds.includes(archive.id) ? "text-blue-100" : "text-slate-400"}`}>{archive.category}</span>
+                                                    <span className="text-xs font-black truncate max-w-[400px]">{doc.title}</span>
+                                                    <span className={`text-[10px] ${attachedDocumentIds.includes(doc.id) ? "text-blue-100" : "text-slate-400"}`}>{doc.category}</span>
                                                 </div>
-                                                {attachedDocumentIds.includes(archive.id) && <X className="w-4 h-4" />}
+                                                {attachedDocumentIds.includes(doc.id) && <X className="w-4 h-4" />}
                                             </button>
                                         ))
                                     )}
@@ -364,7 +388,7 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
                                 <div key={doc.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl group hover:border-blue-200 transition-all">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-slate-50 text-blue-600 rounded-lg group-hover:bg-blue-50">
-                                            <BookOpen className="w-4 h-4" />
+                                            {doc.type === 'archive' ? <BookOpen className="w-4 h-4" /> : <Receipt className="w-4 h-4" />}
                                         </div>
                                         <div className="flex flex-col text-left">
                                             <span className="text-sm font-black text-slate-700">{doc.title}</span>
