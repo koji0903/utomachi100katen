@@ -66,6 +66,7 @@ export function ExpenseEditModal({ isOpen, onClose, expense }: ExpenseEditModalP
                 item,
                 category,
                 paymentMethod,
+                type: expense.type || '支払',
                 memo,
                 isConfirmed: true, // Mark as confirmed after edit
             });

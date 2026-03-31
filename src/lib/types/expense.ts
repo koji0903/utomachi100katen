@@ -13,10 +13,12 @@ export type ExpenseCategory =
     | 'その他';
 
 export type PaymentMethod = 'クレジット' | '小口現金';
+export type ExpenseType = '支払' | '補充';
 
 export interface Expense extends BaseEntity {
     id: string;
     date: string;          // YYYY-MM-DD
+    type?: ExpenseType;    // デフォルトは '支払'
     category: ExpenseCategory;
     paymentMethod: PaymentMethod;
     item: string;          // 品目・内容

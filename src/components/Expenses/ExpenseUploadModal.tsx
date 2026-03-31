@@ -170,6 +170,7 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                 item,
                 category,
                 paymentMethod,
+                type: '支払',
                 memo,
                 fileUrl,
                 storagePath,
