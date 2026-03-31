@@ -411,6 +411,7 @@ export interface BusinessManual extends BaseEntity {
     category: string;
     content: string; // Markdown
     links: { label: string; url: string }[];
+    attachedDocumentIds?: string[]; // IDs of associated PrintArchive records
     order: number;
     updatedAt?: string | any;
     createdAt?: string | any;

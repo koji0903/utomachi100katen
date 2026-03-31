@@ -7,7 +7,7 @@ import { GuidelineEditorModal } from "@/components/GuidelineEditorModal";
 import { showNotification } from "@/lib/notifications";
 
 export default function GuidelinesPage() {
-    const { businessManuals, deleteBusinessManual, isLoaded } = useStore();
+    const { businessManuals, deleteBusinessManual, printArchives, isLoaded } = useStore();
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
     const [editingManual, setEditingManual] = useState<BusinessManual | undefined>(undefined);
@@ -22,6 +22,11 @@ export default function GuidelinesPage() {
         if (businessManuals.length > 0) return businessManuals[0];
         return null;
     }, [businessManuals, selectedId]);
+
+    const attachedDocs = useMemo(() => {
+        if (!activeManual || !activeManual.attachedDocumentIds) return [];
+        return printArchives.filter(a => activeManual.attachedDocumentIds?.includes(a.id));
+    }, [activeManual, printArchives]);
 
     if (!isLoaded) {
         return (
@@ -189,6 +194,38 @@ export default function GuidelinesPage() {
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Internal Documents Section */}
+                                    {attachedDocs.length > 0 && (
+                                        <div className="pt-12 border-t border-slate-100">
+                                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
+                                                <BookOpen className="w-4 h-4 text-emerald-500" />
+                                                社内関連書類（アーカイブ）
+                                            </h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                                {attachedDocs.map((doc) => (
+                                                    <a
+                                                        key={doc.id}
+                                                        href={doc.fileUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center justify-between p-6 bg-slate-50 border border-slate-100 rounded-2xl group hover:bg-white hover:border-emerald-200 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300"
+                                                    >
+                                                        <div className="flex items-center gap-5">
+                                                            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm transition-all group-hover:scale-110 group-hover:rotate-3 group-hover:bg-emerald-600 group-hover:text-white">
+                                                                <BookOpen className="w-5 h-5" />
+                                                            </div>
+                                                            <div className="flex flex-col">
+                                                                <div className="text-base font-black text-slate-700 tracking-tight group-hover:text-emerald-700 transition-colors line-clamp-1">{doc.title}</div>
+                                                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{doc.category}</div>
+                                                            </div>
+                                                        </div>
+                                                        <ArrowRightCircle className="w-5 h-5 text-slate-300 opacity-0 group-hover:opacity-100 group-hover:text-emerald-600 transition-all -translate-x-4 group-hover:translate-x-0" />
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* External Links Section */}
                                     {activeManual.links && activeManual.links.length > 0 && (

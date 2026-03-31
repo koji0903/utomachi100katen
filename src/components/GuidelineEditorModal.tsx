@@ -12,12 +12,15 @@ interface GuidelineEditorModalProps {
 }
 
 export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEditorModalProps) {
-    const { addBusinessManual, updateBusinessManual } = useStore();
+    const { addBusinessManual, updateBusinessManual, printArchives } = useStore();
     const [title, setTitle] = useState("");
     const [category, setCategory] = useState("");
     const [content, setContent] = useState("");
     const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
+    const [attachedDocumentIds, setAttachedDocumentIds] = useState<string[]>([]);
     const [isPreview, setIsPreview] = useState(false);
+    const [isArchiveSearchOpen, setIsArchiveSearchOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
@@ -26,13 +29,16 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
             setCategory(manual.category);
             setContent(manual.content);
             setLinks(manual.links || []);
+            setAttachedDocumentIds(manual.attachedDocumentIds || []);
         } else {
             setTitle("");
             setCategory("");
             setContent("");
             setLinks([]);
+            setAttachedDocumentIds([]);
         }
         setIsPreview(false);
+        setIsArchiveSearchOpen(false);
     }, [manual, isOpen]);
 
     if (!isOpen) return null;
@@ -50,6 +56,7 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
                     category,
                     content,
                     links,
+                    attachedDocumentIds,
                     order: manual.order || 0
                 });
                 showNotification("マニュアルを更新しました。");
@@ -59,6 +66,7 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
                     category,
                     content,
                     links,
+                    attachedDocumentIds,
                     order: Date.now() // Simple ordering
                 });
                 showNotification("マニュアルを新規作成しました。");
@@ -83,6 +91,19 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
     const removeLink = (index: number) => {
         setLinks(links.filter((_, i) => i !== index));
     };
+
+    const toggleDocument = (id: string) => {
+        setAttachedDocumentIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    const filteredArchives = printArchives.filter(archive =>
+        archive.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        archive.category.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const attachedDocs = printArchives.filter(a => attachedDocumentIds.includes(a.id));
 
     const insertMarkdown = (type: 'bold' | 'h1' | 'h2' | 'h3' | 'list' | 'link') => {
         const textarea = textareaRef.current;
@@ -288,58 +309,79 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
                         )}
                     </div>
 
-                    <div className="space-y-4 pt-4">
+                    <div className="space-y-4 pt-4 border-t border-slate-100">
                         <div className="flex items-center justify-between px-1">
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-wider">外部リンク (関連マニュアルや資料など)</label>
+                            <label className="text-xs font-black text-slate-400 uppercase tracking-wider">関連書類 (システム内の発行済み伝票など)</label>
                             <button
-                                onClick={addLink}
-                                className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                                onClick={() => setIsArchiveSearchOpen(!isArchiveSearchOpen)}
+                                className={`flex items-center gap-1.5 text-[10px] font-bold transition-colors ${isArchiveSearchOpen ? "text-slate-400" : "text-blue-600 hover:text-blue-700"}`}
                             >
-                                <Plus className="w-3.5 h-3.5" />
-                                リンクを追加
+                                {isArchiveSearchOpen ? "閉じる" : <>
+                                    <Plus className="w-3.5 h-3.5" />
+                                    書類を選択
+                                </>}
                             </button>
                         </div>
 
-                        <div className="space-y-3">
-                            {links.map((link, idx) => (
-                                <div key={idx} className="flex gap-3 animate-in slide-in-from-right-2 duration-200">
-                                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                                                <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-                                            </div>
-                                            <input
-                                                type="text"
-                                                value={link.label}
-                                                onChange={(e) => updateLink(idx, "label", e.target.value)}
-                                                placeholder="表示名称 (例: Shopify管理画面)"
-                                                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm font-medium"
-                                            />
+                        {/* Archive Search & Select */}
+                        {isArchiveSearchOpen && (
+                            <div className="space-y-4 p-5 bg-slate-50 rounded-3xl border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    placeholder="タイトルやカテゴリーで検索..."
+                                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm font-medium"
+                                />
+                                <div className="max-h-[300px] overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
+                                    {filteredArchives.length === 0 ? (
+                                        <p className="text-center py-4 text-slate-400 text-xs italic">該当する書類が見つかりません</p>
+                                    ) : (
+                                        filteredArchives.map(archive => (
+                                            <button
+                                                key={archive.id}
+                                                onClick={() => toggleDocument(archive.id)}
+                                                className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${attachedDocumentIds.includes(archive.id) 
+                                                    ? "bg-blue-600 text-white shadow-lg shadow-blue-100" 
+                                                    : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-100"
+                                                }`}
+                                            >
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-black truncate max-w-[400px]">{archive.title}</span>
+                                                    <span className={`text-[10px] ${attachedDocumentIds.includes(archive.id) ? "text-blue-100" : "text-slate-400"}`}>{archive.category}</span>
+                                                </div>
+                                                {attachedDocumentIds.includes(archive.id) && <X className="w-4 h-4" />}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Selected Documents List */}
+                        <div className="space-y-2">
+                            {attachedDocs.map((doc) => (
+                                <div key={doc.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl group hover:border-blue-200 transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-slate-50 text-blue-600 rounded-lg group-hover:bg-blue-50">
+                                            <BookOpen className="w-4 h-4" />
                                         </div>
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                                                <LinkIcon className="w-3.5 h-3.5 text-slate-400" />
-                                            </div>
-                                            <input
-                                                type="text"
-                                                value={link.url}
-                                                onChange={(e) => updateLink(idx, "url", e.target.value)}
-                                                placeholder="URL (https://...)"
-                                                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm font-mono"
-                                            />
+                                        <div className="flex flex-col text-left">
+                                            <span className="text-sm font-black text-slate-700">{doc.title}</span>
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{doc.category}</span>
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => removeLink(idx)}
-                                        className="p-2.5 text-red-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all self-center"
+                                        onClick={() => toggleDocument(doc.id)}
+                                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                                     >
-                                        <Trash2 className="w-4 h-4" />
+                                        <X className="w-4 h-4" />
                                     </button>
                                 </div>
                             ))}
-                            {links.length === 0 && (
+                            {attachedDocumentIds.length === 0 && !isArchiveSearchOpen && (
                                 <p className="text-center py-6 text-slate-300 text-xs italic border-2 border-dashed border-slate-100 rounded-2xl">
-                                    リンクは登録されていません
+                                    システム内の書類は紐付けられていません
                                 </p>
                             )}
                         </div>
