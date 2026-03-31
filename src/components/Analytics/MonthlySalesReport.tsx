@@ -46,6 +46,18 @@ export function MonthlySalesReport() {
         setIsSendingEmail(true);
         try {
             const pdfBase64 = await getPdfBase64FromElement(reportRef.current);
+            
+            // Optimize payload: Strip out detailed product items from summaryData
+            // The API only needs store-level totals for the email body.
+            const slimSummaryData = {
+                ...monthlyReportData,
+                totals: monthlyReportData.totals.map(({ items, ...rest }) => ({
+                    ...rest,
+                    // We don't send individual items to the email API to stay under payload limits
+                    // The PDF already contains the full breakdown.
+                }))
+            };
+
             const response = await fetch("/api/reports/send-monthly", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -53,7 +65,7 @@ export function MonthlySalesReport() {
                     recipient: recipientEmail,
                     month: reportMonth,
                     pdfBase64: pdfBase64,
-                    summaryData: monthlyReportData
+                    summaryData: slimSummaryData
                 }),
             });
             const result = await response.json();

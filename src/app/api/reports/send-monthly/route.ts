@@ -7,8 +7,16 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { recipient, month, pdfBase64, summaryData } = body;
 
+        // Logging payload stats for debugging
+        const payloadSize = JSON.stringify(body).length;
+        const pdfSize = pdfBase64?.length ?? 0;
+        console.log(`[Email API] Incoming Monthly Report Request. Rcvd Payload: ${(payloadSize / 1024 / 1024).toFixed(2)}MB, PDF: ${(pdfSize / 1024 / 1024).toFixed(2)}MB`);
+
         if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-            throw new Error("メール送信設定（環境変数）が不足しています。");
+            const missing = [];
+            if (!process.env.GMAIL_USER) missing.push("GMAIL_USER");
+            if (!process.env.GMAIL_APP_PASSWORD) missing.push("GMAIL_APP_PASSWORD");
+            throw new Error(`メール送信設定（環境変数: ${missing.join(", ")}）が不足しています。Vercelのプロジェクト設定を確認してください。`);
         }
 
         const transporter = nodemailer.createTransport({
@@ -18,6 +26,14 @@ export async function POST(req: Request) {
                 pass: process.env.GMAIL_APP_PASSWORD,
             },
         });
+
+        // Test connection
+        try {
+            await transporter.verify();
+        } catch (authError: any) {
+            console.error("[Email API] SMTP Auth Error:", authError);
+            throw new Error(`メール送信サーバーへの認証に失敗しました。アプリパスワードが正しいか確認してください。 (AuthError: ${authError.message})`);
+        }
 
         const reportMonth = month.replace(/-/g, "/");
         const subject = `【売上レポート】${reportMonth}月分 月次売上報告書`;
