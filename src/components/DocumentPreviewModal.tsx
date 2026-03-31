@@ -87,7 +87,7 @@ export function DocumentPreviewModal({
     const hidePrices = propHidePrices ?? false;
 
     // --- Line Items (Delivery Note & Invoice): aggregate sales items for store+period ---
-    type LineItem = { name: string; qty: number; unitPrice: number; subtotal: number; taxRate: "standard" | "reduced" };
+    type LineItem = { name: string; qty: number; unitPrice: number; subtotal: number; taxRate: "standard" | "reduced"; remarks: string };
 
     const lineItems: LineItem[] = (() => {
         if (customDetails && customDetails.length > 0) {
@@ -96,7 +96,8 @@ export function DocumentPreviewModal({
                 qty: d.quantity,
                 unitPrice: d.unitPrice,
                 subtotal: d.subtotal,
-                taxRate: d.taxRate || (customTaxRate === 8 ? 'reduced' : 'standard')
+                taxRate: d.taxRate || (customTaxRate === 8 ? 'reduced' : 'standard'),
+                remarks: d.remarks || ""
             }));
         }
 
@@ -129,6 +130,7 @@ export function DocumentPreviewModal({
                         unitPrice: item.priceAtSale,
                         subtotal: item.subtotal,
                         taxRate: product.taxRate ?? "standard",
+                        remarks: "", // Default empty for generated sales
                     });
                 }
             }
@@ -174,6 +176,7 @@ export function DocumentPreviewModal({
                     total: p.totalCost,
                     date,
                     taxRate: product?.taxRate ?? "standard",
+                    remarks: "",
                 });
             }
         }
@@ -662,21 +665,22 @@ export function DocumentPreviewModal({
                             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "24px", fontSize: "12px" }}>
                             <thead>
                                 <tr style={{ backgroundColor: BRAND }}>
-                                    <th style={{ ...thStyle, width: "40%", textAlign: "left" }}>
+                                    <th style={{ ...thStyle, width: hidePrices ? "50%" : "30%", textAlign: "left" }}>
                                         {isDeliveryNote || isInvoice ? "商品名" : "商品名 / 入荷日"}
                                     </th>
-                                    <th style={{ ...thStyle, width: "8%", textAlign: "center" }}>税率</th>
-                                    <th style={{ ...thStyle, width: "12%", textAlign: "right" }}>数量</th>
+                                    <th style={{ ...thStyle, width: hidePrices ? "10%" : "8%", textAlign: "center" }}>税率</th>
+                                    <th style={{ ...thStyle, width: hidePrices ? "15%" : "10%", textAlign: "right" }}>数量</th>
                                     {!hidePrices && (
                                         <>
-                                            <th style={{ ...thStyle, width: "18%", textAlign: "right" }}>
+                                            <th style={{ ...thStyle, width: "15%", textAlign: "right" }}>
                                                 {isDeliveryNote || isInvoice ? `単価${taxType === 'inclusive' ? '（税込）' : '（税抜）'}` : `仕入単価${taxType === 'inclusive' ? '（税込）' : '（税抜）'}`}
                                             </th>
-                                            <th style={{ ...thStyle, width: "22%", textAlign: "right" }}>
+                                            <th style={{ ...thStyle, width: "17%", textAlign: "right" }}>
                                                 小計{taxType === 'inclusive' ? '（税込）' : '（税抜）'}
                                             </th>
                                         </>
                                     )}
+                                    <th style={{ ...thStyle, width: hidePrices ? "25%" : "20%", textAlign: "left" }}>備考</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -684,9 +688,9 @@ export function DocumentPreviewModal({
                                     ? lineItems.length > 0
                                         ? lineItems.map((item, i) => (
                                             <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#fff" : BRAND_LIGHT }}>
-                                                <td style={tdStyle}>{item.name}</td>
+                                                <td style={{ ...tdStyle, wordBreak: "break-all" }}>{item.name}</td>
                                                 <td style={{ ...tdStyle, textAlign: "center", color: item.taxRate === "reduced" ? "#2d7a2d" : "#1e3a8a", fontWeight: 600 }}>
-                                                    {item.taxRate === "reduced" ? "8%★" : "10%"}
+                                                    {item.taxRate === "reduced" ? "8%" : "10%"}
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: "right" }}>{item.qty}</td>
                                                 {!hidePrices && (
@@ -695,22 +699,24 @@ export function DocumentPreviewModal({
                                                         <td style={{ ...tdStyle, textAlign: "right" }}>{fmtMoney(item.subtotal)}</td>
                                                     </>
                                                 )}
+                                                <td style={{ ...tdStyle, textAlign: "left", fontSize: "10px", color: "#666", wordBreak: "break-all" }}>{item.remarks}</td>
                                             </tr>
                                         ))
                                         : <tr><td colSpan={5} style={{ ...tdStyle, textAlign: "center", color: "#888" }}>対象期間の売上データがありません</td></tr>
                                     : purchaseLines.length > 0
                                         ? purchaseLines.map((item, i) => (
                                             <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#fff" : BRAND_LIGHT }}>
-                                                <td style={tdStyle}>
+                                                <td style={{ ...tdStyle, wordBreak: "break-all" }}>
                                                     {item.name}
                                                     <span style={{ color: "#888", fontSize: "11px", marginLeft: "8px" }}>{item.date}</span>
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: "center", color: item.taxRate === "reduced" ? "#2d7a2d" : "#1e3a8a", fontWeight: 600 }}>
-                                                    {item.taxRate === "reduced" ? "8%★" : "10%"}
+                                                    {item.taxRate === "reduced" ? "8%" : "10%"}
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: "right" }}>{item.qty}</td>
                                                 <td style={{ ...tdStyle, textAlign: "right" }}>{fmtMoney(item.unitCost)}</td>
                                                 <td style={{ ...tdStyle, textAlign: "right" }}>{fmtMoney(item.total)}</td>
+                                                <td style={{ ...tdStyle, textAlign: "left", fontSize: "10px", color: "#666", wordBreak: "break-all" }}>{item.remarks}</td>
                                             </tr>
                                         ))
                                         : <tr><td colSpan={5} style={{ ...tdStyle, textAlign: "center", color: "#888" }}>対象月の入荷完了データがありません</td></tr>

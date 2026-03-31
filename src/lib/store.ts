@@ -240,6 +240,7 @@ export interface InvoiceItem {
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    remarks?: string;
 }
 
 export interface InvoiceAdjustment {

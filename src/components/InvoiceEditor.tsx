@@ -63,7 +63,8 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
             label: product ? `${product.name}${product.variantName ? ` (${product.variantName})` : ""}` : "新しい項目",
             quantity: 1,
             unitPrice: unitPrice,
-            subtotal: unitPrice
+            subtotal: unitPrice,
+            remarks: ""
         };
         onChange({ items: [...items, newItem], adjustments, taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
     };
@@ -143,11 +144,12 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
                 <table className="w-full text-sm">
                     <thead>
                         <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                            <th className="px-2 py-3 text-left">内容 / 商品名</th>
-                            <th className="px-2 py-3 text-right w-24">単価</th>
-                            <th className="px-2 py-3 text-right w-20">個数</th>
-                            <th className="px-2 py-3 text-right w-28">小計</th>
-                            <th className="px-2 py-3 w-10"></th>
+                            <th className="px-2 py-3 text-left w-[30%]">内容 / 商品名</th>
+                            <th className="px-2 py-3 text-right w-[12%]">単価</th>
+                            <th className="px-2 py-3 text-right w-[10%]">個数</th>
+                            <th className="px-2 py-3 text-right w-[15%]">小計</th>
+                            <th className="px-2 py-3 text-left w-[28%]">備考</th>
+                            <th className="px-2 py-3 w-[5%]"></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -178,6 +180,15 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
                                 </td>
                                 <td className="py-2 px-2 text-right">
                                     <span className="font-mono text-slate-900 font-bold">¥{item.subtotal.toLocaleString()}</span>
+                                </td>
+                                <td className="py-2 px-2">
+                                    <input
+                                        type="text"
+                                        value={item.remarks ?? ""}
+                                        onChange={e => updateItem(item.id, { remarks: e.target.value })}
+                                        className="w-full bg-transparent border-none focus:ring-0 p-0 text-xs font-medium text-slate-500 placeholder:text-slate-200"
+                                        placeholder="備考を入力..."
+                                    />
                                 </td>
                                 <td className="py-2 px-2 text-center">
                                     <button onClick={() => removeItem(item.id)} className="p-1.5 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all">
