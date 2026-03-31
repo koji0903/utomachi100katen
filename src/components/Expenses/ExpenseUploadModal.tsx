@@ -29,6 +29,8 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
     const [file, setFile] = useState<File | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
+    const [scanProgress, setScanProgress] = useState(0);
+    const [scanStatus, setScanStatus] = useState("");
     const [isSaving, setIsSaving] = useState(false);
     
     // Form state (AI will fill these)
@@ -66,14 +68,33 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
             // 1. Format correction (HEIC -> JPEG)
             let processedFile = await ensureProcessableImage(selectedFile);
             
-            // 2. Receipt Scanner (Automatic Crop & Warp)
+            // 2. Pre-resize before scanning for better performance and memory safety
             if (processedFile.type.startsWith('image/')) {
-                // Ensure OpenCV is pre-loading/loaded
-                loadOpenCV().catch(e => console.warn("OpenCV preload failed:", e));
-                
-                setIsScanning(true);
+                const options = {
+                    maxSizeMB: 1,
+                    maxWidthOrHeight: 1280, // Downsample early
+                    useWebWorker: true,
+                };
                 try {
-                    const scannedFile = await scanReceipt(processedFile);
+                    processedFile = await imageCompression(processedFile, options);
+                } catch (ce) {
+                    console.warn("[ExpenseUpload] Early compression failed:", ce);
+                }
+            }
+
+            // 3. Receipt Scanner (Automatic Crop & Warp)
+            if (processedFile.type.startsWith('image/')) {
+                setIsScanning(true);
+                setScanProgress(0);
+                setScanStatus("準備中...");
+                try {
+                    // Start pre-loading OpenCV just in case
+                    loadOpenCV().catch(e => console.warn("OpenCV preload failed:", e));
+
+                    const scannedFile = await scanReceipt(processedFile, (p) => {
+                        setScanProgress(p.percent);
+                        setScanStatus(p.message);
+                    });
                     processedFile = scannedFile;
                 } catch (se) {
                     console.warn("[ExpenseUpload] Scanning failed, using original:", se);
@@ -82,20 +103,6 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                 }
             }
 
-            // 3. Further compression for AI analysis (Keep under 1MB)
-            if (processedFile.type.startsWith('image/')) {
-                const options = {
-                    maxSizeMB: 1,
-                    maxWidthOrHeight: 1280,
-                    useWebWorker: true,
-                };
-                try {
-                    processedFile = await imageCompression(processedFile, options);
-                } catch (ce) {
-                    console.warn("[ExpenseUpload] Compression failed, using original:", ce);
-                }
-            }
-            
             setFile(processedFile);
             analyzeFile(processedFile);
         } catch (error: any) {
@@ -393,14 +400,41 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                                     </div>
                                     <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-2">
                                         {isScanning ? (
-                                            <>
-                                                <div className="flex items-center gap-2 text-blue-600 mb-1">
+                                            <div className="w-full max-w-xs space-y-4">
+                                                <div className="flex items-center justify-center gap-2 text-blue-600 mb-1">
                                                     <Scan className="w-5 h-5 animate-pulse" />
                                                     <span className="text-[10px] font-black uppercase tracking-[0.2em]">Smart Scanner</span>
                                                 </div>
-                                                <p className="font-black text-slate-900 text-xl tracking-tight">レシートを自動補正中</p>
-                                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-widest italic">Correcting distortion...</p>
-                                            </>
+                                                <p className="font-black text-slate-900 text-xl tracking-tight text-center">レシートを自動補正中</p>
+                                                
+                                                <div className="space-y-2">
+                                                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
+                                                            style={{ width: `${scanProgress}%` }}
+                                                        />
+                                                    </div>
+                                                    <div className="flex justify-between items-center px-1">
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">{scanStatus}</span>
+                                                        <span className="text-[10px] text-blue-600 font-black tracking-tighter">{scanProgress}%</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-4 flex justify-center">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setIsScanning(false);
+                                                            if (file) {
+                                                                analyzeFile(file);
+                                                            }
+                                                        }}
+                                                        className="text-[10px] font-black text-slate-400 hover:text-slate-600 border border-slate-200 px-3 py-1.5 rounded-full transition-all tracking-wider uppercase"
+                                                    >
+                                                        補正をスキップして解析へ
+                                                    </button>
+                                                </div>
+                                            </div>
                                         ) : (
                                             <>
                                                 <div className="flex items-center gap-2 text-rose-500 mb-1">
