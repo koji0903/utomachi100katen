@@ -40,6 +40,7 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
 
     const [isAnalyzed, setIsAnalyzed] = useState(false);
     const [analyzedFields, setAnalyzedFields] = useState<Set<string>>(new Set());
+    const [activeTab, setActiveTab] = useState<'preview' | 'form'>('preview');
 
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -138,6 +139,8 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
             setAnalyzedFields(newAnalyzedFields);
             setIsAnalyzed(true);
             showNotification("AIによる解析が完了しました。内容を確認してください。");
+            // Auto-switch to form tab on mobile after analysis
+            setActiveTab('form');
         } catch (error: any) {
             console.error(error);
             showNotification(`AI解析に失敗しました: ${error.message}`);
@@ -201,14 +204,28 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
         setMemo("");
         setIsAnalyzed(false);
         setAnalyzedFields(new Set());
+        setActiveTab('preview');
     };
 
     return (
         <>
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-                <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md overflow-hidden">
+                <div className="bg-white md:rounded-[2rem] shadow-2xl w-full h-full md:w-[95%] md:max-w-5xl md:h-[90vh] flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in duration-300 relative">
+                    {/* Header: Mobile only */}
+                    <div className="md:hidden flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white sticky top-0 z-40">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-rose-50 rounded-lg">
+                                <Plus className="w-5 h-5 text-rose-500" />
+                            </div>
+                            <span className="font-black text-slate-900">記録を追加</span>
+                        </div>
+                        <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                            <X className="w-6 h-6 text-slate-400" />
+                        </button>
+                    </div>
+
                     {/* Left: Upload & Preview */}
-                    <div className="flex-1 bg-slate-50 p-6 md:p-10 flex flex-col border-b md:border-b-0 md:border-r border-slate-100">
+                    <div className={`flex-1 bg-slate-50 p-6 md:p-10 flex flex-col border-b md:border-b-0 md:border-r border-slate-100 overflow-y-auto ${activeTab === 'preview' ? 'flex' : 'hidden md:flex'}`}>
                         <div className="flex items-center justify-between mb-8 text-slate-900">
                             <div>
                                 <h2 className="text-2xl font-black flex items-center gap-2">
@@ -324,8 +341,8 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                     </div>
 
                     {/* Right: Form */}
-                    <div className="w-full md:w-[450px] bg-white p-6 md:p-10 overflow-y-auto custom-scrollbar">
-                        <div className="flex justify-end mb-6">
+                    <div className={`w-full md:w-[450px] bg-white p-6 md:p-10 overflow-y-auto custom-scrollbar pb-32 md:pb-10 ${activeTab === 'form' ? 'block' : 'hidden md:block'}`}>
+                        <div className="hidden md:flex justify-end mb-6">
                             <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
                                 <X className="w-6 h-6 text-slate-400" />
                             </button>
@@ -407,6 +424,7 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                                         <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg">¥</span>
                                         <input 
                                             type="number" 
+                                            inputMode="numeric"
                                             required
                                             value={amount || ""}
                                             onChange={(e) => setAmount(Number(e.target.value))}
@@ -454,8 +472,8 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                                     </div>
                                 </div>
                             </div>
-
-                            <div className="pt-4">
+ 
+                            <div className="pt-4 md:pt-4 fixed md:static bottom-0 left-0 right-0 p-6 md:p-0 bg-white md:bg-transparent border-t md:border-0 border-slate-100 z-50">
                                 <button
                                     type="submit"
                                     disabled={isSaving || !file}
@@ -473,10 +491,32 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                                         </>
                                     )}
                                 </button>
-                                <p className="text-[10px] text-slate-400 text-center mt-4 font-bold uppercase tracking-widest">Verify and Save</p>
+                                <p className="hidden md:block text-[10px] text-slate-400 text-center mt-4 font-bold uppercase tracking-widest">Verify and Save</p>
                             </div>
                         </form>
                     </div>
+
+                    {/* Mobile Bottom Navigation: Tab Bar */}
+                    {file && (
+                        <div className="md:hidden fixed bottom-24 left-6 right-6 flex bg-slate-900/90 backdrop-blur-xl p-1.5 rounded-2xl shadow-2xl z-50 border border-white/10 ring-1 ring-black/20">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('preview')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${activeTab === 'preview' ? 'bg-white text-slate-900 shadow-lg scale-[1.02]' : 'text-slate-400 hover:text-white'}`}
+                            >
+                                <Receipt className="w-4 h-4" />
+                                プレビュー
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('form')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${activeTab === 'form' ? 'bg-white text-slate-900 shadow-lg scale-[1.02]' : 'text-slate-400 hover:text-white'}`}
+                            >
+                                <FileText className="w-4 h-4" />
+                                内容確認
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
