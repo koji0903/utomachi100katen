@@ -234,6 +234,38 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 block text-emerald-600">ステータス</label>
+                                    <select
+                                        required
+                                        disabled={formData.type === 'B'}
+                                        value={formData.status}
+                                        onChange={(e) => {
+                                            const newStatus = e.target.value as Purchase['status'];
+                                            const today = new Date().toISOString().split('T')[0];
+                                            const update: any = { status: newStatus };
+                                            
+                                            if (newStatus === 'received' && !formData.receivedDate && !formData.arrivalDate) {
+                                                update.receivedDate = today;
+                                                update.arrivalDate = today;
+                                            } else if (newStatus === 'paid' && !formData.paymentDate) {
+                                                update.paymentDate = today;
+                                                if (!formData.receivedDate && !formData.arrivalDate) {
+                                                    update.receivedDate = today;
+                                                    update.arrivalDate = today;
+                                                }
+                                            }
+                                            setFormData({ ...formData, ...update });
+                                        }}
+                                        className="w-full px-4 py-2.5 border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white disabled:bg-slate-100 font-bold text-emerald-700"
+                                    >
+                                        <option value="ordered_pending">発注未（予定）</option>
+                                        <option value="ordered">発注済み</option>
+                                        <option value="waiting">仕入待ち</option>
+                                        <option value="received">仕入済み（在庫反映）</option>
+                                        <option value="paid">支払済</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700 block">発注日</label>
                                     <input
                                         type="date"
@@ -241,44 +273,44 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                         disabled={formData.type === 'B'}
                                         value={formData.orderDate}
                                         onChange={(e) => setFormData({ ...formData, orderDate: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white disabled:bg-slate-100 disabled:text-slate-500"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-slate-700 block">
-                                        {formData.type === 'B' ? "入荷日" : "入荷予定日"}
-                                    </label>
-                                    <input
-                                        type="date"
-                                        required={formData.type === 'B'}
-                                        value={formData.type === 'B' ? formData.arrivalDate : formData.expectedArrivalDate}
-                                        onChange={(e) => setFormData({
-                                            ...formData,
-                                            [formData.type === 'B' ? 'arrivalDate' : 'expectedArrivalDate']: e.target.value
-                                        })}
-                                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white"
+                                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white disabled:bg-slate-100"
                                     />
                                 </div>
                             </div>
-                            
-                            <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                                    ステータス
-                                    <Tooltip content="「入荷済み」にすると、自動的に現在の在庫数へ加算されます。" position="right" />
-                                </label>
-                                <select
-                                    required
-                                    disabled={formData.type === 'B'}
-                                    value={formData.status}
-                                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white disabled:bg-slate-100"
-                                >
-                                    <option value="ordered_pending">発注未（予定）</option>
-                                    <option value="ordered">発注済み</option>
-                                    <option value="waiting">仕入待ち</option>
-                                    <option value="received">仕入済み（在庫反映）</option>
-                                    <option value="paid">支払済</option>
-                                </select>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 block">
+                                        {formData.type === 'B' ? "入荷日" : (formData.status === 'received' || formData.status === 'paid' ? "実際の入荷日" : "入荷予定日")}
+                                    </label>
+                                    <input
+                                        type="date"
+                                        required={formData.type === 'B' || formData.status === 'received' || formData.status === 'paid'}
+                                        value={formData.type === 'B' || formData.status === 'received' || formData.status === 'paid' ? (formData.arrivalDate || formData.receivedDate) : formData.expectedArrivalDate}
+                                        onChange={(e) => {
+                                            if (formData.type === 'B' || formData.status === 'received' || formData.status === 'paid') {
+                                                setFormData({ ...formData, arrivalDate: e.target.value, receivedDate: e.target.value });
+                                            } else {
+                                                setFormData({ ...formData, expectedArrivalDate: e.target.value });
+                                            }
+                                        }}
+                                        className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white ${formData.status === 'received' || formData.status === 'paid' ? 'border-emerald-500 bg-emerald-50/10' : 'border-slate-300'}`}
+                                    />
+                                </div>
+                                {formData.status === 'paid' ? (
+                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                        <label className="text-sm font-semibold text-indigo-700 block">支払日</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            value={formData.paymentDate}
+                                            onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
+                                            className="w-full px-4 py-2.5 border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-indigo-50/30 font-medium text-indigo-700"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div></div>
+                                )}
                             </div>
                         </div>
 
