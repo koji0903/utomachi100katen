@@ -1,13 +1,34 @@
 // src/app/api/amazon/sync/route.ts
 
 import { NextResponse } from "next/server";
-import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getAmazonProduct, getAmazonOrders } from "@/lib/amazon";
 
 export async function POST(req: Request) {
     try {
         console.log("[Amazon Sync] Starting synchronization process...");
+
+        // 0. スロットリングの確認（前回の実行から10分間はスキップ）
+        const logsRef = collection(db, "sync_logs");
+        const logQuery = query(logsRef, where("type", "==", "Amazon"), orderBy("timestamp", "desc"), limit(1));
+        const lastLogSnap = await getDocs(logQuery);
+        
+        if (!lastLogSnap.empty) {
+            const lastLog = lastLogSnap.docs[0].data();
+            const lastTimestamp = lastLog.timestamp?.toDate() || new Date(0);
+            const now = new Date();
+            const diffMinutes = (now.getTime() - lastTimestamp.getTime()) / (1000 * 60);
+            
+            if (diffMinutes < 10) {
+                console.log(`[Amazon Sync] Skipping sync. Last sync was ${Math.floor(diffMinutes)} minutes ago.`);
+                return NextResponse.json({
+                    success: true,
+                    skipped: true,
+                    message: "前回の同期から間もないため、スキップしました（10分間隔制限）"
+                });
+            }
+        }
 
         // 1. 同期が有効な商品を取得
         const productsRef = collection(db, "products");
@@ -19,7 +40,7 @@ export async function POST(req: Request) {
         for (const productDoc of querySnapshot.docs) {
             const product = productDoc.data();
             if (product.amazonAsin) {
-                // Amazon から最新情報を取得 (Mock)
+                // Amazon から最新情報を取得
                 const amazonData = await getAmazonProduct(product.amazonAsin);
 
                 if (amazonData) {

@@ -163,6 +163,15 @@ export default function DashboardPage() {
 
     useEffect(() => {
         setMounted(true);
+        // Amazon同期をバックグラウンドで実行
+        fetch("/api/amazon/sync", { method: "POST" })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && !data.skipped && data.newOrdersCount > 0) {
+                    console.log(`[Amazon] ${data.newOrdersCount} 件の新規注文を取り込みました。`);
+                }
+            })
+            .catch(err => console.error("[Amazon Sync Error]", err));
     }, []);
 
     const currentMonthStats = useMemo(() => {

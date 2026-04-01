@@ -1229,6 +1229,9 @@ function SalesPageContent() {
         if (queryTab) {
             setActiveTab(queryTab);
         }
+        // Amazon同期をバックグラウンドで実行
+        fetch("/api/amazon/sync", { method: "POST" })
+            .catch(err => console.error("[Amazon Sync Error]", err));
     }, [queryTab]);
 
     // Show success toast from input tab — handled inside SalesInputTab
