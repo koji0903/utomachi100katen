@@ -96,10 +96,10 @@ export async function getAmazonOrders(): Promise<AmazonOrder[]> {
     try {
         const accessToken = await getAccessToken();
         
-        // 直近3日間の注文を取得
-        const oneDayAgo = new Date();
-        oneDayAgo.setDate(oneDayAgo.getDate() - 3);
-        const createdAfter = oneDayAgo.toISOString();
+        // 直近1週間（7日間）の注文を取得
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const createdAfter = oneWeekAgo.toISOString();
 
         const url = `${SP_API_REGION_ENDPOINT}/orders/v0/orders?MarketplaceIds=${MARKETPLACE_ID_JP}&CreatedAfter=${encodeURIComponent(createdAfter)}&OrderStatuses=Unshipped,PartiallyShipped,Shipped`;
         
