@@ -216,7 +216,7 @@ export const CalendarView: React.FC = () => {
 
         const cells = [];
         for (let i = 0; i < startDayOfWeek; i++) {
-            cells.push(<div key={`empty-${i}`} className="h-24 sm:h-36 border-b border-r border-slate-100 bg-slate-50/20" />);
+            cells.push(<div key={`empty-${i}`} className="hidden md:block h-24 sm:h-36 border-b border-r border-slate-100 bg-slate-50/20" />);
         }
 
         for (let d = 1; d <= daysInMonth; d++) {
@@ -229,20 +229,27 @@ export const CalendarView: React.FC = () => {
             cells.push(
                 <div
                     key={d}
-                    className={`h-24 sm:h-36 border-b border-r border-slate-100/50 p-2 sm:p-3 transition-all hover:bg-slate-50/80 relative group/day ${isToday ? "bg-blue-50/40" : "bg-white"}`}
+                    className={`min-h-[100px] md:h-36 border-b border-r border-slate-100/50 p-2 sm:p-3 transition-all hover:bg-slate-50/80 relative group/day ${isToday ? "bg-blue-50/40" : "bg-white"}`}
                 >
                     <div className="flex justify-between items-start mb-1">
                         <div className="flex flex-col items-start gap-1">
-                            <span className={`text-[10px] sm:text-xs font-black tracking-tight ${isToday
-                                ? "text-white bg-[#1e3a8a] w-5 h-5 sm:w-7 sm:h-7 flex items-center justify-center rounded-xl shadow-lg shadow-blue-900/20 ring-2 ring-blue-100"
-                                : holiday || date.getDay() === 0
-                                    ? "text-red-500"
-                                    : date.getDay() === 6
-                                        ? "text-blue-500"
-                                        : "text-slate-400 group-hover/day:text-slate-900"
-                            }`}>
-                                {d}
-                            </span>
+                            <div className="flex items-center">
+                                <span className={`text-[10px] sm:text-xs font-black tracking-tight ${isToday
+                                    ? "text-white bg-[#1e3a8a] w-5 h-5 sm:w-7 sm:h-7 flex items-center justify-center rounded-xl shadow-lg shadow-blue-900/20 ring-2 ring-blue-100"
+                                    : holiday || date.getDay() === 0
+                                        ? "text-red-500"
+                                        : date.getDay() === 6
+                                            ? "text-blue-500"
+                                            : "text-slate-400 group-hover/day:text-slate-900"
+                                }`}>
+                                    {d}
+                                </span>
+                                <span className={`md:hidden ml-2 text-[10px] font-black tracking-tighter ${
+                                    holiday || date.getDay() === 0 ? "text-red-400" : date.getDay() === 6 ? "text-blue-400" : "text-slate-400"
+                                }`}>
+                                    {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][date.getDay()]}
+                                </span>
+                            </div>
                             {holiday && (
                                 <span className="text-[8px] sm:text-[9px] font-bold text-red-500 truncate max-w-full leading-none">
                                     {holiday}
@@ -547,26 +554,25 @@ export const CalendarView: React.FC = () => {
 
             <div className={`overflow-x-auto ${viewMode === 'week' ? "pb-4" : ""}`}>
                 {viewMode === 'month' && (
-                    <div className="grid grid-cols-7 border-l border-t border-slate-100/50">
+                    <div className="grid grid-cols-1 md:grid-cols-7 border-l border-t border-slate-100/50">
                         {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, i) => (
                             <div
                                 key={day}
-                                className={`py-4 text-center text-[10px] font-black uppercase tracking-[0.2em] border-b border-r border-slate-100/50 bg-slate-50/30 ${i === 0 ? "text-red-400/80" : i === 6 ? "text-blue-400/80" : "text-slate-400/80"
+                                className={`hidden md:block py-4 text-center text-[10px] font-black uppercase tracking-[0.2em] border-b border-r border-slate-100/50 bg-slate-50/30 ${i === 0 ? "text-red-400/80" : i === 6 ? "text-blue-400/80" : "text-slate-400/80"
                                     }`}
                             >
                                 {day}
                             </div>
                         ))}
                         {renderMonthView()}
-                        {/* Padding for the last week */}
                         {Array.from({ length: (7 - (renderMonthView().length % 7)) % 7 }).map((_, i) => (
-                            <div key={`empty-end-${i}`} className="h-24 sm:h-36 border-b border-r border-slate-100/30 bg-slate-50/10" />
+                            <div key={`empty-end-${i}`} className="hidden md:block h-24 sm:h-36 border-b border-r border-slate-100/30 bg-slate-50/10" />
                         ))}
                     </div>
                 )}
 
                 {viewMode === 'week' && (
-                    <div className="flex border-t border-slate-100 min-w-[800px]">
+                    <div className="flex border-t border-slate-100 md:min-w-[800px]">
                         {renderWeekView()}
                     </div>
                 )}

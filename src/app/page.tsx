@@ -399,40 +399,42 @@ export default function DashboardPage() {
                 </div>
             </section>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Main Column */}
-                <div className="lg:col-span-2 space-y-8">
-                    {/* Calendar Section */}
-                    <CalendarView />
+            {/* Calendar Section (Full Width) */}
+            <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <CalendarView />
+            </section>
 
-                    <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Information Column 1: Alerts & Activity */}
+                <div className="lg:col-span-2 space-y-8">
+                    <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                             <h2 className="font-bold text-slate-900 flex items-center gap-2">
                                 <AlertTriangle className="w-5 h-5 text-amber-500" />
                                 在庫アラート
                             </h2>
-                            <Link href="/products" className="text-xs font-bold text-[#1e3a8a] hover:underline">
+                            <Link href="/products" className="text-xs font-bold text-[#1e3a8a] py-2 px-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
                                 商品一覧へ
                             </Link>
                         </div>
                         <div className="divide-y divide-slate-100">
                             {lowStockItems.length > 0 ? (
                                 lowStockItems.map((product) => (
-                                    <div key={product.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                    <div key={product.id} className="p-5 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                                         <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden border border-slate-200 flex items-center justify-center">
+                                            <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden border border-slate-200 flex items-center justify-center">
                                                 {product.imageUrl ? (
                                                     <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
                                                 ) : (
-                                                    <Package className="w-4 h-4 text-slate-300" />
+                                                    <Package className="w-5 h-5 text-slate-300" />
                                                 )}
                                             </div>
                                             <div>
                                                 <div className="font-bold text-slate-800 text-sm">{product.name}</div>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-[10px] text-slate-500">{product.variantName || "通常版"}</span>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-[10px] text-slate-500 font-medium">{product.variantName || "通常版"}</span>
                                                     {product.daysRemaining !== undefined && (
-                                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${getStockoutStatus(product.daysRemaining).bg} ${getStockoutStatus(product.daysRemaining).color}`}>
+                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${getStockoutStatus(product.daysRemaining).bg} ${getStockoutStatus(product.daysRemaining).color}`}>
                                                             {getStockoutStatus(product.daysRemaining).label}
                                                         </span>
                                                     )}
@@ -440,50 +442,52 @@ export default function DashboardPage() {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <div className={`text-sm font-bold ${product.stock < (product.alertThreshold ?? 20) / 2 ? "text-red-600" : "text-amber-600"}`}>
-                                                在庫 {product.stock}個
+                                            <div className={`text-base font-black ${product.stock < (product.alertThreshold ?? 20) / 2 ? "text-red-600" : "text-amber-600"}`}>
+                                                {product.stock}個
                                             </div>
-                                            <div className="text-[9px] text-slate-400 font-medium">
-                                                (しきい値: {product.alertThreshold ?? 20}個)
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                                Stock
                                             </div>
                                         </div>
                                     </div>
                                 ))
                             ) : (
-                                <div className="p-12 text-center text-slate-400">
-                                    <div className="mb-2 flex justify-center">
-                                        <Sparkles className="w-8 h-8 text-emerald-100" />
+                                <div className="p-16 text-center text-slate-400">
+                                    <div className="mb-4 flex justify-center">
+                                        <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-400">
+                                            <Sparkles className="w-6 h-6" />
+                                        </div>
                                     </div>
-                                    在庫不足の商品は現在ありません。
+                                    <p className="text-sm font-medium">在庫不足の商品は現在ありません。</p>
                                 </div>
                             )}
                         </div>
                     </section>
 
-                    {/* System Overview */}
+                    {/* System Status Table/Grid */}
                     <section>
                         <div className="flex items-center gap-2 mb-6 text-slate-400">
-                            <BarChart3 className="w-3.5 h-3.5" />
-                            <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">System Status / システム状況</h2>
+                            <Database className="w-3.5 h-3.5" />
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">System Resources / システムリソース</h2>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
-                            <div className="bg-white p-7 rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
-                                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
-                                    <Package className="w-4 h-4 text-blue-500/50" />
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                            <div className="bg-white p-8 rounded-[2rem] border border-slate-200/60 shadow-sm group hover:border-blue-200 transition-colors">
+                                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4 group-hover:text-blue-500 transition-colors">
+                                    <Package className="w-4 h-4 opacity-50" />
                                     商品数
                                 </div>
                                 <div className="text-4xl font-black text-slate-900 tracking-tighter">{totalProducts}</div>
                             </div>
-                            <div className="bg-white p-7 rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
-                                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
-                                    <Tag className="w-4 h-4 text-emerald-500/50" />
+                            <div className="bg-white p-8 rounded-[2rem] border border-slate-200/60 shadow-sm group hover:border-emerald-200 transition-colors">
+                                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4 group-hover:text-emerald-500 transition-colors">
+                                    <Tag className="w-4 h-4 opacity-50" />
                                     ブランド数
                                 </div>
                                 <div className="text-4xl font-black text-slate-900 tracking-tighter">{totalBrands}</div>
                             </div>
-                            <div className="bg-white p-7 rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
-                                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
-                                    <Store className="w-4 h-4 text-amber-500/50" />
+                            <div className="bg-white p-8 rounded-[2rem] border border-slate-200/60 shadow-sm group hover:border-amber-200 transition-colors">
+                                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4 group-hover:text-amber-500 transition-colors">
+                                    <Store className="w-4 h-4 opacity-50" />
                                     店舗数
                                 </div>
                                 <div className="text-4xl font-black text-slate-900 tracking-tighter">{totalStores}</div>
@@ -492,48 +496,43 @@ export default function DashboardPage() {
                     </section>
                 </div>
 
-                {/* Sidebar Mini Column */}
-                <div className="space-y-6">
-                    <div className="bg-[#1e3a8a] rounded-2xl p-6 text-white shadow-lg overflow-hidden relative">
-                        <div className="relative z-10">
-                            <h3 className="font-bold text-lg mb-2">最新情報をチェック</h3>
-                            <p className="text-blue-100 text-sm mb-4 leading-relaxed">
-                                直近の業務日報や売上傾向を確認して、販売戦略を立てましょう。
-                            </p>
-                            <Link href="/analytics" className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-white/20">
-                                事業分析をみる <ArrowRight className="w-4 h-4" />
-                            </Link>
-                        </div>
-                        <Sparkles className="absolute -bottom-4 -right-4 w-32 h-32 text-white/5" />
-                    </div>
-
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm overflow-hidden">
-                        <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                {/* Information Column 2: Side Actions & History */}
+                <div className="space-y-8">
+                    <div className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-sm overflow-hidden">
+                        <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
                             <Plus className="w-4 h-4 text-blue-600" />
-                            新規登録
+                            新規クイック登録
                         </h3>
-                        <div className="space-y-2">
-                            <Link href="/brands" className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-sm group">
-                                <span className="text-slate-600 font-medium">ブランド登録</span>
+                        <div className="space-y-3">
+                            <Link href="/brands" className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-sm group">
+                                <span className="text-slate-600 font-bold">ブランドを登録する</span>
                                 <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-blue-600 transition-colors" />
                             </Link>
-                            <Link href="/retail-stores" className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-sm group">
-                                <span className="text-slate-600 font-medium">店舗登録</span>
+                            <Link href="/retail-stores" className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-sm group">
+                                <span className="text-slate-600 font-bold">店舗を登録する</span>
                                 <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-blue-600 transition-colors" />
                             </Link>
-                            <Link href="/suppliers" className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-sm group">
-                                <span className="text-slate-600 font-medium">仕入先登録</span>
+                            <Link href="/suppliers" className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-sm group">
+                                <span className="text-slate-600 font-bold">仕入先を登録する</span>
                                 <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-blue-600 transition-colors" />
-                            </Link>
-                            <Link href="/todo" className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-sm group">
-                                <span className="text-slate-600 font-medium font-bold text-blue-600">課題・ToDoの追加</span>
-                                <Plus className="w-4 h-4 text-blue-600" />
                             </Link>
                         </div>
                     </div>
 
-                    {/* Activity Timeline */}
                     <ActivityTimeline />
+
+                    <div className="bg-[#1e3a8a] rounded-[2rem] p-8 text-white shadow-xl overflow-hidden relative group">
+                        <div className="relative z-10">
+                            <h3 className="font-black text-xl mb-3 tracking-tight">ANALYSIS</h3>
+                            <p className="text-blue-100/70 text-xs mb-6 leading-relaxed font-medium">
+                                直近の業務日報や売上傾向を確認して、<br />最適な販売戦略を立てましょう。
+                            </p>
+                            <Link href="/analytics" className="inline-flex items-center gap-2 bg-white text-[#1e3a8a] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-transform shadow-lg">
+                                事業分析を表示 <ArrowRight className="w-4 h-4" />
+                            </Link>
+                        </div>
+                        <Sparkles className="absolute -bottom-6 -right-6 w-32 h-32 text-white/10 group-hover:scale-125 transition-transform duration-700" />
+                    </div>
                 </div>
             </div>
 
