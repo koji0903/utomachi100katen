@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- ヘルパー関数 ---
+    
+    // ユーザーが認証済みであることを確認
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // --- コレクション固有のルール ---
+
+    // 基本的にすべてのビジネス管理データ（商品、在庫、売上など）は認証済みユーザーのみに許可
+    match /brands/{docId} { allow read, write: if isAuthenticated(); }
+    match /suppliers/{docId} { allow read, write: if isAuthenticated(); }
+    match /products/{docId} { allow read, write: if isAuthenticated(); }
+    match /retailStores/{docId} { allow read, write: if isAuthenticated(); }
+    match /inbound_shipments/{docId} { allow read, write: if isAuthenticated(); }
+    match /sales/{docId} { allow read, write: if isAuthenticated(); }
+    match /payment_records/{docId} { allow read, write: if isAuthenticated(); }
+    match /daily_reports/{docId} { allow read, write: if isAuthenticated(); }
+    match /issued_documents/{docId} { allow read, write: if isAuthenticated(); }
+    match /daily_weather/{docId} { allow read, write: if isAuthenticated(); }
+    match /invoice_payments/{docId} { allow read, write: if isAuthenticated(); }
+    match /transactions/{docId} { allow read, write: if isAuthenticated(); }
+    match /transaction_items/{docId} { allow read, write: if isAuthenticated(); }
+    match /spot_recipients/{docId} { allow read, write: if isAuthenticated(); }
+    match /business_challenges/{docId} { allow read, write: if isAuthenticated(); }
+    match /stock_conversions/{docId} { allow read, write: if isAuthenticated(); }
+    match /activities/{docId} { allow read, write: if isAuthenticated(); }
+    match /trash/{docId} { allow read, write: if isAuthenticated(); }
+    match /stock_movements/{docId} { allow read, write: if isAuthenticated(); }
+    match /inventory_audits/{docId} { allow read, write: if isAuthenticated(); }
+    match /store_stocks/{docId} { allow read, write: if isAuthenticated(); }
+    match /store_stock_movements/{docId} { allow read, write: if isAuthenticated(); }
+    match /print_archives/{docId} { allow read, write: if isAuthenticated(); }
+    match /expenses/{docId} { allow read, write: if isAuthenticated(); }
+    match /business_manuals/{docId} { allow read, write: if isAuthenticated(); }
+
+    // 設定ドキュメント
+    match /settings/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    match /company_settings/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // デフォルト否定（念のためのフェイルセーフ）
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
