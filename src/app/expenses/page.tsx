@@ -13,6 +13,7 @@ import { ExpenseUploadModal } from "@/components/Expenses/ExpenseUploadModal";
 import { ExpenseReportModal } from "@/components/Expenses/ExpenseReportModal";
 import { ExpenseEditModal } from "@/components/Expenses/ExpenseEditModal";
 import { PettyCashReplenishModal } from "@/components/Expenses/PettyCashReplenishModal";
+import { BankTransferModal } from "@/components/Expenses/BankTransferModal";
 import { FilePreviewModal } from "@/components/Expenses/FilePreviewModal";
 
 const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
@@ -33,6 +34,7 @@ function ExpensePageContent() {
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
     const [isReplenishModalOpen, setIsReplenishModalOpen] = useState(false);
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const [filterCategory, setFilterCategory] = useState<ExpenseCategory | 'すべて'>('すべて');
@@ -58,7 +60,7 @@ function ExpensePageContent() {
             .reduce((sum, e) => sum + e.amount, 0);
         
         const spentAllTime = pettyCashTransactions
-            .filter(e => !e.type || e.type === '支払')
+            .filter(e => !e.type || e.type === '支払' || e.type === '移管')
             .reduce((sum, e) => sum + e.amount, 0);
         
         const monthlyRefill = pettyCashTransactions
@@ -66,7 +68,7 @@ function ExpensePageContent() {
             .reduce((sum, e) => sum + e.amount, 0);
         
         const monthlyOut = pettyCashTransactions
-            .filter(e => (!e.type || e.type === '支払') && e.date.startsWith(period))
+            .filter(e => (!e.type || e.type === '支払' || e.type === '移管') && e.date.startsWith(period))
             .reduce((sum, e) => sum + e.amount, 0);
 
         return {
@@ -117,6 +119,12 @@ function ExpensePageContent() {
                         className="flex items-center gap-2 px-6 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-100 transition-all border border-emerald-100/50"
                     >
                         <Plus className="w-4 h-4" /> 現金を補充する
+                    </button>
+                    <button
+                        onClick={() => setIsTransferModalOpen(true)}
+                        className="flex items-center gap-2 px-6 py-4 bg-blue-50 text-blue-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-100/50"
+                    >
+                        <ArrowUpRight className="w-4 h-4" /> 銀行へ移管
                     </button>
                     <button
                         onClick={() => setIsUploadModalOpen(true)}
@@ -263,9 +271,11 @@ function ExpensePageContent() {
                                         <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
                                             expense.type === '補充' 
                                                 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                                : 'bg-slate-50 text-slate-500 border border-slate-100'
+                                                : expense.type === '移管'
+                                                    ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                                                    : 'bg-slate-50 text-slate-500 border border-slate-100'
                                         }`}>
-                                            {expense.type === '補充' ? '補充' : expense.category}
+                                            {expense.type === '補充' ? '補充' : expense.type === '移管' ? '移管' : expense.category}
                                         </span>
                                     </td>
                                     <td className="px-8 py-6">
@@ -280,7 +290,7 @@ function ExpensePageContent() {
                                                 )
                                             )}
                                             <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
-                                                {expense.type === '補充' ? '入金' : (expense.paymentMethod || '小口現金')}
+                                                {expense.type === '補充' ? '入金' : expense.type === '移管' ? '出金（銀行へ）' : (expense.paymentMethod || '小口現金')}
                                             </span>
                                         </div>
                                     </td>
@@ -288,9 +298,11 @@ function ExpensePageContent() {
                                         <div className={`text-sm font-black px-3 py-1 w-fit ml-auto rounded-lg shadow-sm ${
                                             expense.type === '補充'
                                                 ? 'bg-emerald-600 text-white'
-                                                : 'bg-slate-900 text-white'
+                                                : expense.type === '移管'
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-slate-900 text-white'
                                         }`}>
-                                            {expense.type === '補充' ? '+' : '¥'}{expense.amount.toLocaleString()}
+                                            {expense.type === '補充' ? '+' : expense.type === '移管' ? '-' : '¥'}{expense.amount.toLocaleString()}
                                         </div>
                                     </td>
                                     <td className="px-8 py-6 text-center">
@@ -377,6 +389,11 @@ function ExpensePageContent() {
             <PettyCashReplenishModal 
                 isOpen={isReplenishModalOpen} 
                 onClose={() => setIsReplenishModalOpen(false)} 
+            />
+
+            <BankTransferModal 
+                isOpen={isTransferModalOpen} 
+                onClose={() => setIsTransferModalOpen(false)} 
             />
 
             <FilePreviewModal 

@@ -13,7 +13,7 @@ export type ExpenseCategory =
     | 'その他';
 
 export type PaymentMethod = 'クレジット' | '小口現金';
-export type ExpenseType = '支払' | '補充';
+export type ExpenseType = '支払' | '補充' | '移管';
 
 export interface Expense extends BaseEntity {
     id: string;
