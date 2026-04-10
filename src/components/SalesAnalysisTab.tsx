@@ -21,6 +21,7 @@ import {
     Calendar, Store, Package, Sparkles, Info, RefreshCw
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { syncWithSquare } from "@/lib/square-sync-client";
 import { showNotification } from "@/lib/notifications";
 
 const BRAND = "#b27f79";
@@ -230,17 +231,13 @@ export function SalesAnalysisTab() {
 
         setIsSyncing(true);
         try {
-            const response = await fetch("/api/square/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ storeId: filterStoreId }),
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                showNotification(`Square同期が完了しました。\n${data.results.orders.processed}件の注文を処理しました。`, "success");
+            const result = await syncWithSquare(filterStoreId);
+            if (result.success) {
+                showNotification(result.message, "success");
             } else {
-                throw new Error(data.error || "同期に失敗しました");
+                let errorMessage = result.message;
+                if (result.detail) errorMessage += `\n詳解: ${result.detail}`;
+                throw new Error(errorMessage);
             }
         } catch (error: any) {
             console.error("Square Sync Error:", error);

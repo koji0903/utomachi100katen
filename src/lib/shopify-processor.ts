@@ -53,7 +53,7 @@ export async function processShopifyOrder(order: ShopifyOrder) {
     // 4. 明細登録と在庫減算
     const saleItems = [];
     for (const item of order.lineItems) {
-        await setDoc(doc(collection(db, "transactionItems")), {
+        await setDoc(doc(collection(db, "transaction_items")), {
             transactionId: newRef.id,
             productName: `Shopify商品 (${item.sku || item.variantId})`,
             quantity: item.quantity,

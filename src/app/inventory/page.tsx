@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useStore, StoreStockMovement } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
+import { syncWithSquare } from "@/lib/square-sync-client";
 import {
     Package,
     History,
@@ -110,16 +111,13 @@ export default function InventoryPage() {
 
         setIsSyncing(true);
         try {
-            const response = await fetch("/api/square/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ storeId: targetStore.id }),
-            });
-            const data = await response.json();
-            if (response.ok) {
-                showNotification(`Square同期が完了しました。\n${data.results.orders.processed}件の注文を処理しました。`, "success");
+            const result = await syncWithSquare(targetStore.id);
+            if (result.success) {
+                showNotification(result.message, "success");
             } else {
-                throw new Error(data.error || "同期に失敗しました");
+                let errorMessage = result.message;
+                if (result.detail) errorMessage += `\n詳解: ${result.detail}`;
+                throw new Error(errorMessage);
             }
         } catch (error: any) {
             console.error("Square Sync Error:", error);

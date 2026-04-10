@@ -63,7 +63,7 @@ export async function processSquareOrder(order: SquareOrder) {
     for (const item of order.lineItems) {
         const itemAmount = (item.basePriceMoney.amount / 100) * parseFloat(item.quantity);
 
-        await setDoc(doc(collection(db, "transactionItems")), {
+        await setDoc(doc(collection(db, "transaction_items")), {
             transactionId: transRef.id,
             productName: `${item.name}${item.variationName ? ` (${item.variationName})` : ''}`,
             quantity: parseFloat(item.quantity),

@@ -20,6 +20,7 @@ import { getHolidayName } from "@/lib/holidays";
 import { SalesAnalysisTab } from "@/components/SalesAnalysisTab";
 import { NumberInput } from "@/components/NumberInput";
 import { showNotification } from "@/lib/notifications";
+import { syncWithSquare } from "@/lib/square-sync-client";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -60,17 +61,13 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
         setIsSyncingSquare(true);
         try {
-            const response = await fetch("/api/square/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ storeId: selectedStore.id }),
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                showNotification(`Square同期が完了しました。\n${data.results.orders.processed}件の注文を処理しました。`, "success");
+            const result = await syncWithSquare(selectedStore.id);
+            if (result.success) {
+                showNotification(result.message, "success");
             } else {
-                throw new Error(data.error || "同期に失敗しました");
+                let errorMessage = result.message;
+                if (result.detail) errorMessage += `\n詳解: ${result.detail}`;
+                throw new Error(errorMessage);
             }
         } catch (error: any) {
             console.error("Square Sync Error:", error);
@@ -336,7 +333,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">販売店舗・事業者</label>
-                        {!isCreatingSpot ? (
+                        {!isCreatingSpot && (
                             <select value={selectedStoreId} onChange={e => {
                                 if (e.target.value === "new_spot") {
                                     setIsCreatingSpot(true);
@@ -604,8 +601,8 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
         if (!filterStoreId) return;
         const filterParts = filterStoreId.split(':');
         if (filterParts[0] !== 'store') return;
-        const targetId = filterParts[1];
-        const store = retailStores.find(s => s.id === targetId);
+        const storeId = filterParts[1];
+        const store = retailStores.find(s => s.id === storeId);
 
         if (!store?.squareLocationId) {
             showNotification("この店舗にはSquareの位置IDが設定されていません。", "error");
@@ -626,9 +623,12 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
 
             const data = await response.json();
             if (response.ok) {
-                showNotification(`Square同期が完了しました。\n${data.results.orders.processed}件の注文を処理しました。`, "success");
+                showNotification(data.message || `Square同期が完了しました。\n${data.newOrdersCount}件の注文を処理しました。`, "success");
             } else {
-                throw new Error(data.error || "同期に失敗しました");
+                let errorMessage = data.error || "同期に失敗しました";
+                if (data.detail) errorMessage += `\n詳解: ${data.detail}`;
+                if (data.hint) errorMessage += `\nヒント: ${data.hint}`;
+                throw new Error(errorMessage);
             }
         } catch (error: any) {
             console.error("Square Sync Error:", error);

@@ -113,7 +113,7 @@ export async function POST(req: Request) {
                 // 明細の登録と売上レコードの作成準備
                 const saleItems = [];
                 for (const item of order.items) {
-                    await setDoc(doc(collection(db, "transactionItems")), {
+                    await setDoc(doc(collection(db, "transaction_items")), {
                         transactionId: newRef.id,
                         productName: `Amazon商品 (${item.sku})`,
                         quantity: item.quantity,
