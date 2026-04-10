@@ -115,6 +115,7 @@ export interface RetailStore extends BaseEntity {
     billingTel?: string;
     dailySalesGoal?: number; // 1日の売上目標額
     honorific?: '様' | '御中';
+    squareLocationId?: string; // Square Location ID
 }
 
 
@@ -550,6 +551,10 @@ export interface Product extends BaseEntity {
     shopifyVariantId?: string;
     shopifySyncEnabled?: boolean;
     lastShopifySyncAt?: string | any;
+    // Square Integration fields
+    squareSyncEnabled?: boolean;
+    squareVariantId?: string; // Square Catalog Object ID for this product/variant
+    lastSquareSyncAt?: string | any;
     createdAt?: string | any;
 }
 

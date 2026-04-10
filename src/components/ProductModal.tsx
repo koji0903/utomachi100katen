@@ -56,6 +56,8 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         shopifyProductId: "",
         shopifyVariantId: "",
         shopifySyncEnabled: false,
+        squareVariantId: "",
+        squareSyncEnabled: false,
     };
 
     const [formData, setFormData] = useState(defaultFormData);
@@ -103,6 +105,8 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     shopifyProductId: initialData.shopifyProductId || "",
                     shopifyVariantId: initialData.shopifyVariantId || "",
                     shopifySyncEnabled: initialData.shopifySyncEnabled || false,
+                    squareVariantId: initialData.squareVariantId || "",
+                    squareSyncEnabled: initialData.squareSyncEnabled || false,
                 });
 
                 setImagePreview(initialData.imageUrl || null);
@@ -119,6 +123,8 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     shopifyProductId: "",
                     shopifyVariantId: "",
                     shopifySyncEnabled: false,
+                    squareVariantId: "",
+                    squareSyncEnabled: false,
                 });
                 setImagePreview(null);
             }
@@ -829,6 +835,38 @@ JANコード: ${formData.janCode || "なし"}
                                             </div>
                                         </div>
                                         <p className="text-[10px] text-blue-700/70 italic">※ 商品IDとバリアントIDを設定すると、Shopify在庫との自動同期が可能になります。</p>
+                                    </div>
+
+                                    {/* Square Settings Section */}
+                                    <div className="bg-purple-50/50 p-6 rounded-2xl border border-purple-100 space-y-4 shadow-sm mt-6">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-xs font-black text-purple-700 uppercase tracking-widest flex items-center gap-2">
+                                                <Store className="w-3.5 h-3.5" /> Square 販売連携 (直営)
+                                            </h3>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <span className="text-[10px] font-bold text-purple-600">在庫同期を有効にする</span>
+                                                <div className="relative inline-flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.squareSyncEnabled}
+                                                        onChange={(e) => setFormData({ ...formData, squareSyncEnabled: e.target.checked })}
+                                                        className="sr-only peer"
+                                                    />
+                                                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[11px] font-bold text-slate-700">Square バリアントID (Catalog Object ID)</label>
+                                            <input
+                                                type="text"
+                                                value={formData.squareVariantId}
+                                                onChange={(e) => setFormData({ ...formData, squareVariantId: e.target.value })}
+                                                className="w-full p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500/20"
+                                                placeholder="例: I74Y4QW3W37J6YJ2B657P76R"
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-purple-700/70 italic">※ SquareのカタログオブジェクトID（アイテムバリエーションID）を設定すると、自動同期が有効になります。JANコードが一致する場合は同期実行時に自動で紐付けを試みます。</p>
                                     </div>
                                 </div>
                             )}

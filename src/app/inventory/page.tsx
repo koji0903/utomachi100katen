@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore, StoreStockMovement } from "@/lib/store";
+import { showNotification } from "@/lib/notifications";
 import {
     Package,
     History,
@@ -16,7 +17,9 @@ import {
     ChevronDown,
     ArrowUpDown,
     Settings,
-    X
+    X,
+    RefreshCw,
+    Store
 } from "lucide-react";
 import Link from "next/link";
 
@@ -28,6 +31,7 @@ export default function InventoryPage() {
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const [adjustmentTarget, setAdjustmentTarget] = useState<{ storeId: string; productId: string; productName: string; currentStock: number } | null>(null);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     // Get low stock products
     const lowStockProducts = products.filter(p => !p.isTrashed && (p.stock || 0) <= (p.alertThreshold || 5));
@@ -83,10 +87,45 @@ export default function InventoryPage() {
             case 'purchase': return '仕入';
             case 'audit': return '棚卸調整';
             case 'amazon_sync': return 'Amazon同期';
+            case 'square_sync': return 'Square同期';
             case 'manual': return '手動調整';
             case 'return': return '返品';
             case 'waste': return '廃棄';
             default: return reason;
+        }
+    };
+
+    const handleSquareSync = async () => {
+        const squareStores = retailStores.filter(s => s.type === 'C' && s.squareLocationId);
+        if (squareStores.length === 0) {
+            showNotification("Square連携設定が有効な直営店が見つかりません。", "error");
+            return;
+        }
+        let targetStore = squareStores.find(s => s.id === selectedStoreId);
+        if (!targetStore) targetStore = squareStores[0];
+
+        if (!window.confirm(`${targetStore.name} のSquareデータを同期しますか？\n(直近24時間の注文取込と在庫の書き込みを行います)`)) {
+            return;
+        }
+
+        setIsSyncing(true);
+        try {
+            const response = await fetch("/api/square/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ storeId: targetStore.id }),
+            });
+            const data = await response.json();
+            if (response.ok) {
+                showNotification(`Square同期が完了しました。\n${data.results.orders.processed}件の注文を処理しました。`, "success");
+            } else {
+                throw new Error(data.error || "同期に失敗しました");
+            }
+        } catch (error: any) {
+            console.error("Square Sync Error:", error);
+            showNotification(error.message || "Square同期中にエラーが発生しました。", "error");
+        } finally {
+            setIsSyncing(false);
         }
     };
 
@@ -111,6 +150,16 @@ export default function InventoryPage() {
                         <ClipboardList className="w-5 h-5" />
                         棚卸し履歴
                     </Link>
+                    {retailStores.some(s => s.type === 'C' && s.squareLocationId) && (
+                        <button
+                            onClick={handleSquareSync}
+                            disabled={isSyncing}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 disabled:bg-purple-300 transition-all shadow-lg shadow-purple-900/10 active:scale-95"
+                        >
+                            <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
+                            {isSyncing ? 'Square同期中' : 'Square同期'}
+                        </button>
+                    )}
                     <Link
                         href="/inventory/audits/new"
                         className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a8a] text-white font-bold rounded-xl hover:bg-blue-800 transition-all shadow-lg shadow-blue-900/10"

@@ -18,9 +18,10 @@ import {
 } from "recharts";
 import {
     TrendingUp, CloudSun, Cloud, CloudRain, CloudSnow,
-    Calendar, Store, Package, Sparkles, Info
+    Calendar, Store, Package, Sparkles, Info, RefreshCw
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { showNotification } from "@/lib/notifications";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -77,6 +78,7 @@ export function SalesAnalysisTab() {
 
     const [filterStoreId, setFilterStoreId] = useState("");
     const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString());
+    const [isSyncing, setIsSyncing] = useState(false);
 
     // Product name map
     const productMap = useMemo(() => {
@@ -210,6 +212,44 @@ export function SalesAnalysisTab() {
 
     const COLORS = [BRAND, "#6366f1", "#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6", "#06b6d4"];
 
+    const handleSquareSync = async () => {
+        if (!filterStoreId) {
+            showNotification("同期する店舗を選択してください。", "error");
+            return;
+        }
+
+        const store = retailStores.find(s => s.id === filterStoreId);
+        if (!store?.squareLocationId) {
+            showNotification("この店舗にはSquare Location IDが設定されていません。", "error");
+            return;
+        }
+
+        if (!window.confirm(`${store.name} のSquareデータを同期しますか？\n(直近24時間の注文取込と在庫の書き込みを行います)`)) {
+            return;
+        }
+
+        setIsSyncing(true);
+        try {
+            const response = await fetch("/api/square/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ storeId: filterStoreId }),
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                showNotification(`Square同期が完了しました。\n${data.results.orders.processed}件の注文を処理しました。`, "success");
+            } else {
+                throw new Error(data.error || "同期に失敗しました");
+            }
+        } catch (error: any) {
+            console.error("Square Sync Error:", error);
+            showNotification(error.message || "Square同期中にエラーが発生しました。", "error");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Filter bar */}
@@ -231,6 +271,16 @@ export function SalesAnalysisTab() {
                             : <option value={filterYear}>{filterYear}年</option>}
                     </select>
                 </div>
+                {filterStoreId && retailStores.find(s => s.id === filterStoreId)?.squareLocationId && (
+                    <button
+                        onClick={handleSquareSync}
+                        disabled={isSyncing}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                        {isSyncing ? "Square同期中..." : "Squareと同期"}
+                    </button>
+                )}
                 <div className="ml-auto flex items-center text-xs text-slate-400 font-medium self-center gap-1">
                     <Info className="w-3 h-3" />
                     {dailySales.length}日分のデータを分析中

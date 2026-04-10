@@ -42,6 +42,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         billingTel: "",
         dailySalesGoal: 0,
         honorific: '御中' as '様' | '御中',
+        squareLocationId: "",
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -78,10 +79,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     billingTel: initialData.billingTel || "",
                     dailySalesGoal: initialData.dailySalesGoal || 0,
                     honorific: initialData.honorific || '御中',
+                    squareLocationId: initialData.squareLocationId || "",
                 });
                 setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0, honorific: '御中' });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0, honorific: '御中', squareLocationId: "" });
                 setPreviews([]);
             }
             setImageFiles([]);
@@ -308,6 +310,31 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                         : "自社での直接販売（手数料 0%）として扱われます。"}
                             </p>
                         </div>
+
+                        {/* Square 連携設定 (直営店のみ) */}
+                        {formData.type === 'C' && (
+                            <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100 space-y-3 mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-1.5 bg-purple-100 text-purple-600 rounded-lg">
+                                        <Store className="w-3.5 h-3.5" />
+                                    </div>
+                                    <label className="text-sm font-bold text-slate-800">Square 連携設定</label>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Square Location ID</label>
+                                    <input
+                                        type="text"
+                                        value={formData.squareLocationId}
+                                        onChange={e => setFormData({ ...formData, squareLocationId: e.target.value })}
+                                        className={inputCls}
+                                        placeholder="例: L9QRG..."
+                                    />
+                                    <p className="text-[10px] text-purple-600/70 mt-1.5 leading-relaxed">
+                                        このIDが設定されている店舗では、Squareの売上データ同期が可能になります。
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         <div>
                             <div className="flex items-center justify-between mb-1.5">
