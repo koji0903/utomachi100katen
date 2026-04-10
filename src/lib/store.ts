@@ -170,7 +170,11 @@ export interface Sale extends BaseEntity {
         subtotal: number;
         commission: number;
         netProfit: number;
+        productName?: string;
+        catalogObjectId?: string;
     }[];
+
+
     totalQuantity: number;
     totalAmount: number;
     totalCommission: number;
@@ -560,10 +564,12 @@ export interface Product extends BaseEntity {
 
 // Reusable fetcher for SWR
 const fetcher = async <T>(collectionName: string, isDemoMode: boolean): Promise<T[]> => {
+    if (!collectionName) return [];
     if (isDemoMode) {
         return getMockData(collectionName);
     }
     const querySnapshot = await getDocs(collection(db, collectionName));
+
     return querySnapshot.docs.map((doc) => {
         let data = { id: doc.id, ...doc.data() } as any;
 
@@ -2035,7 +2041,6 @@ export function useStore() {
     };
 
     const permanentlyDeleteChallenge = async (id: string) => {
-        await deleteDoc(doc(db, 'business_challenges', id));
         mutateChallenges();
     };
 
@@ -2617,6 +2622,15 @@ export function useStore() {
         businessManuals,
         addBusinessManual,
         updateBusinessManual,
-        deleteBusinessManual
+        deleteBusinessManual,
+        // Mutation hooks for specialized refreshing
+        mutateSales,
+        mutateDailyReports,
+        mutateTransactions,
+        mutateTransactionItems,
+        mutateProducts,
+        mutateStockMovements,
+        mutateRetailStores
     };
+
 }

@@ -14,6 +14,17 @@ export interface SquareOrder {
         amount: number;
         currency: string;
     };
+    totalDiscountMoney?: {
+        amount: number;
+        currency: string;
+    };
+    netAmounts?: {
+        total_money: { amount: number, currency: string };
+        tax_money: { amount: number, currency: string };
+        discount_money: { amount: number, currency: string };
+    };
+
+
     lineItems: {
         uid: string;
         catalogObjectId?: string;
@@ -23,8 +34,18 @@ export interface SquareOrder {
             amount: number;
             currency: string;
         };
+        totalMoney: {
+            amount: number;
+            currency: string;
+        };
+        totalDiscountMoney?: {
+            amount: number;
+            currency: string;
+        };
+
         variationName?: string;
     }[];
+
     state: string;
 }
 
@@ -101,14 +122,20 @@ export async function getSquareOrders(locationId: string, beginTime?: string): P
             locationId: order.location_id,
             createdAt: order.created_at,
             totalMoney: order.total_money,
+            totalDiscountMoney: order.total_discount_money,
+            netAmounts: order.net_amounts,
             lineItems: (order.line_items || []).map((item: any) => ({
+
                 uid: item.uid,
                 catalogObjectId: item.catalog_object_id,
                 name: item.name,
                 quantity: item.quantity,
                 basePriceMoney: item.base_price_money,
+                totalMoney: item.total_money,
+                totalDiscountMoney: item.total_discount_money,
                 variationName: item.variation_name
             })),
+
             state: order.state
         }));
 

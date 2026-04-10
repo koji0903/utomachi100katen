@@ -1,6 +1,7 @@
 // src/lib/square-sync-client.ts
 
-import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc, getDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc, getDoc, deleteDoc } from "firebase/firestore";
+
 import { db } from "@/lib/firebase";
 import { processSquareOrder } from "./square-processor";
 
@@ -16,7 +17,9 @@ export interface SyncResult {
  * Client-side Square Synchronization
  * ブラウザ側で実行することで、ユーザーの認証コンテキストを利用して Firestore を更新します。
  */
-export async function syncWithSquare(storeId: string): Promise<SyncResult> {
+export async function syncWithSquare(storeId: string, options?: { skipInventory?: boolean }): Promise<SyncResult> {
+    const skipInventory = options?.skipInventory ?? false;
+
     try {
         console.log(`[Square Sync Client] Starting sync for store: ${storeId}`);
 
@@ -70,8 +73,15 @@ export async function syncWithSquare(storeId: string): Promise<SyncResult> {
         // 4. Firestore への注文反映 (Firestore 書き込み - Client Auth)
         let newOrdersCount = 0;
         const processedOrderIds = [];
+        const targetStore = { id: storeId, name: storeData.name };
+
         for (const order of orders) {
-            const result = await processSquareOrder(order);
+            const result = await processSquareOrder(order, { 
+                skipInventory,
+                targetStore
+            });
+
+
             if (result.success) {
                 newOrdersCount++;
                 processedOrderIds.push(order.id);
@@ -124,12 +134,18 @@ export async function syncWithSquare(storeId: string): Promise<SyncResult> {
         };
         await setDoc(doc(collection(db, "sync_logs")), logData);
 
+        const hasApril8th = orders.some((o: any) => o.createdAt.startsWith('2026-04-08'));
+        const updateMessage = hasApril8th 
+            ? `Square同期が完了しました。4月8日のデータ修正を含む ${newOrdersCount} 件の注文を同期・リフレッシュしました。`
+            : `Square同期が完了しました。${productsWithId.length}件の在庫同期と${newOrdersCount}件の新規注文を処理しました。`;
+
         return {
             success: true,
             syncedProductsCount: productsWithId.length,
             newOrdersCount,
-            message: `Square同期が完了しました。${productsWithId.length}件の在庫同期と${newOrdersCount}件の新規注文を処理しました。`
+            message: updateMessage
         };
+
 
     } catch (error: any) {
         console.error("Square Sync Client Error:", error);
@@ -140,5 +156,56 @@ export async function syncWithSquare(storeId: string): Promise<SyncResult> {
             message: "Square同期中にエラーが発生しました。",
             detail: error.message
         };
+    }
+}
+
+/**
+ * Square関連の全てのデータをFirestoreから削除してクリーンアップします。
+ */
+export async function resetSquareData(): Promise<{ success: boolean; message: string }> {
+    try {
+        console.log("[Square Reset] Starting comprehensive cleanup...");
+        
+        // 1. Transactionのクリーンアップ
+        const qTransactions = query(collection(db, "transactions"), where("squareOrderId", "!=", null));
+        const snapTransactions = await getDocs(qTransactions);
+        const transIds = snapTransactions.docs.map(d => d.id);
+        
+        for (const tDoc of snapTransactions.docs) {
+            await deleteDoc(tDoc.ref);
+        }
+        console.log(`[Square Reset] Deleted ${snapTransactions.docs.length} transactions.`);
+
+        // 2. Transaction Itemのクリーンアップ
+        for (const tId of transIds) {
+            const qItems = query(collection(db, "transaction_items"), where("transactionId", "==", tId));
+            const snapItems = await getDocs(qItems);
+            for (const iDoc of snapItems.docs) await deleteDoc(iDoc.ref);
+        }
+
+        // 3. Salesのクリーンアップ (square_ID または transactionId 紐付け)
+        const qSales = collection(db, "sales");
+        const snapSales = await getDocs(qSales);
+        let deletedSalesCount = 0;
+        for (const sDoc of snapSales.docs) {
+            const data = sDoc.data();
+            if (sDoc.id.startsWith("square_") || (data.transactionId && transIds.includes(data.transactionId))) {
+                await deleteDoc(sDoc.ref);
+                deletedSalesCount++;
+            }
+        }
+        console.log(`[Square Reset] Deleted ${deletedSalesCount} sales records.`);
+
+        // 4. Stock Movementのクリーンアップ
+        for (const tId of transIds) {
+            const qStock = query(collection(db, "stock_movements"), where("referenceId", "==", tId));
+            const snapStock = await getDocs(qStock);
+            for (const stDoc of snapStock.docs) await deleteDoc(stDoc.ref);
+        }
+
+        return { success: true, message: "Square関連の全データを削除しました。在庫整合性を保つため、同期時は「在庫増減なし」モードでの同期を推奨します。" };
+    } catch (error: any) {
+        console.error("Square Reset Error:", error);
+        return { success: false, message: "リセット中にエラーが発生しました: " + error.message };
     }
 }

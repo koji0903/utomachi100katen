@@ -37,7 +37,8 @@ function WeatherIcon({ main, size = 4 }: { main?: string; size?: number }) {
 
 // ─── Sales Input Tab ──────────────────────────────────────────────────────────
 function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null; onClearEdit: () => void }) {
-    const { isLoaded, products, brands, retailStores, spotRecipients, dailyWeather, dailyReports, addSale, updateSale, deleteSale, fetchAndSaveWeatherIfNeeded } = useStore();
+    const { isLoaded, products, brands, retailStores, spotRecipients, dailyWeather, dailyReports, addSale, updateSale, deleteSale, fetchAndSaveWeatherIfNeeded, mutateSales, mutateDailyReports, mutateTransactions, mutateTransactionItems } = useStore();
+
 
     const [selectedStoreId, setSelectedStoreId] = useState<string>(""); // Format: "type:id" (e.g. "store:xxx" or "spot:yyy")
     const [inputMode, setInputMode] = useState<'daily' | 'monthly'>('daily');
@@ -64,7 +65,13 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             const result = await syncWithSquare(selectedStore.id);
             if (result.success) {
                 showNotification(result.message, "success");
+                // リフレッシュを強制実行
+                await mutateSales();
+                await mutateDailyReports();
+                await mutateTransactions();
+                await mutateTransactionItems();
             } else {
+
                 let errorMessage = result.message;
                 if (result.detail) errorMessage += `\n詳解: ${result.detail}`;
                 throw new Error(errorMessage);
@@ -585,7 +592,9 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
 // ─── Daily Log Tab ────────────────────────────────────────────────────────────
 function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, filterDate?: string }) {
-    const { sales, products, brands, retailStores, spotRecipients, dailyReports, dailyWeather, deleteSale, restoreSale, permanentlyDeleteSale } = useStore();
+
+    const { sales, products, brands, retailStores, spotRecipients, dailyReports, dailyWeather, deleteSale, restoreSale, permanentlyDeleteSale, mutateSales, mutateDailyReports, mutateTransactions, mutateTransactionItems } = useStore();
+
 
     // Filter controls
     const [logType, setLogType] = useState<'daily' | 'monthly'>('daily');
@@ -615,19 +624,17 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
 
         setIsSyncingSquare(true);
         try {
-            const response = await fetch("/api/square/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ storeId: store.id }),
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                showNotification(data.message || `Square同期が完了しました。\n${data.newOrdersCount}件の注文を処理しました。`, "success");
+            const result = await syncWithSquare(store.id);
+            if (result.success) {
+                showNotification(result.message, "success");
+                // リフレッシュを強制実行
+                await mutateSales();
+                await mutateDailyReports();
+                await mutateTransactions();
+                await mutateTransactionItems();
             } else {
-                let errorMessage = data.error || "同期に失敗しました";
-                if (data.detail) errorMessage += `\n詳解: ${data.detail}`;
-                if (data.hint) errorMessage += `\nヒント: ${data.hint}`;
+                let errorMessage = result.message;
+                if (result.detail) errorMessage += `\n詳解: ${result.detail}`;
                 throw new Error(errorMessage);
             }
         } catch (error: any) {
@@ -637,6 +644,43 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
             setIsSyncingSquare(false);
         }
     };
+
+    const handleDiagnostics = () => {
+        console.log("--- SQUARE 同期・未連携商品の診断レポート ---");
+        const unlinkedSales = sales.filter(s => s.items.some(i => i.productId === 'SQUARE_UNLINKED'));
+        
+        if (unlinkedSales.length === 0) {
+            console.log("未連携の商品は現在見つかりませんでした。");
+            alert("未連携の商品は現在見つかりませんでした。再度「Square同期」をやり直してからお試しください。");
+            return;
+        }
+
+        const report: any[] = [];
+        const uniqueItems = new Set();
+
+        unlinkedSales.forEach(s => {
+            s.items.filter(i => i.productId === 'SQUARE_UNLINKED').forEach(i => {
+                const key = `${i.productName}|${i.catalogObjectId}`;
+                if (!uniqueItems.has(key)) {
+                    uniqueItems.add(key);
+                    report.push({
+                        "商品名(Square)": i.productName || "不明",
+                        "カタログID": i.catalogObjectId || "N/A",
+                        "推定金額": i.subtotal / (i.quantity || 1),
+                        "最終確認日": s.period,
+                        "店舗": s.storeName || s.storeId
+                    });
+                }
+            });
+        });
+
+        console.table(report);
+        console.log("--- 抽出完了 ---");
+        console.log("上記カタログIDを、Firestoreのproductsコレクション内の商品データの squareVariantId フィールドに設定してください。");
+        alert("ブラウザのコンソール（F12）に診断レポートを出力しました。未連携商品のカタログIDを確認できます。");
+    };
+
+
 
     useEffect(() => {
         if (filterDate) {
@@ -649,7 +693,9 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     const productMap = useMemo(() => {
         const m: Record<string, string> = {};
         products.forEach(p => { m[p.id] = p.variantName ? `${p.name} (${p.variantName})` : p.name; });
+        m["SQUARE_UNLINKED"] = "【未連携商品】(Square)";
         return m;
+
     }, [products]);
 
     const storeMap = useMemo(() => {
@@ -885,15 +931,29 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                 <div className="h-8 w-px bg-slate-200 self-center hidden sm:block" />
 
                 {retailStores.find(s => `store:${s.id}` === filterStoreId)?.squareLocationId && (
-                    <button
-                        onClick={handleSquareSync}
-                        disabled={isSyncingSquare}
-                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
-                    >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSquare ? "animate-spin" : ""}`} />
-                        {isSyncingSquare ? "同期中..." : "Square同期"}
-                    </button>
+                    <>
+                        <button
+                            onClick={handleSquareSync}
+                            disabled={isSyncingSquare}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+                        >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSquare ? "animate-spin" : ""}`} />
+                            {isSyncingSquare ? "同期中..." : "Square同期"}
+                        </button>
+                        {!isSyncingSquare && (
+                            <button
+                                onClick={handleDiagnostics}
+                                className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+                                title="未連携商品の詳細をコンソールに出力します"
+                            >
+                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                                連携診断
+                            </button>
+                        )}
+                    </>
                 )}
+
+
 
                 <button
                     onClick={() => setShowTrash(!showTrash)}
