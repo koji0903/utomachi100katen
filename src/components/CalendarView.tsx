@@ -164,6 +164,18 @@ export const CalendarView: React.FC = () => {
                 </Link>
             )}
 
+            {dayData.reports.office && (
+                <Link
+                    href={`/reports?date=${dayDate}&type=office`}
+                    className="flex items-center gap-1.5 text-[9px] sm:text-[11px] font-bold text-slate-600 truncate hover:bg-slate-100 rounded-lg px-2 -mx-1 transition-all py-1 group/link"
+                    title="事務所作業"
+                >
+                    <Laptop className="w-3 h-3 shrink-0 opacity-50 group-hover/link:opacity-100" />
+                    <span className="hidden sm:inline">事務所</span>
+                </Link>
+            )}
+
+
             {dayData.purchaseEvents.ordered > 0 && (
                 <Link
                     href={`/purchases?date=${dayDate}`}
@@ -592,8 +604,12 @@ export const CalendarView: React.FC = () => {
                         <div className="w-3 h-3 rounded-full bg-indigo-500 shadow-sm" /> Activity
                     </div>
                     <div className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        <div className="w-3 h-3 rounded-full bg-slate-400 shadow-sm" /> Office
+                    </div>
+                    <div className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-widest text-slate-400">
                         <div className="w-3 h-3 rounded-full bg-amber-500 shadow-sm" /> Ordered
                     </div>
+
                 </div>
             )}
         </section>

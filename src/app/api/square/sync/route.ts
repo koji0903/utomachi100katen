@@ -25,10 +25,11 @@ export async function POST(req: Request) {
         // A. 注文データの取得
         if (action === "fetch-orders") {
             if (!squareLocationId) throw new Error("Location ID is missing.");
-            const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-            const orders = await getSquareOrders(squareLocationId, yesterday);
+            // 全期間の同期のため、beginTime を指定せずに取得（Square API はデフォルトで全期間）
+            const orders = await getSquareOrders(squareLocationId);
             return NextResponse.json({ success: true, orders, locationId: squareLocationId });
         }
+
 
         // B. 在庫の反映 (System -> Square)
         if (action === "update-inventory") {

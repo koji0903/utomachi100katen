@@ -105,7 +105,7 @@ export default function InventoryPage() {
         let targetStore = squareStores.find(s => s.id === selectedStoreId);
         if (!targetStore) targetStore = squareStores[0];
 
-        if (!window.confirm(`${targetStore.name} のSquareデータを同期しますか？\n(直近24時間の注文取込と在庫の書き込みを行います)`)) {
+        if (!window.confirm(`${targetStore.name} のSquareデータを同期しますか？\n(全期間の注文取込と在庫の書き込みを行います)`)) {
             return;
         }
 

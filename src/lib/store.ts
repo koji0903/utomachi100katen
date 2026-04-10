@@ -1485,11 +1485,54 @@ export function useStore() {
     const saveIssuedDocument = async (data: Omit<IssuedDocument, 'id' | 'createdAt'>): Promise<IssuedDocument> => {
         const newRef = doc(collection(db, 'issued_documents'));
         const newDoc: IssuedDocument = { id: newRef.id, ...data, createdAt: new Date().toISOString() };
+
+        // --- Stock Deduction for Delivery Note ---
+        if (data.type === 'delivery_note' && data.details) {
+            for (const item of data.details) {
+                if (item.productId) {
+                    const product = products.find(p => p.id === item.productId);
+                    if (product) {
+                        if (product.isComposite && product.components) {
+                            for (const comp of product.components) {
+                                const compProduct = products.find(p => p.id === comp.productId);
+                                if (compProduct) {
+                                    await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - (comp.quantity * item.quantity) });
+                                    await logStockMovement({
+                                        productId: compProduct.id,
+                                        productName: compProduct.name,
+                                        type: 'out',
+                                        quantity: comp.quantity * item.quantity,
+                                        reason: 'sale',
+                                        remarks: `納品書発行 (${data.docNumber}) による出庫`,
+                                        referenceId: newRef.id,
+                                        date: data.issuedDate
+                                    });
+                                }
+                            }
+                        } else {
+                            await updateProduct(product.id, { stock: (product.stock || 0) - item.quantity });
+                            await logStockMovement({
+                                productId: product.id,
+                                productName: product.name,
+                                type: 'out',
+                                quantity: item.quantity,
+                                reason: 'sale',
+                                remarks: `納品書発行 (${data.docNumber}) による出庫`,
+                                referenceId: newRef.id,
+                                date: data.issuedDate
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
         mutateIssuedDocuments([newDoc, ...issuedDocuments], false);
         await setDoc(newRef, { ...cleanObject(data), createdAt: serverTimestamp() });
         mutateIssuedDocuments();
         return newDoc;
     };
+
 
     const duplicateDocument = async (id: string): Promise<IssuedDocument | null> => {
         const original = issuedDocuments.find(d => d.id === id);
@@ -1620,20 +1663,110 @@ export function useStore() {
     };
 
     const updateIssuedDocument = async (id: string, data: Partial<Omit<IssuedDocument, 'id' | 'createdAt'>>) => {
+        const oldDoc = issuedDocuments.find(d => d.id === id);
+        if (oldDoc) {
+            // 1. Reverse old stock if it was a delivery note
+            if (oldDoc.type === 'delivery_note' && oldDoc.details && !oldDoc.isTrashed) {
+                for (const item of oldDoc.details) {
+                    if (item.productId) {
+                        const product = products.find(p => p.id === item.productId);
+                        if (product) {
+                            if (product.isComposite && product.components) {
+                                for (const comp of product.components) {
+                                    const compProduct = products.find(p => p.id === comp.productId);
+                                    if (compProduct) {
+                                        await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) + (comp.quantity * item.quantity) });
+                                    }
+                                }
+                            } else {
+                                await updateProduct(product.id, { stock: (product.stock || 0) + item.quantity });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Apply new stock if the updated doc is a delivery note
+            const newDoc = { ...oldDoc, ...data } as IssuedDocument;
+            if (newDoc.type === 'delivery_note' && newDoc.details && !newDoc.isTrashed) {
+                for (const item of newDoc.details) {
+                    if (item.productId) {
+                        const product = products.find(p => p.id === item.productId);
+                        if (product) {
+                            if (product.isComposite && product.components) {
+                                for (const comp of product.components) {
+                                    const compProduct = products.find(p => p.id === comp.productId);
+                                    if (compProduct) {
+                                        await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - (comp.quantity * item.quantity) });
+                                    }
+                                }
+                            } else {
+                                await updateProduct(product.id, { stock: (product.stock || 0) - item.quantity });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         mutateIssuedDocuments(issuedDocuments.map(d => d.id === id ? { ...d, ...data } : d), false);
         await updateDoc(doc(db, 'issued_documents', id), cleanObject(data));
         mutateIssuedDocuments();
     };
 
     const deleteIssuedDocument = async (id: string) => {
+        const oldDoc = issuedDocuments.find(d => d.id === id);
+        if (oldDoc && oldDoc.type === 'delivery_note' && oldDoc.details && !oldDoc.isTrashed) {
+            // Restore stock
+            for (const item of oldDoc.details) {
+                if (item.productId) {
+                    const product = products.find(p => p.id === item.productId);
+                    if (product) {
+                        if (product.isComposite && product.components) {
+                            for (const comp of product.components) {
+                                const compProduct = products.find(p => p.id === comp.productId);
+                                if (compProduct) {
+                                    await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) + (comp.quantity * item.quantity) });
+                                }
+                            }
+                        } else {
+                            await updateProduct(product.id, { stock: (product.stock || 0) + item.quantity });
+                        }
+                    }
+                }
+            }
+        }
         await updateDoc(doc(db, 'issued_documents', id), { isTrashed: true });
         mutateIssuedDocuments();
     };
 
+
     const restoreIssuedDocument = async (id: string) => {
+        const docToRestore = issuedDocuments.find(d => d.id === id);
+        if (docToRestore && docToRestore.type === 'delivery_note' && docToRestore.details && docToRestore.isTrashed) {
+            // Re-deduct stock
+            for (const item of docToRestore.details) {
+                if (item.productId) {
+                    const product = products.find(p => p.id === item.productId);
+                    if (product) {
+                        if (product.isComposite && product.components) {
+                            for (const comp of product.components) {
+                                const compProduct = products.find(p => p.id === comp.productId);
+                                if (compProduct) {
+                                    await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - (comp.quantity * item.quantity) });
+                                }
+                            }
+                        } else {
+                            await updateProduct(product.id, { stock: (product.stock || 0) - item.quantity });
+                        }
+                    }
+                }
+            }
+        }
         await updateDoc(doc(db, 'issued_documents', id), { isTrashed: false });
         mutateIssuedDocuments();
     };
+
 
     const permanentlyDeleteIssuedDocument = async (id: string) => {
         await deleteDoc(doc(db, 'issued_documents', id));

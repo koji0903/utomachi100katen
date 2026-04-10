@@ -61,44 +61,68 @@ async function squareFetch(path: string, options: RequestInit = {}) {
 }
 
 /**
- * Square から最近の注文一覧を取得します
+ * Square から注文一覧を取得します (ページネーション対応)
  */
-export async function getSquareOrders(locationId: string, beginTime: string): Promise<SquareOrder[]> {
-    const data = await squareFetch("/orders/search", {
-        method: "POST",
-        body: JSON.stringify({
+export async function getSquareOrders(locationId: string, beginTime?: string): Promise<SquareOrder[]> {
+    let allOrders: SquareOrder[] = [];
+    let cursor: string | undefined = undefined;
+
+    do {
+        const body: any = {
             location_ids: [locationId],
             query: {
                 filter: {
-                    state_filter: { states: ["COMPLETED"] },
-                    date_time_filter: {
-                        created_at: { start_at: beginTime }
-                    }
+                    state_filter: { states: ["COMPLETED"] }
                 },
                 sort: {
                     sort_field: "CREATED_AT",
                     sort_order: "DESC"
                 }
             }
-        })
-    });
+        };
 
-    return (data.orders || []).map((order: any) => ({
-        id: order.id,
-        locationId: order.location_id,
-        createdAt: order.created_at,
-        totalMoney: order.total_money,
-        lineItems: (order.line_items || []).map((item: any) => ({
-            uid: item.uid,
-            catalogObjectId: item.catalog_object_id,
-            name: item.name,
-            quantity: item.quantity,
-            basePriceMoney: item.base_price_money,
-            variationName: item.variation_name
-        })),
-        state: order.state
-    }));
+        if (beginTime) {
+            body.query.filter.date_time_filter = {
+                created_at: { start_at: beginTime }
+            };
+        }
+
+        if (cursor) {
+            body.cursor = cursor;
+        }
+
+        const data = await squareFetch("/orders/search", {
+            method: "POST",
+            body: JSON.stringify(body)
+        });
+
+        const pageOrders = (data.orders || []).map((order: any) => ({
+            id: order.id,
+            locationId: order.location_id,
+            createdAt: order.created_at,
+            totalMoney: order.total_money,
+            lineItems: (order.line_items || []).map((item: any) => ({
+                uid: item.uid,
+                catalogObjectId: item.catalog_object_id,
+                name: item.name,
+                quantity: item.quantity,
+                basePriceMoney: item.base_price_money,
+                variationName: item.variation_name
+            })),
+            state: order.state
+        }));
+
+        allOrders = [...allOrders, ...pageOrders];
+        cursor = data.cursor;
+
+        // 安全策: あまりに膨大な場合はループを抜ける (1000件程度)
+        if (allOrders.length > 1000) break;
+
+    } while (cursor);
+
+    return allOrders;
 }
+
 
 /**
  * Square の在庫数を一括で設定します (PHYSICAL_COUNT)

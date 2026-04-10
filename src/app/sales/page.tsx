@@ -55,7 +55,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             return;
         }
 
-        if (!window.confirm(`${selectedStore.name} のSquareデータを同期しますか？\n(直近24時間の注文取込と在庫の書き込みを行います)`)) {
+        if (!window.confirm(`${selectedStore.name} のSquareデータを同期しますか？\n(全期間の注文取込と在庫の書き込みを行います)`)) {
             return;
         }
 
@@ -609,7 +609,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
             return;
         }
 
-        if (!window.confirm(`${store.name} のSquareデータを同期しますか？\n(直近24時間の注文取込と在庫の書き込みを行います)`)) {
+        if (!window.confirm(`${store.name} のSquareデータを同期しますか？\n(全期間の注文取込と在庫の書き込みを行います)`)) {
             return;
         }
 
