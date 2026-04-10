@@ -13,12 +13,13 @@ import {
     CloudSun, Cloud, CloudRain, CloudSnow,
     Thermometer, Wind, Package, ChevronLeft,
     Sparkles, Edit2, Trash2, RotateCcw,
-    ArrowUpDown, ChevronUp, ChevronDown, Target
+    ArrowUpDown, ChevronUp, ChevronDown, Target, RefreshCw
 } from "lucide-react";
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
 import { SalesAnalysisTab } from "@/components/SalesAnalysisTab";
 import { NumberInput } from "@/components/NumberInput";
+import { showNotification } from "@/lib/notifications";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -45,6 +46,39 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+    const [isSyncingSquare, setIsSyncingSquare] = useState(false);
+
+    const handleSquareSync = async () => {
+        if (!selectedStore?.squareLocationId) {
+            showNotification("この店舗にはSquareの位置IDが設定されていません。", "error");
+            return;
+        }
+
+        if (!window.confirm(`${selectedStore.name} のSquareデータを同期しますか？\n(直近24時間の注文取込と在庫の書き込みを行います)`)) {
+            return;
+        }
+
+        setIsSyncingSquare(true);
+        try {
+            const response = await fetch("/api/square/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ storeId: selectedStore.id }),
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                showNotification(`Square同期が完了しました。\n${data.results.orders.processed}件の注文を処理しました。`, "success");
+            } else {
+                throw new Error(data.error || "同期に失敗しました");
+            }
+        } catch (error: any) {
+            console.error("Square Sync Error:", error);
+            showNotification(error.message || "Square同期中にエラーが発生しました。", "error");
+        } finally {
+            setIsSyncingSquare(false);
+        }
+    };
 
     // For inline spot creation
     const [isCreatingSpot, setIsCreatingSpot] = useState(false);
@@ -325,7 +359,19 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                     <option value="new_spot">＋ 新規スポット宛先を追加</option>
                                 </optgroup>
                             </select>
-                        ) : (
+                        )}
+                        {!isCreatingSpot && selectedStore?.squareLocationId && (
+                            <button
+                                type="button"
+                                onClick={handleSquareSync}
+                                disabled={isSyncingSquare}
+                                className="w-full flex items-center justify-center gap-2 mt-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSquare ? "animate-spin" : ""}`} />
+                                {isSyncingSquare ? "Square同期中..." : "Squareから同期"}
+                            </button>
+                        )}
+                        {isCreatingSpot && (
                             <div className="flex items-center gap-2">
                                 <input
                                     type="text"
@@ -552,6 +598,45 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const [showTrash, setShowTrash] = useState(false);
     const [isTransposed, setIsTransposed] = useState(false);
+    const [isSyncingSquare, setIsSyncingSquare] = useState(false);
+
+    const handleSquareSync = async () => {
+        if (!filterStoreId) return;
+        const filterParts = filterStoreId.split(':');
+        if (filterParts[0] !== 'store') return;
+        const targetId = filterParts[1];
+        const store = retailStores.find(s => s.id === targetId);
+
+        if (!store?.squareLocationId) {
+            showNotification("この店舗にはSquareの位置IDが設定されていません。", "error");
+            return;
+        }
+
+        if (!window.confirm(`${store.name} のSquareデータを同期しますか？\n(直近24時間の注文取込と在庫の書き込みを行います)`)) {
+            return;
+        }
+
+        setIsSyncingSquare(true);
+        try {
+            const response = await fetch("/api/square/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ storeId: store.id }),
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                showNotification(`Square同期が完了しました。\n${data.results.orders.processed}件の注文を処理しました。`, "success");
+            } else {
+                throw new Error(data.error || "同期に失敗しました");
+            }
+        } catch (error: any) {
+            console.error("Square Sync Error:", error);
+            showNotification(error.message || "Square同期中にエラーが発生しました。", "error");
+        } finally {
+            setIsSyncingSquare(false);
+        }
+    };
 
     useEffect(() => {
         if (filterDate) {
@@ -798,6 +883,17 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                 </button>
 
                 <div className="h-8 w-px bg-slate-200 self-center hidden sm:block" />
+
+                {retailStores.find(s => `store:${s.id}` === filterStoreId)?.squareLocationId && (
+                    <button
+                        onClick={handleSquareSync}
+                        disabled={isSyncingSquare}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSquare ? "animate-spin" : ""}`} />
+                        {isSyncingSquare ? "同期中..." : "Square同期"}
+                    </button>
+                )}
 
                 <button
                     onClick={() => setShowTrash(!showTrash)}
