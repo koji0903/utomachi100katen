@@ -77,19 +77,28 @@ export const CalendarView: React.FC = () => {
     const getDayData = (date: Date) => {
         const dateStr = formatDate(date);
 
-        const daySales = sales.filter(s => s.period === dateStr);
+        const daySales = sales.filter(s => 
+            !s.isTrashed && 
+            s.period === dateStr && 
+            (s.type === 'daily' || !s.type)
+        );
         const totalSales = daySales.reduce((sum, s) => sum + s.totalAmount, 0);
 
-        const salesByStore = daySales.map((s: Sale) => {
+        // 店舗・スポットごとに集計して、重複表示を防ぐ
+        const storeAggregated: Record<string, number> = {};
+        daySales.forEach(s => {
             const store = retailStores.find(rs => rs.id === s.storeId);
             const spot = !store ? spotRecipients.find(sr => sr.id === s.storeId) : null;
-            return {
-                name: store ? store.name : (spot ? spot.name : "不明な店舗"),
-                amount: s.totalAmount
-            };
+            const name = store ? store.name : (spot ? spot.name : "不明な店舗");
+            storeAggregated[name] = (storeAggregated[name] || 0) + s.totalAmount;
         });
 
-        const reports = dailyReports.filter(r => r.date === dateStr);
+        const salesByStore = Object.entries(storeAggregated).map(([name, amount]) => ({
+            name,
+            amount
+        }));
+
+        const reports = dailyReports.filter(r => !r.isTrashed && r.date === dateStr);
         const hasStoreReport = reports.some(r => r.type === 'store');
         const hasActivityReport = reports.some(r => r.type === 'activity');
         const hasOfficeReport = reports.some(r => r.type === 'office');
