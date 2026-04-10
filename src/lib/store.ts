@@ -160,6 +160,7 @@ export interface DailyReport extends BaseEntity {
 export interface Sale extends BaseEntity {
     id: string;
     storeId: string;
+    storeName?: string;
     recipientType?: 'store' | 'spot';
     type: 'daily' | 'monthly';
     period: string; // YYYY-MM-DD or YYYY-MM
