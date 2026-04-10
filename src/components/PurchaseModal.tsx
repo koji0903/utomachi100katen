@@ -26,6 +26,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
         receivedDate: "",
         paymentDate: "",
         expectedArrivalDate: "",
+        memo: "",
     });
 
     useEffect(() => {
@@ -53,6 +54,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                     receivedDate: initialData.receivedDate || initialData.arrivalDate || "",
                     paymentDate: initialData.paymentDate || "",
                     expectedArrivalDate: initialData.expectedArrivalDate || "",
+                    memo: initialData.memo || "",
                 });
             } else {
                 setFormData({
@@ -66,6 +68,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                     receivedDate: "",
                     paymentDate: "",
                     expectedArrivalDate: "",
+                    memo: "",
                 });
             }
         }
@@ -311,6 +314,17 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                 ) : (
                                     <div></div>
                                 )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-slate-700 block">備考</label>
+                                <textarea
+                                    value={formData.memo}
+                                    onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
+                                    rows={2}
+                                    placeholder="仕入に関するメモを入力してください（例：請求書番号、特記事項など）"
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white placeholder:text-slate-400 text-sm"
+                                />
                             </div>
                         </div>
 

@@ -208,6 +208,7 @@ export interface Purchase extends BaseEntity {
     receivedDate?: string;     // 仕入日 (一貫性のため追加)
     paymentDate?: string;      // 支払い日
     expectedArrivalDate?: string;
+    memo?: string;
     createdAt?: string | any;
 
     // Legacy fields for backward compatibility during migration
