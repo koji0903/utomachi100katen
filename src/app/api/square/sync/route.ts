@@ -25,8 +25,13 @@ export async function POST(req: Request) {
         // A. 注文データの取得
         if (action === "fetch-orders") {
             if (!squareLocationId) throw new Error("Location ID is missing.");
-            // 全期間の同期のため、beginTime を指定せずに取得（Square API はデフォルトで全期間）
-            const orders = await getSquareOrders(squareLocationId);
+            
+            // 直近1週間に制限
+            const now = new Date();
+            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const beginTime = sevenDaysAgo.toISOString();
+
+            const orders = await getSquareOrders(squareLocationId, beginTime);
             return NextResponse.json({ success: true, orders, locationId: squareLocationId });
         }
 

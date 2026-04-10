@@ -107,7 +107,7 @@ export default function InventoryPage() {
         let targetStore = squareStores.find(s => s.id === selectedStoreId);
         if (!targetStore) targetStore = squareStores[0];
 
-        if (!window.confirm(`${targetStore.name} のSquareデータを同期しますか？\n(全期間の注文取込と在庫の書き込みを行います)`)) {
+        if (!window.confirm(`${targetStore.name} のSquareデータを同期しますか？\n(直近1週間の注文取込と在庫の書き込みを行います)`)) {
             return;
         }
 
@@ -133,39 +133,6 @@ export default function InventoryPage() {
         }
     };
     
-    const handleSquareReset = async () => {
-        const squareStores = retailStores.filter(s => s.type === 'C' && s.squareLocationId);
-        let targetStore = squareStores.find(s => s.id === selectedStoreId);
-        if (!targetStore) targetStore = squareStores[0];
-
-        if (!window.confirm("【警告】Squareから同期した全ての売上・取引データをシステムから一度削除しますか？\n(商品マスタの現在の在庫数は変更されません)")) {
-            return;
-        }
-        
-        setIsSyncing(true);
-        try {
-            const resetResult = await resetSquareData();
-            if (resetResult.success) {
-                showNotification(resetResult.message, "success");
-                
-                if (window.confirm("データをリセットしました。続けて「価格修正された最新データ」を再取得しますか？\n(在庫数には影響を与えないモードで実行します)")) {
-                    const syncResult = await syncWithSquare(targetStore.id, { skipInventory: true });
-                    showNotification(syncResult.message, "success");
-                    await mutateSales();
-                    await mutateProducts();
-                    await mutateStockMovements();
-                }
-
-            } else {
-                showNotification(resetResult.message, "error");
-            }
-        } catch (error: any) {
-            console.error("Square Reset Error:", error);
-            showNotification(error.message || "リセット中にエラーが発生しました。", "error");
-        } finally {
-            setIsSyncing(false);
-        }
-    };
 
 
     return (
@@ -198,14 +165,6 @@ export default function InventoryPage() {
                             >
                                 <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
                                 {isSyncing ? 'Square同期中' : 'Square同期'}
-                            </button>
-                            <button
-                                onClick={handleSquareReset}
-                                disabled={isSyncing}
-                                className="flex items-center justify-center w-10 h-10 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 disabled:bg-slate-50 disabled:text-slate-400 border border-red-200 transition-all active:scale-95"
-                                title="Squareデータをリセット"
-                            >
-                                <X className="w-5 h-5" />
                             </button>
                         </div>
                     )}
