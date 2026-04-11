@@ -5,7 +5,9 @@
  * LWA (Login with Amazon) トークン交換フローおよび Orders API を使用。
  */
 
-const SP_API_REGION_ENDPOINT = "https://sellingpartnerapi-fe.amazon.com"; // Far East (Japan)
+const SP_API_REGION_ENDPOINT = process.env.AMAZON_USE_SANDBOX === "true"
+    ? "https://sandbox.sellingpartnerapi-fe.amazon.com"
+    : "https://sellingpartnerapi-fe.amazon.com"; // Far East (Japan)
 const LWA_ENDPOINT = "https://api.amazon.com/auth/o2/token";
 const MARKETPLACE_ID_JP = "A1VC38T7YXB528"; // Amazon.co.jp
 
@@ -64,24 +66,55 @@ async function getAccessToken(): Promise<string> {
  * Amazon SP-API から商品詳細を取得します
  * Listings Items API (2021-08-01) を使用
  */
-export async function getAmazonProduct(asin: string): Promise<AmazonProduct | null> {
+export async function getAmazonProduct(sku: string): Promise<AmazonProduct | null> {
     try {
         const accessToken = await getAccessToken();
         const sellerId = process.env.AMAZON_SELLER_ID;
+        const trimmedSku = sku.trim();
 
         if (!sellerId) throw new Error("AMAZON_SELLER_ID が未設定です。");
 
-        // 本来は SKU が必要ですが、ASIN から情報を引く場合は別の API か、事前にマッピングが必要です。
-        // ここでは便宜上、プレフィックスを付けた SKU で検索を試みるか、カタログAPIを使用します。
-        // ※実際の実装では SKU を主軸に管理することを推奨します。
+        const url = `${SP_API_REGION_ENDPOINT}/listings/2021-08-01/items/${sellerId}/${trimmedSku}?marketplaceIds=${MARKETPLACE_ID_JP}&includedData=summaries,attributes`;
         
-        console.log(`[Amazon] Fetching product (ASIN): ${asin}`);
+        console.log(`[Amazon] Fetching product listing (SKU): ${trimmedSku}`);
+
+        const response = await fetch(url, {
+            headers: {
+                "x-amz-access-token": accessToken,
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`Listings API Error: ${JSON.stringify(error)}`);
+        }
+
+        const data = await response.json();
+        const summary = data.summaries?.[0];
+        const attributes = data.attributes || {};
+
+        // 価格情報の抽出 (製品タイプによってパスが異なる場合があるため、汎用的なパスを試行)
+        let price = 0;
+        const purchasableOffer = attributes.purchasable_offer?.[0];
+        if (purchasableOffer?.our_price?.[0]?.schedule?.[0]?.value_with_tax) {
+            price = purchasableOffer.our_price[0].schedule[0].value_with_tax;
+        } else if (attributes.list_price?.[0]?.value_with_tax) {
+            price = attributes.list_price[0].value_with_tax;
+        }
+
+        // 在庫情報の抽出
+        let inventoryLevel = 0;
+        const fulfillmentAvailability = attributes.fulfillment_availability?.[0];
+        if (fulfillmentAvailability?.quantity !== undefined) {
+            inventoryLevel = fulfillmentAvailability.quantity;
+        }
 
         return {
-            asin,
-            sku: `SKU-${asin}`,
-            inventoryLevel: 0,
-            price: 0,
+            asin: summary?.asin || "",
+            sku: sku,
+            inventoryLevel: inventoryLevel,
+            price: price,
         };
     } catch (error) {
         console.error("[Amazon Product Error]", error);
@@ -153,25 +186,76 @@ export async function getAmazonOrders(): Promise<AmazonOrder[]> {
 }
 
 /**
- * Amazon の在庫数を更新します (Sync)
+ * Amazon の出品情報を更新します (在庫および価格)
  * Listings Items API (2021-08-01) を使用します。
  */
-export async function updateAmazonInventory(sku: string, quantity: number) {
+export async function updateAmazonListing(sku: string, quantity?: number, price?: number) {
     try {
         const accessToken = await getAccessToken();
         const sellerId = process.env.AMAZON_SELLER_ID;
+        const productType = process.env.AMAZON_PRODUCT_TYPE || "PRODUCT"; // デフォルト
         
-        if (!sellerId) return false;
+        if (!sellerId) throw new Error("AMAZON_SELLER_ID が未設定です。");
 
         const url = `${SP_API_REGION_ENDPOINT}/listings/2021-08-01/items/${sellerId}/${sku}?marketplaceIds=${MARKETPLACE_ID_JP}`;
         
-        // 実際には JSON Patch 形式で在庫を更新しますが、実装の複雑化を避けるため
-        // 今回のフェーズでは「在庫更新がAPI経由で行われる準備ができている」状態にします。
-        console.log(`[Amazon] Updating inventory for ${sku} to ${quantity}`);
-        
+        const patches = [];
+
+        // 在庫数のパッチ
+        if (quantity !== undefined) {
+            patches.push({
+                op: "replace",
+                path: "/attributes/fulfillment_availability",
+                value: [{
+                    fulfillment_channel_code: "DEFAULT",
+                    quantity: quantity
+                }]
+            });
+        }
+
+        // 価格のパッチ
+        if (price !== undefined) {
+            patches.push({
+                op: "replace",
+                path: "/attributes/purchasable_offer",
+                value: [{
+                    our_price: [{
+                        schedule: [{
+                            value_with_tax: price,
+                            currency: "JPY"
+                        }]
+                    }]
+                }]
+            });
+        }
+
+        if (patches.length === 0) return true;
+
+        console.log(`[Amazon] Updating listing for ${sku}: quantity=${quantity}, price=${price}`);
+
+        const response = await fetch(url, {
+            method: "PATCH",
+            headers: {
+                "x-amz-access-token": accessToken,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                productType: productType,
+                patches: patches
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`Listing Patch API Error: ${JSON.stringify(error)}`);
+        }
+
         return true;
     } catch (error) {
-        console.error("[Amazon Inventory Sync Error]", error);
+        console.error("[Amazon Listing Sync Error]", error);
         return false;
     }
 }
+
+// 既存の互換性のためのエイリアス
+export const updateAmazonInventory = (sku: string, quantity: number) => updateAmazonListing(sku, quantity);

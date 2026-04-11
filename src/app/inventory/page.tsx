@@ -169,6 +169,33 @@ export default function InventoryPage() {
                         </div>
                     )}
 
+                    <button
+                        onClick={async () => {
+                            setIsSyncing(true);
+                            try {
+                                const res = await fetch("/api/amazon/sync", { method: "POST" });
+                                const data = await res.json();
+                                if (data.success) {
+                                    showNotification(data.message, "success");
+                                    await mutateProducts();
+                                    await mutateStockMovements();
+                                } else {
+                                    throw new Error(data.message || data.error);
+                                }
+                            } catch (error: any) {
+                                console.error("Amazon Sync Error:", error);
+                                showNotification(error.message, "error");
+                            } finally {
+                                setIsSyncing(false);
+                            }
+                        }}
+                        disabled={isSyncing}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-[#FF9900] text-white font-bold rounded-xl hover:bg-[#e68a00] disabled:bg-[#ffcc80] transition-all shadow-lg shadow-orange-900/10 active:scale-95"
+                    >
+                        <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
+                        {isSyncing ? 'Amazon同期中' : 'Amazon同期'}
+                    </button>
+
                     <Link
                         href="/inventory/audits/new"
                         className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a8a] text-white font-bold rounded-xl hover:bg-blue-800 transition-all shadow-lg shadow-blue-900/10"

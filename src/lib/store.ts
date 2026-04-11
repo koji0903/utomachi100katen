@@ -7,6 +7,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { getMockData } from "@/lib/mockData";
+import { syncProductToAmazon } from "@/app/actions/amazon";
 
 // Helper to remove undefined properties before sending to Firestore
 const cleanObject = (obj: any) => {
@@ -757,6 +758,12 @@ export function useStore() {
             detail: productUpdate.name || id
         });
         mutateProducts();
+
+        // Amazon同期が有効な場合、バックグラウンドでプッシュ
+        const product = products.find(p => p.id === id);
+        if (product && product.amazonSyncEnabled) {
+            syncProductToAmazon(id).catch(err => console.error("Amazon sync failed on update:", err));
+        }
     };
 
     const deleteProduct = async (id: string) => {
