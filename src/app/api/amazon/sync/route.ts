@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { adminDb, admin } from "@/lib/firebase-admin";
 import { getAmazonProduct, getAmazonOrders } from "@/lib/amazon";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
     try {
         console.log("[Amazon Sync] Starting synchronization process (Server/Admin SDK)...");

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { getAmazonProduct } from "@/lib/amazon";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     try {
         const productsRef = adminDb.collection("products");

@@ -14,14 +14,8 @@ if (!admin.apps.length && serviceAccount) {
     });
 }
 
-const adminDb = admin.firestore();
-const adminAuth = admin.auth();
-
-export { adminDb, adminAuth, admin };
-function getApps() {
-    throw new Error("Function not implemented.");
-}
-
-function initializeApp(arg0: { credential: admin.ServiceAccount; projectId: any; }) {
-    throw new Error("Function not implemented.");
-}
+// 外部からのアクセス用に安全にエクスポート
+// ビルド時に環境変数がなくてもエラーにならないように null チェックを行う
+export const adminDb = admin.apps.length ? admin.firestore() : null as any;
+export const adminAuth = admin.apps.length ? admin.auth() : null as any;
+export { admin };
