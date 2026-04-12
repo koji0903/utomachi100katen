@@ -81,19 +81,37 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                 for (const item of sale.items) {
                     const product = products.find(p => p.id === item.productId);
                     if (!product) continue;
+                    
+                    // 店舗関連情報の取得
+                    const store = retailStores.find(s => s.id === storeId);
+
+                    // 店舗別の最新の卸価格があるか確認
+                    const wholesaleEntry = product.storeWholesalePrices?.find(sp => sp.storeId === storeId);
+                    let currentWholesalePrice = (wholesaleEntry && wholesaleEntry.price > 0) ? wholesaleEntry.price : null;
+                    
+                    // フォールバック：個別の卸価格設定がない場合、店舗の卸売率から計算
+                    if (!currentWholesalePrice && store && store.wholesaleRate) {
+                        currentWholesalePrice = Math.round((product.sellingPrice || 0) * (store.wholesaleRate / 100));
+                    }
+
+                    // 適用する単価を決定（卸価格があれば優先、なければ売上時の価格）
+                    const effectiveUnitPrice = currentWholesalePrice ?? item.priceAtSale;
+                    const effectiveSubtotal = effectiveUnitPrice * item.quantity;
+
                     const key = item.productId;
                     if (map.has(key)) {
                         const existing = map.get(key)!;
                         existing.quantity += item.quantity;
-                        existing.subtotal += item.subtotal;
+                        existing.unitPrice = effectiveUnitPrice; // 単価は最新のものを維持
+                        existing.subtotal = existing.quantity * effectiveUnitPrice;
                     } else {
                         map.set(key, {
                             id: crypto.randomUUID(),
                             productId: product.id,
                             label: product.name + (product.variantName ? ` (${product.variantName})` : ""),
                             quantity: item.quantity,
-                            unitPrice: item.priceAtSale,
-                            subtotal: item.subtotal,
+                            unitPrice: effectiveUnitPrice,
+                            subtotal: effectiveSubtotal,
                         });
                     }
                 }

@@ -19,7 +19,7 @@ interface InvoiceEditorProps {
 }
 
 export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusive', onChange, finalAdjustment = 0, storeId }: InvoiceEditorProps) {
-    const { products } = useStore();
+    const { products, retailStores } = useStore();
     const [searchQuery, setSearchQuery] = useState("");
     const [showProductSearch, setShowProductSearch] = useState(false);
 
@@ -56,6 +56,12 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
             const wholesaleEntry = product.storeWholesalePrices?.find(sp => sp.storeId === storeId);
             if (wholesaleEntry && wholesaleEntry.price > 0) {
                 basePrice = wholesaleEntry.price;
+            } else {
+                // フォールバック：店舗の卸売率を使用して計算
+                const store = retailStores.find(s => s.id === storeId);
+                if (store && store.wholesaleRate) {
+                    basePrice = Math.round((product.sellingPrice || 0) * (store.wholesaleRate / 100));
+                }
             }
         }
 
@@ -249,7 +255,14 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
                                         let displayPrice = p.sellingPrice;
                                         if (storeId) {
                                             const ws = p.storeWholesalePrices?.find(sp => sp.storeId === storeId);
-                                            if (ws && ws.price > 0) displayPrice = ws.price;
+                                            if (ws && ws.price > 0) {
+                                                displayPrice = ws.price;
+                                            } else {
+                                                const store = retailStores.find(s => s.id === storeId);
+                                                if (store && store.wholesaleRate) {
+                                                    displayPrice = Math.round((p.sellingPrice || 0) * (store.wholesaleRate / 100));
+                                                }
+                                            }
                                         }
                                         return (
                                             <div className="text-xs font-mono font-bold text-slate-500">
