@@ -31,6 +31,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         costPrice: 0,
         sellingPrice: 0,
         storePrices: [] as { storeId: string; price: number }[],
+        storeWholesalePrices: [] as { storeId: string; price: number }[],
         stock: 0,
         story: "",
         producerStory: "",
@@ -80,6 +81,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     costPrice: initialData.costPrice,
                     sellingPrice: initialData.sellingPrice,
                     storePrices: initialData.storePrices || [],
+                    storeWholesalePrices: initialData.storeWholesalePrices || [],
                     stock: initialData.stock,
                     story: initialData.story || "",
                     producerStory: initialData.producerStory || "",
@@ -116,6 +118,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     brandId: brands.length > 0 ? brands[0].id : "",
                     supplierId: suppliers.length > 0 ? suppliers[0].id : "",
                     storePrices: [],
+                    storeWholesalePrices: [],
                     janCode: "",
                     amazonAsin: "",
                     amazonSku: "",
@@ -139,19 +142,37 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         setFormData(prev => {
             let changed = false;
             const newStorePrices = [...prev.storePrices];
-
             retailStores.forEach(store => {
+                // Retail Price
                 const pricingRule = store.pricingRule || 0;
-                const calculatedPrice = Math.round(newPrice * (1 + pricingRule / 100));
+                const calculatedRetailPrice = Math.round(newPrice * (1 + pricingRule / 100));
 
-                const idx = newStorePrices.findIndex(sp => sp.storeId === store.id);
-                if (idx >= 0) {
-                    if (newStorePrices[idx].price !== calculatedPrice) {
-                        newStorePrices[idx] = { ...newStorePrices[idx], price: calculatedPrice };
+                const idxRetail = newStorePrices.findIndex(sp => sp.storeId === store.id);
+                if (idxRetail >= 0) {
+                    if (newStorePrices[idxRetail].price !== calculatedRetailPrice) {
+                        newStorePrices[idxRetail] = { ...newStorePrices[idxRetail], price: calculatedRetailPrice };
                         changed = true;
                     }
                 } else {
-                    newStorePrices.push({ storeId: store.id, price: calculatedPrice });
+                    newStorePrices.push({ storeId: store.id, price: calculatedRetailPrice });
+                    changed = true;
+                }
+            });
+
+            const newStoreWholesalePrices = [...prev.storeWholesalePrices];
+            retailStores.forEach(store => {
+                // Wholesale Price
+                const wholesaleRate = store.wholesaleRate ?? 60;
+                const calculatedWholesalePrice = Math.round(newPrice * (wholesaleRate / 100));
+
+                const idxWholesale = newStoreWholesalePrices.findIndex(sp => sp.storeId === store.id);
+                if (idxWholesale >= 0) {
+                    if (newStoreWholesalePrices[idxWholesale].price !== calculatedWholesalePrice) {
+                        newStoreWholesalePrices[idxWholesale] = { ...newStoreWholesalePrices[idxWholesale], price: calculatedWholesalePrice };
+                        changed = true;
+                    }
+                } else {
+                    newStoreWholesalePrices.push({ storeId: store.id, price: calculatedWholesalePrice });
                     changed = true;
                 }
             });
@@ -159,31 +180,43 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
             return {
                 ...prev,
                 sellingPrice: newPrice,
-                storePrices: changed ? newStorePrices : prev.storePrices
+                storePrices: changed ? newStorePrices : prev.storePrices,
+                storeWholesalePrices: changed ? newStoreWholesalePrices : prev.storeWholesalePrices
             };
         });
     };
 
-    // Ensure all active retail stores have an entry in storePrices without overwriting manual overrides
+    // Ensure all active retail stores have an entry in storePrices/storeWholesalePrices without overwriting manual overrides
     useEffect(() => {
         if (!isOpen || !formData.sellingPrice) return;
 
         setFormData(prev => {
             let changed = false;
             const newStorePrices = [...prev.storePrices];
+            const newStoreWholesalePrices = [...prev.storeWholesalePrices];
 
             retailStores.forEach(store => {
-                const idx = newStorePrices.findIndex(sp => sp.storeId === store.id);
-                if (idx < 0) {
+                // Retail
+                const idxRetail = newStorePrices.findIndex(sp => sp.storeId === store.id);
+                if (idxRetail < 0) {
                     const pricingRule = store.pricingRule || 0;
                     const calculatedPrice = Math.round(prev.sellingPrice * (1 + pricingRule / 100));
                     newStorePrices.push({ storeId: store.id, price: calculatedPrice });
                     changed = true;
                 }
+
+                // Wholesale
+                const idxWholesale = newStoreWholesalePrices.findIndex(sp => sp.storeId === store.id);
+                if (idxWholesale < 0) {
+                    const wholesaleRate = store.wholesaleRate ?? 60;
+                    const calculatedWholesalePrice = Math.round(prev.sellingPrice * (wholesaleRate / 100));
+                    newStoreWholesalePrices.push({ storeId: store.id, price: calculatedWholesalePrice });
+                    changed = true;
+                }
             });
 
             if (changed) {
-                return { ...prev, storePrices: newStorePrices };
+                return { ...prev, storePrices: newStorePrices, storeWholesalePrices: newStoreWholesalePrices };
             }
             return prev;
         });
@@ -385,6 +418,21 @@ JANコード: ${formData.janCode || "なし"}
         });
     };
 
+    const handleStoreWholesalePriceChange = (storeId: string, price: number) => {
+        setFormData(prev => {
+            const existing = prev.storeWholesalePrices.find(sp => sp.storeId === storeId);
+            let newStoreWholesalePrices;
+            if (existing) {
+                newStoreWholesalePrices = prev.storeWholesalePrices.map(sp =>
+                    sp.storeId === storeId ? { ...sp, price } : sp
+                );
+            } else {
+                newStoreWholesalePrices = [...prev.storeWholesalePrices, { storeId, price }];
+            }
+            return { ...prev, storeWholesalePrices: newStoreWholesalePrices };
+        });
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
@@ -579,20 +627,49 @@ JANコード: ${formData.janCode || "なし"}
 
                                     {/* Store Prices */}
                                     <div className="space-y-3 pt-2">
-                                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                            <Store className="w-3.5 h-3.5" /> 店舗別個別価格（税込）
-                                        </h3>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Store className="w-3.5 h-3.5 text-blue-500" />
+                                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">
+                                                店舗の販売価格（税込）
+                                            </h3>
+                                        </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             {retailStores.map(store => {
                                                 const storePrice = formData.storePrices.find(sp => sp.storeId === store.id)?.price || 0;
                                                 return (
-                                                    <div key={store.id} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                                        <span className="text-[11px] font-bold text-slate-500 flex-1 truncate">{store.name}</span>
+                                                    <div key={store.id} className="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <span className="text-[10px] font-bold text-slate-500 flex-1 truncate">{store.name}</span>
                                                         <NumberInput
                                                             value={storePrice}
                                                             onChange={(val) => handleStorePriceChange(store.id, val ?? 0)}
                                                             className="w-20 px-2 py-1.5 text-xs text-right border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/10"
-                                                            placeholder="個別価格（税込）"
+                                                            placeholder="販売価格"
+                                                        />
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Store Wholesale Prices */}
+                                    <div className="space-y-3 pt-4">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Tag className="w-3.5 h-3.5 text-purple-500" />
+                                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">
+                                                店舗の卸価格（税込）
+                                            </h3>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {retailStores.map(store => {
+                                                const storeWholesalePrice = formData.storeWholesalePrices.find(sp => sp.storeId === store.id)?.price || 0;
+                                                return (
+                                                    <div key={store.id} className="flex items-center gap-2 p-2.5 bg-purple-50/30 rounded-xl border border-purple-100/50">
+                                                        <span className="text-[10px] font-bold text-purple-600/70 flex-1 truncate">{store.name}</span>
+                                                        <NumberInput
+                                                            value={storeWholesalePrice}
+                                                            onChange={(val) => handleStoreWholesalePriceChange(store.id, val ?? 0)}
+                                                            className="w-20 px-2 py-1.5 text-xs text-right border border-purple-200 rounded-md focus:ring-2 focus:ring-purple-500/10"
+                                                            placeholder="卸価格"
                                                         />
                                                     </div>
                                                 );

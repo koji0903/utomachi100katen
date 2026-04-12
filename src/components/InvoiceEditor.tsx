@@ -14,10 +14,11 @@ interface InvoiceEditorProps {
     taxRate: 8 | 10;
     taxType?: 'inclusive' | 'exclusive';
     finalAdjustment?: number;
+    storeId?: string;
     onChange: (data: { items: InvoiceItem[]; adjustments: InvoiceAdjustment[]; taxRate: 8 | 10; taxType: 'inclusive' | 'exclusive'; totalAmount: number; finalAdjustment?: number }) => void;
 }
 
-export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusive', onChange, finalAdjustment = 0 }: InvoiceEditorProps) {
+export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusive', onChange, finalAdjustment = 0, storeId }: InvoiceEditorProps) {
     const { products } = useStore();
     const [searchQuery, setSearchQuery] = useState("");
     const [showProductSearch, setShowProductSearch] = useState(false);
@@ -49,12 +50,20 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
 
     // Handlers
     const addItem = (product?: Product) => {
-        const productUnitPrice = product?.sellingPrice ?? 0;
-        let unitPrice = productUnitPrice;
+        let basePrice = product?.sellingPrice ?? 0;
 
-        if (taxType === 'exclusive' && productUnitPrice > 0) {
+        if (product && storeId) {
+            const wholesaleEntry = product.storeWholesalePrices?.find(sp => sp.storeId === storeId);
+            if (wholesaleEntry && wholesaleEntry.price > 0) {
+                basePrice = wholesaleEntry.price;
+            }
+        }
+
+        let unitPrice = basePrice;
+
+        if (taxType === 'exclusive' && basePrice > 0) {
             const pTaxRate = product?.taxRate === 'reduced' ? 8 : 10;
-            unitPrice = Math.round(productUnitPrice / (1 + pTaxRate / 100));
+            unitPrice = Math.round(basePrice / (1 + pTaxRate / 100));
         }
 
         const newItem: InvoiceItem = {
@@ -236,7 +245,19 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
                                         <div className="text-xs font-bold text-slate-800">{p.name}</div>
                                         <div className="text-[10px] text-slate-400">{p.variantName}</div>
                                     </div>
-                                    <div className="text-xs font-mono font-bold text-slate-500">¥{p.sellingPrice?.toLocaleString()}</div>
+                                    {(() => {
+                                        let displayPrice = p.sellingPrice;
+                                        if (storeId) {
+                                            const ws = p.storeWholesalePrices?.find(sp => sp.storeId === storeId);
+                                            if (ws && ws.price > 0) displayPrice = ws.price;
+                                        }
+                                        return (
+                                            <div className="text-xs font-mono font-bold text-slate-500">
+                                                ¥{displayPrice?.toLocaleString()}
+                                                {displayPrice !== p.sellingPrice && <span className="text-[8px] ml-1 bg-purple-100 text-purple-600 px-1 rounded">卸</span>}
+                                            </div>
+                                        );
+                                    })()}
                                 </button>
                             ))}
                         </div>

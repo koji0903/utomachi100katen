@@ -107,6 +107,7 @@ export interface RetailStore extends BaseEntity {
     createdAt?: string | any;
     updatedAt?: string | any;
     pricingRule?: number; // Percentage offset (e.g., 15 for +15%, -20 for -20%)
+    wholesaleRate?: number; // Percentage of selling price (e.g., 60 for 60%)
     activeProductIds?: string[]; // IDs of products carried by this store
     // 請求先情報（店舗情報と異なる場合）
     useDifferentBilling?: boolean;
@@ -527,6 +528,7 @@ export interface Product extends BaseEntity {
     costPrice: number;
     sellingPrice: number; // Default base price
     storePrices?: { storeId: string; price: number }[]; // Store-specific prices
+    storeWholesalePrices?: { storeId: string; price: number }[]; // Store-specific wholesale prices
     stock: number;
     story?: string;
     // EC / Product Detail fields

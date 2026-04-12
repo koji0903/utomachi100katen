@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Image as ImageIcon, UploadCloud, Search, Check } from "lucide-react";
+import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Image as ImageIcon, UploadCloud, Search, Check, Tag } from "lucide-react";
 import { useStore, RetailStore, Product } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
 import { NumberInput } from "@/components/NumberInput";
@@ -43,6 +43,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         dailySalesGoal: 0,
         honorific: '御中' as '様' | '御中',
         squareLocationId: "",
+        wholesaleRate: 60,
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -80,10 +81,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     dailySalesGoal: initialData.dailySalesGoal || 0,
                     honorific: initialData.honorific || '御中',
                     squareLocationId: initialData.squareLocationId || "",
+                    wholesaleRate: initialData.wholesaleRate ?? 60,
                 });
                 setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0, honorific: '御中', squareLocationId: "" });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0, honorific: '御中', squareLocationId: "", wholesaleRate: 60 });
                 setPreviews([]);
             }
             setImageFiles([]);
@@ -484,8 +486,41 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                 </div>
                             </div>
                             <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
-                                商品管理で「販売価格」を変更した際、この店舗の「店舗別個別価格」を自動計算します。
+                                商品管理で「販売価格」を変更した際、この店舗の「店舗別個別価格」を自動計算します。<br />
                                 例: 15なら15%アップ、-20なら20%ダウンされます。
+                            </p>
+                        </div>
+
+                        {/* 卸売率ルール */}
+                        <div className="pt-4 border-t border-slate-100">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg">
+                                    <Tag className="w-3.5 h-3.5" />
+                                </div>
+                                <label className="text-sm font-bold text-slate-800">卸売率設定 (自動計算用)</label>
+                            </div>
+                            <div className="space-y-2 animate-in slide-in-from-left-2 duration-200">
+                                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                    卸売率 (%) <span className="text-slate-400 font-normal ml-2">※販売価格に対する比率</span>
+                                </label>
+                                <div className="relative">
+                                    <NumberInput
+                                        value={formData.wholesaleRate}
+                                        min={0}
+                                        max={100}
+                                        onChange={val => setFormData({
+                                            ...formData,
+                                            wholesaleRate: val ?? 60
+                                        })}
+                                        className={`${inputCls} text-right pr-8`}
+                                        placeholder="60"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">%</span>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                                商品管理で「販売価格」を入力した際、この比率を掛けた値を「卸価格」として自動セットします。<br />
+                                例: 60なら販売価格の60%が卸価格になります。
                             </p>
                         </div>
 

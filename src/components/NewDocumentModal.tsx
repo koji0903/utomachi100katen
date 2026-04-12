@@ -265,6 +265,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                                 adjustments={invoiceAdjustments}
                                 taxRate={taxRate}
                                 taxType={taxType}
+                                storeId={recipientType === 'store' ? storeId : undefined}
                                 onChange={(data) => {
                                     setInvoiceItems(data.items);
                                     setInvoiceAdjustments(data.adjustments);
