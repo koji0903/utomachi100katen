@@ -25,7 +25,7 @@ interface AlertItem {
     status: 'info' | 'success' | 'warning' | 'error';
     message: string;
     icon: LucideIcon;
-    preparationProgress: number; // 0 to 100
+    progress: number; // 0 to 100
 }
 
 export function SeasonalAlarm() {
