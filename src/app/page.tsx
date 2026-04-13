@@ -28,6 +28,7 @@ import {
 import { useMemo, useState, useEffect } from "react";
 import { useStore, type Activity } from "@/lib/store";
 import { CalendarView } from "@/components/CalendarView";
+import { SeasonalAlarm } from "@/components/SeasonalAlarm";
 import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
 
 function ActivityTimeline() {
@@ -294,6 +295,9 @@ export default function DashboardPage() {
                     </div>
                 )}
             </div>
+
+            {/* Seasonal Preparation Alarms */}
+            <SeasonalAlarm />
 
             {/* Mobile Priority Actions (Visible only on mobile) */}
             <div className="grid grid-cols-2 gap-4 md:hidden">
