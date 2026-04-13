@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     try {
         // 2. Fetch all stores
         const storesSnap = await adminDb.collection("retailStores").where("isTrashed", "==", false).get();
-        const stores = storesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const stores = storesSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
 
         const results = {
             total: stores.length,
