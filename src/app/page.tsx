@@ -282,7 +282,7 @@ export default function DashboardPage() {
                         <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[#1e3a8a]">
                             <LayoutDashboard className="w-5 h-5" />
                         </div>
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600/60">OVERVIEW / 概要</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600/60">概要</span>
                     </div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">
                         ダッシュボード
@@ -325,7 +325,7 @@ export default function DashboardPage() {
             <section>
                 <div className="flex items-center gap-2 mb-6 text-slate-400">
                     <Plus className="w-3.5 h-3.5" />
-                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">Quick Actions / クイックアクセス</h2>
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">クイックアクセス</h2>
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                     {quickActions.map((action, idx) => (
@@ -362,7 +362,7 @@ export default function DashboardPage() {
                             <Sparkles className="w-4 h-4" />
                             {currentMonthStats.label}
                         </div>
-                        <h3 className="text-3xl sm:text-4xl font-black tracking-tight leading-none italic">PERFORMANCE</h3>
+                        <h3 className="text-3xl sm:text-4xl font-black tracking-tight leading-none italic">今月の実績</h3>
                         <p className="text-blue-100/70 text-sm font-medium mt-2">今月の主要指標をサマリー形式で表示しています</p>
                     </div>
 
@@ -459,7 +459,7 @@ export default function DashboardPage() {
                                                 {product.stock}個
                                             </div>
                                             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                                Stock
+                                                現在の在庫数
                                             </div>
                                         </div>
                                     </div>
@@ -481,7 +481,7 @@ export default function DashboardPage() {
                     <section>
                         <div className="flex items-center gap-2 mb-6 text-slate-400">
                             <Database className="w-3.5 h-3.5" />
-                            <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">System Resources / システムリソース</h2>
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">システムリソース</h2>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                             <div className="bg-white p-8 rounded-[2rem] border border-slate-200/60 shadow-sm group hover:border-blue-200 transition-colors">
@@ -536,7 +536,7 @@ export default function DashboardPage() {
 
                     <div className="bg-[#1e3a8a] rounded-[2rem] p-8 text-white shadow-xl overflow-hidden relative group">
                         <div className="relative z-10">
-                            <h3 className="font-black text-xl mb-3 tracking-tight">ANALYSIS</h3>
+                            <h3 className="font-black text-xl mb-3 tracking-tight">事業分析レポート</h3>
                             <p className="text-blue-100/70 text-xs mb-6 leading-relaxed font-medium">
                                 直近の業務日報や売上傾向を確認して、<br />最適な販売戦略を立てましょう。
                             </p>

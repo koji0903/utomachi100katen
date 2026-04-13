@@ -496,7 +496,17 @@ export interface InventoryAudit extends BaseEntity {
     completedAt?: string | any;
 }
 
-// ─── 店舗別在庫（Store Stocks） ──────────────────────────────────────────
+// ─── 販促準備タスク（Promotion Tasks） ────────────────────────────────────
+export interface PromotionTask {
+    id: string; // {storeId}_{eventDate}_{taskKey}
+    storeId: string;
+    eventDate: string; // YYYY-MM-DD
+    eventName: string;
+    taskKey: string;   // e.g. "procurement", "marketing", "floor", "final"
+    isCompleted: boolean;
+    updatedAt?: string | any;
+}
+
 export interface StoreStock extends BaseEntity {
     id: string; // storeId_productId
     storeId: string;
@@ -638,6 +648,7 @@ export function useStore() {
     const { data: printArchives = [], mutate: mutatePrintArchives, isLoading: loadingPrintArchives } = useSWR<PrintArchive[]>(["print_archives", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<PrintArchive>(col, demo), swrConfig);
     const { data: expenses = [], mutate: mutateExpenses, isLoading: loadingExpenses } = useSWR<Expense[]>(["expenses", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Expense>(col, demo), swrConfig);
     const { data: businessManuals = [], mutate: mutateBusinessManuals } = useSWR<BusinessManual[]>(["business_manuals", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<BusinessManual>(col, demo), swrConfig);
+    const { data: promotionTasks = [], mutate: mutatePromotionTasks } = useSWR<PromotionTask[]>(["seasonal_tasks", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<PromotionTask>(col, demo), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -2641,7 +2652,32 @@ export function useStore() {
         mutateTransactionItems,
         mutateProducts,
         mutateStockMovements,
-        mutateRetailStores
+        mutateRetailStores,
+        // Promotion Tasks
+        promotionTasks,
+        togglePromotionTask: async (task: Omit<PromotionTask, "updatedAt">) => {
+            if (checkDemoMode()) return;
+            const taskWithUpdate = { 
+                ...task, 
+                isCompleted: !task.isCompleted, 
+                updatedAt: new Date().toISOString() 
+            };
+            
+            // Optimistic update
+            const newTasks = promotionTasks.some(t => t.id === task.id)
+                ? promotionTasks.map(t => t.id === task.id ? { ...t, ...taskWithUpdate } : t)
+                : [...promotionTasks, taskWithUpdate as PromotionTask];
+                
+            mutatePromotionTasks(newTasks, false);
+            
+            await setDoc(doc(db, "seasonal_tasks", task.id), {
+                ...taskWithUpdate,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            
+            mutatePromotionTasks();
+        },
+        mutatePromotionTasks
     };
 
 }
