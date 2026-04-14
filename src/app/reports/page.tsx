@@ -8,7 +8,7 @@ import {
     Thermometer, Wind, Plus, ClipboardList, Trash2, AlertTriangle,
     ChevronRight, ChevronLeft, Store, Image as ImageIcon, UploadCloud, Save, Package,
     Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy, Video, RotateCcw,
-    Search, Check
+    Search, Check, Brain
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
@@ -97,11 +97,13 @@ function ReportForm({
     const [displayAfterImageUrls, setDisplayAfterImageUrls] = useState<string[]>(editData?.displayAfterImageUrls ?? []);
     const [restocking, setRestocking] = useState<RestockingItem[]>(editData?.restocking ?? []);
     const [imageUrl, setImageUrl] = useState(editData?.imageUrl ?? "");
+    const [aiAnalysis, setAiAnalysis] = useState(editData?.aiAnalysis ?? "");
     const [productSearchQuery, setProductSearchQuery] = useState("");
 
     // AI Generation states
     const [instaCopy, setInstaCopy] = useState("");
     const [isGeneratingMarketing, setIsGeneratingMarketing] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
 
     // Image files for upload (newly added files)
     const [beforeFiles, setBeforeFiles] = useState<File[]>([]);
@@ -307,6 +309,43 @@ function ReportForm({
         }
     };
 
+    const handleAnalyzeReport = async () => {
+        if (!content && !storeTopics && !officeNote) {
+            alert("分析するための内容を入力してください。");
+            return;
+        }
+        setIsAnalyzing(true);
+        try {
+            const res = await fetch("/api/reports/analyze", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    type,
+                    date,
+                    worker,
+                    storeName: selectedStore?.name,
+                    weather: weather?.weather,
+                    temp: weather?.temp,
+                    content,
+                    storeTopics,
+                    officeNote,
+                    restocking: restocking.filter(r => r.productId),
+                }),
+            });
+            const data = await res.json();
+            if (data.analysis) {
+                setAiAnalysis(data.analysis);
+            } else {
+                alert("分析に失敗しました: " + (data.detail || data.error));
+            }
+        } catch (error) {
+            console.error(error);
+            alert("分析中にエラーが発生しました。");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!worker.trim()) return;
@@ -361,6 +400,7 @@ function ReportForm({
                         }
                         : {}
                 ),
+                aiAnalysis,
             };
 
             // NEW: Automatic sale for Wholesale (B) stores
@@ -833,6 +873,54 @@ function ReportForm({
                             </p>
                         )}
                     </div>
+
+                    {/* ✨ AI Analysis / Insights */}
+                    <div className="bg-indigo-900/5 rounded-2xl border border-indigo-200 p-5 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-indigo-900 rounded-lg flex items-center justify-center text-white shadow-md">
+                                    <Brain className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span className="text-sm font-black text-indigo-950 block">AI分析・アドバイス</span>
+                                    <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">Manager Insight</span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleAnalyzeReport}
+                                disabled={isAnalyzing || (!content && !storeTopics && !officeNote)}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-900 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-50 transition-all hover:bg-indigo-800"
+                            >
+                                {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                                分析を実行
+                            </button>
+                        </div>
+
+                        {aiAnalysis ? (
+                            <div className="bg-white/60 rounded-xl border border-indigo-100 p-4 relative group">
+                                <div className="text-xs text-indigo-900 whitespace-pre-wrap leading-relaxed font-medium">
+                                    {aiAnalysis}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setAiAnalysis("")}
+                                    className="absolute top-2 right-2 p-1 text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="text-center py-4">
+                                <p className="text-[11px] text-slate-400 font-bold mb-1">
+                                    AIが店長に代わって日報を一歩深く分析します。
+                                </p>
+                                <p className="text-[9px] text-indigo-300 font-bold uppercase tracking-tighter">
+                                    Advice • Feedback • Next Action
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </form>
 
                 {/* Footer */}
@@ -954,6 +1042,19 @@ function ReportCard({
                             <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
                                 {report.content || report.officeNote || report.storeTopics}
                             </p>
+                        </div>
+                    )}
+
+                    {/* AI Analysis View */}
+                    {report.aiAnalysis && (
+                        <div className="bg-indigo-900/5 border border-indigo-100 rounded-2xl p-4 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-900/10 rounded-full -mr-12 -mt-12 blur-2xl" />
+                            <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-[0.15em] mb-3 px-1 flex items-center gap-1.5 relative z-10">
+                                <Brain className="w-3 h-3 text-indigo-600" /> AI INSIGHT & ADVICE
+                            </h4>
+                            <div className="text-sm text-indigo-950 leading-relaxed whitespace-pre-wrap font-medium relative z-10 animate-in fade-in slide-in-from-left-2 duration-500">
+                                {report.aiAnalysis}
+                            </div>
                         </div>
                     )}
 

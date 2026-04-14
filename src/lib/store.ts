@@ -155,6 +155,7 @@ export interface DailyReport extends BaseEntity {
     displayBeforeImageUrls?: string[];
     displayAfterImageUrls?: string[];
     imageUrl?: string;       // メイン写真 URL
+    aiAnalysis?: string;     // AI による分析・アドバイス
     createdAt?: string | any;
     updatedAt?: string | any;
 }

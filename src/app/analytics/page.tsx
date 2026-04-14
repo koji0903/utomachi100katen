@@ -13,6 +13,7 @@ import { TrendingUp, DollarSign, Percent, ShoppingBag, Store, Filter, ChevronLef
 import { showNotification } from "@/lib/notifications";
 
 import { MonthlySalesReport } from "@/components/Analytics/MonthlySalesReport";
+import { ManagementAnalysisCard } from "@/components/Analytics/ManagementAnalysisCard";
 
 type ViewMode = "monthly" | "daily";
 
@@ -23,7 +24,7 @@ const fmtYen = (v: number) => `¥${Math.round(v).toLocaleString()}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 
 export default function AnalyticsPage() {
-    const { isLoaded, sales, products, brands, retailStores, purchases } = useStore();
+    const { isLoaded, sales, products, brands, retailStores, purchases, dailyReports } = useStore();
 
     const now = new Date();
     const [viewMode, setViewMode] = useState<ViewMode>("monthly");
@@ -308,6 +309,35 @@ export default function AnalyticsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sales]);
 
+    // Data for AI Management Analysis
+    const managementAnalysisData = useMemo(() => {
+        // Filter reports for the selected period
+        const periodReports = dailyReports
+            .filter(r => !r.isTrashed)
+            .filter(r => {
+                if (viewMode === "monthly") {
+                    return r.date.startsWith(selectedYear);
+                } else {
+                    return r.date.startsWith(selectedMonth);
+                }
+            })
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .slice(0, 10)
+            .map(r => ({
+                date: r.date,
+                summary: r.storeTopics || r.officeNote || "トピックなし"
+            }));
+
+        return {
+            period: viewMode === "monthly" ? `${selectedYear}年` : `${selectedMonth.replace("-", "/")}月`,
+            viewMode,
+            kpis: kpiTotals,
+            abcAnalysis: abcData.slice(0, 10),
+            storeDistribution: storePieData,
+            recentReports: periodReports
+        };
+    }, [viewMode, selectedYear, selectedMonth, kpiTotals, abcData, storePieData, dailyReports]);
+
     if (!isLoaded) {
         return (
             <div className="h-full flex items-center justify-center text-slate-400">
@@ -487,6 +517,9 @@ export default function AnalyticsPage() {
                         );
                     })}
                 </div>
+
+                {/* AI Management Analysis Report */}
+                <ManagementAnalysisCard {...managementAnalysisData} />
 
                 {/* Charts Row 1: Trend */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 relative">
