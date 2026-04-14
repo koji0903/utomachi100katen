@@ -38,6 +38,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                     itemsList = [{
                         productId: initialData.productId,
                         quantity: initialData.quantity || 1,
+                        receivedQuantity: (initialData.status === 'received' || initialData.status === 'paid') ? (initialData.quantity || 1) : 0,
                         unitCost: initialData.unitCost || 0,
                         totalCost: initialData.totalCost || 0
                     }];
@@ -111,6 +112,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                 orderDate: today,
                 arrivalDate: today,
                 receivedDate: today,
+                items: prev.items.map(i => ({ ...i, receivedQuantity: i.quantity }))
             }));
         } else {
             setFormData(prev => ({
@@ -126,7 +128,13 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
             ...prev,
             items: [
                 ...prev.items,
-                { productId: availableProducts.length > 0 ? availableProducts[0].id : "", quantity: 1, unitCost: availableProducts.length > 0 ? availableProducts[0].purchasePrice : 0, totalCost: availableProducts.length > 0 ? availableProducts[0].purchasePrice : 0 }
+                { 
+                    productId: availableProducts.length > 0 ? availableProducts[0].id : "", 
+                    quantity: 1, 
+                    receivedQuantity: prev.type === 'B' ? 1 : 0,
+                    unitCost: availableProducts.length > 0 ? availableProducts[0].purchasePrice : 0, 
+                    totalCost: availableProducts.length > 0 ? availableProducts[0].purchasePrice : 0 
+                }
             ]
         }));
     };
@@ -247,15 +255,18 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                             const today = new Date().toISOString().split('T')[0];
                                             const update: any = { status: newStatus };
                                             
-                                            if (newStatus === 'received' && !formData.receivedDate && !formData.arrivalDate) {
+                                            if (newStatus === 'received' || newStatus === 'paid') {
                                                 update.receivedDate = today;
                                                 update.arrivalDate = today;
-                                            } else if (newStatus === 'paid' && !formData.paymentDate) {
-                                                update.paymentDate = today;
-                                                if (!formData.receivedDate && !formData.arrivalDate) {
-                                                    update.receivedDate = today;
-                                                    update.arrivalDate = today;
+                                                // Auto sync received quantity
+                                                update.items = formData.items.map(i => ({ ...i, receivedQuantity: i.quantity }));
+                                                
+                                                if (newStatus === 'paid' && !formData.paymentDate) {
+                                                    update.paymentDate = today;
                                                 }
+                                            } else if (newStatus === 'partially_received' && !formData.receivedDate && !formData.arrivalDate) {
+                                                update.receivedDate = today;
+                                                update.arrivalDate = today;
                                             }
                                             setFormData({ ...formData, ...update });
                                         }}
@@ -264,6 +275,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                         <option value="ordered_pending">発注未（予定）</option>
                                         <option value="ordered">発注済み</option>
                                         <option value="waiting">仕入待ち</option>
+                                        <option value="partially_received">部分入荷</option>
                                         <option value="received">仕入済み（在庫反映）</option>
                                         <option value="paid">支払済</option>
                                     </select>
@@ -355,7 +367,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                         {formData.items.map((item, index) => (
                                             <div key={index} className="flex gap-3 bg-white border border-slate-200 p-3 rounded-xl shadow-sm">
                                                 <div className="flex-1 space-y-3">
-                                                    <div className="grid grid-cols-[1fr_80px_100px_100px] gap-3 items-end">
+                                                    <div className="grid grid-cols-[1fr_80px_100px_100px_100px] gap-3 items-end">
                                                         <div className="space-y-1">
                                                             <label className="text-[10px] font-bold text-slate-500 block uppercase">商品 *</label>
                                                             <select
@@ -375,7 +387,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                                             </select>
                                                         </div>
                                                         <div className="space-y-1">
-                                                            <label className="text-[10px] font-bold text-slate-500 block uppercase">数量 *</label>
+                                                            <label className="text-[10px] font-bold text-slate-500 block uppercase">発注数 *</label>
                                                             <NumberInput
                                                                 required
                                                                 min={1}
@@ -385,7 +397,17 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                                             />
                                                         </div>
                                                         <div className="space-y-1">
-                                                            <label className="text-[10px] font-bold text-slate-500 block uppercase">単価（税込） *</label>
+                                                            <label className={`text-[10px] font-black block uppercase ${item.receivedQuantity > 0 && item.receivedQuantity < item.quantity ? 'text-amber-500' : 'text-slate-500'}`}>入荷数</label>
+                                                            <NumberInput
+                                                                min={0}
+                                                                max={item.quantity}
+                                                                value={item.receivedQuantity}
+                                                                onChange={(val) => updateItem(index, { receivedQuantity: val ?? 0 })}
+                                                                className={`w-full px-2 py-2 border rounded-lg text-sm text-right font-bold transition-colors ${item.receivedQuantity === item.quantity ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : item.receivedQuantity > 0 ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-300'}`}
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold text-slate-500 block uppercase">単価 *</label>
                                                             <NumberInput
                                                                 required
                                                                 min={0}

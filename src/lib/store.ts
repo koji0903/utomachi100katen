@@ -195,6 +195,7 @@ export interface Sale extends BaseEntity {
 export interface PurchaseItem {
     productId: string;
     quantity: number;
+    receivedQuantity: number; // 入荷済みの数量
     unitCost: number;
     totalCost: number;
 }
@@ -202,7 +203,7 @@ export interface PurchaseItem {
 export interface Purchase extends BaseEntity {
     id: string;
     type: 'A' | 'B';
-    status: 'ordered_pending' | 'ordered' | 'waiting' | 'received' | 'paid';
+    status: 'ordered_pending' | 'ordered' | 'partially_received' | 'waiting' | 'received' | 'paid';
     supplierId: string;
     items: PurchaseItem[];
     totalAmount: number;
@@ -893,29 +894,37 @@ export function useStore() {
     const addPurchase = async (purchaseData: Omit<Purchase, "id" | "createdAt">) => {
         if (checkDemoMode()) return;
         const newRef = doc(collection(db, "inbound_shipments"));
-        const newPurchase = {
-            id: newRef.id,
-            ...purchaseData,
-            createdAt: new Date().toISOString(),
-        };
+        const newPurchase: Purchase = { 
+            id: newRef.id, 
+            ...purchaseData, 
+            createdAt: new Date().toISOString() 
+        } as Purchase;
 
-        // If status is received/paid, increment stock
-        if (purchaseData.status === 'received' || purchaseData.status === 'paid') {
-            const items = purchaseData.items || [];
-            for (const item of items) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    const newStock = (product.stock || 0) + item.quantity;
-                    await updateProduct(product.id, { stock: newStock });
-                    await logStockMovement({
-                        productId: product.id,
-                        productName: product.name,
-                        type: 'in',
-                        quantity: item.quantity,
-                        reason: 'purchase',
-                        referenceId: newRef.id,
-                        date: purchaseData.arrivalDate || purchaseData.receivedDate || purchaseData.orderDate
-                    });
+        // Auto-initialize receivedQuantity if missing
+        newPurchase.items = (newPurchase.items || []).map(item => ({
+            ...item,
+            receivedQuantity: item.receivedQuantity ?? (newPurchase.type === 'B' ? item.quantity : 0)
+        }));
+
+        const isReceived = (newPurchase.status === 'received' || newPurchase.status === 'paid' || newPurchase.status === 'partially_received') && !newPurchase.isTrashed;
+
+        if (isReceived) {
+            for (const item of newPurchase.items) {
+                if (item.receivedQuantity > 0) {
+                    const product = products.find(p => p.id === item.productId);
+                    if (product) {
+                        await updateProduct(product.id, { stock: (product.stock || 0) + item.receivedQuantity });
+                        await logStockMovement({
+                            productId: product.id,
+                            productName: product.name,
+                            type: 'in',
+                            quantity: item.receivedQuantity,
+                            reason: 'purchase',
+                            remarks: `新規仕入登録による在庫反映 (ID: ${newRef.id})`,
+                            referenceId: newRef.id,
+                            date: newPurchase.arrivalDate || newPurchase.receivedDate || newPurchase.orderDate
+                        });
+                    }
                 }
             }
         }
@@ -932,26 +941,29 @@ export function useStore() {
         const currentPurchase = purchases.find(p => p.id === id);
         if (!currentPurchase) return;
 
-        const wasReceived = (currentPurchase.status === 'received' || currentPurchase.status === 'paid') && !currentPurchase.isTrashed;
-        const isNowReceived = (purchaseUpdate.status === 'received' || purchaseUpdate.status === 'paid' || (!purchaseUpdate.status && wasReceived)) && !currentPurchase.isTrashed;
+        const wasReceived = (currentPurchase.status === 'received' || currentPurchase.status === 'paid' || currentPurchase.status === 'partially_received') && !currentPurchase.isTrashed;
+        const isNowReceived = (purchaseUpdate.status === 'received' || purchaseUpdate.status === 'paid' || purchaseUpdate.status === 'partially_received' || (!purchaseUpdate.status && wasReceived)) && !currentPurchase.isTrashed;
 
         // 1. If it WAS received, undo the previous stock first
         if (wasReceived) {
             const items = currentPurchase.items || [];
             for (const item of items) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) - item.quantity });
-                    await logStockMovement({
-                        productId: product.id,
-                        productName: product.name,
-                        type: 'out',
-                        quantity: item.quantity,
-                        reason: 'manual', // adjustment for update
-                        remarks: `仕入情報の更新による在庫差し戻し (ID: ${id})`,
-                        referenceId: id,
-                        date: currentPurchase.arrivalDate || currentPurchase.receivedDate || new Date().toISOString().split('T')[0]
-                    });
+                const receivedQty = item.receivedQuantity ?? (currentPurchase.status === 'received' || currentPurchase.status === 'paid' ? item.quantity : 0);
+                if (receivedQty > 0) {
+                    const product = products.find(p => p.id === item.productId);
+                    if (product) {
+                        await updateProduct(product.id, { stock: (product.stock || 0) - receivedQty });
+                        await logStockMovement({
+                            productId: product.id,
+                            productName: product.name,
+                            type: 'out',
+                            quantity: receivedQty,
+                            reason: 'manual', 
+                            remarks: `仕入情報の更新による在庫差し戻し (ID: ${id})`,
+                            referenceId: id,
+                            date: currentPurchase.arrivalDate || currentPurchase.receivedDate || new Date().toISOString().split('T')[0]
+                        });
+                    }
                 }
             }
         }
@@ -960,19 +972,24 @@ export function useStore() {
         if (isNowReceived) {
             const items = purchaseUpdate.items || currentPurchase.items || [];
             for (const item of items) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) + item.quantity });
-                    await logStockMovement({
-                        productId: product.id,
-                        productName: product.name,
-                        type: 'in',
-                        quantity: item.quantity,
-                        reason: 'purchase',
-                        remarks: `仕入情報の更新による在庫反映 (ID: ${id})`,
-                        referenceId: id,
-                        date: purchaseUpdate.arrivalDate || purchaseUpdate.receivedDate || currentPurchase.arrivalDate || currentPurchase.receivedDate || new Date().toISOString().split('T')[0]
-                    });
+                const isFullStatus = (purchaseUpdate.status || currentPurchase.status) === 'received' || (purchaseUpdate.status || currentPurchase.status) === 'paid';
+                const receivedQty = item.receivedQuantity ?? (isFullStatus ? item.quantity : 0);
+                
+                if (receivedQty > 0) {
+                    const product = products.find(p => p.id === item.productId);
+                    if (product) {
+                        await updateProduct(product.id, { stock: (product.stock || 0) + receivedQty });
+                        await logStockMovement({
+                            productId: product.id,
+                            productName: product.name,
+                            type: 'in',
+                            quantity: receivedQty,
+                            reason: 'purchase',
+                            remarks: `仕入情報の更新による在庫反映 (ID: ${id})`,
+                            referenceId: id,
+                            date: purchaseUpdate.arrivalDate || purchaseUpdate.receivedDate || currentPurchase.arrivalDate || currentPurchase.receivedDate || new Date().toISOString().split('T')[0]
+                        });
+                    }
                 }
             }
         }
@@ -997,24 +1014,27 @@ export function useStore() {
         if (!purchase) return;
 
         // Correct stock if the purchase was received
-        const wasReceived = (purchase.status === 'received' || purchase.status === 'paid');
+        const wasReceived = (purchase.status === 'received' || purchase.status === 'paid' || purchase.status === 'partially_received');
         if (wasReceived && !purchase.isTrashed) {
             const items = purchase.items || [];
             for (const item of items) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    const newStock = (product.stock || 0) - item.quantity;
-                    await updateProduct(product.id, { stock: newStock });
-                    await logStockMovement({
-                        productId: product.id,
-                        productName: product.name,
-                        type: 'out',
-                        quantity: item.quantity,
-                        reason: 'manual',
-                        remarks: `仕入記録の削除による在庫差し戻し (ID: ${id})`,
-                        referenceId: id,
-                        date: new Date().toISOString().split('T')[0]
-                    });
+                const receivedQty = item.receivedQuantity ?? (purchase.status === 'partially_received' ? 0 : item.quantity);
+                if (receivedQty > 0) {
+                    const product = products.find(p => p.id === item.productId);
+                    if (product) {
+                        const newStock = (product.stock || 0) - receivedQty;
+                        await updateProduct(product.id, { stock: newStock });
+                        await logStockMovement({
+                            productId: product.id,
+                            productName: product.name,
+                            type: 'out',
+                            quantity: receivedQty,
+                            reason: 'manual',
+                            remarks: `仕入記録の削除による在庫差し戻し (ID: ${id})`,
+                            referenceId: id,
+                            date: new Date().toISOString().split('T')[0]
+                        });
+                    }
                 }
             }
         }
@@ -1028,24 +1048,27 @@ export function useStore() {
         if (!purchase) return;
 
         // Redo stock if the purchase was received
-        const wasReceived = (purchase.status === 'received' || purchase.status === 'paid');
+        const wasReceived = (purchase.status === 'received' || purchase.status === 'paid' || purchase.status === 'partially_received');
         if (wasReceived) {
             const items = purchase.items || [];
             for (const item of items) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    const newStock = (product.stock || 0) + item.quantity;
-                    await updateProduct(product.id, { stock: newStock });
-                    await logStockMovement({
-                        productId: product.id,
-                        productName: product.name,
-                        type: 'in',
-                        quantity: item.quantity,
-                        reason: 'purchase',
-                        remarks: `仕入記録の復元による在庫反映 (ID: ${id})`,
-                        referenceId: id,
-                        date: purchase.arrivalDate || purchase.receivedDate || new Date().toISOString().split('T')[0]
-                    });
+                const receivedQty = item.receivedQuantity ?? (purchase.status === 'partially_received' ? 0 : item.quantity);
+                if (receivedQty > 0) {
+                    const product = products.find(p => p.id === item.productId);
+                    if (product) {
+                        const newStock = (product.stock || 0) + receivedQty;
+                        await updateProduct(product.id, { stock: newStock });
+                        await logStockMovement({
+                            productId: product.id,
+                            productName: product.name,
+                            type: 'in',
+                            quantity: receivedQty,
+                            reason: 'purchase',
+                            remarks: `仕入記録の復元による在庫反映 (ID: ${id})`,
+                            referenceId: id,
+                            date: purchase.arrivalDate || purchase.receivedDate || new Date().toISOString().split('T')[0]
+                        });
+                    }
                 }
             }
         }

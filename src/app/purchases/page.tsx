@@ -26,7 +26,7 @@ function PurchasesPageContent() {
 
         try {
             // Group needed products by supplierId
-            const supplierOrders: { [supplierId: string]: { productId: string, quantity: number, unitCost: number, totalCost: number }[] } = {};
+            const supplierOrders: { [supplierId: string]: { productId: string, quantity: number, receivedQuantity: number, unitCost: number, totalCost: number }[] } = {};
 
             for (const product of products) {
                 const days = calculateDaysRemaining(product, sales);
@@ -52,6 +52,7 @@ function PurchasesPageContent() {
                     supplierOrders[product.supplierId].push({
                         productId: product.id,
                         quantity,
+                        receivedQuantity: 0,
                         unitCost: costPrice,
                         totalCost: costPrice * quantity
                     });
@@ -118,7 +119,7 @@ function PurchasesPageContent() {
     };
 
     const handleToggleStatus = (purchase: Purchase) => {
-        const statusOrder: Purchase['status'][] = ['ordered_pending', 'ordered', 'waiting', 'received', 'paid'];
+        const statusOrder: Purchase['status'][] = ['ordered_pending', 'ordered', 'partially_received', 'waiting', 'received', 'paid'];
         const currentIndex = statusOrder.indexOf(purchase.status);
 
         let nextStatus: Purchase['status'];
@@ -131,8 +132,18 @@ function PurchasesPageContent() {
 
         const update: Partial<Purchase> = { status: nextStatus };
 
+        // Auto-initialize receivedQuantity if switching to received/paid/partially_received without data
+        if (nextStatus === 'received' || nextStatus === 'paid') {
+            update.items = (purchase.items || []).map(item => ({
+                ...item,
+                receivedQuantity: item.quantity
+            }));
+        } else if (nextStatus === 'partially_received' && (!purchase.items || purchase.items.every(i => !i.receivedQuantity))) {
+             // Just let the user edit it in the modal or keep current
+        }
+
         // Auto-set dates (or reset them if looping back)
-        if (nextStatus === 'received') {
+        if (nextStatus === 'received' || nextStatus === 'partially_received') {
             update.receivedDate = new Date().toISOString().split('T')[0];
             update.arrivalDate = update.receivedDate;
         } else if (nextStatus === 'paid') {
@@ -182,8 +193,14 @@ function PurchasesPageContent() {
                 );
             case 'waiting':
                 return (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-200">
                         <Clock className="w-3 h-3" /> 仕入待ち
+                    </span>
+                );
+            case 'partially_received':
+                return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-300">
+                        <RotateCcw className="w-3 h-3" /> 部分入荷
                     </span>
                 );
             case 'received':
@@ -277,7 +294,8 @@ function PurchasesPageContent() {
                             <tr className="border-b border-slate-200 text-slate-500 text-sm bg-white">
                                 <th className="p-5 font-semibold">種別</th>
                                 <th className="p-5 font-semibold">仕入先</th>
-                                <th className="p-5 font-semibold">発注/入荷内容</th>
+                                <th className="p-5 font-semibold">発注内容</th>
+                                <th className="p-5 font-semibold text-center">入荷数 (残)</th>
                                 <th className="p-5 font-semibold text-right">発注合計金額</th>
                                 <th className="p-5 font-semibold">日付</th>
                                 <th className="p-5 font-semibold text-center">ステータス</th>
@@ -302,12 +320,36 @@ function PurchasesPageContent() {
                                                 {items.map((item, idx) => (
                                                     <div key={idx} className="flex items-center gap-3 justify-between max-w-[200px]">
                                                         <span className="truncate" title={products.find(p => p.id === item.productId)?.name}>{products.find(p => p.id === item.productId)?.name || "不明"}</span>
-                                                        <span className="text-slate-500 font-medium whitespace-nowrap">x {item.quantity}</span>
+                                                        <span className="text-slate-400 font-medium whitespace-nowrap text-xs">x {item.quantity}</span>
                                                     </div>
                                                 ))}
                                                 {items.length === 0 && (
                                                     <span className="text-slate-400 italic">商品がありません</span>
                                                 )}
+                                            </div>
+                                        </td>
+                                        <td className="p-5">
+                                            <div className="space-y-1">
+                                                {items.map((item, idx) => {
+                                                    const received = item.receivedQuantity || 0;
+                                                    const remaining = Math.max(0, item.quantity - received);
+                                                    const isPartial = received > 0 && remaining > 0;
+                                                    const isFull = received >= item.quantity;
+
+                                                    return (
+                                                        <div key={idx} className="flex items-center justify-center gap-2 text-sm">
+                                                            <span className={`font-bold ${isFull ? 'text-emerald-600' : isPartial ? 'text-amber-600' : 'text-slate-300'}`}>
+                                                                {received}
+                                                            </span>
+                                                            {remaining > 0 && (
+                                                                <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded font-black">
+                                                                    残 {remaining}
+                                                                </span>
+                                                            )}
+                                                            {isFull && <CheckCircle className="w-3 h-3 text-emerald-500" />}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </td>
                                         <td className="p-5 text-right font-bold text-emerald-700">
