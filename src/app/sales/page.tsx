@@ -13,7 +13,7 @@ import {
     CloudSun, Cloud, CloudRain, CloudSnow,
     Thermometer, Wind, Package, ChevronLeft,
     Sparkles, Edit2, Trash2, RotateCcw,
-    ArrowUpDown, ChevronUp, ChevronDown, Target, RefreshCw
+    ArrowUpDown, ChevronUp, ChevronDown, Target, RefreshCw, FileText
 } from "lucide-react";
 import { useStore, Product, RetailStore, Sale } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
@@ -593,7 +593,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 // ─── Daily Log Tab ────────────────────────────────────────────────────────────
 function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, filterDate?: string }) {
 
-    const { sales, products, brands, retailStores, spotRecipients, dailyReports, dailyWeather, deleteSale, restoreSale, permanentlyDeleteSale, mutateSales, mutateDailyReports, mutateTransactions, mutateTransactionItems } = useStore();
+    const { sales, unifiedSales, products, brands, retailStores, spotRecipients, dailyReports, dailyWeather, deleteSale, restoreSale, permanentlyDeleteSale, mutateSales, mutateDailyReports, mutateTransactions, mutateTransactionItems } = useStore();
 
 
     // Filter controls
@@ -707,7 +707,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
 
     // Filter sales to selected logType + selected filters
     const filteredSales = useMemo(() => {
-        return sales
+        return unifiedSales
             .filter(s => !!s.isTrashed === showTrash)
             .filter(s => s.type === logType || (!s.type && logType === 'daily'))
             .filter(s => {
@@ -1142,6 +1142,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                 <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-[11px] font-medium leading-tight">
                                                     {storeMap[sale.storeId] ?? sale.storeId}
                                                     {sale.recipientType === 'spot' && <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">スポット</span>}
+                                                    {(sale as any).isInvoice && <span className="ml-1 text-[9px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded font-black">請求書</span>}
                                                 </td>
                                                 {logType === 'daily' && (
                                                     <td className="px-4 py-3">
@@ -1187,6 +1188,10 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                 <td className="px-4 py-3 text-center">
                                                     {showTrash ? (
                                                         <button onClick={() => restoreSale(sale.id)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"><RotateCcw className="w-4 h-4" /></button>
+                                                    ) : (sale as any).isInvoice ? (
+                                                        <Link href={`/documents?id=${sale.id}`} className="p-1.5 text-blue-400 hover:bg-slate-50 rounded-lg inline-block" title="請求書詳細を表示">
+                                                            <FileText className="w-4 h-4" />
+                                                        </Link>
                                                     ) : (
                                                         <button onClick={() => onEdit(sale)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
                                                     )}
@@ -1350,13 +1355,13 @@ function SalesPageContent() {
 
     const [activeTab, setActiveTab] = useState<'input' | 'log' | 'analysis'>(queryTab || 'input');
     const [editingSale, setEditingSale] = useState<Sale | null>(null);
-    const { sales, products, retailStores } = useStore();
+    const { sales, unifiedSales, products, retailStores } = useStore();
 
     const handleExport = () => {
         // Build export rows from sales data
         const exportRows: any[] = [];
 
-        sales.forEach(sale => {
+        unifiedSales.forEach(sale => {
             const store = retailStores.find(s => s.id === sale.storeId);
             sale.items.forEach(item => {
                 const product = products.find(p => p.id === item.productId);
@@ -1436,9 +1441,9 @@ function SalesPageContent() {
                                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
                                 <Icon className="w-4 h-4" />
                                 {tab.label}
-                                {tab.id === 'log' && sales.filter(s => s.type === 'daily').length > 0 && (
+                                {tab.id === 'log' && unifiedSales.filter(s => s.type === 'daily').length > 0 && (
                                     <span className="ml-0.5 text-[10px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND }}>
-                                        {sales.filter(s => s.type === 'daily').length}
+                                        {unifiedSales.filter(s => s.type === 'daily').length}
                                     </span>
                                 )}
                             </button>

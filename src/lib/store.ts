@@ -2482,6 +2482,92 @@ export function useStore() {
 
 
 
+    // --- Unified Sales Performance (Computed) ---
+    const unifiedSales = useMemo(() => {
+        const manualSales = sales.filter(s => !s.isTrashed);
+        
+        // Convert Invoices to Sale-compatible format
+        const invoiceSales = issuedDocuments
+            .filter(d => d.type === 'invoice' && !d.isTrashed && (d.status === 'issued' || !d.status))
+            .flatMap(d => {
+                const saleItems = d.details?.map(item => ({
+                    productId: item.productId || 'custom',
+                    productName: item.label,
+                    quantity: item.quantity,
+                    priceAtSale: item.unitPrice,
+                    subtotal: item.subtotal,
+                    commission: 0,
+                    netProfit: item.subtotal
+                })) || [];
+
+                const baseSale = {
+                    id: d.id,
+                    storeId: d.storeId || d.spotRecipientId || 'unknown',
+                    storeName: d.recipientName,
+                    recipientType: d.recipientType === 'spot' ? 'spot' as const : 'store' as const,
+                    items: saleItems,
+                    totalQuantity: saleItems.reduce((sum, i) => sum + i.quantity, 0),
+                    totalAmount: d.totalAmount,
+                    totalCommission: 0,
+                    totalNetProfit: d.totalAmount,
+                    isInvoice: true,
+                    docNumber: d.docNumber,
+                    transactionId: d.transactionId,
+                    updatedAt: d.createdAt || d.issuedDate,
+                };
+
+                // Determine effective date(s)
+                const results: any[] = [];
+                const primaryPeriod = d.period || d.issuedDate;
+                
+                if (primaryPeriod) {
+                    const isDaily = primaryPeriod.includes('-') && primaryPeriod.split('-').length === 3;
+                    
+                    results.push({
+                        ...baseSale,
+                        type: isDaily ? 'daily' as const : 'monthly' as const,
+                        period: primaryPeriod,
+                    });
+
+                    // If it's a monthly invoice but has a specific issuedDate, 
+                    // also create a daily entry so it appears on the calendar
+                    if (!isDaily && d.issuedDate && d.issuedDate !== primaryPeriod) {
+                        results.push({
+                            ...baseSale,
+                            type: 'daily' as const,
+                            period: d.issuedDate,
+                        });
+                    }
+                }
+
+                return results;
+            });
+
+        // Deduplication and Merging
+        const result = [...manualSales];
+        
+        invoiceSales.forEach(inv => {
+            // Heuristic Deduplication: 
+            // 1. Same transactionId if exists (not currently in manual Sales, but for future-proofing)
+            // 2. Same store, period, and amount (within 1 yen)
+            const duplicateIndex = result.findIndex(s => 
+                (inv.transactionId && (s as any).transactionId === inv.transactionId) ||
+                (s.storeId === inv.storeId && 
+                 s.period === inv.period && 
+                 Math.abs(s.totalAmount - inv.totalAmount) < 2)
+            );
+            
+            if (duplicateIndex !== -1) {
+                // Prioritize Invoice over manual entry
+                result[duplicateIndex] = inv;
+            } else {
+                result.push(inv);
+            }
+        });
+
+        return result.sort((a, b) => b.period.localeCompare(a.period));
+    }, [sales, issuedDocuments]);
+
     return {
         isLoaded,
         companySettings,
@@ -2492,6 +2578,8 @@ export function useStore() {
         retailStores,
         purchases,
         paymentRecords,
+        sales,
+        unifiedSales, // Added combined sales
         addBrand,
         updateBrand,
         deleteBrand,
@@ -2507,7 +2595,6 @@ export function useStore() {
         addPurchase,
         updatePurchase,
         deletePurchase,
-        sales,
         addSale,
         updateSale,
         deleteSale,

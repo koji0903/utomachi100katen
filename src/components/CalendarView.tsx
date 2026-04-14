@@ -20,7 +20,7 @@ import { useStore, type Sale } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
 
 export const CalendarView: React.FC = () => {
-    const { sales, dailyReports, purchases, suppliers, retailStores, spotRecipients } = useStore();
+    const { sales, unifiedSales, dailyReports, purchases, suppliers, retailStores, spotRecipients } = useStore();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
 
@@ -77,7 +77,7 @@ export const CalendarView: React.FC = () => {
     const getDayData = (date: Date) => {
         const dateStr = formatDate(date);
 
-        const daySales = sales.filter(s => 
+        const daySales = unifiedSales.filter(s => 
             !s.isTrashed && 
             s.period === dateStr && 
             (s.type === 'daily' || !s.type)

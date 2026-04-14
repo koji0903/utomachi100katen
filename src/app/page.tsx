@@ -160,7 +160,7 @@ function ActivityTimeline() {
 }
 
 export default function DashboardPage() {
-    const { isLoaded, products, brands, retailStores, spotRecipients, sales, dailyReports, purchases } = useStore();
+    const { isLoaded, products, brands, retailStores, spotRecipients, sales, unifiedSales, dailyReports, purchases } = useStore();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -179,7 +179,7 @@ export default function DashboardPage() {
     const currentMonthStats = useMemo(() => {
         const now = new Date();
         const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        const monthlySales = sales.filter(s => !s.isTrashed && s.period.startsWith(monthPrefix));
+        const monthlySales = unifiedSales.filter(s => !s.isTrashed && s.period.startsWith(monthPrefix));
         
         // 店舗ごとの売上集計
         const storeSalesMap = new Map<string, number>();
@@ -219,7 +219,7 @@ export default function DashboardPage() {
             .filter(p => !p.isTrashed)
             .map(p => ({
                 ...p,
-                daysRemaining: calculateDaysRemaining(p, sales.filter(s => !s.isTrashed))
+                daysRemaining: calculateDaysRemaining(p, unifiedSales.filter(s => !s.isTrashed))
             }))
             .filter(p =>
                 p.stock <= (p.alertThreshold ?? 20) ||
@@ -231,7 +231,7 @@ export default function DashboardPage() {
                 return aDays - bDays || a.stock - b.stock;
             })
             .slice(0, 5);
-    }, [products, sales]);
+    }, [products, unifiedSales]);
 
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 

@@ -75,7 +75,7 @@ function WeatherLabel({ main }: { main: string }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function SalesAnalysisTab() {
-    const { sales, products, retailStores, dailyReports } = useStore();
+    const { sales, unifiedSales, products, retailStores, dailyReports } = useStore();
 
     const [filterStoreId, setFilterStoreId] = useState("");
     const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString());
@@ -105,13 +105,16 @@ export function SalesAnalysisTab() {
         return [...years].sort().reverse();
     }, [sales]);
 
-    // Filtered daily sales
+    // Filtered sales (Daily entries for weekday/weather analysis)
     const dailySales = useMemo(() => {
-        return sales
-            .filter(s => s.type === 'daily' || !s.type)
-            .filter(s => !filterStoreId || s.storeId === filterStoreId)
-            .filter(s => s.period?.startsWith(filterYear));
-    }, [sales, filterStoreId, filterYear]);
+        return unifiedSales.filter(s => {
+            if (s.isTrashed) return false;
+            if (filterStoreId && s.storeId !== filterStoreId) return false;
+            if (!s.period.startsWith(filterYear)) return false;
+            // Only include daily/spot entries for daily analysis
+            return s.type === 'daily' || !s.type;
+        });
+    }, [unifiedSales, filterStoreId, filterYear]);
 
     // ── 1. 曜日別売上 ──────────────────────────────────────────────────────────
     const weekdayData = useMemo(() => {
