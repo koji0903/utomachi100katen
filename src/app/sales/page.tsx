@@ -730,7 +730,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                     return s.period.startsWith(filterYear);
                 }
             });
-    }, [sales, logType, filterStoreId, filterMonth, filterYear, filterDate, showTrash]);
+    }, [unifiedSales, logType, filterStoreId, filterMonth, filterYear, filterDate, showTrash]);
 
     const sortedSales = useMemo(() => {
         // When transposed, user wants chronological order (oldest -> newest) for columns

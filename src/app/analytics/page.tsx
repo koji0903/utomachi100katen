@@ -24,7 +24,7 @@ const fmtYen = (v: number) => `¥${Math.round(v).toLocaleString()}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 
 export default function AnalyticsPage() {
-    const { isLoaded, sales, products, brands, retailStores, purchases, dailyReports } = useStore();
+    const { isLoaded, sales, unifiedSales, products, brands, retailStores, purchases, dailyReports } = useStore();
 
     const now = new Date();
     const [viewMode, setViewMode] = useState<ViewMode>("monthly");
@@ -37,10 +37,10 @@ export default function AnalyticsPage() {
 
     // Filter sales by store
     const storeSales = useMemo(() => {
-        let baseSales = sales.filter(s => !s.isTrashed);
+        let baseSales = unifiedSales.filter(s => !s.isTrashed);
         if (selectedStoreId === "all") return baseSales;
         return baseSales.filter(s => s.storeId === selectedStoreId);
-    }, [sales, selectedStoreId]);
+    }, [unifiedSales, selectedStoreId]);
 
     // Filter sales by period
     const periodSales = useMemo(() => {
@@ -303,11 +303,11 @@ export default function AnalyticsPage() {
 
     const availableYears = useMemo(() => {
         const years = new Set<string>();
-        sales.forEach(s => years.add(s.period.slice(0, 4)));
+        unifiedSales.forEach(s => years.add(s.period.slice(0, 4)));
         if (!years.has(now.getFullYear().toString())) years.add(now.getFullYear().toString());
         return Array.from(years).sort().reverse();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sales]);
+    }, [unifiedSales]);
 
     // Data for AI Management Analysis
     const managementAnalysisData = useMemo(() => {

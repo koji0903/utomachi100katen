@@ -206,7 +206,7 @@ export default function DashboardPage() {
             purchases: purchases.filter(p => !p.isTrashed && (p.orderDate?.startsWith(monthPrefix) || p.arrivalDate?.startsWith(monthPrefix))).length,
             label: `${now.getMonth() + 1}月の実績`
         };
-    }, [sales, dailyReports, purchases, retailStores, spotRecipients]);
+    }, [unifiedSales, dailyReports, purchases, retailStores, spotRecipients]);
 
     // Stats
     const totalProducts = products.filter(p => !p.isTrashed).length;
