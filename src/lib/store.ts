@@ -2817,14 +2817,11 @@ export function useStore() {
                 : [...promotionEvents, eventWithUpdate as PromotionEvent];
             
             mutatePromotionEvents(newEvents, false);
+            if (checkDemoMode()) return;
             try {
-                if (isDemoMode) {
-                    saveToLocalStorage(col, eventWithUpdate);
-                } else {
-                    const { db } = await import("./firebase");
-                    const { doc, setDoc } = await import("firebase/firestore");
-                    await setDoc(doc(db, col, event.id), { ...eventWithUpdate, isTrashed: false }, { merge: true });
-                }
+                const { db } = await import("./firebase");
+                const { doc, setDoc } = await import("firebase/firestore");
+                await setDoc(doc(db, col, event.id), { ...eventWithUpdate, isTrashed: false }, { merge: true });
             } finally {
                 mutatePromotionEvents();
             }
@@ -2833,15 +2830,11 @@ export function useStore() {
             const col = "promotion_events";
             const newEvents = promotionEvents.filter(e => e.id !== id);
             mutatePromotionEvents(newEvents, false);
+            if (checkDemoMode()) return;
             try {
-                if (isDemoMode) {
-                    const item = promotionEvents.find(e => e.id === id);
-                    if (item) saveToLocalStorage(col, { ...item, isTrashed: true });
-                } else {
-                    const { db } = await import("./firebase");
-                    const { doc, updateDoc } = await import("firebase/firestore");
-                    await updateDoc(doc(db, col, id), { isTrashed: true });
-                }
+                const { db } = await import("./firebase");
+                const { doc, updateDoc } = await import("firebase/firestore");
+                await updateDoc(doc(db, col, id), { isTrashed: true });
             } finally {
                 mutatePromotionEvents();
             }
