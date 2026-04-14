@@ -1,6 +1,4 @@
-"use client";
-
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { 
     Bell, 
     Calendar, 
@@ -12,12 +10,15 @@ import {
     Flower2, 
     Users,
     ChevronRight,
-    LucideIcon
+    LucideIcon,
+    Plus,
+    X,
+    Check,
+    Pencil,
+    Trash2
 } from "lucide-react";
 import { getUpcomingEvents, type Holiday } from "@/lib/holidays";
-import { useStore, type PromotionTask } from "@/lib/store";
-import { useState } from "react";
-import { X, Check } from "lucide-react";
+import { useStore, type PromotionTask, type PromotionEvent } from "@/lib/store";
 
 interface AlertItem {
     id: string;
@@ -26,9 +27,11 @@ interface AlertItem {
     daysRemaining: number;
     status: 'info' | 'success' | 'warning' | 'error';
     message: string;
+    description?: string;
     icon: LucideIcon;
     targetProgress: number; // Based on date
     actualProgress: number; // Based on tasks
+    type: 'system' | 'custom';
 }
 
 const STANDARD_TASKS = [
@@ -38,9 +41,97 @@ const STANDARD_TASKS = [
     { key: 'final', label: '最終確認・スタッフ周知', stage: 7 }
 ];
 
+// --- Modal Component ---
+function EventEditModal({ 
+    event, 
+    onClose, 
+    onSave, 
+    onDelete 
+}: { 
+    event: Partial<PromotionEvent>, 
+    onClose: () => void, 
+    onSave: (data: any) => void,
+    onDelete?: (id: string) => void
+}) {
+    const [name, setName] = useState(event.name || "");
+    const [date, setDate] = useState(event.date || new Date().toISOString().split('T')[0]);
+    const [description, setDescription] = useState(event.description || "");
+
+    const isSystem = event.type === 'system';
+
+    return (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="bg-white rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl relative z-10 p-8 space-y-6 animate-in fade-in zoom-in duration-200">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                        {isSystem ? "行事情報の編集" : event.id ? "行事の編集" : "新規行事の追加"}
+                    </h2>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-300">
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">行事名</label>
+                        <input 
+                            type="text" 
+                            value={name} 
+                            onChange={e => setName(e.target.value)} 
+                            disabled={isSystem}
+                            placeholder="例: 夏の特大セール"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">開催日</label>
+                        <input 
+                            type="date" 
+                            value={date} 
+                            onChange={e => setDate(e.target.value)} 
+                            disabled={isSystem}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">追加情報・メモ</label>
+                        <textarea 
+                            value={description} 
+                            onChange={e => setDescription(e.target.value)} 
+                            placeholder="準備のポイントや、今回の注力商品などをメモ..."
+                            rows={3}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                    {!isSystem && event.id && onDelete && (
+                        <button 
+                            onClick={() => { if(window.confirm("この行事を削除しますか？")) onDelete(event.id!); }}
+                            className="p-4 bg-red-50 text-red-600 rounded-2xl hover:bg-red-100 transition-colors"
+                        >
+                            <Trash2 className="w-5 h-5" />
+                        </button>
+                    )}
+                    <button 
+                        onClick={() => onSave({ ...event, name, date, description })}
+                        disabled={!name || !date}
+                        className="flex-1 bg-[#1e3a8a] text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100"
+                    >
+                        保存する
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export function SeasonalAlarm() {
-    const { promotionTasks, togglePromotionTask, retailStores } = useStore();
+    const { promotionTasks, togglePromotionTask, retailStores, promotionEvents, savePromotionEvent, deletePromotionEvent } = useStore();
     const [selectedEvent, setSelectedEvent] = useState<AlertItem | null>(null);
+    const [editingEvent, setEditingEvent] = useState<Partial<PromotionEvent> | null>(null);
     
     // Use first non-trashed store as context, or default
     const currentStoreId = retailStores.find(s => !s.isTrashed)?.id || "default_store";
@@ -50,17 +141,17 @@ export function SeasonalAlarm() {
         const twoMonthsLater = new Date();
         twoMonthsLater.setMonth(now.getMonth() + 2);
 
-        const events = getUpcomingEvents(now, twoMonthsLater);
+        // 1. Get system events
+        const systemEvents = getUpcomingEvents(now, twoMonthsLater);
         
-        // Grouping Golden Week
+        // 2. Grouping Golden Week
         const processedEvents: Holiday[] = [];
         let gwAdded = false;
-
         const currentYear = now.getFullYear();
         const gwStart = `${currentYear}-05-03`;
         const gwEnd = `${currentYear}-05-06`;
 
-        events.forEach(event => {
+        systemEvents.forEach(event => {
             if (event.date >= gwStart && event.date <= gwEnd) {
                 if (!gwAdded) {
                     processedEvents.push({ date: gwStart, name: "ゴールデンウィーク", type: "event" });
@@ -71,10 +162,25 @@ export function SeasonalAlarm() {
             }
         });
 
-        return processedEvents.map((event): AlertItem => {
+        // 3. Mapping to AlertItems (Merging with custom overrides/events)
+        const combinedAlerts: AlertItem[] = [];
+
+        // Build a map of our custom events for easy lookup
+        const customMap = new Map<string, PromotionEvent>();
+        promotionEvents.forEach(e => {
+            // For system overrides, key is date_name. For custom, it's just ID but we need to check matches.
+            if (e.type === 'system') customMap.set(`${e.date}_${e.name}`, e);
+        });
+
+        // Add System Events (with potential overrides)
+        processedEvents.forEach(event => {
+            const override = customMap.get(`${event.date}_${event.name}`);
+            
             const eventDate = new Date(event.date);
             const diffTime = eventDate.getTime() - now.getTime();
             const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+            if (daysRemaining > 60) return;
 
             let status: AlertItem['status'] = 'info';
             let message = "";
@@ -103,12 +209,11 @@ export function SeasonalAlarm() {
                 targetProgress = 95;
             }
 
-            // Actual Progress from Firestore
+            // Actual Progress
             const eventTasks = promotionTasks.filter(t => t.eventDate === event.date && t.eventName === event.name);
             const completedCount = eventTasks.filter(t => t.isCompleted).length;
             const actualProgress = Math.round((completedCount / STANDARD_TASKS.length) * 100);
 
-            // Override status if actual progress is lagging behind target
             if (actualProgress < targetProgress && status !== 'error') {
                 status = 'warning';
                 message = "【遅れ】計画に対して準備が遅れています。タスクを確認してください。";
@@ -118,21 +223,74 @@ export function SeasonalAlarm() {
             if (event.name.includes("父の日")) icon = Users;
             if (event.name.includes("ゴールデンウィーク")) icon = Tent;
 
-            return {
+            combinedAlerts.push({
                 id: event.date + event.name,
                 title: event.name,
                 date: event.date,
                 daysRemaining,
                 status,
                 message,
+                description: override?.description,
                 icon,
                 targetProgress,
-                actualProgress
-            };
-        }).filter(alert => alert.daysRemaining <= 60);
-    }, [promotionTasks, retailStores]);
+                actualProgress,
+                type: 'system'
+            });
+        });
 
-    if (alerts.length === 0) return null;
+        // Add Custom Events
+        promotionEvents.filter(e => e.type === 'custom').forEach(e => {
+            const eventDate = new Date(e.date);
+            const diffTime = eventDate.getTime() - now.getTime();
+            const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+            if (daysRemaining < 0 || daysRemaining > 60) return;
+
+            // Simple logic for custom statuses (similar to system)
+            let targetProgress = 0;
+            if (daysRemaining >= 45) targetProgress = 25;
+            else if (daysRemaining >= 30) targetProgress = 50;
+            else if (daysRemaining >= 14) targetProgress = 75;
+            else targetProgress = 95;
+
+            const eventTasks = promotionTasks.filter(t => t.eventDate === e.date && t.eventName === e.name);
+            const completedCount = eventTasks.filter(t => t.isCompleted).length;
+            const actualProgress = Math.round((completedCount / STANDARD_TASKS.length) * 100);
+
+            combinedAlerts.push({
+                id: e.id,
+                title: e.name,
+                date: e.date,
+                daysRemaining,
+                status: actualProgress < targetProgress ? 'warning' : 'info',
+                message: e.description ? "カスタム行事の準備を進めましょう。" : "独自行事の準備を計画しましょう。",
+                description: e.description,
+                icon: Calendar,
+                targetProgress,
+                actualProgress,
+                type: 'custom'
+            });
+        });
+
+        return combinedAlerts.sort((a, b) => a.date.localeCompare(b.date));
+    }, [promotionTasks, promotionEvents, retailStores]);
+
+    const handleSaveEdit = async (data: any) => {
+        const id = data.id || (data.type === 'system' ? `${data.date}_${data.name}` : crypto.randomUUID());
+        await savePromotionEvent({
+            ...data,
+            id,
+            type: data.type || 'custom'
+        });
+        setEditingEvent(null);
+    };
+
+    const handleDeleteEvent = async (id: string) => {
+        await deletePromotionEvent(id);
+        setEditingEvent(null);
+    };
+
+    if (alerts.length === 0 && !promotionEvents.some(e => e.type === 'custom')) return null;
 
     return (
         <div className="space-y-4">
@@ -141,8 +299,16 @@ export function SeasonalAlarm() {
                     <Bell className="w-3.5 h-3.5" />
                     <h2 className="text-[10px] font-black uppercase tracking-[0.2em]">販促準備アラート</h2>
                 </div>
-                <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                    今後2ヶ月の行事: {alerts.length}件
+                <div className="flex items-center gap-3">
+                    <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                        今後2ヶ月の行事: {alerts.length}件
+                    </div>
+                    <button 
+                        onClick={() => setEditingEvent({ type: 'custom' })}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 transition-all hover:scale-105 shadow-sm"
+                    >
+                        <Plus className="w-3 h-3 text-blue-600" /> 行事追加
+                    </button>
                 </div>
             </div>
 
@@ -150,7 +316,7 @@ export function SeasonalAlarm() {
                 {alerts.map((alert) => (
                     <div 
                         key={alert.id}
-                        className="group relative bg-white rounded-[2rem] border border-slate-200/60 p-6 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 transition-all duration-300 overflow-hidden flex flex-col justify-between"
+                        className="group relative bg-white rounded-[2rem] border border-slate-200/60 p-6 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 transition-all duration-300 overflow-hidden flex flex-col justify-between min-h-[300px]"
                     >
                         {/* Status Accent Bar */}
                         <div className={`absolute top-0 left-0 right-0 h-1.5 ${
@@ -170,22 +336,42 @@ export function SeasonalAlarm() {
                                 } group-hover:scale-110 transition-transform`}>
                                     <alert.icon className="w-5 h-5" />
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right flex flex-col items-end">
                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
                                         残り {alert.daysRemaining}日
                                     </div>
                                     <div className="text-xs font-bold text-slate-900 italic">
                                         {new Date(alert.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}
                                     </div>
+                                    <button 
+                                        onClick={() => setEditingEvent({
+                                            id: alert.type === 'system' ? promotionEvents.find(e => e.id === `${alert.date}_${alert.title}`)?.id : alert.id,
+                                            name: alert.title,
+                                            date: alert.date,
+                                            description: alert.description,
+                                            type: alert.type
+                                        })}
+                                        className="mt-2 p-1.5 bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                        title="情報を編集"
+                                    >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             </div>
 
                             <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-[#1e3a8a] transition-colors mb-2">
                                 {alert.title}
                             </h3>
-                            <p className="text-xs text-slate-500 font-medium leading-relaxed mb-6">
+                            <p className="text-xs text-slate-500 font-medium leading-relaxed mb-2">
                                 {alert.message}
                             </p>
+                            {alert.description && (
+                                <div className="p-3 bg-amber-50/50 rounded-2xl border border-amber-100/50 mb-6 animate-in fade-in slide-in-from-top-1">
+                                    <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
+                                        {alert.description}
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-4">
@@ -196,13 +382,11 @@ export function SeasonalAlarm() {
                                     <span className="text-[10px] font-bold text-slate-900">{alert.actualProgress}%</span>
                                 </div>
                                 <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
-                                    {/* Target Marker */}
                                     <div 
                                         className="absolute top-0 bottom-0 w-0.5 bg-slate-300 z-10"
                                         style={{ left: `${alert.targetProgress}%` }}
                                         title={`目標: ${alert.targetProgress}%`}
                                     />
-                                    {/* Actual Progress Bar */}
                                     <div 
                                         className={`h-full transition-all duration-1000 ease-out rounded-full ${
                                             alert.actualProgress < alert.targetProgress && alert.daysRemaining < 30 ? 'bg-red-500' :
@@ -213,10 +397,6 @@ export function SeasonalAlarm() {
                                         }`}
                                         style={{ width: `${alert.actualProgress}%` }}
                                     />
-                                </div>
-                                <div className="flex justify-between items-center text-[8px] font-bold text-slate-300 px-0.5">
-                                    <span>実績</span>
-                                    <span>目標: {alert.targetProgress}%</span>
                                 </div>
                             </div>
 
@@ -241,6 +421,16 @@ export function SeasonalAlarm() {
                     </div>
                 ))}
             </div>
+
+            {/* Event Edit Modal */}
+            {editingEvent && (
+                <EventEditModal 
+                    event={editingEvent} 
+                    onClose={() => setEditingEvent(null)} 
+                    onSave={handleSaveEdit}
+                    onDelete={handleDeleteEvent}
+                />
+            )}
 
             {/* Task Management Modal */}
             {selectedEvent && (

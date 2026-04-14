@@ -438,7 +438,7 @@ export default function DocumentsPage() {
                             <tbody>
                                 {filtered.map((doc, idx) => (
                                     <tr key={doc.id}
-                                        className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-50/20"} ${selectedIds.includes(doc.id) ? "bg-rose-50/50" : ""}`}>
+                                        className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-50/20"} ${selectedIds.includes(doc.id) ? "bg-rose-50/50" : ""} ${doc.status === 'draft' ? 'bg-amber-50/30' : ''}`}>
                                         <td className="px-4 py-3 text-center">
                                             <input
                                                 type="checkbox"
@@ -460,7 +460,8 @@ export default function DocumentsPage() {
                                         <td className="px-4 py-3 text-slate-600 text-xs font-medium">{fmtDate(doc.period)}</td>
                                         <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(doc.issuedDate)}</td>
                                         <td className="px-4 py-3">
-                                            <div className="flex flex-col gap-1 items-start">
+                                            <div className="flex flex-col gap-1.5 items-start">
+                                                <StatusBadge status={doc.status} />
                                                 <FulfillmentBadge doc={doc} onUpdate={(s) => updateIssuedDocument(doc.id, { fulfillmentStatus: s })} />
                                             </div>
                                         </td>

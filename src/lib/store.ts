@@ -509,6 +509,16 @@ export interface PromotionTask {
     updatedAt?: string | any;
 }
 
+export interface PromotionEvent extends BaseEntity {
+    id: string;         // For custom: UUID, for system: YYYY-MM-DD_Name
+    name: string;
+    date: string;       // YYYY-MM-DD
+    description?: string;
+    icon?: string;
+    type: 'system' | 'custom';
+    createdAt?: string | any;
+}
+
 export interface StoreStock extends BaseEntity {
     id: string; // storeId_productId
     storeId: string;
@@ -651,6 +661,7 @@ export function useStore() {
     const { data: expenses = [], mutate: mutateExpenses, isLoading: loadingExpenses } = useSWR<Expense[]>(["expenses", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Expense>(col, demo), swrConfig);
     const { data: businessManuals = [], mutate: mutateBusinessManuals } = useSWR<BusinessManual[]>(["business_manuals", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<BusinessManual>(col, demo), swrConfig);
     const { data: promotionTasks = [], mutate: mutatePromotionTasks } = useSWR<PromotionTask[]>(["seasonal_tasks", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<PromotionTask>(col, demo), swrConfig);
+    const { data: promotionEvents = [], mutate: mutatePromotionEvents } = useSWR<PromotionEvent[]>(["promotion_events", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<PromotionEvent>(col, demo), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -1629,7 +1640,7 @@ export function useStore() {
         return saveIssuedDocument({
             type: 'invoice',
             docNumber: newDocNumber,
-            status: 'draft' as const,
+            status: 'issued' as const,
             issuedDate: new Date().toISOString().split('T')[0],
             period: original.period,
             recipientType: original.recipientType,
@@ -1694,7 +1705,7 @@ export function useStore() {
         return saveIssuedDocument({
             type: 'invoice',
             docNumber: newDocNumber,
-            status: 'draft',
+            status: 'issued',
             issuedDate: new Date().toISOString().split('T')[0],
             period: first.period, // Use first as default
             recipientType: first.recipientType,
@@ -2488,7 +2499,7 @@ export function useStore() {
         
         // Convert Invoices to Sale-compatible format
         const invoiceSales = issuedDocuments
-            .filter(d => d.type === 'invoice' && !d.isTrashed && (d.status === 'issued' || !d.status))
+            .filter(d => d.type === 'invoice' && !d.isTrashed && (d.status === 'issued' || d.fulfillmentStatus === 'paid' || d.fulfillmentStatus === 'sent' || !d.status))
             .flatMap(d => {
                 const saleItems = d.details?.map(item => ({
                     productId: item.productId || 'custom',
@@ -2788,7 +2799,53 @@ export function useStore() {
             
             mutatePromotionTasks();
         },
-        mutatePromotionTasks
+        mutatePromotionTasks,
+
+        // Promotion Events (Custom & Overrides)
+        promotionEvents: (promotionEvents ?? []).filter(e => !e.isTrashed),
+        savePromotionEvent: async (event: Omit<PromotionEvent, 'createdAt'>) => {
+            const now = new Date().toISOString();
+            const eventWithUpdate = { 
+                ...event, 
+                createdAt: (event as any).createdAt || now,
+                updatedAt: now 
+            };
+            const col = "promotion_events";
+            
+            const newEvents = promotionEvents.some(e => e.id === event.id)
+                ? promotionEvents.map(e => e.id === event.id ? { ...e, ...eventWithUpdate } : e)
+                : [...promotionEvents, eventWithUpdate as PromotionEvent];
+            
+            mutatePromotionEvents(newEvents, false);
+            try {
+                if (isDemoMode) {
+                    saveToLocalStorage(col, eventWithUpdate);
+                } else {
+                    const { db } = await import("./firebase");
+                    const { doc, setDoc } = await import("firebase/firestore");
+                    await setDoc(doc(db, col, event.id), { ...eventWithUpdate, isTrashed: false }, { merge: true });
+                }
+            } finally {
+                mutatePromotionEvents();
+            }
+        },
+        deletePromotionEvent: async (id: string) => {
+            const col = "promotion_events";
+            const newEvents = promotionEvents.filter(e => e.id !== id);
+            mutatePromotionEvents(newEvents, false);
+            try {
+                if (isDemoMode) {
+                    const item = promotionEvents.find(e => e.id === id);
+                    if (item) saveToLocalStorage(col, { ...item, isTrashed: true });
+                } else {
+                    const { db } = await import("./firebase");
+                    const { doc, updateDoc } = await import("firebase/firestore");
+                    await updateDoc(doc(db, col, id), { isTrashed: true });
+                }
+            } finally {
+                mutatePromotionEvents();
+            }
+        }
     };
 
 }
