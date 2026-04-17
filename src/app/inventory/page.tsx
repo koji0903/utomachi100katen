@@ -135,7 +135,7 @@ export default function InventoryPage() {
 
     // Calculate weekly sales for replenishment view
     const weeklySalesData = useMemo(() => {
-        if (viewType !== 'delivery' || !selectedStoreId) return { thisWeekSales: {} as Record<string, number>, lastWeekSales: {} as Record<string, number>, twoWeeksAgoSales: {} as Record<string, number> };
+        if (viewType !== 'delivery' || !selectedStoreId) return [{}, {}, {}, {}] as Record<string, number>[];
 
         // Define this week (Mon-Sun) and last week (Mon-Sun)
         const now = new Date();
