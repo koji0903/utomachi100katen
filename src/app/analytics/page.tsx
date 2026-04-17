@@ -24,7 +24,7 @@ const fmtYen = (v: number) => `¥${Math.round(v).toLocaleString()}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 
 export default function AnalyticsPage() {
-    const { isLoaded, sales, unifiedSales, products, brands, retailStores, purchases, dailyReports } = useStore();
+    const { isLoaded, sales, unifiedSales, products, brands, retailStores, purchases, dailyReports, dailyWeather } = useStore();
 
     const now = new Date();
     const [viewMode, setViewMode] = useState<ViewMode>("monthly");
@@ -328,15 +328,64 @@ export default function AnalyticsPage() {
                 summary: r.storeTopics || r.officeNote || "トピックなし"
             }));
 
+        // Weather Summary aggregation
+        const weatherStats = { Clear: 0, Clouds: 0, Rain: 0, Snow: 0, Other: 0, avgTemp: 0 };
+        let tempCount = 0;
+        let totalTemp = 0;
+
+        const periodWeather = dailyWeather.filter(w => {
+            if (viewMode === "monthly") return w.date.startsWith(selectedYear);
+            return w.date.startsWith(selectedMonth);
+        });
+
+        periodWeather.forEach(w => {
+            const main = w.weatherMain;
+            if (main === "Clear") weatherStats.Clear++;
+            else if (main === "Clouds") weatherStats.Clouds++;
+            else if (main === "Rain") weatherStats.Rain++;
+            else if (main === "Snow") weatherStats.Snow++;
+            else weatherStats.Other++;
+            
+            if (w.temp !== undefined) {
+                totalTemp += w.temp;
+                tempCount++;
+            }
+        });
+        const weatherSummary = `晴れ: ${weatherStats.Clear}日, 曇り: ${weatherStats.Clouds}日, 雨: ${weatherStats.Rain}日, 平均気温: ${tempCount > 0 ? (totalTemp / tempCount).toFixed(1) : "---"}℃`;
+
+        // Uto Marina (Target Store) analysis
+        const utoMarinaStores = retailStores.filter(s => s.name.includes("宇土マリーナ"));
+        const utoMarinaIds = utoMarinaStores.map(s => s.id);
+        const utoMarinaSales = periodSales.filter(s => utoMarinaIds.includes(s.storeId));
+        const utoMarinaRevenue = utoMarinaSales.reduce((sum, s) => sum + s.totalAmount, 0);
+        
+        const utoMarinaTopProducts = Array.from(
+            utoMarinaSales.flatMap(s => s.items)
+                .reduce((m, item) => {
+                    m.set(item.productId, (m.get(item.productId) || 0) + item.quantity);
+                    return m;
+                }, new Map<string, number>())
+        ).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, qty]) => {
+            const p = products.find(p => p.id === id);
+            return { name: p?.name || "商品未特定", qty };
+        });
+
         return {
             period: viewMode === "monthly" ? `${selectedYear}年` : `${selectedMonth.replace("-", "/")}月`,
             viewMode,
             kpis: kpiTotals,
             abcAnalysis: abcData.slice(0, 10),
             storeDistribution: storePieData,
-            recentReports: periodReports
+            recentReports: periodReports,
+            weatherSummary,
+            targetStoreTrends: {
+                name: "宇土マリーナ (合算)",
+                revenue: utoMarinaRevenue,
+                share: kpiTotals.totalRevenue > 0 ? (utoMarinaRevenue / kpiTotals.totalRevenue) * 100 : 0,
+                topProducts: utoMarinaTopProducts
+            }
         };
-    }, [viewMode, selectedYear, selectedMonth, kpiTotals, abcData, storePieData, dailyReports]);
+    }, [viewMode, selectedYear, selectedMonth, kpiTotals, abcData, storePieData, dailyReports, dailyWeather, retailStores, products, periodSales]);
 
     if (!isLoaded) {
         return (

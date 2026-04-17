@@ -16,6 +16,13 @@ interface ManagementAnalysisCardProps {
     abcAnalysis: any[];
     storeDistribution: any[];
     recentReports: any[];
+    weatherSummary?: string;
+    targetStoreTrends?: {
+        name: string;
+        revenue: number;
+        share: number;
+        topProducts: { name: string; qty: number }[];
+    };
 }
 
 export function ManagementAnalysisCard({
@@ -24,7 +31,9 @@ export function ManagementAnalysisCard({
     kpis,
     abcAnalysis,
     storeDistribution,
-    recentReports
+    recentReports,
+    weatherSummary,
+    targetStoreTrends
 }: ManagementAnalysisCardProps) {
     const [report, setReport] = useState<string>("");
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -41,7 +50,9 @@ export function ManagementAnalysisCard({
                     kpis,
                     abcAnalysis,
                     storeDistribution,
-                    recentReports
+                    recentReports,
+                    weatherSummary,
+                    targetStoreTrends
                 }),
             });
             const data = await res.json();
@@ -55,13 +66,25 @@ export function ManagementAnalysisCard({
         }
     };
 
+    const renderInlineStyles = (text: string) => {
+        // Split by bold **text**
+        const parts = text.split(/(\*\*[^*]+\*\*)/g);
+        return parts.map((part, i) => {
+            const boldMatch = part.match(/\*\*([^*]+)\*\*/);
+            if (boldMatch) {
+                return <strong key={i} className="font-black text-indigo-900">{boldMatch[1]}</strong>;
+            }
+            return part;
+        });
+    };
+
     const formattedReport = report ? report.split("\n").map((line, i) => {
-        if (line.startsWith("# ")) return <h3 key={i} className="text-xl font-black text-indigo-900 mt-6 mb-4 border-b-2 border-indigo-100 pb-2">{line.replace("# ", "")}</h3>;
-        if (line.startsWith("## ")) return <h4 key={i} className="text-lg font-black text-indigo-800 mt-5 mb-3 flex items-center gap-2"> {line.replace("## ", "")}</h4>;
-        if (line.startsWith("### ")) return <h5 key={i} className="text-base font-bold text-indigo-700 mt-4 mb-2">{line.replace("### ", "")}</h5>;
-        if (line.startsWith("- ")) return <li key={i} className="text-sm text-slate-700 ml-4 py-1 list-disc font-medium">{line.replace("- ", "")}</li>;
+        if (line.startsWith("# ")) return <h3 key={i} className="text-xl font-black text-indigo-900 mt-6 mb-4 border-b-2 border-indigo-100 pb-2">{renderInlineStyles(line.replace("# ", ""))}</h3>;
+        if (line.startsWith("## ")) return <h4 key={i} className="text-lg font-black text-indigo-800 mt-5 mb-3 flex items-center gap-2"> {renderInlineStyles(line.replace("## ", ""))}</h4>;
+        if (line.startsWith("### ")) return <h5 key={i} className="text-base font-bold text-indigo-700 mt-4 mb-2">{renderInlineStyles(line.replace("### ", ""))}</h5>;
+        if (line.startsWith("- ")) return <li key={i} className="text-sm text-slate-700 ml-4 py-1 list-disc font-medium">{renderInlineStyles(line.replace("- ", ""))}</li>;
         if (line.trim() === "") return <div key={i} className="h-2" />;
-        return <p key={i} className="text-sm text-slate-600 leading-relaxed font-medium mb-2">{line}</p>;
+        return <p key={i} className="text-sm text-slate-600 leading-relaxed font-medium mb-2">{renderInlineStyles(line)}</p>;
     }) : null;
 
     return (

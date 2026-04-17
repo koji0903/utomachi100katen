@@ -20,7 +20,9 @@ export async function POST(req: Request) {
             kpis,
             abcAnalysis,
             recentReports,
-            storeDistribution
+            storeDistribution,
+            weatherSummary,
+            targetStoreTrends
         } = body;
 
         const prompt = `
@@ -33,26 +35,36 @@ export async function POST(req: Request) {
 純利益: ¥${kpis.totalNetProfit.toLocaleString()}
 原価率: ${kpis.cogRate.toFixed(1)}%
 
-【2. ABC分析（主要商品）】
+【2. 気象・環境データ】
+${weatherSummary || "データなし"}
+
+【3. 重点分析店舗（宇土マリーナ等）の概況】
+${targetStoreTrends ? `
+- 店舗名: ${targetStoreTrends.name}
+- 売上高: ¥${targetStoreTrends.revenue.toLocaleString()} (全社シェア: ${targetStoreTrends.share.toFixed(1)}%)
+- 主要販売商品: ${targetStoreTrends.topProducts.map((p: any) => `${p.name}(${p.qty}点)`).join(", ")}
+` : "特記店舗データなし"}
+
+【4. ABC分析（主要商品）】
 ${abcAnalysis.slice(0, 5).map((p: any) => `- ${p.name}: ¥${p.revenue.toLocaleString()} (ランク${p.group})`).join("\n")}
 
-【3. 店舗別売上シェア】
-${storeDistribution.map((s: any) => `- ${s.name}: ¥${s.value.toLocaleString()}`).join("\n")}
-
-【4. 現場からの直近トピック（日報要約）】
-${recentReports?.length > 0 ? recentReports.map((r: any) => `- ${r.summary}`).join("\n") : "特記事項なし"}
+【5. 現場からの直近トピック（日報要約）】
+${recentReports?.length > 0 ? recentReports.map((r: any) => `- ${r.date}: ${r.summary}`).join("\n") : "特記事項なし"}
 
 ---
 【レポート作成指示】
-1. **経営概況サマリー**: 今期のパフォーマンスを経営者として厳しくも温かく総括してください。
-2. **利益構造の分析**: 原価率や利益の源泉となっている商品の観点から、改善の余地を指摘してください。
-3. **現場と数値の相関**: 日報にある現場の状況が、どのように売上や利益に作用しているか（あるいは乖離しているか）を読み解いてください。
+1. **経営概況サマリー**: 今期のパフォーマンスを経営者として総括してください。
+2. **多角的な相関分析**: 
+   - **天気と売上の因果関係**: 気象データが客足や特定商品の売上にどう影響したか、現場の声（日報）と併せて分析してください。
+   - **商品構成と店舗特性**: 宇土マリーナ等の重点店舗で売れている商品と、全体のABC分析の結果から、どのような「売れる勝ちパターン」が見えるか読み解いてください。
+3. **重点店舗へのフィードバック**: 宇土マリーナの今後の売上向上のために必要な施策（商品ラインナップの調整や販促のタイミング等）について具体的に言及してください。
 4. **戦略的アクション案**: 短期および中長期で取り組むべき次の一手を、具体的に3つ提案してください。
 
 【出力形式】
 - 日本語で出力してください。
 - 威厳と知性を感じさせるプロフェッショナルな文体で作成してください。
-- マークダウン形式で、セクションごとに見出しを付けてください。
+- **重要なキーワードや分析結果は、マークダウンの太字（**）で強調してください。**
+- マークダウン形式で、セクションごとに見出し（#、##、###）を付けてください。
 `;
 
         const modelsToTry = [
