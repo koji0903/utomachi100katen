@@ -143,36 +143,33 @@ export default function InventoryPage() {
         monday.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1));
         monday.setHours(0, 0, 0, 0);
 
-        const lastMonday = new Date(monday);
-        lastMonday.setDate(monday.getDate() - 7);
+        const mondays: Date[] = [];
+        for (let i = 0; i < 4; i++) {
+            const m = new Date(monday);
+            m.setDate(monday.getDate() - (i * 7));
+            mondays.push(m);
+        }
 
-        const twoWeeksAgoMonday = new Date(lastMonday);
-        twoWeeksAgoMonday.setDate(lastMonday.getDate() - 7);
-
-        const thisWeekSales: Record<string, number> = {};
-        const lastWeekSales: Record<string, number> = {};
-        const twoWeeksAgoSales: Record<string, number> = {};
+        const stats: Record<string, number>[] = [{}, {}, {}, {}];
 
         sales.filter(s => !s.isTrashed).forEach(sale => {
             if (sale.storeId !== selectedStoreId) return;
             const saleDate = new Date(sale.period);
             
-            if (saleDate >= monday) {
-                sale.items.forEach(item => {
-                    thisWeekSales[item.productId] = (thisWeekSales[item.productId] || 0) + item.quantity;
-                });
-            } else if (saleDate >= lastMonday && saleDate < monday) {
-                sale.items.forEach(item => {
-                    lastWeekSales[item.productId] = (lastWeekSales[item.productId] || 0) + item.quantity;
-                });
-            } else if (saleDate >= twoWeeksAgoMonday && saleDate < lastMonday) {
-                sale.items.forEach(item => {
-                    twoWeeksAgoSales[item.productId] = (twoWeeksAgoSales[item.productId] || 0) + item.quantity;
-                });
+            for (let i = 0; i < 4; i++) {
+                const currentMon = mondays[i];
+                const nextMon = i === 0 ? new Date(now.getTime() + 86400000 * 7) : mondays[i-1];
+
+                if (saleDate >= currentMon && (i === 0 || saleDate < nextMon)) {
+                    sale.items.forEach(item => {
+                        stats[i][item.productId] = (stats[i][item.productId] || 0) + item.quantity;
+                    });
+                    break;
+                }
             }
         });
 
-        return { thisWeekSales, lastWeekSales, twoWeeksAgoSales };
+        return stats;
     }, [viewType, selectedStoreId, sales]);
     
 
@@ -412,24 +409,27 @@ export default function InventoryPage() {
                                         (() => {
                                             const store = retailStores.find(s => s.id === selectedStoreId);
                                             const activeIds = store?.activeProductIds || [];
-                                            const { thisWeekSales, lastWeekSales, twoWeeksAgoSales } = weeklySalesData;
+                                            const stats = weeklySalesData;
 
                                             return activeIds.map(pid => {
                                                 const product = products.find(p => p.id === pid);
                                                 if (!product) return null;
                                                 const ss = storeStocks.find(s => s.storeId === selectedStoreId && s.productId === pid);
                                                 const currentStock = ss?.stock || 0;
-                                                const tw = thisWeekSales[pid] || 0;
-                                                const lw = lastWeekSales[pid] || 0;
-                                                const tway = twoWeeksAgoSales[pid] || 0;
+                                                
+                                                const s0 = stats[0]?.[pid] || 0; // This week
+                                                const s1 = stats[1]?.[pid] || 0; // Last week
+                                                const s2 = stats[2]?.[pid] || 0; // 2 weeks ago
+                                                const s3 = stats[3]?.[pid] || 0; // 3 weeks ago
 
-                                                // Status Logic
+                                                // Status Logic (based on avg of last 3 full weeks)
+                                                const avgLast3 = (s1 + s2 + s3) / 3;
                                                 let status = { label: "安定", color: "bg-slate-50 text-slate-500" };
                                                 if (currentStock <= 0) {
                                                     status = { label: "欠品中", color: "bg-red-50 text-red-600" };
-                                                } else if (currentStock < (tw + lw) / 2) {
+                                                } else if (currentStock < avgLast3) {
                                                     status = { label: "不足気味", color: "bg-orange-50 text-orange-600" };
-                                                } else if (tw > 0 && currentStock < tw) {
+                                                } else if (s0 > 0 && currentStock < s0) {
                                                     status = { label: "要補充", color: "bg-amber-50 text-amber-600" };
                                                 }
 
@@ -453,19 +453,23 @@ export default function InventoryPage() {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4 text-right">
-                                                            <div className="flex items-center justify-end gap-3 text-right">
-                                                                <div className="flex flex-col items-end">
-                                                                    <span className="text-sm font-black text-blue-600">{tw}</span>
+                                                            <div className="flex items-center justify-end gap-2 text-right">
+                                                                <div className="flex flex-col items-end min-w-[32px]">
+                                                                    <span className="text-sm font-black text-blue-600">{s0}</span>
                                                                     <span className="text-[9px] font-bold text-blue-400 uppercase tracking-tighter">今週</span>
                                                                 </div>
-                                                                <div className="w-px h-6 bg-slate-100 mx-1"></div>
-                                                                <div className="flex flex-col items-end">
-                                                                    <span className="text-sm font-black text-slate-700">{lw}</span>
+                                                                <div className="w-px h-6 bg-slate-100 mx-0.5"></div>
+                                                                <div className="flex flex-col items-end min-w-[32px]">
+                                                                    <span className="text-sm font-black text-slate-700">{s1}</span>
                                                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">先週</span>
                                                                 </div>
-                                                                <div className="flex flex-col items-end opacity-50">
-                                                                    <span className="text-sm font-black text-slate-400">{tway}</span>
-                                                                    <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">先々週</span>
+                                                                <div className="flex flex-col items-end min-w-[32px]">
+                                                                    <span className="text-sm font-black text-slate-500">{s2}</span>
+                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">2週</span>
+                                                                </div>
+                                                                <div className="flex flex-col items-end opacity-40 min-w-[32px]">
+                                                                    <span className="text-sm font-black text-slate-400">{s3}</span>
+                                                                    <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">3週</span>
                                                                 </div>
                                                             </div>
                                                         </td>
