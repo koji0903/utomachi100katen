@@ -6,6 +6,11 @@ async function runDiagnostic() {
     console.log("開始時刻:", new Date().toLocaleString());
     console.log("-----------------------------------");
 
+    if (!adminDb) {
+        console.error("❌ エラー: Firebase Admin SDK が初期化されていません。環境変数 FIREBASE_SERVICE_ACCOUNT_KEY を確認してください。");
+        return;
+    }
+
     try {
         console.log("[1/2] API 疎通テスト (Orders API)...");
         try {
@@ -37,7 +42,7 @@ async function runDiagnostic() {
             const sku = product.amazonSku;
             const name = product.name;
 
-            console.log(`[チェック中] ${name}`);
+            console.log(`[チェック中] ${name} (SKU: ${sku})`);
 
             if (!sku) {
                 console.error(`  ❌ 失敗: SKUが設定されていません。`);

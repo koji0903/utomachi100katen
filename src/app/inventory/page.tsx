@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useStore, StoreStockMovement } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
 import { syncWithSquare, resetSquareData } from "@/lib/square-sync-client";
@@ -26,9 +26,9 @@ import {
 import Link from "next/link";
 
 export default function InventoryPage() {
-    const { products, stockMovements, suppliers, storeStocks, retailStores, loadingProducts, updateStoreStock, mutateSales, mutateProducts, mutateStockMovements } = useStore();
+    const { products, stockMovements, suppliers, storeStocks, retailStores, loadingProducts, updateStoreStock, mutateSales, mutateProducts, mutateStockMovements, sales } = useStore();
 
-    const [viewType, setViewType] = useState<'global' | 'store'>('global');
+    const [viewType, setViewType] = useState<'global' | 'store' | 'delivery'>('global');
     const [selectedStoreId, setSelectedStoreId] = useState<string>("");
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
@@ -132,6 +132,40 @@ export default function InventoryPage() {
             setIsSyncing(false);
         }
     };
+
+    // Calculate weekly sales for replenishment view
+    const weeklySalesData = useMemo(() => {
+        if (viewType !== 'delivery' || !selectedStoreId) return { thisWeekSales: {}, lastWeekSales: {} };
+
+        // Define this week (Mon-Sun) and last week (Mon-Sun)
+        const now = new Date();
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1));
+        monday.setHours(0, 0, 0, 0);
+
+        const lastMonday = new Date(monday);
+        lastMonday.setDate(monday.getDate() - 7);
+
+        const thisWeekSales: Record<string, number> = {};
+        const lastWeekSales: Record<string, number> = {};
+
+        sales.filter(s => !s.isTrashed).forEach(sale => {
+            if (sale.storeId !== selectedStoreId) return;
+            const saleDate = new Date(sale.period);
+            
+            if (saleDate >= monday) {
+                sale.items.forEach(item => {
+                    thisWeekSales[item.productId] = (thisWeekSales[item.productId] || 0) + item.quantity;
+                });
+            } else if (saleDate >= lastMonday && saleDate < monday) {
+                sale.items.forEach(item => {
+                    lastWeekSales[item.productId] = (lastWeekSales[item.productId] || 0) + item.quantity;
+                });
+            }
+        });
+
+        return { thisWeekSales, lastWeekSales };
+    }, [viewType, selectedStoreId, sales]);
     
 
 
@@ -270,6 +304,12 @@ export default function InventoryPage() {
                 >
                     店舗別配置
                 </button>
+                <button
+                    onClick={() => setViewType('delivery')}
+                    className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${viewType === 'delivery' ? 'bg-white text-[#1e3a8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    納品判断アシスト
+                </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -279,10 +319,10 @@ export default function InventoryPage() {
                         <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                             <h2 className="font-black text-slate-900 flex items-center gap-2">
                                 <Package className="w-5 h-5 text-slate-400" />
-                                {viewType === 'global' ? '在庫一覧' : '店舗在庫一覧'}
+                                {viewType === 'global' ? '在庫一覧' : viewType === 'store' ? '店舗在庫一覧' : '納品判断シート'}
                             </h2>
                             <div className="flex items-center gap-3">
-                                {viewType === 'store' && (
+                                {(viewType === 'store' || viewType === 'delivery') && (
                                     <div className="relative group">
                                         <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#1e3a8a] transition-colors" />
                                         <select
@@ -368,7 +408,71 @@ export default function InventoryPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {viewType === 'global' ? (
+                                    {viewType === 'delivery' ? (
+                                        (() => {
+                                            const store = retailStores.find(s => s.id === selectedStoreId);
+                                            const activeIds = store?.activeProductIds || [];
+                                            const { thisWeekSales, lastWeekSales } = weeklySalesData;
+
+                                            return activeIds.map(pid => {
+                                                const product = products.find(p => p.id === pid);
+                                                if (!product) return null;
+                                                const ss = storeStocks.find(s => s.storeId === selectedStoreId && s.productId === pid);
+                                                const currentStock = ss?.stock || 0;
+                                                const tw = thisWeekSales[pid] || 0;
+                                                const lw = lastWeekSales[pid] || 0;
+
+                                                // Status Logic
+                                                let status = { label: "安定", color: "bg-slate-50 text-slate-500" };
+                                                if (currentStock <= 0) {
+                                                    status = { label: "欠品中", color: "bg-red-50 text-red-600" };
+                                                } else if (currentStock < (tw + lw) / 2) {
+                                                    status = { label: "不足気味", color: "bg-orange-50 text-orange-600" };
+                                                } else if (tw > 0 && currentStock < tw) {
+                                                    status = { label: "要補充", color: "bg-amber-50 text-amber-600" };
+                                                }
+
+                                                return (
+                                                    <tr key={pid} className="hover:bg-slate-50/80 transition-colors">
+                                                        <td className="px-6 py-4">
+                                                            <div className="font-bold text-slate-900">{product.name}</div>
+                                                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">{product.amazonSku || "No SKU"}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="text-xs font-bold text-slate-500">
+                                                                {suppliers.find(s => s.id === product.supplierId)?.name || "未設定"}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <div className="flex flex-col items-end">
+                                                                <span className={`text-lg font-black ${currentStock <= 3 ? 'text-red-600' : 'text-slate-900'}`}>
+                                                                    {currentStock}
+                                                                </span>
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">店舗在庫</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <div className="flex items-center justify-end gap-3 text-right">
+                                                                <div className="flex flex-col items-end">
+                                                                    <span className="text-sm font-black text-blue-600">{tw}</span>
+                                                                    <span className="text-[9px] font-bold text-blue-400 uppercase tracking-tighter">今週</span>
+                                                                </div>
+                                                                <div className="flex flex-col items-end opacity-50">
+                                                                    <span className="text-sm font-black text-slate-600">{lw}</span>
+                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">先週</span>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className={`px-2 py-1 text-[10px] font-black rounded-lg ${status.color}`}>
+                                                                {status.label}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            });
+                                        })()
+                                    ) : viewType === 'global' ? (
                                         filteredProducts.map((product) => (
                                             <tr key={product.id} className="hover:bg-slate-50/80 transition-colors">
                                                 <td className="px-6 py-4">
@@ -445,7 +549,7 @@ export default function InventoryPage() {
                                             });
                                         })()
                                     )}
-                                    {viewType === 'store' && !selectedStoreId && (
+                                    {(viewType === 'store' || viewType === 'delivery') && !selectedStoreId && (
                                         <tr>
                                             <td colSpan={5} className="px-6 py-20 text-center text-slate-400 font-bold">
                                                 店舗を選択してください
