@@ -146,8 +146,12 @@ export default function InventoryPage() {
         const lastMonday = new Date(monday);
         lastMonday.setDate(monday.getDate() - 7);
 
+        const twoWeeksAgoMonday = new Date(lastMonday);
+        twoWeeksAgoMonday.setDate(lastMonday.getDate() - 7);
+
         const thisWeekSales: Record<string, number> = {};
         const lastWeekSales: Record<string, number> = {};
+        const twoWeeksAgoSales: Record<string, number> = {};
 
         sales.filter(s => !s.isTrashed).forEach(sale => {
             if (sale.storeId !== selectedStoreId) return;
@@ -161,10 +165,14 @@ export default function InventoryPage() {
                 sale.items.forEach(item => {
                     lastWeekSales[item.productId] = (lastWeekSales[item.productId] || 0) + item.quantity;
                 });
+            } else if (saleDate >= twoWeeksAgoMonday && saleDate < lastMonday) {
+                sale.items.forEach(item => {
+                    twoWeeksAgoSales[item.productId] = (twoWeeksAgoSales[item.productId] || 0) + item.quantity;
+                });
             }
         });
 
-        return { thisWeekSales, lastWeekSales };
+        return { thisWeekSales, lastWeekSales, twoWeeksAgoSales };
     }, [viewType, selectedStoreId, sales]);
     
 
@@ -393,16 +401,8 @@ export default function InventoryPage() {
                                                 ) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
                                             </div>
                                         </th>
-                                        <th
-                                            className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100/50 transition-colors group"
-                                            onClick={() => handleSort('alertThreshold')}
-                                        >
-                                            <div className="flex items-center justify-end gap-1">
-                                                アラート閾値
-                                                {sortConfig?.key === 'alertThreshold' ? (
-                                                    sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 text-[#1e3a8a]" /> : <ChevronDown className="w-3 h-3 text-[#1e3a8a]" />
-                                                ) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                                            </div>
+                                        <th className="px-6 py-4 text-right">
+                                            {viewType === 'delivery' ? '売上推移 (週)' : 'アラート閾値'}
                                         </th>
                                         <th className="px-6 py-4 text-center">ステータス</th>
                                     </tr>
@@ -412,7 +412,7 @@ export default function InventoryPage() {
                                         (() => {
                                             const store = retailStores.find(s => s.id === selectedStoreId);
                                             const activeIds = store?.activeProductIds || [];
-                                            const { thisWeekSales, lastWeekSales } = weeklySalesData;
+                                            const { thisWeekSales, lastWeekSales, twoWeeksAgoSales } = weeklySalesData;
 
                                             return activeIds.map(pid => {
                                                 const product = products.find(p => p.id === pid);
@@ -421,6 +421,7 @@ export default function InventoryPage() {
                                                 const currentStock = ss?.stock || 0;
                                                 const tw = thisWeekSales[pid] || 0;
                                                 const lw = lastWeekSales[pid] || 0;
+                                                const tway = twoWeeksAgoSales[pid] || 0;
 
                                                 // Status Logic
                                                 let status = { label: "安定", color: "bg-slate-50 text-slate-500" };
@@ -457,9 +458,14 @@ export default function InventoryPage() {
                                                                     <span className="text-sm font-black text-blue-600">{tw}</span>
                                                                     <span className="text-[9px] font-bold text-blue-400 uppercase tracking-tighter">今週</span>
                                                                 </div>
-                                                                <div className="flex flex-col items-end opacity-50">
-                                                                    <span className="text-sm font-black text-slate-600">{lw}</span>
+                                                                <div className="w-px h-6 bg-slate-100 mx-1"></div>
+                                                                <div className="flex flex-col items-end">
+                                                                    <span className="text-sm font-black text-slate-700">{lw}</span>
                                                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">先週</span>
+                                                                </div>
+                                                                <div className="flex flex-col items-end opacity-50">
+                                                                    <span className="text-sm font-black text-slate-400">{tway}</span>
+                                                                    <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">先々週</span>
                                                                 </div>
                                                             </div>
                                                         </td>
