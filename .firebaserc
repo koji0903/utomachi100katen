@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "utomachi100katen",
+    "staging": "utomachi100katen-staging-d6583"
+  }
+}
