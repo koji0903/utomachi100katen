@@ -6,7 +6,16 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "emulator:start": "firebase emulators:start --import=./.emulator-data --export-on-exit",
+    "emulator:export": "firebase emulators:export ./.emulator-data",
+    "dev:emulator": "concurrently -k -n emulator,next -c yellow,cyan \"npm:emulator:start\" \"cross-env NEXT_PUBLIC_USE_EMULATOR=true FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 next dev\"",
+    "seed:emulator": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 SEED_TARGET=emulator tsx scripts/seed-staging.ts",
+    "seed:staging": "cross-env SEED_TARGET=staging tsx scripts/seed-staging.ts",
+    "deploy:rules:prod": "firebase deploy --only firestore:rules,firestore:indexes,storage --project default",
+    "deploy:rules:staging": "firebase deploy --only firestore:rules,firestore:indexes,storage --project staging"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
@@ -28,14 +37,19 @@
     "swr": "^2.4.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/nodemailer": "^7.0.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^4.1.4"
   }
 }
