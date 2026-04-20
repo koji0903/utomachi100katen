@@ -1,6 +1,7 @@
 // src/lib/pdfGenerator.ts
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import DOMPurify from "dompurify";
 
 /**
  * Helper to generate jsPDF instance from an element
@@ -19,9 +20,12 @@ async function generatePdfInstance(element: HTMLElement): Promise<jsPDF> {
         const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
         if (!iframeDoc) throw new Error("Could not access iframe document");
 
-        const reportHtml = element.innerHTML;
+        const rawHtml = element.innerHTML;
+        const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
+            ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'p', 'br', 'strong', 'em', 'u', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'span', 'ul', 'ol', 'li'],
+            ALLOWED_ATTR: ['class', 'style', 'id'],
+        });
 
-        // 2. Inject minimal safe CSS and the report HTML
         iframeDoc.open();
         iframeDoc.write(`
             <!DOCTYPE html>
@@ -29,19 +33,19 @@ async function generatePdfInstance(element: HTMLElement): Promise<jsPDF> {
             <head>
                 <meta charset="UTF-8">
                 <style>
-                    * { 
-                        box-sizing: border-box; 
-                        -webkit-print-color-adjust: exact; 
+                    * {
+                        box-sizing: border-box;
+                        -webkit-print-color-adjust: exact;
                         line-height: 2.0 !important;
                         overflow: visible !important;
                     }
-                    html, body { 
-                        margin: 0; 
-                        padding: 0; 
+                    html, body {
+                        margin: 0;
+                        padding: 0;
                         background: #ffffff;
                     }
-                    body { 
-                        color: #1e293b; 
+                    body {
+                        color: #1e293b;
                         font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "BIZ UDPGothic", "Meiryo", "Helvetica Neue", Arial, sans-serif;
                     }
                     #report-container {
@@ -57,7 +61,7 @@ async function generatePdfInstance(element: HTMLElement): Promise<jsPDF> {
                 </style>
             </head>
             <body>
-                <div id="report-container">${reportHtml}</div>
+                <div id="report-container">${sanitizedHtml}</div>
             </body>
             </html>
         `);
