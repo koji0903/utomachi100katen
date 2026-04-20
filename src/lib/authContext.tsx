@@ -26,8 +26,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isDemoMode, setIsDemoMode] = useState(false);
 
     useEffect(() => {
-        // デモモードの状態を復元
-        const demoModeActive = typeof window !== "undefined" && localStorage.getItem("demo_mode") === "true";
+        const isDemoEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "true";
+        const demoModeActive = isDemoEnabled && typeof window !== "undefined" && localStorage.getItem("demo_mode") === "true";
+
         if (demoModeActive) {
             setIsDemoMode(true);
             setUser({
@@ -43,7 +44,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            // デモモードでない場合のみ Firebase の認証状態を反映
             if (typeof window !== "undefined" && !localStorage.getItem("demo_mode")) {
                 setUser(currentUser);
                 setLoading(false);
@@ -54,6 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const loginAsDemo = () => {
+        const isDemoEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "true";
+        if (!isDemoEnabled) {
+            console.warn("[Auth] Demo mode is disabled");
+            return;
+        }
         if (typeof window !== "undefined") {
             localStorage.setItem("demo_mode", "true");
         }
