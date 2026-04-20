@@ -62,7 +62,13 @@ export const POST = withAuth(async (_req, { uid }) => {
                         });
                     }
                 } catch (err) {
-                    logError("Amazon Sync:product", err, { productId: productDoc.id });
+                    logError("Amazon Sync:product", err, { productId: productDoc.id, sku });
+                    syncResults.push({
+                        id: productDoc.id,
+                        name: product.name,
+                        sku: sku,
+                        status: "Failed"
+                    });
                 }
             }
         }
@@ -194,6 +200,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                 }
             } catch (err) {
                 logError("Amazon Sync:order", err, { amazonOrderId: order.amazonOrderId });
+                processedOrders.push(order.amazonOrderId);
             }
         }
 
