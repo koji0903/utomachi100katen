@@ -1,4 +1,13 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "sync_logs",
+      "queryScope": "Collection",
+      "fields": [
+        { "fieldPath": "type", "order": "Ascending" },
+        { "fieldPath": "timestamp", "order": "Descending" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }
