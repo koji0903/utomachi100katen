@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { processShopifyOrder } from "@/lib/shopify-processor";
+import { logError } from "@/lib/apiAuth";
 
 const WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET;
 
@@ -15,21 +16,27 @@ export async function POST(req: Request) {
         const body = await req.text();
         const hmac = req.headers.get("X-Shopify-Hmac-Sha256");
 
-        // 1. HMAC 署名の検証
-        if (WEBHOOK_SECRET) {
-            const generatedHmac = crypto
-                .createHmac("sha256", WEBHOOK_SECRET)
-                .update(body, "utf8")
-                .digest("base64");
+        if (!WEBHOOK_SECRET) {
+            logError("shopify/webhook", new Error("SHOPIFY_WEBHOOK_SECRET not configured"));
+            return NextResponse.json({ error: "Server error" }, { status: 500 });
+        }
 
-            if (generatedHmac !== hmac) {
-                console.error("[Shopify Webhook] Invalid HMAC signature.");
-                return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-            }
+        if (!hmac) {
+            logError("shopify/webhook", new Error("Missing X-Shopify-Hmac-Sha256 header"));
+            return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+        }
+
+        const generatedHmac = crypto
+            .createHmac("sha256", WEBHOOK_SECRET)
+            .update(body, "utf8")
+            .digest("base64");
+
+        if (generatedHmac !== hmac) {
+            logError("shopify/webhook", new Error("Invalid HMAC signature"), { expected: hmac, received: generatedHmac });
+            return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
         }
 
         const orderData = JSON.parse(body);
-        console.log(`[Shopify Webhook] Received order: ${orderData.id}`);
 
         // 2. 注文データのパース (ShopifyOrder インターフェースに合わせる)
         const order = {
@@ -55,11 +62,8 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, reason: result.reason });
         }
 
-    } catch (error: any) {
-        console.error("Shopify Webhook Error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error", detail: error.message },
-            { status: 500 }
-        );
+    } catch (error) {
+        logError("shopify/webhook", error);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
