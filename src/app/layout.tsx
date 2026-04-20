@@ -49,7 +49,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja" suppressHydrationWarning>
+    <html lang="ja" suppressHydrationWarning data-scroll-behavior="smooth">
       <body className={`${notoSansJP.variable} ${inter.variable} font-sans bg-slate-50 text-slate-800 antialiased`}>
         <ErrorBoundary>
           <AuthProvider>
