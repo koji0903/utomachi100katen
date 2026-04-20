@@ -124,7 +124,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                     }
 
                     // Use atomic transaction for order processing
-                    await adminDb.runTransaction(async (txn) => {
+                    await adminDb.runTransaction(async (txn: any) => {
                         const transactionRef = adminDb.collection("transactions").doc();
                         const transactionData = {
                             customerName: amazonStore ? amazonStore.name : "Amazon Customer",
