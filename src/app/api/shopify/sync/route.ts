@@ -5,12 +5,10 @@ import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, set
 import { db } from "@/lib/firebase";
 import { getShopifyProduct, getShopifyOrders, updateShopifyInventory } from "@/lib/shopify";
 import { processShopifyOrder } from "@/lib/shopify-processor";
+import { withAuth, internalError, logError } from "@/lib/apiAuth";
 
-export async function POST(req: Request) {
+export const POST = withAuth(async (_req, { uid }) => {
     try {
-        console.log("[Shopify Sync] Starting synchronization process...");
-
-        // 1. 同期が有効な商品を取得
         const productsRef = collection(db, "products");
         const q = query(productsRef, where("shopifySyncEnabled", "==", true));
         const querySnapshot = await getDocs(q);
@@ -20,7 +18,6 @@ export async function POST(req: Request) {
         for (const productDoc of querySnapshot.docs) {
             const product = productDoc.data();
             if (product.shopifyVariantId) {
-                // Shopify へ本システムの最新在庫を反映
                 const currentStock = product.stock || 0;
                 const success = await updateShopifyInventory(product.shopifyVariantId, currentStock);
 
@@ -39,7 +36,6 @@ export async function POST(req: Request) {
             }
         }
 
-        // 2. 注文情報の取得
         const orders = await getShopifyOrders();
         let newOrdersCount = 0;
         const processedOrders = [];
@@ -52,13 +48,13 @@ export async function POST(req: Request) {
             }
         }
 
-        // 3. 同期ログの保存
         const logData = {
             type: 'Shopify',
             timestamp: serverTimestamp(),
             status: 'success',
             productCount: syncResults.length,
             orderCount: newOrdersCount,
+            triggeredBy: uid,
             details: {
                 syncedProducts: syncResults.map(p => p.name),
                 newOrderIds: processedOrders
@@ -74,11 +70,8 @@ export async function POST(req: Request) {
             message: `Shopify同期が完了しました。${syncResults.length}件の商品と${newOrdersCount}件の注文を処理しました。`
         });
 
-    } catch (error: any) {
-        console.error("Shopify Sync Error:", error);
-        return NextResponse.json(
-            { error: "Shopify同期中にエラーが発生しました。", detail: error.message },
-            { status: 500 }
-        );
+    } catch (error) {
+        logError("Shopify Sync", error, { uid });
+        return internalError();
     }
-}
+});

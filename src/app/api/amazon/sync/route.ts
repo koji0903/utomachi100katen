@@ -3,13 +3,12 @@
 import { NextResponse } from "next/server";
 import { adminDb, admin } from "@/lib/firebase-admin";
 import { getAmazonProduct, getAmazonOrders } from "@/lib/amazon";
+import { withAuth, internalError, logError } from "@/lib/apiAuth";
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: Request) {
+export const POST = withAuth(async (_req, { uid }) => {
     try {
-        console.log("[Amazon Sync] Starting synchronization process (Server/Admin SDK)...");
-
         // 0. スロットリングの確認（前回の実行から10分間はスキップ）
         const logsRef = adminDb.collection("sync_logs");
         const lastLogSnap = await logsRef
@@ -17,15 +16,14 @@ export async function POST(req: Request) {
             .orderBy("timestamp", "desc")
             .limit(1)
             .get();
-        
+
         if (!lastLogSnap.empty) {
             const lastLog = lastLogSnap.docs[0].data();
             const lastTimestamp = lastLog.timestamp?.toDate() || new Date(0);
             const now = new Date();
             const diffMinutes = (now.getTime() - lastTimestamp.getTime()) / (1000 * 60);
-            
+
             if (diffMinutes < 10) {
-                console.log(`[Amazon Sync] Skipping sync. Last sync was ${Math.floor(diffMinutes)} minutes ago.`);
                 return NextResponse.json({
                     success: true,
                     skipped: true,
@@ -43,14 +41,12 @@ export async function POST(req: Request) {
         for (const productDoc of querySnapshot.docs) {
             const product = productDoc.data();
             const sku = product.amazonSku;
-            
+
             if (sku) {
                 try {
-                    // Amazon から最新情報を取得
                     const amazonData = await getAmazonProduct(sku);
 
                     if (amazonData) {
-                        // 在庫・価格情報の更新
                         await productDoc.ref.update({
                             lastAmazonSyncAt: admin.firestore.FieldValue.serverTimestamp(),
                             amazonReferenceStock: amazonData.inventoryLevel,
@@ -66,7 +62,7 @@ export async function POST(req: Request) {
                         });
                     }
                 } catch (err) {
-                    console.error(`[Amazon Sync] Error syncing product ${product.name}:`, err);
+                    logError("Amazon Sync:product", err, { productId: productDoc.id });
                 }
             }
         }
@@ -77,7 +73,7 @@ export async function POST(req: Request) {
             .where("name", "==", "Amazon")
             .where("isTrashed", "==", false)
             .get();
-        
+
         let amazonStore: { id: string, name: string } | null = null;
         if (!storeSnap.empty) {
             amazonStore = { id: storeSnap.docs[0].id, name: storeSnap.docs[0].data().name };
@@ -90,7 +86,6 @@ export async function POST(req: Request) {
 
         for (const order of orders) {
             try {
-                // 既に登録済みかチェック
                 const existingDocs = await adminDb.collection("transactions")
                     .where("amazonOrderId", "==", order.amazonOrderId)
                     .get();
@@ -98,8 +93,7 @@ export async function POST(req: Request) {
                 if (existingDocs.empty) {
                     newOrdersCount++;
                     processedOrders.push(order.amazonOrderId);
-                    
-                    // 取引データの作成
+
                     const transactionRef = adminDb.collection("transactions").doc();
                     const transactionData = {
                         customerName: amazonStore ? amazonStore.name : "Amazon Customer",
@@ -122,7 +116,6 @@ export async function POST(req: Request) {
 
                     await transactionRef.set(transactionData);
 
-                    // 明細の登録
                     const saleItems = [];
                     for (const item of order.items) {
                         await adminDb.collection("transaction_items").add({
@@ -136,7 +129,6 @@ export async function POST(req: Request) {
                             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                         });
 
-                        // 商品マスタの特定と在庫減算
                         const pSnap = await adminDb.collection("products")
                             .where("amazonSku", "==", item.sku)
                             .get();
@@ -151,7 +143,6 @@ export async function POST(req: Request) {
                                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
                             });
 
-                            // 在庫移動の記録
                             await adminDb.collection("stock_movements").add({
                                 productId: pId,
                                 productName: pData.name,
@@ -174,7 +165,6 @@ export async function POST(req: Request) {
                         }
                     }
 
-                    // 売上データ作成
                     if (amazonStore && saleItems.length > 0) {
                         await adminDb.collection("sales").add({
                             storeId: amazonStore.id,
@@ -190,17 +180,17 @@ export async function POST(req: Request) {
                     }
                 }
             } catch (err) {
-                console.error(`[Amazon Sync] Error processing order ${order.amazonOrderId}:`, err);
+                logError("Amazon Sync:order", err, { amazonOrderId: order.amazonOrderId });
             }
         }
 
-        // 3. 同期ログの保存
         await adminDb.collection("sync_logs").add({
             type: 'Amazon',
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
             status: 'success',
             productCount: syncResults.length,
             orderCount: newOrdersCount,
+            triggeredBy: uid,
             details: {
                 syncedProducts: syncResults.map(p => p.name),
                 newOrderIds: processedOrders
@@ -212,14 +202,11 @@ export async function POST(req: Request) {
             syncedProducts: syncResults,
             newOrdersCount: newOrdersCount,
             newOrderIds: processedOrders,
-            message: `Amazon同期が完了しました。${syncResults.length}件の商品と${newOrdersCount}件の注文を処理きました。`
+            message: `Amazon同期が完了しました。${syncResults.length}件の商品と${newOrdersCount}件の注文を処理しました。`
         });
 
-    } catch (error: any) {
-        console.error("Amazon Sync Error:", error);
-        return NextResponse.json(
-            { error: "Amazon同期中にエラーが発生しました。", detail: error.message },
-            { status: 500 }
-        );
+    } catch (error) {
+        logError("Amazon Sync", error, { uid });
+        return internalError();
     }
-}
+});

@@ -1,6 +1,7 @@
 // src/lib/square-sync-client.ts
 
 import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc, getDoc, deleteDoc } from "firebase/firestore";
+import { apiFetch } from "@/lib/apiClient";
 
 import { db } from "@/lib/firebase";
 import { processSquareOrder } from "./square-processor";
@@ -43,8 +44,9 @@ export async function syncWithSquare(storeId: string, options?: { skipInventory?
         // 2. Square カタログの紐付け (JANコード)
         for (const product of productsToSync) {
             if (!product.squareVariantId && product.janCode) {
-                const res = await fetch("/api/square/sync", {
+                const res = await apiFetch("/api/square/sync", {
                     method: "POST",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "find-catalog", janCode: product.janCode })
                 });
                 const data = await res.json();
@@ -60,8 +62,9 @@ export async function syncWithSquare(storeId: string, options?: { skipInventory?
         }
 
         // 3. Square 注文データの取得 (API Proxy 経由)
-        const orderRes = await fetch("/api/square/sync", {
+        const orderRes = await apiFetch("/api/square/sync", {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "fetch-orders", locationId: squareLocationId })
         });
         const orderData = await orderRes.json();
@@ -96,12 +99,13 @@ export async function syncWithSquare(storeId: string, options?: { skipInventory?
         }));
 
         if (inventoryUpdates.length > 0) {
-            const invRes = await fetch("/api/square/sync", {
+            const invRes = await apiFetch("/api/square/sync", {
                 method: "POST",
-                body: JSON.stringify({ 
-                    action: "update-inventory", 
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "update-inventory",
                     locationId: squareLocationId,
-                    inventoryUpdates 
+                    inventoryUpdates
                 })
             });
             if (!invRes.ok) {

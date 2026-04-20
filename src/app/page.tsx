@@ -31,6 +31,7 @@ import { CalendarView } from "@/components/CalendarView";
 import { SeasonalAlarm } from "@/components/SeasonalAlarm";
 import { ReportSummaryCard } from "@/components/ReportSummaryCard";
 import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
+import { apiFetch, isDemoMode } from "@/lib/apiClient";
 
 function ActivityTimeline() {
     const { activities, dailyReports, sales, purchases } = useStore();
@@ -165,15 +166,18 @@ export default function DashboardPage() {
 
     useEffect(() => {
         setMounted(true);
-        // Amazon同期をバックグラウンドで実行
-        fetch("/api/amazon/sync", { method: "POST" })
+        // Amazon同期をバックグラウンドで実行（未認証・デモモード時はスキップ）
+        if (isDemoMode()) return;
+        apiFetch("/api/amazon/sync", { method: "POST" })
             .then(res => res.json())
             .then(data => {
                 if (data.success && !data.skipped && data.newOrdersCount > 0) {
                     console.log(`[Amazon] ${data.newOrdersCount} 件の新規注文を取り込みました。`);
                 }
             })
-            .catch(err => console.error("[Amazon Sync Error]", err));
+            .catch(() => {
+                // 未認証や通信エラーはサイレント（ダッシュボードの補助処理のため）
+            });
     }, []);
 
     const currentMonthStats = useMemo(() => {

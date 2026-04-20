@@ -12,6 +12,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { POP_STYLES, POPStyle } from "@/lib/popStyles";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 type CopyMode = "marketplace" | "story" | "social" | "pop" | "video";
 
@@ -142,7 +143,7 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                 shopifySyncEnabled,
             });
 
-            const res = await fetch("/api/shopify/sync", {
+            const res = await apiFetch("/api/shopify/sync", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ productId: product.id }),
@@ -158,7 +159,11 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                 setError(data.error || "Shopifyとの同期に失敗しました。");
             }
         } catch (e) {
-            setError("同期中にエラーが発生しました。");
+            if (e instanceof DemoModeError) {
+                setError("デモ中はShopify同期をご利用いただけません。");
+            } else {
+                setError("同期中にエラーが発生しました。");
+            }
         } finally {
             setIsSyncing(false);
         }
@@ -175,7 +180,7 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                 amazonSyncEnabled,
             });
 
-            const res = await fetch("/api/amazon/sync", {
+            const res = await apiFetch("/api/amazon/sync", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ productId: product.id }),
@@ -191,7 +196,11 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                 setError(data.error || "Amazonとの同期に失敗しました。");
             }
         } catch (e) {
-            setError("同期中にエラーが発生しました。");
+            if (e instanceof DemoModeError) {
+                setError("デモ中はAmazon同期をご利用いただけません。");
+            } else {
+                setError("同期中にエラーが発生しました。");
+            }
         } finally {
             setIsSyncingAmazon(false);
         }

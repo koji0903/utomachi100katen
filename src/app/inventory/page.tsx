@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { useStore, StoreStockMovement } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
 import { syncWithSquare, resetSquareData } from "@/lib/square-sync-client";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 import {
     Package,
@@ -212,7 +213,7 @@ export default function InventoryPage() {
                         onClick={async () => {
                             setIsSyncing(true);
                             try {
-                                const res = await fetch("/api/amazon/sync", { method: "POST" });
+                                const res = await apiFetch("/api/amazon/sync", { method: "POST" });
                                 const data = await res.json();
                                 if (data.success) {
                                     showNotification(data.message, "success");
@@ -222,8 +223,11 @@ export default function InventoryPage() {
                                     throw new Error(data.message || data.error);
                                 }
                             } catch (error: any) {
-                                console.error("Amazon Sync Error:", error);
-                                showNotification(error.message, "error");
+                                if (error instanceof DemoModeError) {
+                                    showNotification("デモ中はAmazon同期をご利用いただけません。", "error");
+                                } else {
+                                    showNotification("同期に失敗しました。", "error");
+                                }
                             } finally {
                                 setIsSyncing(false);
                             }

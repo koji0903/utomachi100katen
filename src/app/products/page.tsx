@@ -6,6 +6,7 @@ import { useStore, Product, Brand, Supplier } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
 import { showNotification } from "@/lib/notifications";
+import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
 import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
 import { convertToCSV, parseCSV, downloadCSV } from "@/lib/csvUtils";
 import { useRef } from "react";
@@ -261,7 +262,7 @@ export default function ProductsPage() {
               if (!confirm("Amazonとの同期を開始しますか？")) return;
               try {
                 showNotification("Amazonと同期中...");
-                const res = await fetch("/api/amazon/sync", { method: "POST" });
+                const res = await apiFetch("/api/amazon/sync", { method: "POST" });
                 const data = await res.json();
                 if (data.success) {
                   showNotification(`同期完了: 商品 ${data.syncedProducts.length}件, 新規注文 ${data.newOrdersCount}件\n「取引管理」ページで確認できます。`);
@@ -269,7 +270,11 @@ export default function ProductsPage() {
                   throw new Error(data.error);
                 }
               } catch (err: any) {
-                showNotification("同期に失敗しました: " + err.message, "error");
+                if (err instanceof DemoModeError) {
+                  showNotification("デモ中はAmazon同期をご利用いただけません。", "error");
+                } else {
+                  showNotification("同期に失敗しました。", "error");
+                }
               }
             }}
             className="flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2.5 rounded-lg border border-amber-200 hover:bg-amber-100 transition-colors shadow-sm font-bold"
