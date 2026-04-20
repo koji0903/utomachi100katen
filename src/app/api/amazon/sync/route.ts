@@ -91,44 +91,10 @@ export const POST = withAuth(async (_req, { uid }) => {
                     .get();
 
                 if (existingDocs.empty) {
-                    newOrdersCount++;
-                    processedOrders.push(order.amazonOrderId);
+                    const saleItems: any[] = [];
+                    const productUpdates: Map<string, { newStock: number; productName: string; quantity: number }> = new Map();
 
-                    const transactionRef = adminDb.collection("transactions").doc();
-                    const transactionData = {
-                        customerName: amazonStore ? amazonStore.name : "Amazon Customer",
-                        storeId: amazonStore?.id || null,
-                        storeName: amazonStore?.name || null,
-                        channel: "EC",
-                        transactionType: "Amazon注文",
-                        orderDate: order.purchaseDate.split('T')[0],
-                        transactionStatus: "受注",
-                        subtotal: order.totalAmount,
-                        tax: 0,
-                        totalAmount: order.totalAmount,
-                        paidAmount: 0,
-                        balanceAmount: order.totalAmount,
-                        remarks: `Amazon Order ID: ${order.amazonOrderId}`,
-                        amazonOrderId: order.amazonOrderId,
-                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    };
-
-                    await transactionRef.set(transactionData);
-
-                    const saleItems = [];
                     for (const item of order.items) {
-                        await adminDb.collection("transaction_items").add({
-                            transactionId: transactionRef.id,
-                            productName: `Amazon商品 (${item.sku})`,
-                            quantity: item.quantity,
-                            unitPrice: item.price,
-                            amount: item.quantity * item.price,
-                            taxRate: 10,
-                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        });
-
                         const pSnap = await adminDb.collection("products")
                             .where("amazonSku", "==", item.sku)
                             .get();
@@ -137,23 +103,9 @@ export const POST = withAuth(async (_req, { uid }) => {
                             const pDoc = pSnap.docs[0];
                             const pId = pDoc.id;
                             const pData = pDoc.data();
+                            const newStock = (pData.stock || 0) - item.quantity;
 
-                            await pDoc.ref.update({
-                                stock: (pData.stock || 0) - item.quantity,
-                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                            });
-
-                            await adminDb.collection("stock_movements").add({
-                                productId: pId,
-                                productName: pData.name,
-                                type: 'out',
-                                quantity: item.quantity,
-                                reason: 'amazon_sync',
-                                referenceId: transactionRef.id,
-                                date: order.purchaseDate.split('T')[0],
-                                createdAt: admin.firestore.FieldValue.serverTimestamp()
-                            });
-
+                            productUpdates.set(pId, { newStock, productName: pData.name, quantity: item.quantity });
                             saleItems.push({
                                 productId: pId,
                                 quantity: item.quantity,
@@ -165,6 +117,65 @@ export const POST = withAuth(async (_req, { uid }) => {
                         }
                     }
 
+                    // Use atomic transaction for order processing
+                    await adminDb.runTransaction(async (txn) => {
+                        const transactionRef = adminDb.collection("transactions").doc();
+                        const transactionData = {
+                            customerName: amazonStore ? amazonStore.name : "Amazon Customer",
+                            storeId: amazonStore?.id || null,
+                            storeName: amazonStore?.name || null,
+                            channel: "EC",
+                            transactionType: "Amazon注文",
+                            orderDate: order.purchaseDate.split('T')[0],
+                            transactionStatus: "受注",
+                            subtotal: order.totalAmount,
+                            tax: 0,
+                            totalAmount: order.totalAmount,
+                            paidAmount: 0,
+                            balanceAmount: order.totalAmount,
+                            remarks: `Amazon Order ID: ${order.amazonOrderId}`,
+                            amazonOrderId: order.amazonOrderId,
+                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        };
+
+                        txn.set(transactionRef, transactionData);
+
+                        for (const item of order.items) {
+                            const itemRef = adminDb.collection("transaction_items").doc();
+                            txn.set(itemRef, {
+                                transactionId: transactionRef.id,
+                                productName: `Amazon商品 (${item.sku})`,
+                                quantity: item.quantity,
+                                unitPrice: item.price,
+                                amount: item.quantity * item.price,
+                                taxRate: 10,
+                                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            });
+                        }
+
+                        for (const [pId, update] of productUpdates.entries()) {
+                            const pRef = adminDb.collection("products").doc(pId);
+                            txn.update(pRef, {
+                                stock: update.newStock,
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
+
+                            const movementRef = adminDb.collection("stock_movements").doc();
+                            txn.set(movementRef, {
+                                productId: pId,
+                                productName: update.productName,
+                                type: 'out',
+                                quantity: update.quantity,
+                                reason: 'amazon_sync',
+                                referenceId: transactionRef.id,
+                                date: order.purchaseDate.split('T')[0],
+                                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
+                        }
+                    });
+
                     if (amazonStore && saleItems.length > 0) {
                         await adminDb.collection("sales").add({
                             storeId: amazonStore.id,
@@ -173,11 +184,13 @@ export const POST = withAuth(async (_req, { uid }) => {
                             items: saleItems,
                             totalAmount: order.totalAmount,
                             isTrashed: false,
-                            transactionId: transactionRef.id,
                             createdAt: admin.firestore.FieldValue.serverTimestamp(),
                             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                         });
                     }
+
+                    newOrdersCount++;
+                    processedOrders.push(order.amazonOrderId);
                 }
             } catch (err) {
                 logError("Amazon Sync:order", err, { amazonOrderId: order.amazonOrderId });
