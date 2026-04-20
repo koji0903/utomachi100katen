@@ -2,9 +2,64 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // すべてのパス: 認証済みユーザーのみ読み書き可
+    // Helper: check authentication
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: validate file size (15 MB max)
+    function isValidFileSize() {
+      return request.resource.size <= 15 * 1024 * 1024;
+    }
+
+    // Helper: validate MIME type (images, PDFs, videos only)
+    function isValidMimeType() {
+      let contentType = request.resource.contentType;
+      return contentType.matches('image/.*') ||
+             contentType == 'application/pdf' ||
+             contentType == 'video/mp4';
+    }
+
+    // Default deny all
     match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
+    }
+
+    // Allowed folders with restrictions
+    match /products/{allPaths=**} {
+      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+    }
+
+    match /print-archives/{allPaths=**} {
+      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+    }
+
+    match /settings/{allPaths=**} {
+      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+    }
+
+    match /stores/{allPaths=**} {
+      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+    }
+
+    match /invoices/{allPaths=**} {
+      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+    }
+
+    match /delivery_notes/{allPaths=**} {
+      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+    }
+
+    match /receipts/{allPaths=**} {
+      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+    }
+
+    match /summaries/{allPaths=**} {
+      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+    }
+
+    match /reports/{allPaths=**} {
+      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
     }
   }
 }
