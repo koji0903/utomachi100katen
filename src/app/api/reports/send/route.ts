@@ -1,7 +1,9 @@
-// src/app/api/reports/send/route.ts
 import { NextResponse } from "next/server";
-import { generateReportData, ReportData } from "@/lib/reportUtils";
+import { z } from "zod";
 import nodemailer from "nodemailer";
+import { ReportData } from "@/lib/reportUtils";
+import { withAuth, parseJson, internalError, logError } from "@/lib/apiAuth";
+import { isRecipientAllowed } from "@/lib/emailWhitelist";
 
 function generateHtmlEmail(data: ReportData) {
     const { weeklySales, storeRanking, productRanking, forecast, restockingRecommendations, period } = data;
@@ -82,42 +84,80 @@ function generateHtmlEmail(data: ReportData) {
     `;
 }
 
-export async function POST(req: Request) {
+const reportDataSchema = z.object({
+    period: z.object({
+        start: z.string(),
+        end: z.string(),
+    }),
+    weeklySales: z.object({
+        currentAmount: z.number().min(0),
+        previousAmount: z.number().min(0),
+        growthRate: z.number(),
+    }),
+    storeRanking: z.array(z.object({
+        name: z.string().max(200),
+        amount: z.number().min(0),
+    })).max(100),
+    productRanking: z.array(z.object({
+        name: z.string().max(200),
+        quantity: z.number().int().min(0),
+    })).max(100),
+    forecast: z.object({
+        nextWeekPredictedAmount: z.number().min(0),
+        trend: z.enum(['up', 'down', 'stable']),
+    }),
+    restockingRecommendations: z.array(z.object({
+        productId: z.string(),
+        productName: z.string().max(200),
+        currentStock: z.number().int().min(0),
+        estimatedDaysLeft: z.number().int(),
+        recommendedQty: z.number().int().min(0),
+    })).max(100),
+});
+
+const bodySchema = z.object({
+    test: z.boolean().optional(),
+    recipient: z.string().email().max(254),
+    data: reportDataSchema,
+});
+
+export const POST = withAuth(async (req, ctx) => {
+    const parsed = await parseJson(req, bodySchema);
+    if (parsed instanceof NextResponse) return parsed;
+    const { test, recipient, data } = parsed;
+
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+        logError("reports/send", new Error("mail env missing"));
+        return internalError();
+    }
+
+    if (!(await isRecipientAllowed(recipient))) {
+        return NextResponse.json(
+            { error: "Recipient not allowed" },
+            { status: 403 },
+        );
+    }
+
     try {
-        const body = await req.json();
-        const { test, recipient, data } = body;
-
-        if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-            const missing = [];
-            if (!process.env.GMAIL_USER) missing.push("GMAIL_USER");
-            if (!process.env.GMAIL_APP_PASSWORD) missing.push("GMAIL_APP_PASSWORD");
-            throw new Error(`Environment variables missing: ${missing.join(", ")}. Please check your .env.local file and restart the dev server.`);
-        }
-
         const transporter = nodemailer.createTransport({
-            service: 'gmail',
+            service: "gmail",
             auth: {
                 user: process.env.GMAIL_USER,
                 pass: process.env.GMAIL_APP_PASSWORD,
             },
         });
 
-        const html = generateHtmlEmail(data);
-
-        console.log(`[Email API] Attempting to send email to: ${recipient} from: ${process.env.GMAIL_USER}`);
-
+        const html = generateHtmlEmail(data as ReportData);
         const info = await transporter.sendMail({
             from: `"ウトマチプラットフォーム" <${process.env.GMAIL_USER}>`,
             to: recipient,
-            subject: `${test ? '[TEST] ' : ''}販売概況レポート - ${new Date().toLocaleDateString('ja-JP')}`,
-            html: html,
+            subject: `${test ? "[TEST] " : ""}販売概況レポート - ${new Date().toLocaleDateString("ja-JP")}`,
+            html,
         });
 
-        console.log(`[Email API] SendMail result:`, info);
-
-        return NextResponse.json({ success: true, message: "Email sent successfully", messageId: info.messageId });
-    } catch (error: any) {
-        console.error("[Email API] Detailed Error:", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ success: true, messageId: info.messageId });
+    } catch (err) {
+        logError("reports/send", err, { uid: ctx.uid });
+        return internalError();
     }
-}
+});
