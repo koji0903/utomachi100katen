@@ -39,8 +39,10 @@ if (shouldUseEmulator && !globalForEmulator.__firebaseEmulatorConnected) {
     connectFirestoreEmulator(db, host, 8080);
     connectStorageEmulator(storage, host, 9199);
     globalForEmulator.__firebaseEmulatorConnected = true;
-    // eslint-disable-next-line no-console
-    console.info(`[firebase] Emulator connected @ ${host} (auth:9099, firestore:8080, storage:9199)`);
+    if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.info(`[firebase] Emulator connected @ ${host} (auth:9099, firestore:8080, storage:9199)`);
+    }
 }
 
 export default app;

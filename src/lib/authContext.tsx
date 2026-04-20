@@ -56,7 +56,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const loginAsDemo = () => {
         const isDemoEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "true";
         if (!isDemoEnabled) {
-            console.warn("[Auth] Demo mode is disabled");
+            if (process.env.NODE_ENV !== "production") {
+                console.warn("[Auth] Demo mode is disabled");
+            }
             return;
         }
         if (typeof window !== "undefined") {

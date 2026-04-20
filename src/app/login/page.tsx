@@ -25,7 +25,9 @@ export default function LoginPage() {
             router.push("/");
         } catch (err: any) {
             setError("ログインに失敗しました。メールアドレスまたはパスワードが正しくありません。");
-            console.error(err);
+            if (process.env.NODE_ENV !== "production") {
+                console.error("[Auth Error]", err);
+            }
         } finally {
             setLoading(false);
         }
