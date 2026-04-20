@@ -5,6 +5,7 @@ import { X, Upload, FileText, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { ArchiveCategory } from "@/lib/types/printArchive";
 import { showNotification } from "@/lib/notifications";
+import { apiFetch } from "@/lib/apiClient";
 
 interface UploadModalProps {
     isOpen: boolean;
@@ -48,7 +49,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
             formData.append("file", file);
             formData.append("folderPath", "print-archives");
 
-            const response = await fetch("/api/upload", {
+            const response = await apiFetch("/api/upload", {
                 method: "POST",
                 body: formData,
             });
@@ -56,7 +57,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
             const result = await response.json();
 
             if (!response.ok) {
-                throw new Error(result.details || result.error || "アップロードに失敗しました。");
+                throw new Error(result.error || "アップロードに失敗しました。");
             }
 
             const { url, storagePath } = result;

@@ -17,17 +17,21 @@ const isEmulator =
     !!process.env.FIREBASE_AUTH_EMULATOR_HOST ||
     !!process.env.FIREBASE_STORAGE_EMULATOR_HOST;
 
+const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+
 if (!admin.apps.length) {
     if (serviceAccount) {
         admin.initializeApp({
             credential: admin.credential.cert(serviceAccount),
             projectId: serviceAccount.project_id,
+            storageBucket,
         });
     } else if (isEmulator) {
         // エミュレータ専用のダミー初期化（ローカル開発用）
         admin.initializeApp({
             projectId:
                 process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-emulator",
+            storageBucket,
         });
     }
 }

@@ -1,65 +1,102 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "@/lib/firebase";
+import { admin } from "@/lib/firebase-admin";
+import { withAuth, internalError, logError } from "@/lib/apiAuth";
 
-export async function POST(req: NextRequest) {
-    try {
-        const formData = await req.formData();
-        const file = formData.get("file") as File;
-        const folderPath = formData.get("folderPath") as string || "uploads";
+const ALLOWED_FOLDERS = new Set<string>([
+    "products",
+    "print-archives",
+    "settings",
+    "stores",
+    "invoices",
+    "delivery_notes",
+    "receipts",
+    "summaries",
+    "reports/activity",
+    "reports/maintenance/before",
+    "reports/maintenance/after",
+]);
 
-        if (!file) {
-            return NextResponse.json({ error: "No file provided" }, { status: 400 });
-        }
+const ALLOWED_MIME_PREFIXES = ["image/"];
+const ALLOWED_MIME_EXACT = new Set<string>([
+    "application/pdf",
+    "video/mp4",
+]);
 
-        // Validate storage configuration
-        const bucketName = storage.app.options.storageBucket;
-        console.log(`[API-Upload] Initializing upload for ${file.name}. Size: ${file.size} bytes. Bucket: ${bucketName}`);
+const MAX_BYTES = 15 * 1024 * 1024; // 15 MB
 
-        if (!bucketName) {
-            console.error("[API-Upload] Storage bucket is not configured in firebaseConfig");
-            return NextResponse.json({ error: "Storage bucket configuration missing" }, { status: 500 });
-        }
-
-        // Generate a unique filename
-        const uniqueFileName = `${Date.now()}_${file.name}`;
-        const fullStoragePath = `${folderPath}/${uniqueFileName}`;
-        const storageRef = ref(storage, fullStoragePath);
-
-        // Convert File to Uint8Array for stable Node.js upload
-        const arrayBuffer = await file.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-
-        // Upload to Firebase Storage
-        console.log(`[API-Upload] Starting uploadBytes to ${fullStoragePath}...`);
-        const uploadResult = await uploadBytes(storageRef, uint8Array, {
-            contentType: file.type || 'application/pdf',
-        });
-
-        console.log(`[API-Upload] Upload successful: ${uploadResult.metadata.fullPath}`);
-
-        // Get download URL
-        const downloadURL = await getDownloadURL(uploadResult.ref);
-
-        return NextResponse.json({ 
-            url: downloadURL,
-            storagePath: fullStoragePath
-        });
-    } catch (error: any) {
-        console.error("[API-Upload] Error details:", {
-            message: error.message,
-            code: error.code,
-            name: error.name,
-            stack: error.stack
-        });
-        
-        return NextResponse.json(
-            { 
-                error: "Upload failed", 
-                details: error.message,
-                code: error.code
-            },
-            { status: 500 }
-        );
-    }
+function sanitizeFileName(name: string): string {
+    const base = name.replace(/^.*[\\/]/, "");
+    return base.replace(/[^\w.\-]/g, "_").slice(0, 120) || "file";
 }
+
+function isAllowedMime(mime: string): boolean {
+    if (ALLOWED_MIME_EXACT.has(mime)) return true;
+    return ALLOWED_MIME_PREFIXES.some((p) => mime.startsWith(p));
+}
+
+export const POST = withAuth(async (req: NextRequest, { uid }) => {
+    let formData: FormData;
+    try {
+        formData = await req.formData();
+    } catch {
+        return NextResponse.json({ error: "Invalid form data" }, { status: 400 });
+    }
+
+    const file = formData.get("file");
+    const folderPath = String(formData.get("folderPath") ?? "");
+
+    if (!(file instanceof File)) {
+        return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+    if (!ALLOWED_FOLDERS.has(folderPath)) {
+        return NextResponse.json({ error: "Invalid folderPath" }, { status: 400 });
+    }
+    if (!file.type || !isAllowedMime(file.type)) {
+        return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+    }
+    if (file.size <= 0 || file.size > MAX_BYTES) {
+        return NextResponse.json({ error: "File size out of range" }, { status: 400 });
+    }
+
+    try {
+        const bucket = admin.storage().bucket();
+        if (!bucket.name) {
+            logError("API-Upload", new Error("Storage bucket not configured"), { uid });
+            return internalError();
+        }
+
+        const fileName = sanitizeFileName(file.name);
+        const fullStoragePath = `${folderPath}/${Date.now()}_${fileName}`;
+
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        const object = bucket.file(fullStoragePath);
+        await object.save(buffer, {
+            contentType: file.type,
+            resumable: false,
+            metadata: {
+                metadata: { uploadedBy: uid },
+            },
+        });
+        await object.makePublic().catch(() => {
+            // Non-public buckets will surface via getSignedUrl below; swallow here.
+        });
+
+        let url: string;
+        try {
+            const [signed] = await object.getSignedUrl({
+                action: "read",
+                expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+            });
+            url = signed;
+        } catch {
+            url = `https://storage.googleapis.com/${bucket.name}/${encodeURI(fullStoragePath)}`;
+        }
+
+        return NextResponse.json({ url, storagePath: fullStoragePath });
+    } catch (error) {
+        logError("API-Upload", error, { uid, folderPath });
+        return internalError();
+    }
+});

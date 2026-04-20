@@ -1,4 +1,5 @@
 import imageCompression from "browser-image-compression";
+import { apiFetch } from "@/lib/apiClient";
 
 /**
  * Detects if a file is a HEIC or HEIF image.
@@ -113,7 +114,7 @@ export const uploadImageWithCompression = async (
             formData.append("file", fileToUpload);
             formData.append("folderPath", folderPath);
 
-            const response = await fetch("/api/upload", {
+            const response = await apiFetch("/api/upload", {
                 method: "POST",
                 body: formData,
             });
