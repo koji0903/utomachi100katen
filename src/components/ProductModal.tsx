@@ -8,6 +8,7 @@ import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageU
 import { showNotification } from "@/lib/notifications";
 import { AIPromptDisplay } from "./AIPromptDisplay";
 import { generateCopyPrompt, generateStoryPrompt } from "@/lib/aiPromptUtils";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 interface ProductModalProps {
     isOpen: boolean;
@@ -274,7 +275,7 @@ JANコード: ${formData.janCode || "なし"}
             const brand = brands.find(b => b.id === formData.brandId);
             const brandName = brand?.name || "不明";
 
-            const response = await fetch("/api/generate-copy", {
+            const response = await apiFetch("/api/generate-copy", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -295,8 +296,12 @@ JANコード: ${formData.janCode || "なし"}
                 if (mode === 'image-prompt') setImagePrompt(data.copy);
             }
         } catch (error) {
-            console.error("Marketing generation error:", error);
-            showNotification("生成に失敗しました", "error");
+            if (error instanceof DemoModeError) {
+                showNotification(error.message, "error");
+            } else {
+                console.error("Marketing generation error:", error);
+                showNotification("生成に失敗しました", "error");
+            }
         } finally {
             setIsGeneratingMarketing(false);
         }
@@ -352,7 +357,7 @@ JANコード: ${formData.janCode || "なし"}
             const brandName = brand?.name || "不明";
             const brandConcept = brand?.concept || "";
 
-            const response = await fetch("/api/generate-story", {
+            const response = await apiFetch("/api/generate-story", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -372,8 +377,12 @@ JANコード: ${formData.janCode || "なし"}
                 setFormData(prev => ({ ...prev, story: data.story }));
             }
         } catch (error) {
-            console.error("Story generation error:", error);
-            alert("ストーリーの生成に失敗しました。");
+            if (error instanceof DemoModeError) {
+                alert(error.message);
+            } else {
+                console.error("Story generation error:", error);
+                alert("ストーリーの生成に失敗しました。");
+            }
         } finally {
             setIsGeneratingStory(false);
         }

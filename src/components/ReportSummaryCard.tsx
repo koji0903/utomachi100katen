@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Sparkles, Brain, Loader2, RefreshCw, ChevronRight } from "lucide-react";
 import { useStore, DailyReport } from "@/lib/store";
 import Link from "next/link";
+import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
 
 export function ReportSummaryCard() {
     const { dailyReports, isLoaded } = useStore();
@@ -55,10 +56,11 @@ export function ReportSummaryCard() {
 
     const analyzeReports = async (reports: DailyReport[]) => {
         if (reports.length === 0) return;
-        
+        if (isDemoMode()) return;
+
         setIsAnalyzing(true);
         try {
-            const res = await fetch("/api/reports/summary", {
+            const res = await apiFetch("/api/reports/summary", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ reports }),
@@ -67,13 +69,14 @@ export function ReportSummaryCard() {
             if (data.summary) {
                 setSummary(data.summary);
                 setLastScanCount(reports.length);
-                // Cache
                 localStorage.setItem("report_ai_summary", data.summary);
                 localStorage.setItem("report_ai_summary_date", new Date().toISOString());
                 localStorage.setItem("report_ai_summary_count", reports.length.toString());
             }
         } catch (error) {
-            console.error("Failed to analyze reports:", error);
+            if (!(error instanceof DemoModeError)) {
+                console.error("Failed to analyze reports:", error);
+            }
         } finally {
             setIsAnalyzing(false);
         }

@@ -9,6 +9,7 @@ import { AIPromptDisplay } from "./AIPromptDisplay";
 import { generateStoryPrompt } from "@/lib/aiPromptUtils";
 import { InvoicePaymentModal } from "./InvoicePaymentModal";
 import { X, Download, Printer, Loader2, Sparkles, FileText, Receipt, CreditCard, Save } from "lucide-react";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 // ─── Brand token ─────────────────────────────────────────────────────────
 const BRAND = "#b27f79";
@@ -255,7 +256,7 @@ export function DocumentPreviewModal({
     const generateMemo = async () => {
         setIsGeneratingMemo(true);
         try {
-            const res = await fetch("/api/generate-story", {
+            const res = await apiFetch("/api/generate-story", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -266,8 +267,12 @@ export function DocumentPreviewModal({
             });
             const data = await res.json();
             if (data.story) setMemo(data.story.split("\n")[0].slice(0, 80));
-        } catch {
-            setMemo("今、宇土の大地から旬の恵みが届いています。");
+        } catch (err) {
+            if (err instanceof DemoModeError) {
+                setMemo("今、宇土の大地から旬の恵みが届いています。");
+            } else {
+                setMemo("今、宇土の大地から旬の恵みが届いています。");
+            }
         } finally {
             setIsGeneratingMemo(false);
         }

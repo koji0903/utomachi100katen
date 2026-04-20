@@ -13,6 +13,7 @@ import {
 import { useStore, DailyReport, RestockingItem } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { getHolidayName } from "@/lib/holidays";
+import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -158,12 +159,14 @@ function ReportForm({
 
         // Fetch via store.ts and also fetch locally for immediate display
         const fetchWeather = async () => {
+            if (isDemoMode()) {
+                setFetchingWeather(false);
+                return;
+            }
             try {
-                // 1. Trigger the background save to Firestore
                 fetchAndSaveWeatherIfNeeded(selectedStore.id, selectedStore.lat!, selectedStore.lng!, date);
 
-                // 2. Fetch locally to populate the component state right now
-                const res = await fetch(`/api/weather?lat=${selectedStore.lat}&lon=${selectedStore.lng}`, {
+                const res = await apiFetch(`/api/weather?lat=${selectedStore.lat}&lon=${selectedStore.lng}`, {
                     signal: controller.signal
                 });
                 const d = await res.json();
@@ -171,7 +174,8 @@ function ReportForm({
                     setWeather(d);
                 }
             } catch (err: any) {
-                if (err.name === 'AbortError') return;
+                if (err?.name === 'AbortError') return;
+                if (err instanceof DemoModeError) return;
                 console.error("Weather fetch error:", err);
             } finally {
                 if (!controller.signal.aborted) {
@@ -286,7 +290,7 @@ function ReportForm({
         }
         setIsGeneratingMarketing(true);
         try {
-            const res = await fetch("/api/generate-copy", {
+            const res = await apiFetch("/api/generate-copy", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -299,11 +303,15 @@ function ReportForm({
             if (data.copy) {
                 setInstaCopy(data.copy);
             } else {
-                alert("生成に失敗しました: " + (data.detail || data.error));
+                alert("生成に失敗しました");
             }
         } catch (error) {
-            console.error(error);
-            alert("生成中にエラーが発生しました。");
+            if (error instanceof DemoModeError) {
+                alert(error.message);
+            } else {
+                console.error(error);
+                alert("生成中にエラーが発生しました。");
+            }
         } finally {
             setIsGeneratingMarketing(false);
         }
@@ -316,7 +324,7 @@ function ReportForm({
         }
         setIsAnalyzing(true);
         try {
-            const res = await fetch("/api/reports/analyze", {
+            const res = await apiFetch("/api/reports/analyze", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -336,11 +344,15 @@ function ReportForm({
             if (data.analysis) {
                 setAiAnalysis(data.analysis);
             } else {
-                alert("分析に失敗しました: " + (data.detail || data.error));
+                alert("分析に失敗しました");
             }
         } catch (error) {
-            console.error(error);
-            alert("分析中にエラーが発生しました。");
+            if (error instanceof DemoModeError) {
+                alert(error.message);
+            } else {
+                console.error(error);
+                alert("分析中にエラーが発生しました。");
+            }
         } finally {
             setIsAnalyzing(false);
         }

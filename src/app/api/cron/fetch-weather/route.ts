@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
+import { withCronSecret, logError } from "@/lib/apiAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -7,13 +8,7 @@ export const dynamic = "force-dynamic";
  * Vercel Cron Job: 毎日全店舗の天気情報を取得して保存する
  * Schedule: 0 3 * * * (JST 12:00)
  */
-export async function GET(req: NextRequest) {
-    // 1. Authorization check
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+export const GET = withCronSecret(async () => {
     if (!adminDb) {
         return NextResponse.json({ error: "Firebase Admin is not initialized" }, { status: 500 });
     }
@@ -88,17 +83,17 @@ export async function GET(req: NextRequest) {
                 results.success++;
                 results.details.push({ store: name, status: "success" });
 
-            } catch (err: any) {
-                console.error(`Failed to fetch weather for store ${name}:`, err);
+            } catch (err) {
+                logError("cron/fetch-weather:store", err, { storeId: store.id });
                 results.failed++;
-                results.details.push({ store: name, status: "failed", error: err.message });
+                results.details.push({ store: name, status: "failed" });
             }
         }
 
         return NextResponse.json(results);
 
-    } catch (e: any) {
-        console.error("Cron Job failed:", e);
-        return NextResponse.json({ error: e.message }, { status: 500 });
+    } catch (err) {
+        logError("cron/fetch-weather", err);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
-}
+});

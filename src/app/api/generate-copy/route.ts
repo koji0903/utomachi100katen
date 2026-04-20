@@ -1,88 +1,77 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { z } from "zod";
 import { generateCopyPrompt } from "@/lib/aiPromptUtils";
+import { withAuth, parseJson, internalError, logError } from "@/lib/apiAuth";
 
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-export async function POST(req: Request) {
+const bodySchema = z.object({
+    mode: z.string().max(64).default(""),
+    name: z.string().max(200).optional(),
+    brand: z.string().max(200).optional(),
+    variant: z.string().max(200).optional(),
+    producerStory: z.string().max(4000).optional(),
+    regionBackground: z.string().max(4000).optional(),
+    servingSuggestion: z.string().max(4000).optional(),
+    story: z.string().max(4000).optional(),
+    concept: z.string().max(4000).optional(),
+    isBrandLevel: z.boolean().optional(),
+}).refine(
+    (v) => (v.name && v.name.length > 0) || (v.brand && v.brand.length > 0),
+    { message: "name or brand is required" },
+);
+
+export const POST = withAuth(async (req, ctx) => {
     if (!genAI) {
-        return NextResponse.json(
-            { error: "GEMINI_API_KEY environment variable is missing" },
-            { status: 500 }
-        );
+        logError("generate-copy", new Error("GEMINI_API_KEY missing"));
+        return internalError();
     }
 
+    const parsed = await parseJson(req, bodySchema);
+    if (parsed instanceof NextResponse) return parsed;
+
     try {
-        const body = await req.json();
-        const {
-            mode,
-            name,
-            brand,
-            variant,
-            producerStory,
-            regionBackground,
-            servingSuggestion,
-            story,
-            concept,
-            isBrandLevel,
-        } = body;
-
-        if (!name && !brand) {
-            return NextResponse.json(
-                { error: "Name or Brand is required" },
-                { status: 400 }
-            );
-        }
-
-        const fullPrompt = generateCopyPrompt(body);
-
-        let responseText = "";
-        // Prioritize Pro models for maximum intelligence
+        const fullPrompt = generateCopyPrompt(parsed);
         const modelsToTry = [
             "gemini-2.5-pro",
             "gemini-2.5-flash",
             "gemini-2.0-flash-001",
-            "gemini-1.5-pro-latest"
+            "gemini-1.5-pro-latest",
         ];
-        let lastError: any = null;
+        let responseText = "";
         for (const modelName of modelsToTry) {
             try {
-                console.log(`[Gemini] Attempting with model: ${modelName}`);
                 const model = genAI.getGenerativeModel({ model: modelName });
                 const result = await model.generateContent(fullPrompt);
                 responseText = result.response.text();
-                if (responseText) {
-                    console.log(`[Gemini] Success with model: ${modelName}`);
-                    break;
-                }
-            } catch (_e: any) {
-                lastError = _e;
-                const errorMsg = _e?.message || String(_e);
-                console.warn(`[Gemini] Failed to use model ${modelName}:`, errorMsg);
-
-                // If it's a quota error or other retryable error, try the next model
-                if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("limit") || errorMsg.includes("503") || errorMsg.includes("404")) {
+                if (responseText) break;
+            } catch (err) {
+                const msg = (err as { message?: string })?.message || "";
+                if (
+                    msg.includes("429") ||
+                    msg.includes("quota") ||
+                    msg.includes("limit") ||
+                    msg.includes("503") ||
+                    msg.includes("404")
+                ) {
                     continue;
                 }
-                // For other errors, we might want to stop, but let's try all models anyway for safety
                 continue;
             }
         }
 
         if (!responseText) {
             return NextResponse.json(
-                { error: "quota_exceeded", detail: "本日の無料利用枠を使い切りました。明日以降に再度お試しいただくか、Google AI StudioでAPIキーの有料プランを有効にしてください。" },
-                { status: 429 }
+                { error: "quota_exceeded" },
+                { status: 429 },
             );
         }
 
         return NextResponse.json({ copy: responseText.trim() });
-    } catch (error: any) {
-        console.error("Gemini API Error:", error?.message || error);
-        return NextResponse.json(
-            { error: "Failed to generate copy", detail: error?.message || String(error) },
-            { status: 500 }
-        );
+    } catch (err) {
+        logError("generate-copy", err, { uid: ctx.uid });
+        return internalError();
     }
-}
+});

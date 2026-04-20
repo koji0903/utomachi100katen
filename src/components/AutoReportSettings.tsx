@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useStore, DEFAULT_REPORT_CONFIG } from "@/lib/store";
 import { generateReportData, ReportData } from "@/lib/reportUtils";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -47,7 +48,7 @@ export function AutoReportSettings() {
         setTestSent(false);
         setTestError(null);
         try {
-            const res = await fetch('/api/reports/send', {
+            const res = await apiFetch('/api/reports/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -62,9 +63,12 @@ export function AutoReportSettings() {
             } else {
                 setTestError(result.error || "送信に失敗しました");
             }
-        } catch (e: any) {
-            console.error(e);
-            setTestError(e.message);
+        } catch (e) {
+            if (e instanceof DemoModeError) {
+                setTestError(e.message);
+            } else {
+                setTestError("送信に失敗しました");
+            }
         }
     };
 

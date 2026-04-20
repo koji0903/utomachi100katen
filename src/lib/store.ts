@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import useSWR from "swr";
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
 import { useAuth } from "@/lib/authContext";
 import { getMockData } from "@/lib/mockData";
 import { syncProductToAmazon } from "@/app/actions/amazon";
@@ -2112,18 +2113,17 @@ export function useStore() {
     };
 
     const fetchAndSaveWeatherIfNeeded = async (storeId: string, lat: number, lng: number, date: string) => {
+        if (isDemoMode()) return;
         const today = new Date().toISOString().split('T')[0];
-        // Only fetch for today or a specific target date
         if (!date) date = today;
 
         const weatherId = `${storeId}_${date}`;
-        // Check if we already have it
         if (dailyWeather.some(w => w.id === weatherId)) {
-            return; // Already exists
+            return;
         }
 
         try {
-            const res = await fetch(`/api/weather?lat=${lat}&lon=${lng}`);
+            const res = await apiFetch(`/api/weather?lat=${lat}&lon=${lng}`);
             if (!res.ok) throw new Error("Failed to fetch weather");
             const data = await res.json();
 
@@ -2142,6 +2142,7 @@ export function useStore() {
                 });
             }
         } catch (error) {
+            if (error instanceof DemoModeError) return;
             console.error("Failed to fetch/save weather automatically:", error);
         }
     };

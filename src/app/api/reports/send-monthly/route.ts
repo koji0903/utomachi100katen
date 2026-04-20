@@ -1,49 +1,66 @@
-// src/app/api/reports/send-monthly/route.ts
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import nodemailer from "nodemailer";
+import { withAuth, parseJson, internalError, logError } from "@/lib/apiAuth";
+import { isRecipientAllowed } from "@/lib/emailWhitelist";
 
-export async function POST(req: Request) {
+const MAX_PDF_BYTES = 15 * 1024 * 1024;
+
+const storeTotalSchema = z.object({
+    storeName: z.string(),
+    storeTotalQuantity: z.number(),
+    storeTotalAmount: z.number(),
+}).passthrough();
+
+const summaryDataSchema = z.object({
+    grandTotalAmount: z.number(),
+    grandTotalQuantity: z.number(),
+    totals: z.array(storeTotalSchema),
+}).passthrough();
+
+const bodySchema = z.object({
+    recipient: z.string().email().max(254),
+    month: z.string().min(1).max(32),
+    pdfBase64: z.string().min(1),
+    summaryData: summaryDataSchema,
+});
+
+export const POST = withAuth(async (req, ctx) => {
+    const parsed = await parseJson(req, bodySchema);
+    if (parsed instanceof NextResponse) return parsed;
+    const { recipient, month, pdfBase64, summaryData } = parsed;
+
+    if (pdfBase64.length > MAX_PDF_BYTES) {
+        return NextResponse.json({ error: "Attachment too large" }, { status: 413 });
+    }
+
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+        logError("reports/send-monthly", new Error("mail env missing"));
+        return internalError();
+    }
+
+    if (!(await isRecipientAllowed(recipient))) {
+        return NextResponse.json({ error: "Recipient not allowed" }, { status: 403 });
+    }
+
     try {
-        const body = await req.json();
-        const { recipient, month, pdfBase64, summaryData } = body;
-
-        // Logging payload stats for debugging
-        const payloadSize = JSON.stringify(body).length;
-        const pdfSize = pdfBase64?.length ?? 0;
-        console.log(`[Email API] Incoming Monthly Report Request. Rcvd Payload: ${(payloadSize / 1024 / 1024).toFixed(2)}MB, PDF: ${(pdfSize / 1024 / 1024).toFixed(2)}MB`);
-
-        if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-            const missing = [];
-            if (!process.env.GMAIL_USER) missing.push("GMAIL_USER");
-            if (!process.env.GMAIL_APP_PASSWORD) missing.push("GMAIL_APP_PASSWORD");
-            throw new Error(`メール送信設定（環境変数: ${missing.join(", ")}）が不足しています。Vercelのプロジェクト設定を確認してください。`);
-        }
-
         const transporter = nodemailer.createTransport({
-            service: 'gmail',
+            service: "gmail",
             auth: {
                 user: process.env.GMAIL_USER,
                 pass: process.env.GMAIL_APP_PASSWORD,
             },
         });
 
-        // Test connection
-        try {
-            await transporter.verify();
-        } catch (authError: any) {
-            console.error("[Email API] SMTP Auth Error:", authError);
-            throw new Error(`メール送信サーバーへの認証に失敗しました。アプリパスワードが正しいか確認してください。 (AuthError: ${authError.message})`);
-        }
+        await transporter.verify();
 
         const reportMonth = month.replace(/-/g, "/");
         const subject = `【売上レポート】${reportMonth}月分 月次売上報告書`;
 
-        // Generate store-wise summary for the email body
-        const storeBreakdown = summaryData.totals.map((s: any) => 
-            `・${s.storeName.padEnd(20)}: ${s.storeTotalQuantity.toLocaleString().padStart(5)}個 / ¥${s.storeTotalAmount.toLocaleString().padStart(10)}`
-        ).join('\n');
+        const storeBreakdown = summaryData.totals
+            .map((s) => `・${s.storeName.padEnd(20)}: ${s.storeTotalQuantity.toLocaleString().padStart(5)}個 / ¥${s.storeTotalAmount.toLocaleString().padStart(10)}`)
+            .join("\n");
 
-        // Generate text body for the email
         const textBody = `
 ウトマチ 運営担当者 様
 
@@ -62,27 +79,25 @@ ${storeBreakdown}
 ---
 ウトマチプラットフォーム
 Automated Reporting System
-        `.trim();
+`.trim();
 
         const info = await transporter.sendMail({
             from: `"ウトマチプラットフォーム" <${process.env.GMAIL_USER}>`,
             to: recipient,
-            subject: subject,
+            subject,
             text: textBody,
             attachments: [
                 {
                     filename: `monthly_report_${month}.pdf`,
                     content: pdfBase64,
-                    encoding: 'base64'
-                }
-            ]
+                    encoding: "base64",
+                },
+            ],
         });
 
-        console.log(`[Email API] Monthly report sent to: ${recipient}, MessageID: ${info.messageId}`);
-
-        return NextResponse.json({ success: true, message: "Email sent successfully" });
-    } catch (error: any) {
-        console.error("[Email API] Monthly Report Error:", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ success: true, messageId: info.messageId });
+    } catch (err) {
+        logError("reports/send-monthly", err, { uid: ctx.uid });
+        return internalError();
     }
-}
+});

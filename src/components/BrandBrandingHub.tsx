@@ -5,6 +5,7 @@ import { X, Sparkles, Copy, Check, BookOpen, Share2, AlertCircle, Quote, Save } 
 import { useStore, Brand } from "@/lib/store";
 import { AIPromptDisplay } from "./AIPromptDisplay";
 import { generateCopyPrompt } from "@/lib/aiPromptUtils";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 type BrandCopyMode = "manifesto" | "social" | "press";
 
@@ -70,15 +71,15 @@ export function BrandBrandingHub({ isOpen, onClose, brand }: BrandBrandingHubPro
         setIsGenerating(true);
         setError("");
         try {
-            const res = await fetch("/api/generate-copy", {
+            const res = await apiFetch("/api/generate-copy", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     mode: activeMode,
                     name: brand.name,
-                    concept: brand.concept, // Use brand.concept if not editing in this hub
+                    concept: brand.concept,
                     story,
-                    isBrandLevel: true, // Custom flag for API to adjust prompt
+                    isBrandLevel: true,
                 }),
             });
             const data = await res.json();
@@ -87,8 +88,12 @@ export function BrandBrandingHub({ isOpen, onClose, brand }: BrandBrandingHubPro
                 return;
             }
             setGeneratedCopy(prev => ({ ...prev, [activeMode]: data.copy || "" }));
-        } catch (_e) {
-            setError("接続エラーが発生しました。");
+        } catch (e) {
+            if (e instanceof DemoModeError) {
+                setError(e.message);
+            } else {
+                setError("接続エラーが発生しました。");
+            }
         } finally {
             setIsGenerating(false);
         }

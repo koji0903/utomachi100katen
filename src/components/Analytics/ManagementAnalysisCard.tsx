@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Sparkles, Brain, Loader2, RefreshCw, ChevronRight, Presentation, Award, TrendingUp } from "lucide-react";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 interface ManagementAnalysisCardProps {
     period: string;
@@ -41,7 +42,7 @@ export function ManagementAnalysisCard({
     const generateReport = async () => {
         setIsAnalyzing(true);
         try {
-            const res = await fetch("/api/analytics/management-report", {
+            const res = await apiFetch("/api/analytics/management-report", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -60,7 +61,11 @@ export function ManagementAnalysisCard({
                 setReport(data.report);
             }
         } catch (error) {
-            console.error("Management report generation failed:", error);
+            if (error instanceof DemoModeError) {
+                alert(error.message);
+            } else {
+                console.error("Management report generation failed:", error);
+            }
         } finally {
             setIsAnalyzing(false);
         }

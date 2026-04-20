@@ -6,6 +6,7 @@ import { X, Download, Mail, Loader2, Calendar, FileText, CheckCircle2 } from "lu
 import { useStore } from "@/lib/store";
 import { generateExpensePDF } from "@/lib/expenseReportUtils";
 import { showNotification } from "@/lib/notifications";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 interface ExpenseReportModalProps {
     isOpen: boolean;
@@ -52,7 +53,7 @@ export function ExpenseReportModal({ isOpen, onClose }: ExpenseReportModalProps)
             const doc = generateExpensePDF(filteredExpenses, `${startDate} - ${endDate}`);
             const pdfBase64 = doc.output('datauristring');
 
-            const response = await fetch("/api/reports/expenses", {
+            const response = await apiFetch("/api/reports/expenses", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -66,8 +67,11 @@ export function ExpenseReportModal({ isOpen, onClose }: ExpenseReportModalProps)
 
             showNotification("レポートをメール送信しました。");
         } catch (error) {
-            console.error(error);
-            showNotification("メール送信に失敗しました。");
+            if (error instanceof DemoModeError) {
+                showNotification(error.message);
+            } else {
+                showNotification("メール送信に失敗しました。");
+            }
         } finally {
             setIsSending(false);
         }

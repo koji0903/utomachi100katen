@@ -1,36 +1,54 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { z } from "zod";
+import { withAuth, parseJson, internalError, logError } from "@/lib/apiAuth";
 
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-export async function POST(req: Request) {
+const restockSchema = z.object({
+    productName: z.string().max(200),
+    qty: z.number(),
+}).passthrough();
+
+const reportSchema = z.object({
+    date: z.string().max(40).optional(),
+    type: z.string().max(40).optional(),
+    storeName: z.string().max(200).optional(),
+    worker: z.string().max(200).optional(),
+    content: z.string().max(4000).optional(),
+    storeTopics: z.string().max(4000).optional(),
+    officeNote: z.string().max(4000).optional(),
+    aiAnalysis: z.string().max(8000).optional(),
+    restocking: z.array(restockSchema).max(200).optional(),
+}).passthrough();
+
+const bodySchema = z.object({
+    reports: z.array(reportSchema).max(200),
+});
+
+export const POST = withAuth(async (req, ctx) => {
     if (!genAI) {
-        return NextResponse.json(
-            { error: "GEMINI_API_KEY environment variable is missing" },
-            { status: 500 }
-        );
+        logError("reports/summary", new Error("GEMINI_API_KEY missing"));
+        return internalError();
     }
 
-    try {
-        const body = await req.json();
-        const { reports } = body;
+    const parsed = await parseJson(req, bodySchema);
+    if (parsed instanceof NextResponse) return parsed;
+    const { reports } = parsed;
 
-        if (!reports || reports.length === 0) {
-            return NextResponse.json({ summary: "分析対象の日報がまだありません。" });
-        }
+    if (!reports || reports.length === 0) {
+        return NextResponse.json({ summary: "分析対象の日報がまだありません。" });
+    }
 
-        // Format reports for the prompt
-        const reportsText = reports.map((r: any) => {
-            return `
-[${r.date}] ${r.type === "store" ? `店舗: ${r.storeName}` : "活動記録"} (担当: ${r.worker})
+    const reportsText = reports.map((r) => `
+[${r.date ?? ""}] ${r.type === "store" ? `店舗: ${r.storeName ?? ""}` : "活動記録"} (担当: ${r.worker ?? ""})
 内容: ${r.content || r.storeTopics || r.officeNote || ""}
-補充: ${r.restocking?.map((i: any) => `${i.productName}(${i.qty})`).join(", ") || "なし"}
+補充: ${r.restocking?.map((i) => `${i.productName}(${i.qty})`).join(", ") || "なし"}
 AIアドバイス: ${r.aiAnalysis || "なし"}
--------------------`;
-        }).join("\n");
+-------------------`).join("\n");
 
-        const prompt = `
+    const prompt = `
 あなたはウトマチ百貨店の経営アドバイザー兼スーパーバイザーです。
 以下の直近の日報データを読み解き、店舗運営の全体的な傾向と、今後1週間の戦略的なアドバイスをまとめてください。
 
@@ -54,36 +72,32 @@ ${reportsText}
 - 見出し（1. 🟢 ポジティブな動向、など）は必ず含めてください。
 `;
 
+    try {
         const modelsToTry = [
             "gemini-2.5-flash",
             "gemini-2.0-flash-001",
             "gemini-1.5-flash",
-            "gemini-1.5-pro"
+            "gemini-1.5-pro",
         ];
         let responseText = "";
-        
         for (const modelName of modelsToTry) {
             try {
                 const model = genAI.getGenerativeModel({ model: modelName });
                 const result = await model.generateContent(prompt);
                 responseText = result.response.text();
                 if (responseText) break;
-            } catch (err) {
-                console.error(`Summary API Error with ${modelName}:`, err);
+            } catch {
                 continue;
             }
         }
 
         if (!responseText) {
-            throw new Error("Could not generate summary");
+            return NextResponse.json({ error: "quota_exceeded" }, { status: 429 });
         }
 
         return NextResponse.json({ summary: responseText.trim() });
-    } catch (error: any) {
-        console.error("Summary API Error:", error);
-        return NextResponse.json(
-            { error: "Failed to generate summary", detail: error?.message || String(error) },
-            { status: 500 }
-        );
+    } catch (err) {
+        logError("reports/summary", err, { uid: ctx.uid });
+        return internalError();
     }
-}
+});

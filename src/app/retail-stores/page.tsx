@@ -7,6 +7,7 @@ import { RetailStoreModal } from "@/components/RetailStoreModal";
 import { WeatherHistoryModal } from "@/components/WeatherHistoryModal";
 import { StoreInventoryModal } from "@/components/StoreInventoryModal";
 import { showNotification } from "@/lib/notifications";
+import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -50,9 +51,13 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
         let isCurrent = true;
 
         const fetchData = async () => {
+            if (isDemoMode()) {
+                setState({ status: "error" });
+                return;
+            }
             setState({ status: "loading" });
             try {
-                const res = await fetch(`/api/weather?lat=${store.lat}&lon=${store.lng}`, {
+                const res = await apiFetch(`/api/weather?lat=${store.lat}&lon=${store.lng}`, {
                     signal: controller.signal
                 });
 
@@ -69,8 +74,11 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
                     setState({ status: "ok", data });
                 }
             } catch (err: any) {
-                // If it's an abort or the component unmounted, silence it completely
-                if (err.name === 'AbortError' || controller.signal.aborted || !isCurrent) {
+                if (err?.name === 'AbortError' || controller.signal.aborted || !isCurrent) {
+                    return;
+                }
+                if (err instanceof DemoModeError) {
+                    setState({ status: "error" });
                     return;
                 }
                 console.error("WeatherWidget fetch error:", err);

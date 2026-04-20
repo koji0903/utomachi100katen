@@ -16,6 +16,7 @@ import { FilePreviewModal } from "./FilePreviewModal";
 import { ensureProcessableImage } from "@/lib/imageUpload";
 import { scanReceipt, loadOpenCV } from "@/lib/imageScanner";
 import imageCompression from "browser-image-compression";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 interface ExpenseUploadModalProps {
     isOpen: boolean;
@@ -122,14 +123,13 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
             const formData = new FormData();
             formData.append("file", selectedFile);
 
-            const response = await fetch("/api/expenses/analyze", {
+            const response = await apiFetch("/api/expenses/analyze", {
                 method: "POST",
                 body: formData,
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.details || "AI分析に失敗しました");
+                throw new Error("AI分析に失敗しました");
             }
 
             const data = await response.json();
@@ -168,8 +168,12 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
             // Auto-switch to form tab on mobile after analysis
             setActiveTab('form');
         } catch (error: any) {
-            console.error(error);
-            showNotification(`AI解析に失敗しました: ${error.message}`);
+            if (error instanceof DemoModeError) {
+                showNotification(error.message);
+            } else {
+                console.error(error);
+                showNotification(`AI解析に失敗しました`);
+            }
         } finally {
             setIsAnalyzing(false);
         }

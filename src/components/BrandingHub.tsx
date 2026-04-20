@@ -210,7 +210,7 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
         setIsGenerating(true);
         setError("");
         try {
-            const res = await fetch("/api/generate-copy", {
+            const res = await apiFetch("/api/generate-copy", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -234,8 +234,12 @@ export function BrandingHub({ isOpen, onClose, product }: BrandingHubProps) {
                 return;
             }
             setGeneratedCopy(prev => ({ ...prev, [activeMode]: data.copy || "" }));
-        } catch (_e) {
-            setError("接続エラーが発生しました。ネットワークをご確認ください。");
+        } catch (e) {
+            if (e instanceof DemoModeError) {
+                setError(e.message);
+            } else {
+                setError("接続エラーが発生しました。ネットワークをご確認ください。");
+            }
         } finally {
             setIsGenerating(false);
         }

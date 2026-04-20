@@ -1,27 +1,53 @@
-// src/app/api/expenses/analyze/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { withAuth, internalError, logError } from "@/lib/apiAuth";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const apiKey = process.env.GEMINI_API_KEY;
+const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-export async function POST(req: NextRequest) {
+const MAX_BYTES = 15 * 1024 * 1024;
+const ALLOWED_MIME = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/heic",
+    "application/pdf",
+]);
+
+export const POST = withAuth(async (req, ctx) => {
+    if (!genAI) {
+        logError("expenses/analyze", new Error("GEMINI_API_KEY missing"));
+        return internalError();
+    }
+
+    let file: File | null = null;
     try {
         const formData = await req.formData();
-        const file = formData.get("file") as File;
+        const f = formData.get("file");
+        if (f instanceof File) file = f;
+    } catch {
+        return NextResponse.json({ error: "Invalid form data" }, { status: 400 });
+    }
 
-        if (!file) {
-            return NextResponse.json({ error: "No file provided" }, { status: 400 });
-        }
+    if (!file) {
+        return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+    if (file.size > MAX_BYTES) {
+        return NextResponse.json({ error: "File too large" }, { status: 413 });
+    }
+    const mimeType = file.type || "image/jpeg";
+    if (!ALLOWED_MIME.has(mimeType)) {
+        return NextResponse.json({ error: "Unsupported file type" }, { status: 415 });
+    }
 
+    try {
         const arrayBuffer = await file.arrayBuffer();
         const base64Data = Buffer.from(arrayBuffer).toString("base64");
-        const mimeType = file.type || "image/jpeg";
 
         const prompt = `
             添付された領収書、レシート、または請求書の画像・PDFから、経理処理に必要な情報を正確に抽出してJSON形式で返してください。
             文字が不鮮明な場合でも、文脈から推測して最適な値を入力してください。
-            
+
             返却するJSONフォーマット:
             {
                 "date": "YYYY-MM-DD (見当たらない場合は空欄)",
@@ -31,10 +57,10 @@ export async function POST(req: NextRequest) {
                 "category": "以下のうち最も適切なもの: 備品, 消耗品, 飲食費, 交通費, 通信費, 光熱費, 広告宣伝費, 支払手数料, その他",
                 "paymentMethod": "以下のうち最も適切なもの: クレジット, 小口現金"
             }
-            
+
             判定基準:
             - 出納方法: クレジットカード利用の形跡（カード番号の一部、承認番号、"クレジット"の文字など）があれば「クレジット」、それ以外は「小口現金」と判断してください。
-            
+
             カテゴリーの判定基準:
             - 備品: PC、家具、10万円以上の高額な物品
             - 消耗品: 文房具、日用品、コピー用紙
@@ -44,38 +70,27 @@ export async function POST(req: NextRequest) {
             - 光熱費: 電気、水道、ガス
             - 広告宣伝費: チラシ、Web広告、SNS広告
             - 支払手数料: 振込手数料、各種登録料
-            
+
             ※JSONのみを返却し、Markdownのコードブロックなどは含めないでください。
         `;
 
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const result = await model.generateContent([
             prompt,
-            {
-                inlineData: {
-                    data: base64Data,
-                    mimeType: mimeType,
-                },
-            },
+            { inlineData: { data: base64Data, mimeType } },
         ]);
 
         const responseText = result.response.text();
-        
-        // Match JSON object even if there's surrounding text or markdown
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-            console.error("[AI-Analyze] Raw Response:", responseText);
-            throw new Error("AIのレスポンスからJSONを抽出できませんでした");
+            logError("expenses/analyze", new Error("no json in response"), { uid: ctx.uid });
+            return NextResponse.json({ error: "AI解析に失敗しました" }, { status: 502 });
         }
-        
-        const analysis = JSON.parse(jsonMatch[0]);
 
+        const analysis = JSON.parse(jsonMatch[0]);
         return NextResponse.json(analysis);
-    } catch (error: any) {
-        console.error("[AI-Analyze] Error:", error);
-        const errorMessage = error.message || "Unknown error";
-        return NextResponse.json(
-            { error: "AI解析に失敗しました", details: errorMessage },
-            { status: 500 }
-        );
+    } catch (err) {
+        logError("expenses/analyze", err, { uid: ctx.uid });
+        return NextResponse.json({ error: "AI解析に失敗しました" }, { status: 500 });
     }
-}
+});

@@ -7,6 +7,7 @@ import { useZipCode } from "@/lib/useZipCode";
 import { NumberInput } from "@/components/NumberInput";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 interface RetailStoreModalProps {
     isOpen: boolean;
@@ -169,7 +170,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         setIsGeocoding(true);
         setGeoResult(null);
         try {
-            const res = await fetch("/api/geocode", {
+            const res = await apiFetch("/api/geocode", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ address: addr }),
@@ -180,7 +181,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
             setFormData(prev => ({ ...prev, lat, lng }));
             setGeoResult("ok");
         } catch (err: any) {
-            if (err.name === 'AbortError') return;
+            if (err?.name === 'AbortError') return;
+            if (err instanceof DemoModeError) {
+                setGeoResult("error");
+                return;
+            }
             setGeoResult("error");
         } finally {
             if (controller.signal.aborted) return;

@@ -1,23 +1,45 @@
-// src/app/api/reports/expenses/route.ts
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import nodemailer from "nodemailer";
+import { withAuth, parseJson, internalError, logError } from "@/lib/apiAuth";
+import { isRecipientAllowed } from "@/lib/emailWhitelist";
 
-export async function POST(req: Request) {
+const MAX_PDF_BYTES = 15 * 1024 * 1024;
+
+const bodySchema = z.object({
+    period: z.string().min(1).max(64),
+    recipient: z.string().email().max(254),
+    pdfBase64: z.string().min(1),
+});
+
+export const POST = withAuth(async (req, ctx) => {
+    const parsed = await parseJson(req, bodySchema);
+    if (parsed instanceof NextResponse) return parsed;
+    const { period, recipient, pdfBase64 } = parsed;
+
+    if (pdfBase64.length > MAX_PDF_BYTES) {
+        return NextResponse.json({ error: "Attachment too large" }, { status: 413 });
+    }
+
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+        logError("reports/expenses", new Error("mail env missing"));
+        return internalError();
+    }
+
+    if (!(await isRecipientAllowed(recipient))) {
+        return NextResponse.json({ error: "Recipient not allowed" }, { status: 403 });
+    }
+
     try {
-        const body = await req.json();
-        const { period, recipient, pdfBase64 } = body;
-
-        if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-            throw new Error("Email configuration missing");
-        }
-
         const transporter = nodemailer.createTransport({
-            service: 'gmail',
+            service: "gmail",
             auth: {
                 user: process.env.GMAIL_USER,
                 pass: process.env.GMAIL_APP_PASSWORD,
             },
         });
+
+        const base64 = pdfBase64.includes("base64,") ? pdfBase64.split("base64,")[1] : pdfBase64;
 
         const info = await transporter.sendMail({
             from: `"ウトマチプラットフォーム" <${process.env.GMAIL_USER}>`,
@@ -33,15 +55,15 @@ export async function POST(req: Request) {
             attachments: [
                 {
                     filename: `expense_report_${period}.pdf`,
-                    content: pdfBase64.split("base64,")[1],
-                    encoding: 'base64'
-                }
-            ]
+                    content: base64,
+                    encoding: "base64",
+                },
+            ],
         });
 
         return NextResponse.json({ success: true, messageId: info.messageId });
-    } catch (error: any) {
-        console.error("[Expense Report API] Error:", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    } catch (err) {
+        logError("reports/expenses", err, { uid: ctx.uid });
+        return internalError();
     }
-}
+});

@@ -5,6 +5,7 @@ import { FileText, RefreshCw, Loader2, Mail } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { generateMonthlySalesReport, MonthlySalesReportData } from "@/lib/reportUtils";
 import { downloadPdfFromElement, getPdfBase64FromElement } from "@/lib/pdfGenerator";
+import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 export function MonthlySalesReport() {
     const { products, retailStores, sales, spotRecipients, isLoaded } = useStore();
@@ -58,7 +59,7 @@ export function MonthlySalesReport() {
                 }))
             };
 
-            const response = await fetch("/api/reports/send-monthly", {
+            const response = await apiFetch("/api/reports/send-monthly", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -74,9 +75,13 @@ export function MonthlySalesReport() {
             } else {
                 throw new Error(result.error || "送信に失敗しました");
             }
-        } catch (error: any) {
-            console.error("Email share error:", error);
-            alert(`メール送信に失敗しました: ${error.message}`);
+        } catch (error) {
+            if (error instanceof DemoModeError) {
+                alert(error.message);
+            } else {
+                console.error("Email share error:", error);
+                alert(`メール送信に失敗しました`);
+            }
         } finally {
             setIsSendingEmail(false);
         }
