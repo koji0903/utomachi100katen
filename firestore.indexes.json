@@ -2,10 +2,10 @@
   "indexes": [
     {
       "collectionGroup": "sync_logs",
-      "queryScope": "Collection",
+      "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "type", "order": "Ascending" },
-        { "fieldPath": "timestamp", "order": "Descending" }
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
     }
   ],
