@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/authContext";
 import AppLayout from "@/components/AppLayout";
 import { NotificationContainer } from "@/components/NotificationContainer";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const notoSansJP = Noto_Sans_JP({
   subsets: ["latin"],
@@ -50,12 +51,14 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning>
       <body className={`${notoSansJP.variable} ${inter.variable} font-sans bg-slate-50 text-slate-800 antialiased`}>
-        <AuthProvider>
-          <NotificationContainer />
-          <AppLayout>
-            {children}
-          </AppLayout>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <NotificationContainer />
+            <AppLayout>
+              {children}
+            </AppLayout>
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );
