@@ -129,6 +129,14 @@ export interface RestockingItem {
     qty: number;
 }
 
+export interface PromotionItem {
+    productId: string;
+    productName: string;
+    qty: number;
+    toWhom?: string;
+    purpose?: string;
+}
+
 export interface DailyReport extends BaseEntity {
     id: string;
     date: string;            // YYYY-MM-DD
@@ -152,6 +160,7 @@ export interface DailyReport extends BaseEntity {
     storeId?: string;
     storeName?: string;
     restocking?: RestockingItem[];
+    promotions?: PromotionItem[]; // 販促・サンプル提供実績
     storeTopics?: string;
     displayBeforeImageUrls?: string[];
     displayAfterImageUrls?: string[];
@@ -471,7 +480,7 @@ export interface StockMovement extends BaseEntity {
     productName: string; // 非正規化
     type: 'in' | 'out' | 'adjustment'; // 入庫, 出庫, 調整
     quantity: number; // 変動量
-    reason: 'sale' | 'purchase' | 'audit' | 'return' | 'waste' | 'amazon_sync' | 'manual';
+    reason: 'sale' | 'purchase' | 'audit' | 'return' | 'waste' | 'amazon_sync' | 'manual' | 'promotion';
     referenceId?: string; // 関連する取引IDや仕入ID
     date: string; // YYYY-MM-DD
     remarks?: string;
@@ -535,7 +544,7 @@ export interface StoreStockMovement extends BaseEntity {
     productName: string;
     type: 'in' | 'out' | 'adjustment';
     quantity: number;
-    reason: 'restock' | 'sale' | 'loss' | 'return' | 'manual' | 'audit';
+    reason: 'restock' | 'sale' | 'loss' | 'return' | 'manual' | 'audit' | 'promotion';
     referenceId?: string; // DailyReport ID or Sale ID
     date: string;
     remarks?: string;
@@ -1433,6 +1442,55 @@ export function useStore() {
                 }
             }
         }
+        // Promotion logic: Deduct from main inventory and add to Expenses
+        if (reportData.promotions && reportData.promotions.length > 0) {
+            let totalExpenseCost = 0;
+            const expenseMemos: string[] = [];
+
+            for (const item of reportData.promotions) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    await logStockMovement({
+                        productId: product.id,
+                        productName: product.name,
+                        type: 'out',
+                        quantity: item.qty,
+                        reason: 'promotion',
+                        remarks: `サンプリング・販促 (${item.toWhom || '提供先等なし'})`,
+                        referenceId: newRef.id,
+                        date: reportData.date
+                    });
+                    
+                    const cost = (product.costPrice || 0) * item.qty;
+                    totalExpenseCost += cost;
+                    expenseMemos.push(`${product.name} × ${item.qty} (${item.toWhom || '-'})`);
+                }
+            }
+
+            if (totalExpenseCost > 0) {
+                const expenseRef = doc(collection(db, "expenses"));
+                const newExpense: Expense = {
+                    id: expenseRef.id,
+                    date: reportData.date,
+                    type: '支払',
+                    category: '広告宣伝費',
+                    paymentMethod: '小口現金',
+                    item: `サンプル/販促提供（${reportData.title || reportData.worker}）`,
+                    amount: totalExpenseCost,
+                    memo: expenseMemos.join(', ') + (reportData.content ? `\n\n${reportData.content.slice(0,50)}...` : ''),
+                    referenceId: newRef.id,
+                    isAnalyzed: false,
+                    isConfirmed: true,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                mutateExpenses([newExpense, ...expenses], false);
+                await setDoc(expenseRef, { ...cleanObject(newExpense), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+                mutateExpenses();
+            }
+        }
+
         logActivity({
             type: 'create',
             category: 'report',
@@ -1463,6 +1521,22 @@ export function useStore() {
             }
         }
 
+        // Reverse promotion logic
+        if (report.promotions && report.promotions.length > 0) {
+            for (const item of report.promotions) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) + item.qty });
+                }
+            }
+            // Reverse Expense
+            const relatedExpense = expenses.find(e => e.referenceId === id);
+            if (relatedExpense) {
+                await updateDoc(doc(db, "expenses", relatedExpense.id), { isTrashed: true });
+                mutateExpenses();
+            }
+        }
+
         await updateDoc(doc(db, "daily_reports", id), { isTrashed: true });
         mutateDailyReports();
     };
@@ -1482,6 +1556,22 @@ export function useStore() {
                         await updateStoreStock(report.storeId, product.id, item.qty, 'restock', id, report.date);
                     }
                 }
+            }
+        }
+
+        // Re-apply promotion logic
+        if (report.promotions && report.promotions.length > 0) {
+            for (const item of report.promotions) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                }
+            }
+            // Restore Expense
+            const relatedExpense = expenses.find(e => e.referenceId === id);
+            if (relatedExpense) {
+                await updateDoc(doc(db, "expenses", relatedExpense.id), { isTrashed: false });
+                mutateExpenses();
             }
         }
 
@@ -1512,6 +1602,16 @@ export function useStore() {
             }
         }
 
+        // 1.5 Reverse old promotions
+        if (currentReport.promotions && currentReport.promotions.length > 0) {
+            for (const item of currentReport.promotions) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) + item.qty });
+                }
+            }
+        }
+
         const newReport = { ...currentReport, ...data } as DailyReport;
 
         // 2. Apply new restocking
@@ -1526,6 +1626,59 @@ export function useStore() {
                     }
                 }
             }
+        }
+
+        // 2.5 Apply new promotions and recalculate Expense
+        let totalExpenseCost = 0;
+        const expenseMemos: string[] = [];
+
+        if (newReport.promotions && newReport.promotions.length > 0) {
+            for (const item of newReport.promotions) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    const cost = (product.costPrice || 0) * item.qty;
+                    totalExpenseCost += cost;
+                    expenseMemos.push(`${product.name} × ${item.qty} (${item.toWhom || '-'})`);
+                }
+            }
+        }
+
+        // Update existing expense or create a new one if it didn't exist
+        const relatedExpense = expenses.find(e => e.referenceId === id);
+        if (relatedExpense || totalExpenseCost > 0) {
+            if (!relatedExpense && totalExpenseCost > 0) {
+                const expenseRef = doc(collection(db, "expenses"));
+                const newExpense: Expense = {
+                    id: expenseRef.id,
+                    date: newReport.date,
+                    type: '支払',
+                    category: '広告宣伝費',
+                    paymentMethod: '小口現金',
+                    item: `サンプル/販促提供（${newReport.title || newReport.worker}）`,
+                    amount: totalExpenseCost,
+                    memo: expenseMemos.join(', ') + (newReport.content ? `\n\n${newReport.content.slice(0,50)}...` : ''),
+                    referenceId: id,
+                    isAnalyzed: false,
+                    isConfirmed: true,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                mutateExpenses([newExpense, ...expenses], false);
+                await setDoc(expenseRef, { ...cleanObject(newExpense), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+            } else if (relatedExpense && totalExpenseCost === 0) {
+                await updateDoc(doc(db, "expenses", relatedExpense.id), { isTrashed: true });
+            } else if (relatedExpense) {
+                const expUpdates = {
+                    amount: totalExpenseCost,
+                    memo: expenseMemos.join(', ') + (newReport.content ? `\n\n${newReport.content.slice(0,50)}...` : ''),
+                    item: `サンプル/販促提供（${newReport.title || newReport.worker}）`,
+                    date: newReport.date,
+                    updatedAt: serverTimestamp()
+                };
+                await updateDoc(doc(db, "expenses", relatedExpense.id), expUpdates);
+            }
+            mutateExpenses();
         }
 
         mutateDailyReports(dailyReports.map(r => r.id === id ? { ...r, ...data } : r), false);

@@ -27,6 +27,7 @@ export interface Expense extends BaseEntity {
     fileUrl?: string;      // 領収書・レシートのURL
     storagePath?: string;  // Storage上のパス
     memo?: string;         // メモ
+    referenceId?: string;  // 自動生成された経費の場合の元データのID
     isAnalyzed: boolean;   // AI分析済みか
     isConfirmed: boolean;  // 人間が確認済みか
     createdAt: any;

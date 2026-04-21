@@ -6,11 +6,11 @@ import Link from "next/link";
 import {
     X, FileText, CheckCircle2, Pencil, ChevronDown, Loader2,
     Thermometer, Wind, Plus, ClipboardList, Trash2, AlertTriangle,
-    ChevronRight, ChevronLeft, Store, Image as ImageIcon, UploadCloud, Save, Package,
+    ChevronRight, ChevronLeft, Store, Image as ImageIcon, UploadCloud, Save, Package, Gift,
     Cloud, CloudSun, CloudRain, CloudSnow, Sparkles, RefreshCw, Copy, Video, RotateCcw,
     Search, Check, Brain
 } from "lucide-react";
-import { useStore, DailyReport, RestockingItem } from "@/lib/store";
+import { useStore, DailyReport, RestockingItem, PromotionItem } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { getHolidayName } from "@/lib/holidays";
 import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
@@ -72,6 +72,52 @@ function RestockingRow({
     );
 }
 
+// ─── Promotion Row ───────────────────────────────────────────────────────────
+function PromotionRow({
+    item, products, onChange, onRemove,
+}: {
+    item: PromotionItem;
+    products: { id: string; name: string; variantName?: string }[];
+    onChange: (v: PromotionItem) => void;
+    onRemove: () => void;
+}) {
+    const baseInputCls = "bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all";
+    return (
+        <div className="flex flex-col gap-2 p-3 border border-slate-100 rounded-xl bg-slate-50/50">
+            <div className="flex gap-2 items-center">
+                <select
+                    value={item.productId}
+                    onChange={e => {
+                        const p = products.find(p => p.id === e.target.value);
+                        onChange({ ...item, productId: e.target.value, productName: p ? `${p.name}${p.variantName ? " " + p.variantName : ""}` : "" });
+                    }}
+                    className={`flex-1 ${baseInputCls}`}
+                >
+                    <option value="">商品を選択</option>
+                    {products.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}{p.variantName ? ` (${p.variantName})` : ""}</option>
+                    ))}
+                </select>
+                <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden shrink-0 bg-white">
+                    <button type="button" onClick={() => onChange({ ...item, qty: Math.max(1, item.qty - 1) })}
+                        className="px-3 py-2 text-slate-500 hover:bg-slate-50 font-bold text-sm active:scale-95 transition-transform">−</button>
+                    <span className="px-3 text-sm font-bold text-slate-800 min-w-[2rem] text-center">{item.qty}</span>
+                    <button type="button" onClick={() => onChange({ ...item, qty: item.qty + 1 })}
+                        className="px-3 py-2 text-slate-500 hover:bg-slate-50 font-bold text-sm active:scale-95 transition-transform">＋</button>
+                </div>
+                <button type="button" onClick={onRemove}
+                    className="p-2 text-slate-300 hover:text-red-400 transition-colors">
+                    <X className="w-4 h-4" />
+                </button>
+            </div>
+            <div className="flex gap-2">
+                <input type="text" placeholder="提供先（山田様、インフルエンサー等）" value={item.toWhom || ""} onChange={e => onChange({ ...item, toWhom: e.target.value })} className={`flex-1 ${baseInputCls} text-xs`} />
+                <input type="text" placeholder="目的（ご挨拶、試食、宣伝活動等）" value={item.purpose || ""} onChange={e => onChange({ ...item, purpose: e.target.value })} className={`flex-1 ${baseInputCls} text-xs`} />
+            </div>
+        </div>
+    );
+}
+
 // ─── Report Form (new OR edit) ────────────────────────────────────────────────
 function ReportForm({
     onClose,
@@ -97,6 +143,7 @@ function ReportForm({
     const [displayBeforeImageUrls, setDisplayBeforeImageUrls] = useState<string[]>(editData?.displayBeforeImageUrls ?? []);
     const [displayAfterImageUrls, setDisplayAfterImageUrls] = useState<string[]>(editData?.displayAfterImageUrls ?? []);
     const [restocking, setRestocking] = useState<RestockingItem[]>(editData?.restocking ?? []);
+    const [promotions, setPromotions] = useState<PromotionItem[]>(editData?.promotions ?? []);
     const [imageUrl, setImageUrl] = useState(editData?.imageUrl ?? "");
     const [aiAnalysis, setAiAnalysis] = useState(editData?.aiAnalysis ?? "");
     const [productSearchQuery, setProductSearchQuery] = useState("");
@@ -283,6 +330,10 @@ function ReportForm({
         setRestocking(prev => [...prev, { productId: "", productName: "", qty: 1 }]);
     };
 
+    const addPromotionItem = () => {
+        setPromotions(prev => [...prev, { productId: "", productName: "", qty: 1, toWhom: "", purpose: "" }]);
+    };
+
     const handleGenerateInstaStory = async () => {
         if (!content && !storeTopics && !officeNote) {
             alert("生成するための内容を入力してください。");
@@ -400,6 +451,7 @@ function ReportForm({
                 content,
                 involvedProductIds,
                 imageUrl,
+                promotions: promotions.filter(p => p.productId),
                 ...(type === "office"
                     ? { officeNote }
                     : type === "store"
@@ -793,6 +845,38 @@ function ReportForm({
                                 />
                             </div>
                         </>
+                    )}
+
+                    {/* 🎁 販促・サンプル提供 (Activity & Store) */}
+                    {(type === "activity" || type === "store") && (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-semibold text-slate-500 flex items-center gap-1.5"><Gift className="w-4 h-4 text-[#b27f79]" /> 本日のサンプル配布・販促実績</label>
+                                <button type="button" onClick={addPromotionItem}
+                                    className="flex items-center gap-1 text-xs font-medium text-[#b27f79] hover:bg-[#b27f79]/10 px-3 py-1.5 rounded-lg border border-[#b27f79]/20 transition-colors">
+                                    <Plus className="w-3.5 h-3.5" /> 追加
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-slate-400">※登録した商品は自動的にメイン在庫から引き落とされ、原価分の「広告宣伝費」が自動計上されます。</p>
+                            {promotions.length === 0 ? (
+                                <button type="button" onClick={addPromotionItem}
+                                    className="w-full border-2 border-dashed border-slate-200 rounded-xl py-4 text-sm text-slate-400 hover:border-slate-300 transition-colors flex items-center justify-center gap-2">
+                                    <Gift className="w-4 h-4" /> タップして販促・サンプル商品を追加
+                                </button>
+                            ) : (
+                                <div className="space-y-2">
+                                    {promotions.map((item, i) => (
+                                        <PromotionRow
+                                            key={i}
+                                            item={item}
+                                            products={products}
+                                            onChange={v => setPromotions(prev => prev.map((x, j) => j === i ? v : x))}
+                                            onRemove={() => setPromotions(prev => prev.filter((_, j) => j !== i))}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     )}
 
                     {/* 📸 メイン写真 (Activity / Other) */}
