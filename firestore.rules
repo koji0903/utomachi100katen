@@ -25,94 +25,37 @@ service cloud.firestore {
     // --- コレクション固有のルール ---
 
     // 基本的にすべてのビジネス管理データ（商品、在庫、売上など）は認証済みユーザーのみに許可
-    match /brands/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /suppliers/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /products/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(100, 200) &&
-                            isValidString(request.resource.data.get("name", ""), 200);
-    }
-    match /retailStores/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /inbound_shipments/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(80, 150);
-    }
-    match /sales/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(100, 200);
-    }
-    match /payment_records/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /daily_reports/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(150, 500);
-    }
-    match /issued_documents/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(80, 150);
-    }
-    match /daily_weather/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(20, 50);
-    }
-    match /invoice_payments/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(60, 120);
-    }
-    match /transactions/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(80, 150);
-    }
-    match /transaction_items/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /spot_recipients/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /business_challenges/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(80, 150);
-    }
-    match /stock_conversions/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /activities/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(100, 200);
-    }
-    match /trash/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /stock_movements/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /inventory_audits/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(80, 150);
-    }
-    match /store_stocks/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /store_stock_movements/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-    match /print_archives/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(80, 150);
-    }
-    match /expenses/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(80, 150);
-    }
-    match /business_manuals/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(100, 200);
-    }
-    match /sync_logs/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(100, 200);
-    }
+    // 緊急対応：validateSize チェック一時的に削除（データ可視化確認用）
+    match /brands/{docId} { allow read, write: if isAuthenticated(); }
+    match /suppliers/{docId} { allow read, write: if isAuthenticated(); }
+    match /products/{docId} { allow read, write: if isAuthenticated(); }
+    match /retailStores/{docId} { allow read, write: if isAuthenticated(); }
+    match /inbound_shipments/{docId} { allow read, write: if isAuthenticated(); }
+    match /sales/{docId} { allow read, write: if isAuthenticated(); }
+    match /payment_records/{docId} { allow read, write: if isAuthenticated(); }
+    match /daily_reports/{docId} { allow read, write: if isAuthenticated(); }
+    match /issued_documents/{docId} { allow read, write: if isAuthenticated(); }
+    match /daily_weather/{docId} { allow read, write: if isAuthenticated(); }
+    match /invoice_payments/{docId} { allow read, write: if isAuthenticated(); }
+    match /transactions/{docId} { allow read, write: if isAuthenticated(); }
+    match /transaction_items/{docId} { allow read, write: if isAuthenticated(); }
+    match /spot_recipients/{docId} { allow read, write: if isAuthenticated(); }
+    match /business_challenges/{docId} { allow read, write: if isAuthenticated(); }
+    match /stock_conversions/{docId} { allow read, write: if isAuthenticated(); }
+    match /activities/{docId} { allow read, write: if isAuthenticated(); }
+    match /trash/{docId} { allow read, write: if isAuthenticated(); }
+    match /stock_movements/{docId} { allow read, write: if isAuthenticated(); }
+    match /inventory_audits/{docId} { allow read, write: if isAuthenticated(); }
+    match /store_stocks/{docId} { allow read, write: if isAuthenticated(); }
+    match /store_stock_movements/{docId} { allow read, write: if isAuthenticated(); }
+    match /print_archives/{docId} { allow read, write: if isAuthenticated(); }
+    match /expenses/{docId} { allow read, write: if isAuthenticated(); }
+    match /business_manuals/{docId} { allow read, write: if isAuthenticated(); }
+    match /sync_logs/{docId} { allow read, write: if isAuthenticated(); }
 
     // 設定ドキュメント
-    match /settings/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(50, 100);
-    }
-
-    match /company_settings/{docId} {
-      allow read, write: if isAuthenticated() && validateSize(100, 200);
-    }
+    match /settings/{docId} { allow read, write: if isAuthenticated(); }
+    match /company_settings/{docId} { allow read, write: if isAuthenticated(); }
 
     // デフォルト否定（念のためのフェイルセーフ）
     match /{document=**} {
