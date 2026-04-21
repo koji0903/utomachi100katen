@@ -2820,8 +2820,6 @@ export function useStore() {
             mutatePromotionEvents(newEvents, false);
             if (checkDemoMode()) return;
             try {
-                const { db } = await import("./firebase");
-                const { doc, setDoc } = await import("firebase/firestore");
                 await setDoc(doc(db, col, event.id), { ...eventWithUpdate, isTrashed: false }, { merge: true });
             } finally {
                 mutatePromotionEvents();
@@ -2833,8 +2831,6 @@ export function useStore() {
             mutatePromotionEvents(newEvents, false);
             if (checkDemoMode()) return;
             try {
-                const { db } = await import("./firebase");
-                const { doc, updateDoc } = await import("firebase/firestore");
                 await updateDoc(doc(db, col, id), { isTrashed: true });
             } finally {
                 mutatePromotionEvents();

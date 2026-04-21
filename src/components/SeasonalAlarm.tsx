@@ -276,18 +276,29 @@ export function SeasonalAlarm() {
     }, [promotionTasks, promotionEvents, retailStores]);
 
     const handleSaveEdit = async (data: any) => {
-        const id = data.id || (data.type === 'system' ? `${data.date}_${data.name}` : crypto.randomUUID());
-        await savePromotionEvent({
-            ...data,
-            id,
-            type: data.type || 'custom'
-        });
-        setEditingEvent(null);
+        try {
+            const generateId = () => typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `custom_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            const id = data.id || (data.type === 'system' ? `${data.date}_${data.name}` : generateId());
+            await savePromotionEvent({
+                ...data,
+                id,
+                type: data.type || 'custom'
+            });
+            setEditingEvent(null);
+        } catch (error) {
+            console.error("行事の保存に失敗しました:", error);
+            alert("データの保存に失敗しました。もう一度お試しください。");
+        }
     };
 
     const handleDeleteEvent = async (id: string) => {
-        await deletePromotionEvent(id);
-        setEditingEvent(null);
+        try {
+            await deletePromotionEvent(id);
+            setEditingEvent(null);
+        } catch (error) {
+            console.error("行事の削除に失敗しました:", error);
+            alert("データの削除に失敗しました。もう一度お試しください。");
+        }
     };
 
     if (alerts.length === 0 && !promotionEvents.some(e => e.type === 'custom')) return null;
