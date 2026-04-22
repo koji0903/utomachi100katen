@@ -13,7 +13,7 @@ import {
 import { useStore, DailyReport, RestockingItem, PromotionItem } from "@/lib/store";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { getHolidayName } from "@/lib/holidays";
-import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
+import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
 import { showNotification } from "@/lib/notifications";
 
 const BRAND = "#b27f79";
@@ -204,31 +204,31 @@ function ReportForm({
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
+        if (checkIsDemoMode()) {
+            setWeather(null);
+            setFetchingWeather(false);
+            return;
+        }
+
         setFetchingWeather(true);
         setWeatherError(null);
 
-        // Fetch via store.ts and also fetch locally for immediate display
         const fetchWeather = async () => {
-            if (isDemoMode()) {
-                setFetchingWeather(false);
-                return;
-            }
+            let timeoutId: any;
             try {
                 // Use a timeout to prevent hanging UI
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                timeoutId = setTimeout(() => controller.abort(), 10000);
 
                 const res = await apiFetch(`/api/weather?lat=${selectedStore.lat}&lon=${selectedStore.lng}`, {
                     signal: controller.signal
                 });
                 
-                clearTimeout(timeoutId);
-
+                const d = await res.json();
+                
                 if (!res.ok) {
-                    const errorData = await res.json().catch(() => ({}));
-                    throw new Error(errorData.error || `天気情報の取得に失敗しました (${res.status})`);
+                    throw new Error(d.error || `天気情報の取得に失敗しました (${res.status})`);
                 }
 
-                const d = await res.json();
                 if (d.error) {
                     throw new Error(d.error);
                 }
@@ -239,15 +239,23 @@ function ReportForm({
                     fetchAndSaveWeatherIfNeeded(selectedStore.id, selectedStore.lat!, selectedStore.lng!, date);
                 }
             } catch (err: any) {
-                if (err?.name === 'AbortError') return;
+                const isAbort = err?.name === 'AbortError';
+                
+                if (isAbort && abortControllerRef.current !== controller) {
+                    // Aborted because a new request started - do nothing
+                    return;
+                }
+
                 console.error("Weather fetch error:", err);
-                // Clear weather on error to show the error message in UI
-                if (!controller.signal.aborted) {
+                
+                if (!controller.signal.aborted || isAbort) {
                     setWeather(null);
-                    setWeatherError(err.message || "天気の取得に失敗しました");
+                    setWeatherError(isAbort ? "取得がタイムアウトしました" : (err.message || "天気の取得に失敗しました"));
                 }
             } finally {
-                if (!controller.signal.aborted) {
+                clearTimeout(timeoutId);
+                // Only reset loading if this is still the active controller
+                if (abortControllerRef.current === controller) {
                     setFetchingWeather(false);
                 }
             }
@@ -263,7 +271,7 @@ function ReportForm({
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [storeId, selectedStore?.lat, selectedStore?.lng, date, type, fetchAndSaveWeatherIfNeeded]);
+    }, [storeId, selectedStore?.lat, selectedStore?.lng, date, type]);
 
     // Cleanup object URLs on unmount
     useEffect(() => {

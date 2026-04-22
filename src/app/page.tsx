@@ -31,7 +31,7 @@ import { CalendarView } from "@/components/CalendarView";
 import { SeasonalAlarm } from "@/components/SeasonalAlarm";
 import { ReportSummaryCard } from "@/components/ReportSummaryCard";
 import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
-import { apiFetch, isDemoMode } from "@/lib/apiClient";
+import { apiFetch, checkIsDemoMode } from "@/lib/apiClient";
 
 function ActivityTimeline() {
     const { activities, dailyReports, sales, purchases } = useStore();
@@ -167,7 +167,7 @@ export default function DashboardPage() {
     useEffect(() => {
         setMounted(true);
         // Amazon同期をバックグラウンドで実行（未認証・デモモード時はスキップ）
-        if (isDemoMode()) return;
+        if (checkIsDemoMode()) return;
         apiFetch("/api/amazon/sync", { method: "POST" })
             .then(res => res.json())
             .then(data => {

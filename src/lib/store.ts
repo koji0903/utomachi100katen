@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import useSWR from "swr";
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
+import { apiFetch, DemoModeError, isDemoMode as checkIsDemoMode } from "@/lib/apiClient";
 import { useAuth } from "@/lib/authContext";
 import { getMockData } from "@/lib/mockData";
 import { syncProductToAmazon } from "@/app/actions/amazon";
@@ -2341,7 +2341,7 @@ export function useStore() {
     };
 
     const fetchAndSaveWeatherIfNeeded = async (storeId: string, lat: number, lng: number, date: string) => {
-        if (isDemoMode()) return;
+        if (isDemoMode) return;
         const today = new Date().toISOString().split('T')[0];
         if (!date) date = today;
 

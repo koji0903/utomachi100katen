@@ -15,7 +15,7 @@ export class DemoModeError extends Error {
  * Returns true if the browser is currently in demo mode.
  * Kept in sync with authContext.tsx's localStorage key.
  */
-export function isDemoMode(): boolean {
+export function checkIsDemoMode(): boolean {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("demo_mode") === "true";
 }
@@ -30,7 +30,7 @@ export async function apiFetch(
     input: string,
     init: RequestInit = {},
 ): Promise<Response> {
-    if (isDemoMode()) {
+    if (checkIsDemoMode()) {
         throw new DemoModeError();
     }
     const user = auth.currentUser;

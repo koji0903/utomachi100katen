@@ -21,7 +21,7 @@ import { SalesAnalysisTab } from "@/components/SalesAnalysisTab";
 import { NumberInput } from "@/components/NumberInput";
 import { showNotification } from "@/lib/notifications";
 import { syncWithSquare } from "@/lib/square-sync-client";
-import { apiFetch, isDemoMode } from "@/lib/apiClient";
+import { apiFetch, checkIsDemoMode } from "@/lib/apiClient";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -1392,7 +1392,7 @@ function SalesPageContent() {
             setActiveTab(queryTab);
         }
         // Amazon同期をバックグラウンドで実行（未認証・デモモード時はスキップ）
-        if (isDemoMode()) return;
+        if (checkIsDemoMode()) return;
         apiFetch("/api/amazon/sync", { method: "POST" }).catch(() => {
             // バックグラウンド処理のためサイレント
         });

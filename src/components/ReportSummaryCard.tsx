@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Sparkles, Brain, Loader2, RefreshCw, ChevronRight } from "lucide-react";
 import { useStore, DailyReport } from "@/lib/store";
 import Link from "next/link";
-import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
+import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
 
 export function ReportSummaryCard() {
     const { dailyReports, isLoaded } = useStore();
@@ -56,7 +56,7 @@ export function ReportSummaryCard() {
 
     const analyzeReports = async (reports: DailyReport[]) => {
         if (reports.length === 0) return;
-        if (isDemoMode()) return;
+        if (checkIsDemoMode()) return;
 
         setIsAnalyzing(true);
         try {

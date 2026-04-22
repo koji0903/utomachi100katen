@@ -6,7 +6,7 @@ import { useStore, Product, Brand, Supplier } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
 import { showNotification } from "@/lib/notifications";
-import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
+import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
 import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
 import { convertToCSV, parseCSV, downloadCSV } from "@/lib/csvUtils";
 import { useRef } from "react";
@@ -282,7 +282,7 @@ export default function ProductsPage() {
                     throw new Error(data.error);
                   }
                 } catch (err: any) {
-                  if (err instanceof DemoModeError) {
+                  if (checkIsDemoMode()) {
                     showNotification("デモ中はAmazon同期をご利用いただけません。", "error");
                   } else {
                     showNotification("同期に失敗しました。", "error");

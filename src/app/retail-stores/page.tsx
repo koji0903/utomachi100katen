@@ -7,7 +7,7 @@ import { RetailStoreModal } from "@/components/RetailStoreModal";
 import { WeatherHistoryModal } from "@/components/WeatherHistoryModal";
 import { StoreInventoryModal } from "@/components/StoreInventoryModal";
 import { showNotification } from "@/lib/notifications";
-import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
+import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -51,7 +51,7 @@ function WeatherWidget({ store, refresh }: { store: RetailStore; refresh: number
         let isCurrent = true;
 
         const fetchData = async () => {
-            if (isDemoMode()) {
+            if (checkIsDemoMode()) {
                 setState({ status: "error" });
                 return;
             }
