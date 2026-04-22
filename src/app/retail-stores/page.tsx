@@ -219,9 +219,14 @@ function StoreCard({
                                     }`}>
                                     {store.type === 'B' ? "卸 (B)" : store.type === 'C' ? "直営 (C)" : "委託 (A)"}
                                 </span>
-                                {(store.type === 'A' || store.type === 'B') && (
+                                {store.type === 'A' && (
                                     <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND }}>
-                                        手数料 {store.type === 'B' ? 0 : (store.commissionRate ?? 0)}%
+                                        手数料 {store.commissionRate ?? 0}%
+                                    </span>
+                                )}
+                                {store.type === 'B' && (
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white bg-indigo-600">
+                                        卸売率 {store.wholesaleRate ?? 60}%
                                     </span>
                                 )}
                             </div>
@@ -366,8 +371,8 @@ export default function RetailStoresPage() {
                     bValue = b.type;
                     break;
                 case 'commission':
-                    aValue = a.commissionRate ?? 0;
-                    bValue = b.commissionRate ?? 0;
+                    aValue = a.type === 'B' ? (a.wholesaleRate ?? 60) : (a.commissionRate ?? 0);
+                    bValue = b.type === 'B' ? (b.wholesaleRate ?? 60) : (b.commissionRate ?? 0);
                     break;
                 default:
                     return 0;
@@ -505,7 +510,7 @@ export default function RetailStoresPage() {
                             >
                                 <option value="name">店名順</option>
                                 <option value="type">区分順</option>
-                                <option value="commission">手数料順</option>
+                                <option value="commission">料率順</option>
                             </select>
                             <button
                                 onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}

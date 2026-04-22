@@ -423,31 +423,27 @@ function ReportForm({
         if (!worker.trim()) return;
         setIsSaving(true);
         try {
-            // 1. Upload new Before images in parallel
-            const beforeUploadPromises = beforePreviews.map(async (p) => {
-                if (p.isExisting) return p.url;
-                if (p.fileIndex !== undefined && beforeFiles[p.fileIndex]) {
-                    return await uploadImageWithCompression(beforeFiles[p.fileIndex], "reports/maintenance/before");
+            // 1. Upload new Before images sequentially (Safer for mobile memory/CPU)
+            const beforeUrls: string[] = [];
+            for (const p of beforePreviews) {
+                if (p.isExisting) {
+                    beforeUrls.push(p.url);
+                } else if (p.fileIndex !== undefined && beforeFiles[p.fileIndex]) {
+                    const url = await uploadImageWithCompression(beforeFiles[p.fileIndex], "reports/maintenance/before");
+                    beforeUrls.push(url);
                 }
-                return null;
-            });
+            }
 
-            // 2. Upload new After images in parallel
-            const afterUploadPromises = afterPreviews.map(async (p) => {
-                if (p.isExisting) return p.url;
-                if (p.fileIndex !== undefined && afterFiles[p.fileIndex]) {
-                    return await uploadImageWithCompression(afterFiles[p.fileIndex], "reports/maintenance/after");
+            // 2. Upload new After images sequentially
+            const afterUrls: string[] = [];
+            for (const p of afterPreviews) {
+                if (p.isExisting) {
+                    afterUrls.push(p.url);
+                } else if (p.fileIndex !== undefined && afterFiles[p.fileIndex]) {
+                    const url = await uploadImageWithCompression(afterFiles[p.fileIndex], "reports/maintenance/after");
+                    afterUrls.push(url);
                 }
-                return null;
-            });
-
-            const [beforeUrlsRaw, afterUrlsRaw] = await Promise.all([
-                Promise.all(beforeUploadPromises),
-                Promise.all(afterUploadPromises)
-            ]);
-
-            const beforeUrls = beforeUrlsRaw.filter((url): url is string => url !== null);
-            const afterUrls = afterUrlsRaw.filter((url): url is string => url !== null);
+            }
 
             const payload: Omit<DailyReport, "id" | "createdAt"> = {
                 date, worker, type,

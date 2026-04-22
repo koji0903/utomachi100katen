@@ -8,6 +8,7 @@ import {
     Plus, Tag, Camera, RefreshCcw, Maximize2, Sparkles, Scan
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { uploadImageWithCompression } from "@/lib/imageUpload";
 import { Expense, ExpenseCategory, PaymentMethod } from "@/lib/types/expense";
 import { showNotification } from "@/lib/notifications";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -199,11 +200,8 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
             
             // 1. Upload to Storage if file exists
             if (file) {
-                const uniqueFileName = `${Date.now()}_${file.name}`;
-                storagePath = `expenses/${uniqueFileName}`;
-                const storageRef = ref(storage, storagePath);
-                await uploadBytes(storageRef, file);
-                fileUrl = await getDownloadURL(storageRef);
+                fileUrl = await uploadImageWithCompression(file, "receipts");
+                // Note: storagePath is optional now as we use the Proxy URL
             }
 
             // 2. Save to Firestore
