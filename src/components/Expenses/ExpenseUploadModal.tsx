@@ -1,7 +1,7 @@
 // src/components/Expenses/ExpenseUploadModal.tsx
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { 
     X, Upload, FileText, Loader2, Check, 
     Receipt, Store, Calendar, CreditCard, 
@@ -52,11 +52,17 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
 
-    // Memoize object URL to prevent memory leaks and unnecessary re-renders
     const objectUrl = useMemo(() => {
         if (!file) return null;
         return URL.createObjectURL(file);
     }, [file]);
+
+    // Cleanup object URL
+    useEffect(() => {
+        return () => {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        };
+    }, [objectUrl]);
 
     if (!isOpen) return null;
 
@@ -220,9 +226,9 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
             showNotification("支出を記録しました。");
             resetState();
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            showNotification("保存に失敗しました。");
+            showNotification(`保存に失敗しました。\n詳細: ${error.message || "不明なエラー"}`, "error");
         } finally {
             setIsSaving(false);
         }
@@ -591,8 +597,8 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                             <div className="pt-4 md:pt-4 fixed md:static bottom-0 left-0 right-0 p-6 md:p-0 bg-white md:bg-transparent border-t md:border-0 border-slate-100 z-50">
                                 <button
                                     type="submit"
-                                    disabled={isSaving}
-                                    className={`w-full py-5 bg-rose-600 text-white font-black text-lg rounded-[1.5rem] shadow-xl shadow-rose-200 active:scale-95 transition-all flex items-center justify-center gap-3 ${isSaving ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:bg-rose-700 hover:-translate-y-1'}`}
+                                    disabled={isSaving || isAnalyzing || isScanning}
+                                    className={`w-full py-5 bg-rose-600 text-white font-black text-lg rounded-[1.5rem] shadow-xl shadow-rose-200 active:scale-95 transition-all flex items-center justify-center gap-3 ${isSaving || isAnalyzing || isScanning ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:bg-rose-700 hover:-translate-y-1'}`}
                                 >
                                     {isSaving ? (
                                         <>

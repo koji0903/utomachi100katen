@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, History, Box, Plus, Save, ChevronLeft, AlertCircle } from "lucide-react";
+import { ArrowRight, History, Box, Plus, Save, ChevronLeft, AlertCircle, Layers } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
 import { NumberInput } from "@/components/NumberInput";
@@ -74,6 +74,24 @@ export default function StockConversionPage() {
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">在庫変換・加工記録</h1>
                     <p className="text-slate-500 text-sm mt-1">原料から製品への変換や、小分け作業を記録します。</p>
                 </div>
+            </div>
+
+            <div className="mb-6 p-4 bg-orange-50 border border-orange-100 rounded-2xl flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
+                        <Layers className="w-5 h-5" />
+                    </div>
+                    <div className="text-sm">
+                        <p className="font-bold text-orange-900">組み合わせ商品の制作はこちら</p>
+                        <p className="text-orange-700/70 text-xs">登録済みのBOM（構成表）に基づいて在庫を引き落とす場合は、制作画面が便利です。</p>
+                    </div>
+                </div>
+                <Link
+                    href="/products/composite-production"
+                    className="px-4 py-2 bg-white border border-orange-200 text-orange-700 text-xs font-bold rounded-xl hover:bg-orange-100 transition-all shadow-sm shrink-0"
+                >
+                    制作画面へ
+                </Link>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

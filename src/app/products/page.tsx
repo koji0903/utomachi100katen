@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw, RefreshCw, User } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw, RefreshCw, User, Layers } from "lucide-react";
 import { useStore, Product, Brand, Supplier } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
@@ -250,6 +250,13 @@ export default function ProductsPage() {
             <Plus className="w-4 h-4 text-slate-400" />
             インポート
           </button>
+          <Link
+            href="/products/composite-production"
+            className="hidden sm:flex items-center gap-2 bg-orange-50 text-orange-700 px-4 py-2.5 rounded-lg border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm font-bold"
+          >
+            <Layers className="w-4 h-4" />
+            商品の制作
+          </Link>
           <Link
             href="/products/conversion"
             className="hidden sm:flex items-center gap-2 bg-slate-100 text-[#1e3a8a] px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-200 transition-colors shadow-sm font-bold"

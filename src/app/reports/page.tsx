@@ -14,6 +14,7 @@ import { useStore, DailyReport, RestockingItem, PromotionItem } from "@/lib/stor
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
 import { getHolidayName } from "@/lib/holidays";
 import { apiFetch, DemoModeError, isDemoMode } from "@/lib/apiClient";
+import { showNotification } from "@/lib/notifications";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -243,6 +244,14 @@ function ReportForm({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [storeId, selectedStore?.lat, selectedStore?.lng, date, type, fetchAndSaveWeatherIfNeeded]);
 
+    // Cleanup object URLs on unmount
+    useEffect(() => {
+        return () => {
+            beforePreviews.forEach(p => { if (!p.isExisting) URL.revokeObjectURL(p.url); });
+            afterPreviews.forEach(p => { if (!p.isExisting) URL.revokeObjectURL(p.url); });
+        };
+    }, [beforePreviews, afterPreviews]);
+
     const handleBeforeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = Array.from(e.target.files || []);
         if (selectedFiles.length === 0) return;
@@ -299,7 +308,7 @@ function ReportForm({
             setImageUrl(url);
         } catch (error: any) {
             console.error("Activity image upload error:", error);
-            alert("画像のアップロードに失敗しました。\n詳細: " + (error.message || "不明なエラー"));
+            showNotification("画像のアップロードに失敗しました。\n詳細: " + (error.message || "不明なエラー"), "error");
         } finally {
             setIsUploadingActivityImage(false);
             if (activityInputRef.current) activityInputRef.current.value = "";
@@ -336,7 +345,7 @@ function ReportForm({
 
     const handleGenerateInstaStory = async () => {
         if (!content && !storeTopics && !officeNote) {
-            alert("生成するための内容を入力してください。");
+            showNotification("生成するための内容を入力してください。", "error");
             return;
         }
         setIsGeneratingMarketing(true);
@@ -354,14 +363,14 @@ function ReportForm({
             if (data.copy) {
                 setInstaCopy(data.copy);
             } else {
-                alert("生成に失敗しました");
+                showNotification("生成に失敗しました", "error");
             }
         } catch (error) {
             if (error instanceof DemoModeError) {
-                alert(error.message);
+                showNotification(error.message, "error");
             } else {
                 console.error(error);
-                alert("生成中にエラーが発生しました。");
+                showNotification("生成中にエラーが発生しました。", "error");
             }
         } finally {
             setIsGeneratingMarketing(false);
@@ -370,7 +379,7 @@ function ReportForm({
 
     const handleAnalyzeReport = async () => {
         if (!content && !storeTopics && !officeNote) {
-            alert("分析するための内容を入力してください。");
+            showNotification("分析するための内容を入力してください。", "error");
             return;
         }
         setIsAnalyzing(true);
@@ -395,14 +404,14 @@ function ReportForm({
             if (data.analysis) {
                 setAiAnalysis(data.analysis);
             } else {
-                alert("分析に失敗しました");
+                showNotification("分析に失敗しました", "error");
             }
         } catch (error) {
             if (error instanceof DemoModeError) {
-                alert(error.message);
+                showNotification(error.message, "error");
             } else {
                 console.error(error);
-                alert("分析中にエラーが発生しました。");
+                showNotification("分析中にエラーが発生しました。", "error");
             }
         } finally {
             setIsAnalyzing(false);
@@ -414,27 +423,31 @@ function ReportForm({
         if (!worker.trim()) return;
         setIsSaving(true);
         try {
-            // 1. Upload new Before images
-            const beforeUrls: string[] = [];
-            for (const p of beforePreviews) {
-                if (p.isExisting) {
-                    beforeUrls.push(p.url);
-                } else if (p.fileIndex !== undefined) {
-                    const url = await uploadImageWithCompression(beforeFiles[p.fileIndex], "reports/maintenance/before");
-                    beforeUrls.push(url);
+            // 1. Upload new Before images in parallel
+            const beforeUploadPromises = beforePreviews.map(async (p) => {
+                if (p.isExisting) return p.url;
+                if (p.fileIndex !== undefined && beforeFiles[p.fileIndex]) {
+                    return await uploadImageWithCompression(beforeFiles[p.fileIndex], "reports/maintenance/before");
                 }
-            }
+                return null;
+            });
 
-            // 2. Upload new After images
-            const afterUrls: string[] = [];
-            for (const p of afterPreviews) {
-                if (p.isExisting) {
-                    afterUrls.push(p.url);
-                } else if (p.fileIndex !== undefined) {
-                    const url = await uploadImageWithCompression(afterFiles[p.fileIndex], "reports/maintenance/after");
-                    afterUrls.push(url);
+            // 2. Upload new After images in parallel
+            const afterUploadPromises = afterPreviews.map(async (p) => {
+                if (p.isExisting) return p.url;
+                if (p.fileIndex !== undefined && afterFiles[p.fileIndex]) {
+                    return await uploadImageWithCompression(afterFiles[p.fileIndex], "reports/maintenance/after");
                 }
-            }
+                return null;
+            });
+
+            const [beforeUrlsRaw, afterUrlsRaw] = await Promise.all([
+                Promise.all(beforeUploadPromises),
+                Promise.all(afterUploadPromises)
+            ]);
+
+            const beforeUrls = beforeUrlsRaw.filter((url): url is string => url !== null);
+            const afterUrls = afterUrlsRaw.filter((url): url is string => url !== null);
 
             const payload: Omit<DailyReport, "id" | "createdAt"> = {
                 date, worker, type,
@@ -512,9 +525,9 @@ function ReportForm({
         } catch (error: any) {
             console.error("Save report error:", error);
             if (error.message && (error.message.includes("upload") || error.message.includes("Compression"))) {
-                alert("画像のアップロード中にエラーが発生しました。\n詳細: " + error.message);
+                showNotification("画像のアップロード中にエラーが発生しました。\n詳細: " + error.message, "error");
             } else {
-                alert("保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"));
+                showNotification("保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"), "error");
             }
         } finally {
             setIsSaving(false);
@@ -955,7 +968,7 @@ function ReportForm({
                                     type="button"
                                     onClick={() => {
                                         navigator.clipboard.writeText(instaCopy);
-                                        alert("クリップボードにコピーしました！");
+                                        showNotification("クリップボードにコピーしました！");
                                     }}
                                     className="absolute top-2 right-2 p-1.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all"
                                     title="コピー"
@@ -1024,7 +1037,7 @@ function ReportForm({
                     <button
                         type="submit"
                         form="report-form"
-                        disabled={isSaving || !worker.trim()}
+                        disabled={isSaving || isUploadingActivityImage || !worker.trim()}
                         className="w-full flex items-center justify-center gap-2 py-4 text-white font-bold rounded-2xl text-base transition-all disabled:opacity-50 active:scale-[0.98]"
                         style={{ backgroundColor: BRAND }}
                     >

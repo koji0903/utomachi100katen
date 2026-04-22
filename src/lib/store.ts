@@ -449,6 +449,21 @@ export interface StockConversion {
     createdAt?: string | any;
 }
 
+export interface CompositeProduction extends BaseEntity {
+    id: string;
+    date: string; // YYYY-MM-DD
+    productId: string;
+    productName: string;
+    quantity: number;
+    components: {
+        productId: string;
+        productName: string;
+        quantity: number; // 1単位あたりの必要量ではなく、この制作における合計使用量
+    }[];
+    notes?: string;
+    createdAt?: string | any;
+}
+
 export interface Activity {
     id: string;
     type: 'create' | 'update' | 'delete' | 'system';
@@ -480,7 +495,7 @@ export interface StockMovement extends BaseEntity {
     productName: string; // 非正規化
     type: 'in' | 'out' | 'adjustment'; // 入庫, 出庫, 調整
     quantity: number; // 変動量
-    reason: 'sale' | 'purchase' | 'audit' | 'return' | 'waste' | 'amazon_sync' | 'manual' | 'promotion';
+    reason: 'sale' | 'purchase' | 'audit' | 'return' | 'waste' | 'amazon_sync' | 'manual' | 'promotion' | 'production';
     referenceId?: string; // 関連する取引IDや仕入ID
     date: string; // YYYY-MM-DD
     remarks?: string;
@@ -664,6 +679,7 @@ export function useStore() {
     const { data: activities = [], mutate: mutateActivities } = useSWR<Activity[]>(["activities", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Activity>(col, demo), swrConfig);
     const { data: trash = [], mutate: mutateTrash } = useSWR<TrashItem[]>(["trash", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<TrashItem>(col, demo), swrConfig);
     const { data: stockMovements = [], mutate: mutateStockMovements } = useSWR<StockMovement[]>(["stock_movements", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StockMovement>(col, demo), swrConfig);
+    const { data: compositeProductions = [], mutate: mutateCompositeProductions } = useSWR<CompositeProduction[]>(["composite_productions", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<CompositeProduction>(col, demo), swrConfig);
     const { data: inventoryAudits = [], mutate: mutateInventoryAudits } = useSWR<InventoryAudit[]>(["inventory_audits", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<InventoryAudit>(col, demo), swrConfig);
     const { data: storeStocks = [], mutate: mutateStoreStocks } = useSWR<StoreStock[]>(["store_stocks", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StoreStock>(col, demo), swrConfig);
     const { data: storeStockMovements = [], mutate: mutateStoreStockMovements } = useSWR<StoreStockMovement[]>(["store_stock_movements", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StoreStockMovement>(col, demo), swrConfig);
@@ -1206,6 +1222,65 @@ export function useStore() {
         mutateStockConversions([newConv, ...stockConversions], false);
         await setDoc(newRef, { ...data, createdAt: serverTimestamp() });
         mutateStockConversions();
+    };
+
+    const addCompositeProduction = async (data: Omit<CompositeProduction, "id" | "createdAt">) => {
+        if (checkDemoMode()) return;
+        const newRef = doc(collection(db, "composite_productions"));
+        const newProduction: CompositeProduction = {
+            id: newRef.id,
+            ...data,
+            createdAt: new Date().toISOString()
+        };
+
+        // 1. 完成品の在庫を増やす
+        const product = products.find(p => p.id === data.productId);
+        if (product) {
+            await updateProduct(product.id, { stock: (product.stock || 0) + data.quantity });
+            await logStockMovement({
+                productId: product.id,
+                productName: product.name,
+                type: 'in',
+                quantity: data.quantity,
+                reason: 'production',
+                remarks: `商品の制作 (ID: ${newRef.id})`,
+                referenceId: newRef.id,
+                date: data.date
+            });
+        }
+
+        // 2. 構成商品の在庫を減らす
+        for (const component of data.components) {
+            const compProduct = products.find(p => p.id === component.productId);
+            if (compProduct) {
+                await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - component.quantity });
+                await logStockMovement({
+                    productId: compProduct.id,
+                    productName: compProduct.name,
+                    type: 'out',
+                    quantity: component.quantity,
+                    reason: 'production',
+                    remarks: `商品の制作に使用 (ID: ${newRef.id})`,
+                    referenceId: newRef.id,
+                    date: data.date
+                });
+            }
+        }
+
+        mutateCompositeProductions([newProduction, ...compositeProductions], false);
+        await setDoc(newRef, {
+            ...data,
+            createdAt: serverTimestamp()
+        });
+
+        logActivity({
+            type: 'create',
+            category: 'product',
+            title: `商品「${data.productName}」を制作しました`,
+            detail: `制作数量: ${data.quantity}`
+        });
+
+        mutateCompositeProductions();
     };
 
     const updateSale = async (id: string, saleData: Partial<Sale>) => {
@@ -2929,6 +3004,10 @@ export function useStore() {
         mutateProducts,
         mutateStockMovements,
         mutateRetailStores,
+        // Composite Production
+        compositeProductions,
+        addCompositeProduction,
+        mutateCompositeProductions,
         // Promotion Tasks
         promotionTasks,
         togglePromotionTask: async (task: Omit<PromotionTask, "updatedAt">) => {
