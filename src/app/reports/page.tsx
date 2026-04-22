@@ -176,6 +176,7 @@ function ReportForm({
             : null
     );
     const [fetchingWeather, setFetchingWeather] = useState(false);
+    const [weatherError, setWeatherError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingActivityImage, setIsUploadingActivityImage] = useState(false);
 
@@ -204,6 +205,7 @@ function ReportForm({
         abortControllerRef.current = controller;
 
         setFetchingWeather(true);
+        setWeatherError(null);
 
         // Fetch via store.ts and also fetch locally for immediate display
         const fetchWeather = async () => {
@@ -212,19 +214,38 @@ function ReportForm({
                 return;
             }
             try {
-                fetchAndSaveWeatherIfNeeded(selectedStore.id, selectedStore.lat!, selectedStore.lng!, date);
+                // Use a timeout to prevent hanging UI
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
 
                 const res = await apiFetch(`/api/weather?lat=${selectedStore.lat}&lon=${selectedStore.lng}`, {
                     signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
+
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}));
+                    throw new Error(errorData.error || `天気情報の取得に失敗しました (${res.status})`);
+                }
+
                 const d = await res.json();
-                if (!d.error && !controller.signal.aborted) {
+                if (d.error) {
+                    throw new Error(d.error);
+                }
+
+                if (!controller.signal.aborted) {
                     setWeather(d);
+                    // Successfully fetched, now sync it to the store's cache
+                    fetchAndSaveWeatherIfNeeded(selectedStore.id, selectedStore.lat!, selectedStore.lng!, date);
                 }
             } catch (err: any) {
                 if (err?.name === 'AbortError') return;
-                if (err instanceof DemoModeError) return;
                 console.error("Weather fetch error:", err);
+                // Clear weather on error to show the error message in UI
+                if (!controller.signal.aborted) {
+                    setWeather(null);
+                    setWeatherError(err.message || "天気の取得に失敗しました");
+                }
             } finally {
                 if (!controller.signal.aborted) {
                     setFetchingWeather(false);
@@ -735,7 +756,9 @@ function ReportForm({
                                         ) : !selectedStore?.lat ? (
                                             <span className="text-xs text-slate-400">📍 店舗に位置情報を登録すると天気が自動取得されます</span>
                                         ) : (
-                                            <span className="text-xs text-red-400">天気の取得に失敗しました</span>
+                                            <span className="text-xs text-red-400">
+                                                {weatherError || "天気の取得に失敗しました"}
+                                            </span>
                                         )}
                                     </div>
                                 )}

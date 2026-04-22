@@ -216,19 +216,49 @@ export default function ProductsPage() {
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">商品管理</h1>
-          <p className="text-slate-500 mt-1 text-sm">ウトマチ百貨店の取扱商品を管理します。</p>
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10">
+        <div className="relative group">
+          <div className="absolute -left-4 top-0 w-1 h-12 bg-blue-600 rounded-full opacity-0 group-hover:opacity-100 transition-all" />
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            <span className="bg-gradient-to-br from-blue-600 to-indigo-700 bg-clip-text text-transparent">
+              Inventory
+            </span>
+            <span className="text-slate-300 font-light text-xl">/ 商品管理</span>
+          </h1>
+          <p className="text-slate-500 mt-1.5 text-sm font-medium flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            ウトマチ百貨店の取扱商品を一括管理・分析します
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowTrash(!showTrash)}
-            className={`flex items-center gap-2 px-4 py-2.5 font-bold rounded-xl shadow-sm active:scale-95 transition-all text-sm border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
-          >
-            <Trash2 className="w-4 h-4" />
-            {showTrash ? "戻る" : "ゴミ箱"}
-          </button>
+
+        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+          {/* Data Actions Group */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100/50 border border-slate-200 rounded-2xl">
+            <button
+              onClick={() => setShowTrash(!showTrash)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all text-xs border ${showTrash ? 'bg-amber-100 text-amber-700 border-amber-200 shadow-inner' : 'bg-transparent text-slate-400 border-transparent hover:bg-white hover:text-slate-600'}`}
+              title="ゴミ箱を表示"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {showTrash ? "戻る" : "ゴミ箱"}
+            </button>
+            <div className="w-px h-6 bg-slate-200 mx-1" />
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-white hover:text-slate-800 transition-all border border-transparent hover:border-slate-200 hover:shadow-sm"
+            >
+              <Box className="w-3.5 h-3.5" />
+              エクスポート
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-white hover:text-slate-800 transition-all border border-transparent hover:border-slate-200 hover:shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              インポート
+            </button>
+          </div>
+
           <input
             type="file"
             ref={fileInputRef}
@@ -236,128 +266,138 @@ export default function ProductsPage() {
             accept=".csv"
             className="hidden"
           />
-          <button
-            onClick={handleExport}
-            className="hidden sm:flex items-center gap-2 bg-white text-slate-700 px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm font-medium"
-          >
-            <Box className="w-4 h-4 text-slate-400" />
-            エクスポート
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="hidden sm:flex items-center gap-2 bg-white text-slate-700 px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm font-medium"
-          >
-            <Plus className="w-4 h-4 text-slate-400" />
-            インポート
-          </button>
-          <Link
-            href="/products/composite-production"
-            className="hidden sm:flex items-center gap-2 bg-orange-50 text-orange-700 px-4 py-2.5 rounded-lg border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm font-bold"
-          >
-            <Layers className="w-4 h-4" />
-            商品の制作
-          </Link>
-          <Link
-            href="/products/conversion"
-            className="hidden sm:flex items-center gap-2 bg-slate-100 text-[#1e3a8a] px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-200 transition-colors shadow-sm font-bold"
-          >
-            <History className="w-4 h-4" />
-            在庫変換
-          </Link>
-          <button
-            onClick={async () => {
-              if (!confirm("Amazonとの同期を開始しますか？")) return;
-              try {
-                showNotification("Amazonと同期中...");
-                const res = await apiFetch("/api/amazon/sync", { method: "POST" });
-                const data = await res.json();
-                if (data.success) {
-                  showNotification(`同期完了: 商品 ${data.syncedProducts.length}件, 新規注文 ${data.newOrdersCount}件\n「取引管理」ページで確認できます。`);
-                } else {
-                  throw new Error(data.error);
+
+          {/* Sync & Settings Group */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100/50 border border-slate-200 rounded-2xl">
+            <button
+              onClick={async () => {
+                if (!confirm("Amazonとの同期を開始しますか？")) return;
+                try {
+                  showNotification("Amazonと同期中...");
+                  const res = await apiFetch("/api/amazon/sync", { method: "POST" });
+                  const data = await res.json();
+                  if (data.success) {
+                    showNotification(`同期完了: 商品 ${data.syncedProducts.length}件, 新規注文 ${data.newOrdersCount}件\n「取引管理」ページで確認できます。`);
+                  } else {
+                    throw new Error(data.error);
+                  }
+                } catch (err: any) {
+                  if (err instanceof DemoModeError) {
+                    showNotification("デモ中はAmazon同期をご利用いただけません。", "error");
+                  } else {
+                    showNotification("同期に失敗しました。", "error");
+                  }
                 }
-              } catch (err: any) {
-                if (err instanceof DemoModeError) {
-                  showNotification("デモ中はAmazon同期をご利用いただけません。", "error");
-                } else {
-                  showNotification("同期に失敗しました。", "error");
-                }
-              }
-            }}
-            className="flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2.5 rounded-lg border border-amber-200 hover:bg-amber-100 transition-colors shadow-sm font-bold"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Amazon同期
-          </button>
-          <Link
-            href="/products/suppliers"
-            className="flex items-center gap-2 bg-white text-slate-700 px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm font-bold"
-          >
-            <User className="w-4 h-4 text-slate-400" />
-            仕入先設定
-          </Link>
+              }}
+              className="flex items-center gap-2 bg-transparent text-amber-600/80 hover:bg-white hover:text-amber-700 px-4 py-2 rounded-xl border border-transparent hover:border-amber-100 transition-all shadow-sm font-bold text-xs"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Amazon同期
+            </button>
+            <Link
+              href="/products/suppliers"
+              className="flex items-center gap-2 bg-transparent text-slate-500 hover:bg-white hover:text-slate-700 px-4 py-2 rounded-xl border border-transparent hover:border-slate-200 transition-all shadow-sm font-bold text-xs"
+            >
+              <User className="w-3.5 h-3.5" />
+              仕入先
+            </Link>
+          </div>
+
+          {/* Manufacturing & Conversion Group (Prominent) */}
+          <div className="flex items-center gap-2 p-1.5 bg-blue-50/50 border border-blue-100 rounded-[20px] shadow-sm">
+            <Link
+              href="/products/composite-production"
+              className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2.5 rounded-xl hover:bg-orange-600 transition-all shadow-md shadow-orange-200 font-black text-xs uppercase tracking-wider"
+            >
+              <Layers className="w-4 h-4" />
+              商品の制作
+            </Link>
+            <Link
+              href="/products/conversion"
+              className="flex items-center gap-2 bg-white text-blue-700 px-4 py-2.5 rounded-xl border border-blue-100 hover:bg-blue-50 transition-all shadow-sm font-black text-xs uppercase tracking-wider"
+            >
+              <History className="w-4 h-4" />
+              在庫変換
+            </Link>
+          </div>
+
+          {/* Main Action */}
           <button
             onClick={handleCreate}
-            className="flex items-center gap-2 bg-[#1e3a8a] text-white px-4 py-2.5 rounded-lg hover:bg-blue-800 transition-colors shadow-sm font-medium"
+            className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-slate-200 hover:shadow-blue-200 font-black text-sm active:scale-[0.98]"
           >
             <Plus className="w-5 h-5" />
-            商品登録
+            新規登録
           </button>
         </div>
       </div>
 
       {/* Usage Guide for Staff */}
-      <div className="mb-6 bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex gap-4 items-start">
-        <div className="p-2 bg-blue-100 text-blue-600 rounded-lg shrink-0">
-          <HelpCircle className="w-5 h-5" />
+      <div className="mb-10 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 rounded-[28px] p-6 shadow-sm flex flex-col md:flex-row gap-6 items-center">
+        <div className="p-3 bg-white text-blue-600 rounded-2xl shadow-sm shrink-0 border border-blue-100">
+          <HelpCircle className="w-6 h-6" />
         </div>
         <div className="text-sm">
-          <h3 className="font-bold text-blue-900 mb-1">操作ガイド</h3>
-          <div className="flex flex-wrap gap-x-8 gap-y-2 text-blue-800/80">
-            <div className="flex items-center gap-2">
-              <Edit2 className="w-3.5 h-3.5 text-[#1e3a8a]" />
-              <span><span className="font-bold text-[#1e3a8a]">編集</span>: 今ある商品の情報の直し（名前の間違い修正など）</span>
+          <h3 className="font-black text-blue-900 mb-2 uppercase tracking-wider flex items-center gap-2">
+            Operation Guide
+            <span className="text-blue-400 font-medium normal-case tracking-normal">/ 操作ガイド</span>
+          </h3>
+          <div className="flex flex-wrap gap-x-8 gap-y-3 text-blue-800/70 font-medium">
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center">
+                <Edit2 className="w-3.5 h-3.5 text-blue-700" />
+              </div>
+              <span><span className="font-bold text-blue-900 underline decoration-blue-200 underline-offset-4">編集</span>: 既存情報の修正（誤字脱字など）</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5 text-violet-600" />
-              <span><span className="font-bold text-violet-600">ブランディング</span>: AIでPR文章を自動生成・ストーリー情報を管理</span>
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-violet-100 flex items-center justify-center">
+                <Sparkles className="w-3.5 h-3.5 text-violet-700" />
+              </div>
+              <span><span className="font-bold text-violet-900 underline decoration-violet-200 underline-offset-4">ブランディング</span>: AIによるPR文生成・情報管理</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Box className="w-3.5 h-3.5 text-purple-600" />
-              <span><span className="font-bold text-purple-600">バリエーション作成</span>: 同じ商品で「容量違い」や「容器違い」を新しく追加</span>
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-purple-100 flex items-center justify-center">
+                <Box className="w-3.5 h-3.5 text-purple-700" />
+              </div>
+              <span><span className="font-bold text-purple-900 underline decoration-purple-200 underline-offset-4">バリエーション</span>: 容量違い・容器違いの追加</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Desktop Table */}
-      <div className="hidden sm:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {/* Filters */}
-        <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row gap-4 bg-slate-50/50">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+      {/* Desktop Table Container */}
+      <div className="hidden sm:block bg-white rounded-[32px] shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
+        {/* Search & Filter Bar */}
+        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row gap-4 bg-slate-50/30">
+          <div className="relative flex-1 max-w-lg group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-blue-600 transition-colors" />
             <input
               type="text"
               placeholder="商品名や仕入先で検索..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all"
+              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm font-medium"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Filter className="text-slate-400 w-5 h-5" />
-            <select
-              value={selectedBrandId}
-              onChange={(e) => setSelectedBrandId(e.target.value)}
-              className="border border-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] bg-white text-slate-700 font-medium transition-all cursor-pointer"
-            >
-              <option value="all">すべてのブランド</option>
-              {brands.map((brand) => (
-                <option key={brand.id} value={brand.id}>
-                  {brand.name}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 pl-4 pr-1 py-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
+              <Filter className="text-slate-400 w-4 h-4" />
+              <select
+                value={selectedBrandId}
+                onChange={(e) => setSelectedBrandId(e.target.value)}
+                className="bg-transparent text-sm font-bold text-slate-700 pr-8 py-2 focus:outline-none cursor-pointer appearance-none"
+              >
+                <option value="all">すべてのブランド</option>
+                {brands.map((brand) => (
+                  <option key={brand.id} value={brand.id}>
+                    {brand.name}
+                  </option>
+                ))}
+              </select>
+              <div className="pr-3 pointer-events-none text-slate-400">
+                <ChevronDown className="w-4 h-4" />
+              </div>
+            </div>
           </div>
         </div>
 
