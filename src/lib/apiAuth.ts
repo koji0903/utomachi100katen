@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
+import { getAdminAuth } from "@/lib/firebase-admin";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { z, ZodError, ZodType } from "zod";
 
@@ -31,13 +31,14 @@ async function verifyAuth(
     }
     const idToken = match[1];
     try {
-        if (!adminAuth) {
+        const auth = getAdminAuth();
+        if (!auth) {
             return NextResponse.json(
                 { error: "Server auth not configured" },
                 { status: 500 },
             );
         }
-        const decoded = await adminAuth.verifyIdToken(idToken);
+        const decoded = await auth.verifyIdToken(idToken);
         return {
             uid: decoded.uid,
             email: decoded.email ?? null,
