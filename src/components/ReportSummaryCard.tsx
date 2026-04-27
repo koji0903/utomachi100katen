@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sparkles, Brain, Loader2, RefreshCw, ChevronRight } from "lucide-react";
+import { Sparkles, Brain, Loader2, RefreshCw, ChevronRight, AlertTriangle } from "lucide-react";
 import { useStore, DailyReport } from "@/lib/store";
 import Link from "next/link";
 import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
@@ -11,6 +11,7 @@ export function ReportSummaryCard() {
     const [summary, setSummary] = useState<string>("");
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [lastScanCount, setLastScanCount] = useState(0);
+    const [error, setError] = useState<string | null>(null);
 
     // Helper to parse dates robustly
     const parseReportDate = (r: DailyReport) => {
@@ -59,6 +60,7 @@ export function ReportSummaryCard() {
         if (checkIsDemoMode()) return;
 
         setIsAnalyzing(true);
+        setError(null);
         try {
             const res = await apiFetch("/api/reports/summary", {
                 method: "POST",
@@ -72,10 +74,15 @@ export function ReportSummaryCard() {
                 localStorage.setItem("report_ai_summary", data.summary);
                 localStorage.setItem("report_ai_summary_date", new Date().toISOString());
                 localStorage.setItem("report_ai_summary_count", reports.length.toString());
+            } else if (data.error === "quota_exceeded") {
+                setError("AIの利用制限に達しました。しばらく時間をおいてから再度お試しください。");
+            } else {
+                setError("分析に失敗しました。もう一度お試しください。");
             }
         } catch (error) {
             if (!(error instanceof DemoModeError)) {
                 console.error("Failed to analyze reports:", error);
+                setError("通信エラーが発生しました。接続状況を確認してください。");
             }
         } finally {
             setIsAnalyzing(false);
@@ -169,6 +176,12 @@ export function ReportSummaryCard() {
                         ) : (
                             <div className="bg-indigo-50/20 rounded-[2rem] p-6 border border-indigo-50/50 min-h-[120px]">
                                 {formattedSummary}
+                                {error && (
+                                    <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100 flex items-center gap-2">
+                                        <AlertTriangle className="w-4 h-4" />
+                                        {error}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

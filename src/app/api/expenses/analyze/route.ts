@@ -74,13 +74,29 @@ export const POST = withAuth(async (req, ctx) => {
             ※JSONのみを返却し、Markdownのコードブロックなどは含めないでください。
         `;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        const result = await model.generateContent([
-            prompt,
-            { inlineData: { data: base64Data, mimeType } },
-        ]);
+        const modelsToTry = [
+            "gemini-3.0-flash",
+            "gemini-2.5-flash",
+            "gemini-1.5-flash",
+        ];
+        let responseText = "";
+        for (const modelName of modelsToTry) {
+            try {
+                const model = genAI.getGenerativeModel({ model: modelName });
+                const result = await model.generateContent([
+                    prompt,
+                    { inlineData: { data: base64Data, mimeType } },
+                ]);
+                responseText = result.response.text();
+                if (responseText) break;
+            } catch {
+                continue;
+            }
+        }
 
-        const responseText = result.response.text();
+        if (!responseText) {
+            return NextResponse.json({ error: "quota_exceeded" }, { status: 429 });
+        }
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
             logError("expenses/analyze", new Error("no json in response"), { uid: ctx.uid });

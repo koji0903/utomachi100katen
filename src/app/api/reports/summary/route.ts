@@ -27,6 +27,10 @@ const bodySchema = z.object({
     reports: z.array(reportSchema).max(200),
 });
 
+export const GET = () => {
+    return NextResponse.json({ message: "AI summary endpoint is active. Use POST to analyze reports." });
+};
+
 export const POST = withAuth(async (req, ctx) => {
     if (!genAI) {
         logError("reports/summary", new Error("GEMINI_API_KEY missing"));
@@ -74,8 +78,9 @@ ${reportsText}
 
     try {
         const modelsToTry = [
+            "gemini-3.0-flash",
+            "gemini-3-flash",
             "gemini-2.5-flash",
-            "gemini-2.0-flash-001",
             "gemini-1.5-flash",
             "gemini-1.5-pro",
         ];

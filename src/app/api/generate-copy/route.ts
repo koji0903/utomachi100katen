@@ -35,10 +35,10 @@ export const POST = withAuth(async (req, ctx) => {
     try {
         const fullPrompt = generateCopyPrompt(parsed);
         const modelsToTry = [
-            "gemini-2.5-pro",
+            "gemini-3.0-flash",
             "gemini-2.5-flash",
-            "gemini-2.0-flash-001",
-            "gemini-1.5-pro-latest",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
         ];
         let responseText = "";
         for (const modelName of modelsToTry) {

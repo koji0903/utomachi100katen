@@ -22,10 +22,27 @@ export const POST = withAuth(async (req, ctx) => {
     if (parsed instanceof NextResponse) return parsed;
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const modelsToTry = [
+            "gemini-3.0-flash",
+            "gemini-2.5-flash",
+            "gemini-1.5-flash",
+        ];
+        let responseText = "";
         const prompt = generateStoryPrompt(parsed);
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
+        for (const modelName of modelsToTry) {
+            try {
+                const model = genAI.getGenerativeModel({ model: modelName });
+                const result = await model.generateContent(prompt);
+                responseText = result.response.text();
+                if (responseText) break;
+            } catch {
+                continue;
+            }
+        }
+
+        if (!responseText) {
+            return NextResponse.json({ error: "quota_exceeded" }, { status: 429 });
+        }
         return NextResponse.json({ story: responseText.trim() });
     } catch (err) {
         logError("generate-story", err, { uid: ctx.uid });
