@@ -606,6 +606,8 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
     const [showTrash, setShowTrash] = useState(false);
     const [isTransposed, setIsTransposed] = useState(false);
     const [isSyncingSquare, setIsSyncingSquare] = useState(false);
+    const searchParams = useSearchParams();
+    const highlightId = searchParams.get("id");
 
     const handleSquareSync = async () => {
         if (!filterStoreId) return;
@@ -732,6 +734,15 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                 }
             });
     }, [unifiedSales, logType, filterStoreId, filterMonth, filterYear, filterDate, showTrash]);
+
+    useEffect(() => {
+        if (highlightId && filteredSales.length > 0) {
+            setTimeout(() => {
+                const el = document.getElementById(`sale-${highlightId}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+    }, [highlightId, filteredSales.length]);
 
     const sortedSales = useMemo(() => {
         // When transposed, user wants chronological order (oldest -> newest) for columns
@@ -1131,7 +1142,15 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                         const dayLabel = dayLabels[dayOfWeek];
 
                                         return (
-                                            <tr key={sale.id} className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${bgClass}`}>
+                                            <tr 
+                                                key={sale.id} 
+                                                id={`sale-${sale.id}`}
+                                                className={`border-b transition-all duration-500 ${
+                                                    highlightId === sale.id 
+                                                        ? "bg-blue-100/50 border-blue-200 ring-2 ring-blue-500/20" 
+                                                        : `border-slate-100 hover:bg-slate-50/60 ${bgClass}`
+                                                }`}
+                                            >
                                                 <td className="px-4 py-3 font-bold text-slate-800 whitespace-nowrap text-xs">
                                                     <div className="flex items-center gap-1.5">
                                                         <span>{sale.period.replace(/-/g, "/")}</span>

@@ -1160,6 +1160,19 @@ function ReportCard({
 }) {
     const [expanded, setExpanded] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const searchParams = useSearchParams();
+    const highlightId = searchParams.get("id");
+    const isHighlighted = highlightId === report.id;
+
+    useEffect(() => {
+        if (isHighlighted) {
+            setExpanded(true);
+            const el = document.getElementById(`report-${report.id}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }, [isHighlighted, report.id]);
 
     const isStore = report.type === "store";
     const isActivity = report.type === "activity";
@@ -1175,7 +1188,9 @@ function ReportCard({
     };
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div id={`report-${report.id}`} className={`bg-white rounded-2xl border transition-all duration-500 overflow-hidden ${
+            isHighlighted ? "border-blue-500 ring-4 ring-blue-500/10 shadow-lg scale-[1.02]" : "border-slate-200 shadow-sm"
+        }`}>
             {/* Summary row — tap to expand */}
             <button
                 className="w-full text-left p-4 flex items-center gap-3 hover:bg-slate-50 transition-colors"

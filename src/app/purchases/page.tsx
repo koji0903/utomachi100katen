@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Plus, Edit2, Trash2, Search, ShoppingBag, CheckCircle, Clock, ChevronLeft, Sparkles, RotateCcw } from "lucide-react";
@@ -13,8 +13,19 @@ import { Tooltip } from "@/components/ui/Tooltip";
 function PurchasesPageContent() {
     const { isLoaded, purchases, products, suppliers, sales, addPurchase, updatePurchase, deletePurchase, restorePurchase, permanentlyDeletePurchase } = useStore();
     const searchParams = useSearchParams();
+    const highlightId = searchParams.get("id");
     const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    useEffect(() => {
+        if (highlightId && isLoaded) {
+            setTimeout(() => {
+                const el = document.getElementById(`purchase-${highlightId}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+    }, [highlightId, isLoaded]);
+
     const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [showTrash, setShowTrash] = useState(false);
@@ -308,7 +319,15 @@ function PurchasesPageContent() {
                                 const items = purchase.items || [];
 
                                 return (
-                                    <tr key={purchase.id} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors group">
+                                    <tr 
+                                        key={purchase.id} 
+                                        id={`purchase-${purchase.id}`}
+                                        className={`border-b transition-all duration-500 group ${
+                                            highlightId === purchase.id 
+                                                ? "bg-blue-50 border-blue-200 ring-2 ring-blue-500/20" 
+                                                : "border-slate-100 hover:bg-slate-50/80"
+                                        }`}
+                                    >
                                         <td className="p-5">
                                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${purchase.type === 'A' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-purple-50 text-purple-600 border border-purple-100'}`}>
                                                 パターン{purchase.type}

@@ -44,7 +44,15 @@ export default function InventoryPage() {
 
     // Get recent stock movements
     const recentMovements = [...stockMovements]
-        .sort((a, b) => new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime())
+        .sort((a, b) => {
+            const getVal = (m: any) => {
+                if (m.createdAt?.seconds) return m.createdAt.seconds * 1000;
+                if (m.createdAt) return new Date(m.createdAt).getTime();
+                if (m.date) return new Date(m.date).getTime();
+                return 0;
+            };
+            return getVal(b) - getVal(a);
+        })
         .slice(0, 10);
 
     // Filter and Sort products
@@ -812,6 +820,7 @@ function ProductHistoryModal({ productId, onClose }: { productId: string; onClos
                     quantity: m.quantity,
                     reason: m.reason,
                     remarks: m.remarks,
+                    referenceId: m.referenceId,
                     source: 'movement'
                 });
             });
@@ -829,6 +838,7 @@ function ProductHistoryModal({ productId, onClose }: { productId: string; onClos
                     quantity: isInput ? c.inputQty : c.outputQty,
                     reason: 'conversion',
                     remarks: c.notes,
+                    referenceId: c.id,
                     source: 'conversion',
                     details: isInput 
                         ? { peerId: c.outputProductId, peerQty: c.outputQty, isTo: true }
@@ -850,15 +860,24 @@ function ProductHistoryModal({ productId, onClose }: { productId: string; onClos
                     quantity: isMain ? p.quantity : (component?.quantity || 0),
                     reason: 'production',
                     remarks: p.notes,
+                    referenceId: p.id,
                     source: 'production'
                 });
             });
 
         // Sort by date (desc)
         return items.sort((a, b) => {
-            const dateA = new Date(a.createdAt || a.date).getTime();
-            const dateB = new Date(b.createdAt || b.date).getTime();
-            return dateB - dateA;
+            const getVal = (item: any) => {
+                if (item.createdAt?.seconds) return item.createdAt.seconds * 1000;
+                if (item.createdAt) return new Date(item.createdAt).getTime();
+                if (item.date) return new Date(item.date).getTime();
+                return 0;
+            };
+            const valA = getVal(a);
+            const valB = getVal(b);
+            if (valA !== valB) return valB - valA;
+            // Fallback to id if dates are identical
+            return (b.id || "").localeCompare(a.id || "");
         });
     }, [productId, stockMovements, stockConversions, compositeProductions]);
 
@@ -876,6 +895,30 @@ function ProductHistoryModal({ productId, onClose }: { productId: string; onClos
             case 'production': return '制作加工';
             case 'conversion': return '在庫変換';
             default: return reason;
+        }
+    };
+
+    const getLinkUrl = (item: any) => {
+        if (!item.referenceId) {
+            if (item.source === 'conversion') return '/products/conversion';
+            if (item.source === 'production') return '/products/composite-production';
+            return null;
+        }
+        
+        switch (item.reason) {
+            case 'sale': return `/sales?id=${item.referenceId}`;
+            case 'purchase': return `/purchases?id=${item.referenceId}`;
+            case 'promotion':
+            case 'manual':
+                // Check if source is movement and reason is manual/promotion, usually from daily reports
+                if (item.source === 'movement') return `/reports?id=${item.referenceId}`;
+                return null;
+            case 'conversion': return '/products/conversion';
+            case 'production': return '/products/composite-production';
+            default:
+                if (item.source === 'conversion') return '/products/conversion';
+                if (item.source === 'production') return '/products/composite-production';
+                return null;
         }
     };
 
@@ -914,13 +957,24 @@ function ProductHistoryModal({ productId, onClose }: { productId: string; onClos
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-xs font-black text-slate-400">{item.date}</span>
-                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
-                                                        item.type === 'in' ? 'bg-blue-50 text-blue-600' : 
-                                                        item.type === 'out' ? 'bg-orange-50 text-orange-600' : 
-                                                        'bg-slate-100 text-slate-600'
-                                                    }`}>
-                                                        {getReasonLabel(item.reason)}
-                                                    </span>
+                                                    {(() => {
+                                                        const url = getLinkUrl(item);
+                                                        const label = getReasonLabel(item.reason);
+                                                        const badgeCls = `px-1.5 py-0.5 rounded text-[10px] font-black transition-all ${
+                                                            item.type === 'in' ? 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100' : 
+                                                            item.type === 'out' ? 'bg-orange-50 text-orange-600 border border-orange-100 hover:bg-orange-100' : 
+                                                            'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                                                        }`;
+
+                                                        if (url) {
+                                                            return (
+                                                                <Link href={url} className={badgeCls}>
+                                                                    {label} ↗
+                                                                </Link>
+                                                            );
+                                                        }
+                                                        return <span className={badgeCls}>{label}</span>;
+                                                    })()}
                                                 </div>
                                                 
                                                 <div className="text-sm font-bold text-slate-700">

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
     FileText, Receipt, Search, Filter, Copy, Eye,
     Pencil, Trash2, CheckCircle2, Clock, ChevronDown,
@@ -115,7 +116,7 @@ function FulfillmentBadge({ doc, onUpdate }: { doc: IssuedDocument, onUpdate: (s
 // ─── Documents Page ───────────────────────────────────────────────────────────
 
 // ─── Documents Page ───────────────────────────────────────────────────────────
-export default function DocumentsPage() {
+function DocumentsPageContent() {
     const { isLoaded, issuedDocuments, invoicePayments, duplicateDocument, convertToInvoice, convertMultipleToInvoice, deleteIssuedDocument, restoreIssuedDocument, permanentlyDeleteIssuedDocument, updateIssuedDocument } = useStore();
 
     const [searchQuery, setSearchQuery] = useState("");
@@ -132,6 +133,8 @@ export default function DocumentsPage() {
     const [showTrash, setShowTrash] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isConvertingMultiple, setIsConvertingMultiple] = useState(false);
+    const searchParams = useSearchParams();
+    const highlightId = searchParams.get("id");
 
     // ── Filter + sort ─────────────────────────────────────────────────────────
     const filtered = useMemo(() => {
@@ -161,6 +164,15 @@ export default function DocumentsPage() {
             });
         return filtered;
     }, [issuedDocuments, filterStatus, filterType, searchQuery, sortDesc, isLoaded, showTrash]);
+
+    useEffect(() => {
+        if (highlightId && filtered.length > 0) {
+            setTimeout(() => {
+                const el = document.getElementById(`doc-${highlightId}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+    }, [highlightId, filtered.length]);
 
     const stats = useMemo(() => {
         if (!isLoaded) return { total: 0, issued: 0, draft: 0, delivery: 0, invoice: 0, payment: 0, trashed: 0 };
@@ -437,8 +449,15 @@ export default function DocumentsPage() {
                             </thead>
                             <tbody>
                                 {filtered.map((doc, idx) => (
-                                    <tr key={doc.id}
-                                        className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${idx % 2 === 0 ? "" : "bg-slate-50/20"} ${selectedIds.includes(doc.id) ? "bg-rose-50/50" : ""} ${doc.status === 'draft' ? 'bg-amber-50/30' : ''}`}>
+                                    <tr 
+                                        key={doc.id}
+                                        id={`doc-${doc.id}`}
+                                        className={`border-b transition-all duration-500 ${
+                                            highlightId === doc.id 
+                                                ? "bg-rose-100 border-rose-300 ring-4 ring-rose-500/10 scale-[1.01] shadow-md relative z-10" 
+                                                : `border-slate-100 hover:bg-slate-50/60 ${idx % 2 === 0 ? "" : "bg-slate-50/20"} ${selectedIds.includes(doc.id) ? "bg-rose-50/50" : ""} ${doc.status === 'draft' ? 'bg-amber-50/30' : ''}`
+                                        }`}
+                                    >
                                         <td className="px-4 py-3 text-center">
                                             <input
                                                 type="checkbox"
@@ -611,5 +630,13 @@ export default function DocumentsPage() {
                 />
             )}
         </div>
+    );
+}
+
+export default function DocumentsPage() {
+    return (
+        <Suspense fallback={<div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>}>
+            <DocumentsPageContent />
+        </Suspense>
     );
 }
