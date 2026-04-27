@@ -615,7 +615,8 @@ function ReportForm({
             );
             
             if (isUploadError) {
-                showNotification("画像のアップロード中にエラーが発生しました。\n通信環境を確認して、もう一度お試しください。\n詳細: " + error.message, "error");
+                const detail = error.detail ? `\n詳細: ${error.detail}` : "";
+                showNotification(`画像のアップロード中にエラーが発生しました。\n通信環境を確認して、もう一度お試しください。${detail}`, "error");
             } else {
                 showNotification("日報の保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"), "error");
             }

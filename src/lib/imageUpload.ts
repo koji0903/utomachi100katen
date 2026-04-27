@@ -126,10 +126,12 @@ export const uploadFile = async (
 
             if (!response.ok) {
                 if (response.status === 413) {
-                    throw new Error("ファイルサイズが大きすぎます(15MB制限)。");
+                    throw new Error("ファイルサイズが制限を超えています(Vercel制限等)。");
                 }
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `アップロード失敗 (${response.status})`);
+                const err = new Error(errorData.error || `アップロード失敗 (${response.status})`) as any;
+                if (errorData.detail) err.detail = errorData.detail;
+                throw err;
             }
 
             const data = await response.json();

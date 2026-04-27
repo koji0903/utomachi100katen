@@ -104,9 +104,11 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
         return NextResponse.json({ url, storagePath: fullStoragePath });
     } catch (error: any) {
         logError("API-Upload", error, { uid, folderPath });
+        // Return detailed error for debugging if possible
+        const errorMessage = error instanceof Error ? error.message : "不明なエラー";
         return NextResponse.json({ 
             error: "ファイルの保存に失敗しました。", 
-            detail: process.env.NODE_ENV === 'development' ? error.message : undefined 
+            detail: errorMessage 
         }, { status: 500 });
     }
 });
