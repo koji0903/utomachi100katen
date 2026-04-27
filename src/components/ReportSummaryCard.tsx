@@ -61,7 +61,6 @@ export function ReportSummaryCard() {
 
         setIsAnalyzing(true);
         setError(null);
-        console.log("[ReportSummaryCard] Analyzing reports, count:", reports.length);
         try {
             const res = await apiFetch("/api/reports/summary", {
                 method: "POST",

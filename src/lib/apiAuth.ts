@@ -18,13 +18,12 @@ export type AuthedHandler = (
  * Extracts and verifies a Firebase ID token from the Authorization header.
  * Returns a 401 Response on failure, otherwise an AuthedContext.
  */
-export async function verifyAuth(
+async function verifyAuth(
     req: NextRequest,
 ): Promise<AuthedContext | NextResponse> {
     const header = req.headers.get("authorization") || "";
     const match = header.match(/^Bearer\s+(.+)$/i);
     if (!match) {
-        console.warn("[verifyAuth] No Bearer token found in header");
         return NextResponse.json(
             { error: "Unauthorized" },
             { status: 401 },
@@ -33,7 +32,6 @@ export async function verifyAuth(
     const idToken = match[1];
     try {
         if (!adminAuth) {
-            console.error("[verifyAuth] adminAuth is null");
             return NextResponse.json(
                 { error: "Server auth not configured" },
                 { status: 500 },
@@ -45,8 +43,7 @@ export async function verifyAuth(
             email: decoded.email ?? null,
             token: decoded,
         };
-    } catch (err: any) {
-        console.error(`[verifyAuth] Token verification failed: ${err.message}`);
+    } catch {
         return NextResponse.json(
             { error: "Unauthorized" },
             { status: 401 },

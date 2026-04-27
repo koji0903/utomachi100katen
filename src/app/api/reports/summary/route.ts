@@ -46,10 +46,6 @@ export const POST = withAuth(async (req, ctx) => {
         return parsed;
     }
     const { reports } = parsed;
-    console.log(`[reports/summary] Analyzing ${reports?.length} reports`);
-    if (reports && reports.length > 0) {
-        console.log(`[reports/summary] First report date: ${reports[0].date}`);
-    }
 
     if (!reports || reports.length === 0) {
         return NextResponse.json({ summary: "分析対象の日報がまだありません。" });
