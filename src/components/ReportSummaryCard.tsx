@@ -61,6 +61,7 @@ export function ReportSummaryCard() {
 
         setIsAnalyzing(true);
         setError(null);
+        console.log("[ReportSummaryCard] Analyzing reports, count:", reports.length);
         try {
             const res = await apiFetch("/api/reports/summary", {
                 method: "POST",
@@ -77,7 +78,7 @@ export function ReportSummaryCard() {
             } else if (data.error === "quota_exceeded") {
                 setError("AIの利用制限に達しました。しばらく時間をおいてから再度お試しください。");
             } else {
-                setError("分析に失敗しました。もう一度お試しください。");
+                setError(`分析に失敗しました。${data.error ? `(${data.error})` : "もう一度お試しください。"}`);
             }
         } catch (error) {
             if (!(error instanceof DemoModeError)) {

@@ -32,14 +32,24 @@ export const GET = () => {
 };
 
 export const POST = withAuth(async (req, ctx) => {
+    const { uid } = ctx;
+
     if (!genAI) {
+        console.error("[reports/summary] genAI is null. API Key might be missing.");
         logError("reports/summary", new Error("GEMINI_API_KEY missing"));
         return internalError();
     }
 
     const parsed = await parseJson(req, bodySchema);
-    if (parsed instanceof NextResponse) return parsed;
+    if (parsed instanceof NextResponse) {
+        console.error("[reports/summary] JSON parsing failed.");
+        return parsed;
+    }
     const { reports } = parsed;
+    console.log(`[reports/summary] Analyzing ${reports?.length} reports`);
+    if (reports && reports.length > 0) {
+        console.log(`[reports/summary] First report date: ${reports[0].date}`);
+    }
 
     if (!reports || reports.length === 0) {
         return NextResponse.json({ summary: "分析対象の日報がまだありません。" });
@@ -87,11 +97,16 @@ ${reportsText}
         let responseText = "";
         for (const modelName of modelsToTry) {
             try {
+                console.log(`[reports/summary] Trying model: ${modelName}`);
                 const model = genAI.getGenerativeModel({ model: modelName });
                 const result = await model.generateContent(prompt);
                 responseText = result.response.text();
-                if (responseText) break;
-            } catch {
+                if (responseText) {
+                    console.log(`[reports/summary] SUCCESS with model: ${modelName}`);
+                    break;
+                }
+            } catch (err: any) {
+                console.warn(`[reports/summary] FAILED model: ${modelName} - ${err.message}`);
                 continue;
             }
         }
@@ -102,7 +117,7 @@ ${reportsText}
 
         return NextResponse.json({ summary: responseText.trim() });
     } catch (err) {
-        logError("reports/summary", err, { uid: ctx.uid });
+        logError("reports/summary", err, { uid });
         return internalError();
     }
 });
