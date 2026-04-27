@@ -35,7 +35,7 @@ export const ensureProcessableImage = async (file: File): Promise<File> => {
         
         // Timeout for HEIC conversion as it can hang on mobile
         const conversionTimeout = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error("HEIC conversion timed out")), 45000);
+            setTimeout(() => reject(new Error("HEIC変換がタイムアウトしました。")), 45000);
         });
 
         const conversionPromise = heic2any({
@@ -65,63 +65,58 @@ export const ensureProcessableImage = async (file: File): Promise<File> => {
 };
 
 /**
- * Main upload function with compression and mobile optimizations.
+ * Compresses an image file with predefined settings for the app.
  */
-export const uploadImageWithCompression = async (
-    file: File,
-    folderPath: string = "products"
-): Promise<string> => {
-    // 2-minute timeout for the entire process (mobile networks can be slow)
-    const globalTimeout = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("アップロード処理がタイムアウトしました(120s)。通信環境の良い場所で再度お試しください。")), 120000);
-    });
+export const compressImage = async (file: File): Promise<File> => {
+    if (file.type.startsWith("video/")) return file;
 
-    const uploadLogic = async (): Promise<string> => {
-        try {
-            console.log(`[Upload] Starting process for: ${file.name} (Type: ${file.type}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-
-            // 0. Ensure format is processable (Convert HEIC if needed)
-            let fileToUpload: File = await ensureProcessableImage(file);
-
-            // 1. Compression options
-            const isVideo = file.type.startsWith("video/");
-            
-            // 2. Try compression locally (Images only)
-            if (!isVideo) {
-                try {
-                    console.log(`[ImageUpload] Starting compression...`);
-                    const options = {
-                        maxSizeMB: 0.8, // Slightly higher limit for better quality on Storage
-                        maxWidthOrHeight: 1600, // Better resolution for maintenance reports
-                        useWebWorker: true, // MUST be true for mobile to avoid freezing the UI thread
-                        onProgress: (p: number) => {
-                            if (p % 20 === 0) console.log(`[ImageUpload] Compression progress: ${p}%`);
-                        }
-                    };
-
-                    const compressionTimeout = new Promise<never>((_, reject) => {
-                        setTimeout(() => reject(new Error("Compression timeout")), 45000);
-                    });
-
-                    const compressedFile: any = await Promise.race([
-                        imageCompression(fileToUpload, options),
-                        compressionTimeout
-                    ]);
-
-                    if (compressedFile instanceof File || compressedFile instanceof Blob) {
-                        fileToUpload = compressedFile as File;
-                        console.log(`[ImageUpload] Compression successful: ${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB`);
-                    }
-                } catch (compressionError) {
-                    console.warn("[ImageUpload] Compression failed or timed out, using original file:", compressionError);
-                }
+    try {
+        console.log(`[ImageUpload] Starting compression for: ${file.name}`);
+        const options = {
+            maxSizeMB: 0.8,
+            maxWidthOrHeight: 1600,
+            useWebWorker: true,
+            onProgress: (p: number) => {
+                if (p % 25 === 0) console.log(`[ImageUpload] Compression progress: ${p}%`);
             }
+        };
 
-            // 3. Upload via Server-side API Proxy to bypass CORS and handle large payloads
-            console.log(`[Upload] Sending to API Proxy: ${fileToUpload.name} (${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB)`);
+        const compressionTimeout = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error("画像圧縮がタイムアウトしました。")), 45000);
+        });
+
+        const compressedFile: any = await Promise.race([
+            imageCompression(file, options),
+            compressionTimeout
+        ]);
+
+        if (compressedFile instanceof File || compressedFile instanceof Blob) {
+            console.log(`[ImageUpload] Compression successful: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
+            return compressedFile as File;
+        }
+        return file;
+    } catch (error) {
+        console.warn("[ImageUpload] Compression failed, using original:", error);
+        return file;
+    }
+};
+
+/**
+ * Uploads a file to the server-side API with retry logic.
+ */
+export const uploadFile = async (
+    file: File,
+    folderPath: string,
+    maxRetries: number = 2
+): Promise<string> => {
+    let lastError: any;
+    
+    for (let i = 0; i <= maxRetries; i++) {
+        try {
+            if (i > 0) console.log(`[Upload] Retry ${i}/${maxRetries} for ${file.name}`);
             
             const formData = new FormData();
-            formData.append("file", fileToUpload);
+            formData.append("file", file);
             formData.append("folderPath", folderPath);
 
             const response = await apiFetch("/api/upload", {
@@ -130,43 +125,42 @@ export const uploadImageWithCompression = async (
             });
 
             if (!response.ok) {
-                let errorMsg = "Upload failed";
-                try {
-                    const errorData = await response.json();
-                    errorMsg = errorData.error || errorMsg;
-                } catch (e) {}
-                
-                console.error(`[Upload] API error (${response.status}):`, errorMsg);
-                
-                // Special handling for common Vercel/Next.js limits
                 if (response.status === 413) {
-                    throw new Error("ファイルサイズが大きすぎます。自動圧縮に失敗した可能性があります。");
+                    throw new Error("ファイルサイズが大きすぎます(15MB制限)。");
                 }
-
-                // Fallback: Convert to Base64 for Firestore storage as last resort
-                // Only if file is small enough (Firestore limit is 1MB)
-                if (fileToUpload.size < 1.1 * 1024 * 1024) {
-                    console.log("[Upload] Falling back to Base64 due to API error");
-                    return await new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result as string);
-                        reader.onerror = () => reject(new Error("Base64 conversion failed"));
-                        reader.readAsDataURL(fileToUpload);
-                    });
-                }
-
-                throw new Error(errorMsg);
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `アップロード失敗 (${response.status})`);
             }
 
             const data = await response.json();
-            console.log(`[Upload] Upload successful: ${data.url}`);
             return data.url;
-
         } catch (error: any) {
-            console.error("[Upload] Error in upload logic:", error);
-            throw error;
+            lastError = error;
+            console.error(`[Upload] Attempt ${i + 1} failed:`, error.message);
+            // Wait a bit before retry
+            if (i < maxRetries) await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
         }
+    }
+    
+    throw lastError || new Error("アップロードに失敗しました。");
+};
+
+/**
+ * Legacy wrapper for backward compatibility or simple one-off uploads.
+ */
+export const uploadImageWithCompression = async (
+    file: File,
+    folderPath: string = "products"
+): Promise<string> => {
+    const globalTimeout = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("アップロード処理がタイムアウトしました(120s)。")), 120000);
+    });
+
+    const logic = async () => {
+        const processable = await ensureProcessableImage(file);
+        const compressed = await compressImage(processable);
+        return await uploadFile(compressed, folderPath);
     };
 
-    return Promise.race([uploadLogic(), globalTimeout]);
+    return Promise.race([logic(), globalTimeout]);
 };

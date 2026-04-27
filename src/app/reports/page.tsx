@@ -11,7 +11,7 @@ import {
     Search, Check, Brain
 } from "lucide-react";
 import { useStore, DailyReport, RestockingItem, PromotionItem } from "@/lib/store";
-import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
+import { uploadImageWithCompression, ensureProcessableImage, compressImage, uploadFile } from "@/lib/imageUpload";
 import { getHolidayName } from "@/lib/holidays";
 import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
 import { showNotification } from "@/lib/notifications";
@@ -157,6 +157,7 @@ function ReportForm({
     // Image files for upload (newly added files)
     const [beforeFiles, setBeforeFiles] = useState<File[]>([]);
     const [afterFiles, setAfterFiles] = useState<File[]>([]);
+    const [isProcessingImages, setIsProcessingImages] = useState(false);
 
     // Previews: combines existing URLs and newly selected file previews
     const [beforePreviews, setBeforePreviews] = useState<{ url: string; fileIndex?: number; isExisting?: boolean }[]>(
@@ -285,46 +286,85 @@ function ReportForm({
         const selectedFiles = Array.from(e.target.files || []);
         if (selectedFiles.length === 0) return;
 
-        const processedFiles: File[] = [];
-        for (const file of selectedFiles) {
-            const processed = await ensureProcessableImage(file);
-            processedFiles.push(processed);
+        setIsProcessingImages(true);
+        try {
+            const currentFilesCount = beforeFiles.length;
+            const newPreviews: { url: string; fileIndex: number; isExisting: boolean }[] = [];
+            const newFiles = [...beforeFiles];
+
+            // 1. First, show previews immediately using original/processable files
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const processable = await ensureProcessableImage(file);
+                newFiles.push(processable);
+                newPreviews.push({
+                    url: URL.createObjectURL(processable),
+                    fileIndex: currentFilesCount + i,
+                    isExisting: false
+                });
+            }
+
+            setBeforeFiles([...newFiles]);
+            setBeforePreviews(prev => [...prev, ...newPreviews]);
+
+            // 2. Then, compress them in the background one by one
+            // We do this to avoid freezing the UI and to prepare for upload
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const idx = currentFilesCount + i;
+                const compressed = await compressImage(newFiles[idx]);
+                setBeforeFiles(prev => {
+                    const updated = [...prev];
+                    updated[idx] = compressed;
+                    return updated;
+                });
+            }
+        } catch (error) {
+            console.error("Before image processing error:", error);
+        } finally {
+            setIsProcessingImages(false);
+            if (beforeInputRef.current) beforeInputRef.current.value = "";
         }
-
-        const newFiles = [...beforeFiles, ...processedFiles];
-        setBeforeFiles(newFiles);
-
-        const newPreviews = processedFiles.map((file, i) => ({
-            url: URL.createObjectURL(file),
-            fileIndex: beforeFiles.length + i,
-            isExisting: false
-        }));
-        setBeforePreviews([...beforePreviews, ...newPreviews]);
-
-        if (beforeInputRef.current) beforeInputRef.current.value = "";
     };
 
     const handleAfterChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = Array.from(e.target.files || []);
         if (selectedFiles.length === 0) return;
 
-        const processedFiles: File[] = [];
-        for (const file of selectedFiles) {
-            const processed = await ensureProcessableImage(file);
-            processedFiles.push(processed);
+        setIsProcessingImages(true);
+        try {
+            const currentFilesCount = afterFiles.length;
+            const newPreviews: { url: string; fileIndex: number; isExisting: boolean }[] = [];
+            const newFiles = [...afterFiles];
+
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const processable = await ensureProcessableImage(file);
+                newFiles.push(processable);
+                newPreviews.push({
+                    url: URL.createObjectURL(processable),
+                    fileIndex: currentFilesCount + i,
+                    isExisting: false
+                });
+            }
+
+            setAfterFiles([...newFiles]);
+            setAfterPreviews(prev => [...prev, ...newPreviews]);
+
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const idx = currentFilesCount + i;
+                const compressed = await compressImage(newFiles[idx]);
+                setAfterFiles(prev => {
+                    const updated = [...prev];
+                    updated[idx] = compressed;
+                    return updated;
+                });
+            }
+        } catch (error) {
+            console.error("After image processing error:", error);
+        } finally {
+            setIsProcessingImages(false);
+            if (afterInputRef.current) afterInputRef.current.value = "";
         }
-
-        const newFiles = [...afterFiles, ...processedFiles];
-        setAfterFiles(newFiles);
-
-        const newPreviews = processedFiles.map((file, i) => ({
-            url: URL.createObjectURL(file),
-            fileIndex: afterFiles.length + i,
-            isExisting: false
-        }));
-        setAfterPreviews([...afterPreviews, ...newPreviews]);
-
-        if (afterInputRef.current) afterInputRef.current.value = "";
     };
 
     const handleActivityImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -450,29 +490,46 @@ function ReportForm({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!worker.trim()) return;
+        if (isProcessingImages) {
+            showNotification("画像の処理中です。しばらくお待ちください。", "error");
+            return;
+        }
+
         setIsSaving(true);
         try {
-            // 1. Upload new Before images sequentially (Safer for mobile memory/CPU)
-            const beforeUrls: string[] = [];
-            for (const p of beforePreviews) {
-                if (p.isExisting) {
-                    beforeUrls.push(p.url);
-                } else if (p.fileIndex !== undefined && beforeFiles[p.fileIndex]) {
-                    const url = await uploadImageWithCompression(beforeFiles[p.fileIndex], "reports/maintenance/before");
-                    beforeUrls.push(url);
-                }
-            }
+            // Helper for parallel upload with limit
+            const uploadPool = async (previews: typeof beforePreviews, files: File[], folder: string) => {
+                const results: string[] = new Array(previews.length);
+                const tasks = previews.map((p, i) => ({ p, i }));
+                let nextTask = 0;
+                const limit = 2; // Upload 2 at a time
 
-            // 2. Upload new After images sequentially
-            const afterUrls: string[] = [];
-            for (const p of afterPreviews) {
-                if (p.isExisting) {
-                    afterUrls.push(p.url);
-                } else if (p.fileIndex !== undefined && afterFiles[p.fileIndex]) {
-                    const url = await uploadImageWithCompression(afterFiles[p.fileIndex], "reports/maintenance/after");
-                    afterUrls.push(url);
-                }
-            }
+                const worker = async () => {
+                    while (nextTask < tasks.length) {
+                        const { p, i } = tasks[nextTask++];
+                        if (p.isExisting) {
+                            results[i] = p.url;
+                        } else if (p.fileIndex !== undefined && files[p.fileIndex]) {
+                            // Ensure it's compressed if somehow it wasn't yet
+                            let fileToUpload = files[p.fileIndex];
+                            if (fileToUpload.size > 1.5 * 1024 * 1024) {
+                                fileToUpload = await compressImage(fileToUpload);
+                            }
+                            const url = await uploadFile(fileToUpload, folder);
+                            results[i] = url;
+                        }
+                    }
+                };
+
+                await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+                return results.filter(Boolean);
+            };
+
+            // 1. Upload new Before images
+            const beforeUrls = await uploadPool(beforePreviews, beforeFiles, "reports/maintenance/before");
+
+            // 2. Upload new After images
+            const afterUrls = await uploadPool(afterPreviews, afterFiles, "reports/maintenance/after");
 
             const payload: Omit<DailyReport, "id" | "createdAt"> = {
                 date, worker, type,
@@ -814,7 +871,10 @@ function ReportForm({
                                 <div className="space-y-4">
                                     {/* Before Section */}
                                     <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Before</p>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Before</p>
+                                            {isProcessingImages && <div className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin text-indigo-400" /><span className="text-[9px] text-indigo-400 font-bold">処理中...</span></div>}
+                                        </div>
                                         <div className="flex flex-wrap gap-3">
                                             {beforePreviews.map((p, i) => (
                                                 <div key={i} className="w-20 h-20 rounded-xl border border-slate-200 overflow-hidden relative group">
@@ -842,7 +902,10 @@ function ReportForm({
 
                                     {/* After Section */}
                                     <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">After</p>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">After</p>
+                                            {isProcessingImages && <div className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin text-indigo-400" /><span className="text-[9px] text-indigo-400 font-bold">処理中...</span></div>}
+                                        </div>
                                         <div className="flex flex-wrap gap-3">
                                             {afterPreviews.map((p, i) => (
                                                 <div key={i} className="w-20 h-20 rounded-xl border border-slate-200 overflow-hidden relative group">
@@ -1064,7 +1127,7 @@ function ReportForm({
                     <button
                         type="submit"
                         form="report-form"
-                        disabled={isSaving || isUploadingActivityImage || !worker.trim()}
+                        disabled={isSaving || isUploadingActivityImage || isProcessingImages || !worker.trim()}
                         className="w-full flex items-center justify-center gap-2 py-4 text-white font-bold rounded-2xl text-base transition-all disabled:opacity-50 active:scale-[0.98]"
                         style={{ backgroundColor: BRAND }}
                     >

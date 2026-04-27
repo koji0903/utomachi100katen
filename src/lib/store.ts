@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import useSWR from "swr";
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { apiFetch, DemoModeError, isDemoMode as checkIsDemoMode } from "@/lib/apiClient";
+import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
 import { useAuth } from "@/lib/authContext";
 import { getMockData } from "@/lib/mockData";
 import { syncProductToAmazon } from "@/app/actions/amazon";
