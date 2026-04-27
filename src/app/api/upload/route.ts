@@ -60,9 +60,10 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
 
     try {
         const storage = admin.storage();
-        // Use the exported storageBucket or fall back to default
-        const { storageBucket } = require("@/lib/firebase-admin");
-        const bucket = storage.bucket(storageBucket);
+        // Dynamically get the storage bucket to ensure we have the latest config
+        const { getStorageBucket } = require("@/lib/firebase-admin");
+        const sBucket = getStorageBucket();
+        const bucket = storage.bucket(sBucket);
         
         if (!bucket.name) {
             console.error("[API-Upload] Storage bucket name is missing. App might not be initialized with storageBucket.");

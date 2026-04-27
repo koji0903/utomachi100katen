@@ -10,88 +10,96 @@ const isEmulator =
     !!process.env.FIREBASE_STORAGE_EMULATOR_HOST ||
     process.env.NEXT_PUBLIC_USE_EMULATOR === "true";
 
-const projectId = 
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 
-    process.env.FIREBASE_PROJECT_ID || 
-    process.env.GOOGLE_CLOUD_PROJECT;
+const getProjectId = () => {
+    return process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 
+           process.env.FIREBASE_PROJECT_ID || 
+           process.env.GOOGLE_CLOUD_PROJECT ||
+           process.env.GCLOUD_PROJECT;
+};
 
-const storageBucket = 
-    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 
-    process.env.FIREBASE_STORAGE_BUCKET || 
-    (projectId ? `${projectId}.firebasestorage.app` : undefined);
+export const getStorageBucket = () => {
+    const pId = getProjectId();
+    return process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 
+           process.env.FIREBASE_STORAGE_BUCKET || 
+           (pId ? `${pId}.firebasestorage.app` : undefined);
+};
 
 /**
- * Admin SDKを確実に初期化し、認証またはデータベースのインスタンスを返すためのユーティリティ。
+ * Admin SDKを確実に初期化するためのユーティリティ。
  */
 export const ensureAdminInitialized = () => {
-    if (admin.apps.length) return true;
+    if (admin.apps.length > 0) {
+        // 既に初期化済みの場合、有効な設定を持っているか確認
+        const app = admin.app();
+        if (!app.options.projectId && !getProjectId()) {
+            console.error("[firebase-admin] App is initialized but missing Project ID!");
+        }
+        return true;
+    }
 
     const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const pId = getProjectId();
+    const sBucket = getStorageBucket();
     
-    // 1. Explicit Service Account Key (JSON string)
+    // 1. Explicit Service Account Key
     if (key) {
         try {
             const serviceAccount = JSON.parse(key);
             admin.initializeApp({
                 credential: admin.credential.cert(serviceAccount),
-                projectId: serviceAccount.project_id || projectId,
-                storageBucket: storageBucket || `${serviceAccount.project_id || projectId}.firebasestorage.app`,
+                projectId: serviceAccount.project_id || pId,
+                storageBucket: sBucket || `${serviceAccount.project_id || pId}.firebasestorage.app`,
             });
-            console.log("[firebase-admin] Admin SDK initialized with Service Account Key (ENV)");
+            console.log("[firebase-admin] Initialized with Service Account Key");
             return true;
         } catch (err: any) {
-            console.error("[firebase-admin] Failed to initialize Admin SDK with Service Account Key:", err.message);
+            console.error("[firebase-admin] Service Account Key init failed:", err.message);
         }
     } 
     
     // 2. Emulator Mode
     if (isEmulator) {
         admin.initializeApp({
-            projectId: projectId || "demo-emulator",
-            storageBucket: storageBucket || "demo-emulator.appspot.com",
+            projectId: pId || "demo-emulator",
+            storageBucket: sBucket || "demo-emulator.appspot.com",
         });
-        console.log("[firebase-admin] Admin SDK initialized for Emulator");
+        console.log("[firebase-admin] Initialized for Emulator");
         return true;
     }
 
     // 3. Application Default Credentials
     try {
-        admin.initializeApp({
+        const options: any = {
             credential: admin.credential.applicationDefault(),
-            projectId: projectId,
-            storageBucket: storageBucket,
-        });
-        console.log("[firebase-admin] Admin SDK initialized with Application Default Credentials");
+            storageBucket: sBucket,
+        };
+        if (pId) options.projectId = pId;
+        
+        admin.initializeApp(options);
+        console.log("[firebase-admin] Initialized with ADC. ProjectID:", pId || "auto-detect");
         return true;
     } catch (err: any) {
-        // Fallback to local secrets file search if in development
         if (process.env.NODE_ENV === "development") {
             try {
                 const fs = require("fs");
                 const path = require("path");
                 const secretsDir = path.join(process.cwd(), "secrets");
                 if (fs.existsSync(secretsDir)) {
-                    const files = fs.readdirSync(secretsDir);
-                    const jsonFile = files.find((f: string) => f.endsWith(".json"));
+                    const jsonFile = fs.readdirSync(secretsDir).find((f: string) => f.endsWith(".json"));
                     if (jsonFile) {
-                        const filePath = path.join(secretsDir, jsonFile);
                         admin.initializeApp({
-                            credential: admin.credential.cert(filePath),
-                            projectId: projectId,
-                            storageBucket: storageBucket,
+                            credential: admin.credential.cert(path.join(secretsDir, jsonFile)),
+                            projectId: pId,
+                            storageBucket: sBucket,
                         });
-                        console.log(`[firebase-admin] Admin SDK initialized with local secret file: ${jsonFile}`);
                         return true;
                     }
                 }
-            } catch (fsErr) {
-                // Silently ignore
-            }
+            } catch (fsErr) {}
         }
-        console.warn("[firebase-admin] Fallback initialization failed:", err.message);
+        console.error("[firebase-admin] All init paths failed:", err.message);
     }
     
-    console.warn("[firebase-admin] Initialization failed: No valid credentials found.");
     return false;
 };
 
@@ -110,8 +118,9 @@ export const getAdminStorage = () => {
     return admin.storage();
 };
 
-// 既存コードとの互換性のためのエクスポート（関数版の使用を推奨）
+// 互換性のためのエクスポート
 export const adminDb = getAdminDb();
 export const adminAuth = getAdminAuth();
+export const storageBucket = getStorageBucket();
 
-export { admin, storageBucket };
+export { admin };
