@@ -107,7 +107,7 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
         // Return detailed error for debugging if possible
         const errorMessage = error instanceof Error ? error.message : "不明なエラー";
         return NextResponse.json({ 
-            error: "ファイルの保存に失敗しました。", 
+            error: "ファイルのアップロード・保存に失敗しました。", 
             detail: errorMessage 
         }, { status: 500 });
     }
