@@ -10,7 +10,10 @@ const isEmulator =
     !!process.env.FIREBASE_STORAGE_EMULATOR_HOST ||
     process.env.NEXT_PUBLIC_USE_EMULATOR === "true";
 
-const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+const storageBucket = 
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 
+    process.env.FIREBASE_STORAGE_BUCKET || 
+    (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebasestorage.app` : undefined);
 
 /**
  * Admin SDKを確実に初期化し、認証またはデータベースのインスタンスを返すためのユーティリティ。
@@ -29,7 +32,7 @@ export const ensureAdminInitialized = () => {
             admin.initializeApp({
                 credential: admin.credential.cert(serviceAccount),
                 projectId: serviceAccount.project_id,
-                storageBucket,
+                storageBucket: storageBucket || `${serviceAccount.project_id}.firebasestorage.app`,
             });
             console.log("[firebase-admin] Admin SDK initialized with Service Account Key (ENV)");
             return true;
@@ -42,7 +45,7 @@ export const ensureAdminInitialized = () => {
     if (isEmulator) {
         admin.initializeApp({
             projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-emulator",
-            storageBucket,
+            storageBucket: storageBucket || "demo-emulator.appspot.com",
         });
         console.log("[firebase-admin] Admin SDK initialized for Emulator");
         return true;
@@ -96,6 +99,11 @@ export const getAdminDb = () => {
 export const getAdminAuth = () => {
     if (!ensureAdminInitialized()) return null;
     return admin.auth();
+};
+
+export const getAdminStorage = () => {
+    if (!ensureAdminInitialized()) return null;
+    return admin.storage();
 };
 
 // 既存コードとの互換性のためのエクスポート（関数版の使用を推奨）

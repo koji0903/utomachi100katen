@@ -39,30 +39,34 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
     try {
         formData = await req.formData();
     } catch {
-        return NextResponse.json({ error: "Invalid form data" }, { status: 400 });
+        return NextResponse.json({ error: "無効なフォームデータです。" }, { status: 400 });
     }
 
     const file = formData.get("file");
     const folderPath = String(formData.get("folderPath") ?? "");
 
     if (!(file instanceof File)) {
-        return NextResponse.json({ error: "No file provided" }, { status: 400 });
+        return NextResponse.json({ error: "ファイルが提供されていません。" }, { status: 400 });
     }
     if (!ALLOWED_FOLDERS.has(folderPath)) {
-        return NextResponse.json({ error: "Invalid folderPath" }, { status: 400 });
+        return NextResponse.json({ error: "無効な保存先フォルダです。" }, { status: 400 });
     }
     if (!file.type || !isAllowedMime(file.type)) {
-        return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+        return NextResponse.json({ error: "サポートされていないファイル形式です。" }, { status: 400 });
     }
     if (file.size <= 0 || file.size > MAX_BYTES) {
-        return NextResponse.json({ error: "File size out of range" }, { status: 400 });
+        return NextResponse.json({ error: "ファイルサイズが制限(15MB)を超えています。" }, { status: 400 });
     }
 
     try {
-        const bucket = admin.storage().bucket();
+        const storage = admin.storage();
+        const bucket = storage.bucket();
+        
         if (!bucket.name) {
-            logError("API-Upload", new Error("Storage bucket not configured"), { uid });
-            return internalError();
+            console.error("[API-Upload] Storage bucket name is missing. App might not be initialized with storageBucket.");
+            // Try to re-initialize or log environment state
+            logError("API-Upload", new Error("Storage bucket not configured"), { uid, folderPath });
+            return NextResponse.json({ error: "ストレージの設定が不完全です。管理者にお問い合わせください。" }, { status: 500 });
         }
 
         const fileName = sanitizeFileName(file.name);
@@ -72,6 +76,7 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
         const buffer = Buffer.from(arrayBuffer);
 
         const object = bucket.file(fullStoragePath);
+        
         await object.save(buffer, {
             contentType: file.type,
             resumable: false,
@@ -79,6 +84,7 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
                 metadata: { uploadedBy: uid },
             },
         });
+
         await object.makePublic().catch(() => {
             // Non-public buckets will surface via getSignedUrl below; swallow here.
         });
@@ -90,13 +96,17 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
                 expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
             });
             url = signed;
-        } catch {
+        } catch (signedErr: any) {
+            console.warn("[API-Upload] getSignedUrl failed, falling back to public URL:", signedErr.message);
             url = `https://storage.googleapis.com/${bucket.name}/${encodeURI(fullStoragePath)}`;
         }
 
         return NextResponse.json({ url, storagePath: fullStoragePath });
-    } catch (error) {
+    } catch (error: any) {
         logError("API-Upload", error, { uid, folderPath });
-        return internalError();
+        return NextResponse.json({ 
+            error: "ファイルの保存に失敗しました。", 
+            detail: process.env.NODE_ENV === 'development' ? error.message : undefined 
+        }, { status: 500 });
     }
 });

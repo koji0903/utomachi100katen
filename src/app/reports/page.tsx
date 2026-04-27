@@ -606,10 +606,18 @@ function ReportForm({
             onSaved();
         } catch (error: any) {
             console.error("Save report error:", error);
-            if (error.message && (error.message.includes("upload") || error.message.includes("Compression"))) {
-                showNotification("画像のアップロード中にエラーが発生しました。\n詳細: " + error.message, "error");
+            // Distinguish between upload errors and save errors
+            const isUploadError = error.message && (
+                error.message.includes("upload") || 
+                error.message.includes("アップロード") || 
+                error.message.includes("Compression") || 
+                error.message.includes("圧縮")
+            );
+            
+            if (isUploadError) {
+                showNotification("画像のアップロード中にエラーが発生しました。\n通信環境を確認して、もう一度お試しください。\n詳細: " + error.message, "error");
             } else {
-                showNotification("保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"), "error");
+                showNotification("日報の保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"), "error");
             }
         } finally {
             setIsSaving(false);
