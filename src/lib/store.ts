@@ -3,7 +3,7 @@
 
 import { useMemo } from "react";
 import useSWR from "swr";
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
 import { useAuth } from "@/lib/authContext";
@@ -495,7 +495,7 @@ export interface StockMovement extends BaseEntity {
     productName: string; // 非正規化
     type: 'in' | 'out' | 'adjustment'; // 入庫, 出庫, 調整
     quantity: number; // 変動量
-    reason: 'sale' | 'purchase' | 'audit' | 'return' | 'waste' | 'amazon_sync' | 'manual' | 'promotion' | 'production';
+    reason: 'sale' | 'purchase' | 'audit' | 'return' | 'waste' | 'amazon_sync' | 'manual' | 'promotion' | 'production' | 'conversion';
     referenceId?: string; // 関連する取引IDや仕入ID
     date: string; // YYYY-MM-DD
     remarks?: string;
@@ -817,6 +817,18 @@ export function useStore() {
             syncProductToAmazon(id).catch(err => console.error("Amazon sync failed on update:", err));
         }
     };
+    const adjustProductStock = async (productId: string, delta: number) => {
+        if (delta === 0 || isDemoMode) return;
+        
+        // Optimistic update using functional update to handle rapid sequences
+        mutateProducts((prev = []) => prev.map((p) => p.id === productId ? { ...p, stock: (p.stock || 0) + delta } : p), false);
+
+        const docRef = doc(db, "products", productId);
+        await updateDoc(docRef, {
+            stock: increment(delta)
+        });
+        mutateProducts();
+    };
 
     const deleteProduct = async (id: string) => {
         if (checkDemoMode()) return;
@@ -950,7 +962,7 @@ export function useStore() {
                 if (item.receivedQuantity > 0) {
                     const product = products.find(p => p.id === item.productId);
                     if (product) {
-                        await updateProduct(product.id, { stock: (product.stock || 0) + item.receivedQuantity });
+                        await adjustProductStock(product.id, item.receivedQuantity);
                         await logStockMovement({
                             productId: product.id,
                             productName: product.name,
@@ -989,7 +1001,7 @@ export function useStore() {
                 if (receivedQty > 0) {
                     const product = products.find(p => p.id === item.productId);
                     if (product) {
-                        await updateProduct(product.id, { stock: (product.stock || 0) - receivedQty });
+                        await adjustProductStock(product.id, -receivedQty);
                         await logStockMovement({
                             productId: product.id,
                             productName: product.name,
@@ -1015,7 +1027,7 @@ export function useStore() {
                 if (receivedQty > 0) {
                     const product = products.find(p => p.id === item.productId);
                     if (product) {
-                        await updateProduct(product.id, { stock: (product.stock || 0) + receivedQty });
+                        await adjustProductStock(product.id, receivedQty);
                         await logStockMovement({
                             productId: product.id,
                             productName: product.name,
@@ -1059,8 +1071,7 @@ export function useStore() {
                 if (receivedQty > 0) {
                     const product = products.find(p => p.id === item.productId);
                     if (product) {
-                        const newStock = (product.stock || 0) - receivedQty;
-                        await updateProduct(product.id, { stock: newStock });
+                        await adjustProductStock(product.id, -receivedQty);
                         await logStockMovement({
                             productId: product.id,
                             productName: product.name,
@@ -1093,8 +1104,7 @@ export function useStore() {
                 if (receivedQty > 0) {
                     const product = products.find(p => p.id === item.productId);
                     if (product) {
-                        const newStock = (product.stock || 0) + receivedQty;
-                        await updateProduct(product.id, { stock: newStock });
+                        await adjustProductStock(product.id, receivedQty);
                         await logStockMovement({
                             productId: product.id,
                             productName: product.name,
@@ -1143,8 +1153,7 @@ export function useStore() {
                     if (compProduct) {
                         // Overall stock deduction (only if NOT consignment)
                         if (!isConsignment) {
-                            const newStock = (compProduct.stock || 0) - (comp.quantity * item.quantity);
-                            await updateProduct(compProduct.id, { stock: newStock });
+                            await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
                             await logStockMovement({
                                 productId: compProduct.id,
                                 productName: compProduct.name,
@@ -1166,8 +1175,7 @@ export function useStore() {
                 // Adjust simple product
                 // Overall stock deduction (only if NOT consignment)
                 if (!isConsignment) {
-                    const newStock = (product.stock || 0) - item.quantity;
-                    await updateProduct(product.id, { stock: newStock });
+                    await adjustProductStock(product.id, -item.quantity);
                     await logStockMovement({
                         productId: product.id,
                         productName: product.name,
@@ -1212,11 +1220,31 @@ export function useStore() {
         // Adjust stocks
         const inputProduct = products.find(p => p.id === data.inputProductId);
         if (inputProduct) {
-            await updateProduct(inputProduct.id, { stock: (inputProduct.stock || 0) - data.inputQty });
+            await adjustProductStock(inputProduct.id, -data.inputQty);
+            await logStockMovement({
+                productId: inputProduct.id,
+                productName: inputProduct.name,
+                type: 'out',
+                quantity: data.inputQty,
+                reason: 'conversion',
+                remarks: `在庫変換 (元): ${data.notes || ""}`,
+                referenceId: newRef.id,
+                date: data.date
+            });
         }
         const outputProduct = products.find(p => p.id === data.outputProductId);
         if (outputProduct) {
-            await updateProduct(outputProduct.id, { stock: (outputProduct.stock || 0) + data.outputQty });
+            await adjustProductStock(outputProduct.id, data.outputQty);
+            await logStockMovement({
+                productId: outputProduct.id,
+                productName: outputProduct.name,
+                type: 'in',
+                quantity: data.outputQty,
+                reason: 'conversion',
+                remarks: `在庫変換 (先): ${data.notes || ""}`,
+                referenceId: newRef.id,
+                date: data.date
+            });
         }
 
         mutateStockConversions([newConv, ...stockConversions], false);
@@ -1236,7 +1264,7 @@ export function useStore() {
         // 1. 完成品の在庫を増やす
         const product = products.find(p => p.id === data.productId);
         if (product) {
-            await updateProduct(product.id, { stock: (product.stock || 0) + data.quantity });
+            await adjustProductStock(product.id, data.quantity);
             await logStockMovement({
                 productId: product.id,
                 productName: product.name,
@@ -1253,7 +1281,7 @@ export function useStore() {
         for (const component of data.components) {
             const compProduct = products.find(p => p.id === component.productId);
             if (compProduct) {
-                await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - component.quantity });
+                await adjustProductStock(compProduct.id, -component.quantity);
                 await logStockMovement({
                     productId: compProduct.id,
                     productName: compProduct.name,
@@ -1302,7 +1330,7 @@ export function useStore() {
                     const compProduct = products.find(p => p.id === comp.productId);
                     if (compProduct) {
                         if (!wasConsignment) {
-                            await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) + (comp.quantity * item.quantity) });
+                            await adjustProductStock(compProduct.id, (comp.quantity * item.quantity));
                         } else {
                             await updateStoreStock(currentSale.storeId, compProduct.id, (comp.quantity * item.quantity), 'return', id, new Date().toISOString().split('T')[0]);
                         }
@@ -1310,7 +1338,7 @@ export function useStore() {
                 }
             } else {
                 if (!wasConsignment) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) + item.quantity });
+                    await adjustProductStock(product.id, item.quantity);
                 } else {
                     await updateStoreStock(currentSale.storeId, product.id, item.quantity, 'return', id, new Date().toISOString().split('T')[0]);
                 }
@@ -1330,7 +1358,7 @@ export function useStore() {
                     const compProduct = products.find(p => p.id === comp.productId);
                     if (compProduct) {
                         if (!isNowConsignment) {
-                            await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - (comp.quantity * item.quantity) });
+                            await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
                         } else {
                             await updateStoreStock(newSale.storeId, compProduct.id, -(comp.quantity * item.quantity), 'sale', id, newSale.period.split('T')[0]);
                         }
@@ -1338,7 +1366,7 @@ export function useStore() {
                 }
             } else {
                 if (!isNowConsignment) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) - item.quantity });
+                    await adjustProductStock(product.id, -item.quantity);
                 } else {
                     await updateStoreStock(newSale.storeId, product.id, -item.quantity, 'sale', id, newSale.period.split('T')[0]);
                 }
@@ -1373,8 +1401,7 @@ export function useStore() {
                     if (compProduct) {
                         // Revert Overall stock (only if NOT consignment)
                         if (!isConsignment) {
-                            const restoredStock = (compProduct.stock || 0) + (comp.quantity * item.quantity);
-                            await updateProduct(compProduct.id, { stock: restoredStock });
+                            await adjustProductStock(compProduct.id, (comp.quantity * item.quantity));
                         }
                         // Revert Store stock (only if consignment)
                         if (isConsignment) {
@@ -1386,8 +1413,7 @@ export function useStore() {
                 // Reverse simple product
                 // Revert Overall stock (only if NOT consignment)
                 if (!isConsignment) {
-                    const restoredStock = (product.stock || 0) + item.quantity;
-                    await updateProduct(product.id, { stock: restoredStock });
+                    await adjustProductStock(product.id, item.quantity);
                 }
                 // Revert Store stock (only if consignment)
                 if (isConsignment) {
@@ -1418,8 +1444,7 @@ export function useStore() {
                     if (compProduct) {
                         // Re-apply Overall stock (only if NOT consignment)
                         if (!isConsignment) {
-                            const newStock = (compProduct.stock || 0) - (comp.quantity * item.quantity);
-                            await updateProduct(compProduct.id, { stock: newStock });
+                            await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
                         }
                         // Re-apply Store stock (only if consignment)
                         if (isConsignment) {
@@ -1431,8 +1456,7 @@ export function useStore() {
                 // Re-apply simple product
                 // Re-apply Overall stock (only if NOT consignment)
                 if (!isConsignment) {
-                    const newStock = (product.stock || 0) - item.quantity;
-                    await updateProduct(product.id, { stock: newStock });
+                    await adjustProductStock(product.id, -item.quantity);
                 }
                 // Re-apply Store stock (only if consignment)
                 if (isConsignment) {
@@ -1497,7 +1521,7 @@ export function useStore() {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
                     // 1. Deduct from main stock
-                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    await adjustProductStock(product.id, -item.qty);
                     await logStockMovement({
                         productId: product.id,
                         productName: product.name,
@@ -1525,7 +1549,7 @@ export function useStore() {
             for (const item of reportData.promotions) {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    await adjustProductStock(product.id, -item.qty);
                     await logStockMovement({
                         productId: product.id,
                         productName: product.name,
@@ -1585,7 +1609,7 @@ export function useStore() {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
                     // Reverse Deduction from main stock
-                    await updateProduct(product.id, { stock: (product.stock || 0) + item.qty });
+                    await adjustProductStock(product.id, item.qty);
                     
                     // Reverse Addition to store stock
                     const retailStore = retailStores.find(s => s.id === report.storeId);
@@ -1601,7 +1625,7 @@ export function useStore() {
             for (const item of report.promotions) {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) + item.qty });
+                    await adjustProductStock(product.id, item.qty);
                 }
             }
             // Reverse Expense
@@ -1625,7 +1649,7 @@ export function useStore() {
             for (const item of report.restocking) {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    await adjustProductStock(product.id, -item.qty);
                     const retailStore = retailStores.find(s => s.id === report.storeId);
                     if (retailStore?.type === 'A') {
                         await updateStoreStock(report.storeId, product.id, item.qty, 'restock', id, report.date);
@@ -1639,7 +1663,7 @@ export function useStore() {
             for (const item of report.promotions) {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    await adjustProductStock(product.id, -item.qty);
                 }
             }
             // Restore Expense
@@ -1668,7 +1692,7 @@ export function useStore() {
             for (const item of currentReport.restocking) {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) + item.qty });
+                    await adjustProductStock(product.id, item.qty);
                     const retailStore = retailStores.find(s => s.id === currentReport.storeId);
                     if (retailStore?.type === 'A') {
                         await updateStoreStock(currentReport.storeId, product.id, -item.qty, 'restock', id, currentReport.date);
@@ -1682,7 +1706,7 @@ export function useStore() {
             for (const item of currentReport.promotions) {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) + item.qty });
+                    await adjustProductStock(product.id, item.qty);
                 }
             }
         }
@@ -1694,7 +1718,7 @@ export function useStore() {
             for (const item of newReport.restocking) {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    await adjustProductStock(product.id, -item.qty);
                     const retailStore = retailStores.find(s => s.id === newReport.storeId);
                     if (retailStore?.type === 'A') {
                         await updateStoreStock(newReport.storeId, product.id, item.qty, 'restock', id, newReport.date);
@@ -1711,7 +1735,7 @@ export function useStore() {
             for (const item of newReport.promotions) {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
-                    await updateProduct(product.id, { stock: (product.stock || 0) - item.qty });
+                    await adjustProductStock(product.id, -item.qty);
                     const cost = (product.costPrice || 0) * item.qty;
                     totalExpenseCost += cost;
                     expenseMemos.push(`${product.name} × ${item.qty} (${item.toWhom || '-'})`);
@@ -1788,7 +1812,7 @@ export function useStore() {
                             for (const comp of product.components) {
                                 const compProduct = products.find(p => p.id === comp.productId);
                                 if (compProduct) {
-                                    await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - (comp.quantity * item.quantity) });
+                                    await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
                                     await logStockMovement({
                                         productId: compProduct.id,
                                         productName: compProduct.name,
@@ -1802,7 +1826,7 @@ export function useStore() {
                                 }
                             }
                         } else {
-                            await updateProduct(product.id, { stock: (product.stock || 0) - item.quantity });
+                            await adjustProductStock(product.id, -item.quantity);
                             await logStockMovement({
                                 productId: product.id,
                                 productName: product.name,
@@ -1967,11 +1991,11 @@ export function useStore() {
                                 for (const comp of product.components) {
                                     const compProduct = products.find(p => p.id === comp.productId);
                                     if (compProduct) {
-                                        await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) + (comp.quantity * item.quantity) });
+                                        await adjustProductStock(compProduct.id, (comp.quantity * item.quantity));
                                     }
                                 }
                             } else {
-                                await updateProduct(product.id, { stock: (product.stock || 0) + item.quantity });
+                                await adjustProductStock(product.id, item.quantity);
                             }
                         }
                     }
@@ -1989,11 +2013,11 @@ export function useStore() {
                                 for (const comp of product.components) {
                                     const compProduct = products.find(p => p.id === comp.productId);
                                     if (compProduct) {
-                                        await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - (comp.quantity * item.quantity) });
+                                        await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
                                     }
                                 }
                             } else {
-                                await updateProduct(product.id, { stock: (product.stock || 0) - item.quantity });
+                                await adjustProductStock(product.id, -item.quantity);
                             }
                         }
                     }
@@ -2018,11 +2042,11 @@ export function useStore() {
                             for (const comp of product.components) {
                                 const compProduct = products.find(p => p.id === comp.productId);
                                 if (compProduct) {
-                                    await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) + (comp.quantity * item.quantity) });
+                                    await adjustProductStock(compProduct.id, (comp.quantity * item.quantity));
                                 }
                             }
                         } else {
-                            await updateProduct(product.id, { stock: (product.stock || 0) + item.quantity });
+                            await adjustProductStock(product.id, item.quantity);
                         }
                     }
                 }
@@ -2045,11 +2069,11 @@ export function useStore() {
                             for (const comp of product.components) {
                                 const compProduct = products.find(p => p.id === comp.productId);
                                 if (compProduct) {
-                                    await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - (comp.quantity * item.quantity) });
+                                    await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
                                 }
                             }
                         } else {
-                            await updateProduct(product.id, { stock: (product.stock || 0) - item.quantity });
+                            await adjustProductStock(product.id, -item.quantity);
                         }
                     }
                 }
@@ -2412,11 +2436,11 @@ export function useStore() {
                         for (const comp of product.components) {
                             const compProduct = products.find(p => p.id === comp.productId);
                             if (compProduct) {
-                                await updateProduct(compProduct.id, { stock: (compProduct.stock || 0) - (comp.quantity * sItem.quantity) });
+                                await adjustProductStock(compProduct.id, -(comp.quantity * sItem.quantity));
                             }
                         }
                     } else {
-                        await updateProduct(product.id, { stock: (product.stock || 0) - sItem.quantity });
+                        await adjustProductStock(product.id, -sItem.quantity);
                     }
                 }
             }
@@ -2428,7 +2452,7 @@ export function useStore() {
                 for (const pItem of purchaseItems) {
                     const product = products.find(p => p.id === pItem.productId);
                     if (product) {
-                        await updateProduct(product.id, { stock: (product.stock || 0) + pItem.quantity });
+                        await adjustProductStock(product.id, pItem.quantity);
                     }
                 }
             }
@@ -2513,7 +2537,7 @@ export function useStore() {
         await setDoc(storeStockRef, {
             storeId,
             productId,
-            stock: newStock,
+            stock: isAbsolute ? newStock : increment(diff),
             updatedAt: serverTimestamp()
         }, { merge: true });
 

@@ -7,7 +7,12 @@ export const dynamic = 'force-dynamic';
 
 export const GET = withAuth(async (_req, { uid }) => {
     try {
-        const productsRef = adminDb.collection("products");
+        if (!adminDb) {
+            logError("Amazon Diagnostic", new Error("adminDb is not initialized"));
+            return internalError();
+        }
+        const db = adminDb;
+        const productsRef = db.collection("products");
         const querySnapshot = await productsRef.where("amazonSyncEnabled", "==", true).get();
 
         const report = {

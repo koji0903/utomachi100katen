@@ -9,8 +9,14 @@ export const dynamic = 'force-dynamic';
 
 export const POST = withAuth(async (_req, { uid }) => {
     try {
+        if (!adminDb) {
+            logError("Amazon Sync", new Error("adminDb is not initialized"));
+            return internalError();
+        }
+        const db = adminDb;
+
         // 0. スロットリングの確認（前回の実行から10分間はスキップ）
-        const logsRef = adminDb.collection("sync_logs");
+        const logsRef = db.collection("sync_logs");
         const lastLogSnap = await logsRef
             .where("type", "==", "Amazon")
             .orderBy("timestamp", "desc")
@@ -33,7 +39,7 @@ export const POST = withAuth(async (_req, { uid }) => {
         }
 
         // 1. 同期が有効な商品を取得
-        const productsRef = adminDb.collection("products");
+        const productsRef = db.collection("products");
         const querySnapshot = await productsRef.where("amazonSyncEnabled", "==", true).get();
 
         const syncResults = [];
@@ -74,7 +80,7 @@ export const POST = withAuth(async (_req, { uid }) => {
         }
 
         // 1.5. Amazon用の店舗を特定
-        const storesRef = adminDb.collection("retailStores");
+        const storesRef = db.collection("retailStores");
         const storeSnap = await storesRef
             .where("name", "==", "Amazon")
             .where("isTrashed", "==", false)
@@ -92,7 +98,7 @@ export const POST = withAuth(async (_req, { uid }) => {
 
         for (const order of orders) {
             try {
-                const existingDocs = await adminDb.collection("transactions")
+                const existingDocs = await db.collection("transactions")
                     .where("amazonOrderId", "==", order.amazonOrderId)
                     .get();
 
@@ -101,7 +107,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                     const productUpdates: Map<string, { newStock: number; productName: string; quantity: number }> = new Map();
 
                     for (const item of order.items) {
-                        const pSnap = await adminDb.collection("products")
+                        const pSnap = await db.collection("products")
                             .where("amazonSku", "==", item.sku)
                             .get();
 
@@ -124,8 +130,8 @@ export const POST = withAuth(async (_req, { uid }) => {
                     }
 
                     // Use atomic transaction for order processing
-                    await adminDb.runTransaction(async (txn: any) => {
-                        const transactionRef = adminDb.collection("transactions").doc();
+                    await db.runTransaction(async (txn: any) => {
+                        const transactionRef = db.collection("transactions").doc();
                         const transactionData = {
                             customerName: amazonStore ? amazonStore.name : "Amazon Customer",
                             storeId: amazonStore?.id || null,
@@ -148,7 +154,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                         txn.set(transactionRef, transactionData);
 
                         for (const item of order.items) {
-                            const itemRef = adminDb.collection("transaction_items").doc();
+                            const itemRef = db.collection("transaction_items").doc();
                             txn.set(itemRef, {
                                 transactionId: transactionRef.id,
                                 productName: `Amazon商品 (${item.sku})`,
@@ -162,13 +168,13 @@ export const POST = withAuth(async (_req, { uid }) => {
                         }
 
                         for (const [pId, update] of productUpdates.entries()) {
-                            const pRef = adminDb.collection("products").doc(pId);
+                            const pRef = db.collection("products").doc(pId);
                             txn.update(pRef, {
                                 stock: update.newStock,
                                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
                             });
 
-                            const movementRef = adminDb.collection("stock_movements").doc();
+                            const movementRef = db.collection("stock_movements").doc();
                             txn.set(movementRef, {
                                 productId: pId,
                                 productName: update.productName,
@@ -183,7 +189,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                     });
 
                     if (amazonStore && saleItems.length > 0) {
-                        await adminDb.collection("sales").add({
+                        await db.collection("sales").add({
                             storeId: amazonStore.id,
                             type: 'daily',
                             period: order.purchaseDate.split('T')[0],
@@ -204,7 +210,7 @@ export const POST = withAuth(async (_req, { uid }) => {
             }
         }
 
-        await adminDb.collection("sync_logs").add({
+        await db.collection("sync_logs").add({
             type: 'Amazon',
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
             status: 'success',

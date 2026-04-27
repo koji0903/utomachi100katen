@@ -22,7 +22,8 @@ import {
     Settings,
     X,
     RefreshCw,
-    Store
+    Store,
+    ArrowRight
 } from "lucide-react";
 import Link from "next/link";
 
@@ -35,6 +36,7 @@ export default function InventoryPage() {
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const [adjustmentTarget, setAdjustmentTarget] = useState<{ storeId: string; productId: string; productName: string; currentStock: number } | null>(null);
+    const [historyProductId, setHistoryProductId] = useState<string | null>(null);
     const [isSyncing, setIsSyncing] = useState(false);
 
     // Get low stock products
@@ -95,6 +97,9 @@ export default function InventoryPage() {
             case 'manual': return '手動調整';
             case 'return': return '返品';
             case 'waste': return '廃棄';
+            case 'promotion': return '販促提供';
+            case 'production': return '制作加工';
+            case 'conversion': return '在庫変換';
             default: return reason;
         }
     };
@@ -406,6 +411,7 @@ export default function InventoryPage() {
                                             {viewType === 'delivery' ? '売上推移 (週)' : 'アラート閾値'}
                                         </th>
                                         <th className="px-6 py-4 text-center">ステータス</th>
+                                        <th className="px-6 py-4 text-center">履歴</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -482,6 +488,15 @@ export default function InventoryPage() {
                                                                 {status.label}
                                                             </span>
                                                         </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <button
+                                                                onClick={() => setHistoryProductId(product.id)}
+                                                                className="p-2 text-slate-400 hover:text-[#1e3a8a] hover:bg-slate-100 rounded-xl transition-all"
+                                                                title="履歴を確認"
+                                                            >
+                                                                <History className="w-5 h-5" />
+                                                            </button>
+                                                        </td>
                                                     </tr>
                                                 );
                                             });
@@ -512,6 +527,15 @@ export default function InventoryPage() {
                                                     ) : (
                                                         <span className="px-2 py-1 bg-green-50 text-green-600 text-[10px] font-black rounded-lg">適正</span>
                                                     )}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <button
+                                                        onClick={() => setHistoryProductId(product.id)}
+                                                        className="p-2 text-slate-400 hover:text-[#1e3a8a] hover:bg-slate-100 rounded-xl transition-all"
+                                                        title="履歴を確認"
+                                                    >
+                                                        <History className="w-5 h-5" />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))
@@ -557,6 +581,15 @@ export default function InventoryPage() {
                                                                     <Settings className="w-4 h-4" />
                                                                 </button>
                                                             </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <button
+                                                                onClick={() => setHistoryProductId(product.id)}
+                                                                className="p-2 text-slate-400 hover:text-[#1e3a8a] hover:bg-slate-100 rounded-xl transition-all"
+                                                                title="履歴を確認"
+                                                            >
+                                                                <History className="w-5 h-5" />
+                                                            </button>
                                                         </td>
                                                     </tr>
                                                 );
@@ -627,6 +660,13 @@ export default function InventoryPage() {
                 <StoreStockAdjustmentModal
                     target={adjustmentTarget}
                     onClose={() => setAdjustmentTarget(null)}
+                />
+            )}
+            {/* History Modal */}
+            {historyProductId && (
+                <ProductHistoryModal
+                    productId={historyProductId}
+                    onClose={() => setHistoryProductId(null)}
                 />
             )}
         </div>
@@ -748,6 +788,196 @@ function StoreStockAdjustmentModal({ target, onClose }: { target: { storeId: str
                         {isSubmitting ? '処理中...' : (inputType === 'absolute' ? '在庫数を確定する' : '調整を実行する')}
                     </button>
                 </form>
+            </div>
+        </div>
+    );
+}
+
+function ProductHistoryModal({ productId, onClose }: { productId: string; onClose: () => void }) {
+    const { products, stockMovements, stockConversions, compositeProductions } = useStore();
+    const product = products.find(p => p.id === productId);
+
+    const history = useMemo(() => {
+        const items: any[] = [];
+
+        // 1. Stock Movements
+        stockMovements
+            .filter(m => m.productId === productId)
+            .forEach(m => {
+                items.push({
+                    id: m.id,
+                    date: m.date,
+                    createdAt: m.createdAt,
+                    type: m.type,
+                    quantity: m.quantity,
+                    reason: m.reason,
+                    remarks: m.remarks,
+                    source: 'movement'
+                });
+            });
+
+        // 2. Stock Conversions
+        stockConversions
+            .filter(c => c.inputProductId === productId || c.outputProductId === productId)
+            .forEach(c => {
+                const isInput = c.inputProductId === productId;
+                items.push({
+                    id: c.id,
+                    date: c.date,
+                    createdAt: c.createdAt,
+                    type: isInput ? 'out' : 'in',
+                    quantity: isInput ? c.inputQty : c.outputQty,
+                    reason: 'conversion',
+                    remarks: c.notes,
+                    source: 'conversion',
+                    details: isInput 
+                        ? { peerId: c.outputProductId, peerQty: c.outputQty, isTo: true }
+                        : { peerId: c.inputProductId, peerQty: c.inputQty, isTo: false }
+                });
+            });
+
+        // 3. Composite Productions
+        compositeProductions
+            .filter(p => p.productId === productId || p.components.some(c => c.productId === productId))
+            .forEach(p => {
+                const isMain = p.productId === productId;
+                const component = p.components.find(c => c.productId === productId);
+                items.push({
+                    id: p.id,
+                    date: p.date,
+                    createdAt: p.createdAt,
+                    type: isMain ? 'in' : 'out',
+                    quantity: isMain ? p.quantity : (component?.quantity || 0),
+                    reason: 'production',
+                    remarks: p.notes,
+                    source: 'production'
+                });
+            });
+
+        // Sort by date (desc)
+        return items.sort((a, b) => {
+            const dateA = new Date(a.createdAt || a.date).getTime();
+            const dateB = new Date(b.createdAt || b.date).getTime();
+            return dateB - dateA;
+        });
+    }, [productId, stockMovements, stockConversions, compositeProductions]);
+
+    const getReasonLabel = (reason: string) => {
+        switch (reason) {
+            case 'sale': return '売上';
+            case 'purchase': return '仕入';
+            case 'audit': return '棚卸調整';
+            case 'amazon_sync': return 'Amazon同期';
+            case 'square_sync': return 'Square同期';
+            case 'manual': return '手動調整';
+            case 'return': return '返品';
+            case 'waste': return '廃棄';
+            case 'promotion': return '販促提供';
+            case 'production': return '制作加工';
+            case 'conversion': return '在庫変換';
+            default: return reason;
+        }
+    };
+
+    if (!product) return null;
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+                <div className="p-6 bg-slate-900 text-white flex items-center justify-between shrink-0">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <History className="w-5 h-5 text-slate-400" />
+                            <h3 className="text-xl font-black">在庫移動・変換履歴</h3>
+                        </div>
+                        <p className="text-slate-400 text-sm font-bold mt-0.5">{product.name} {product.variantName}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6">
+                    {history.length === 0 ? (
+                        <div className="py-20 text-center text-slate-400 font-bold">
+                            履歴がありません
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {history.map((item, idx) => {
+                                const peerProduct = item.details ? products.find(p => p.id === item.details.peerId) : null;
+                                return (
+                                    <div key={`${item.id}-${idx}`} className="group relative pl-6 pb-2 border-l-2 border-slate-100 last:border-0 last:pb-0">
+                                        <div className="absolute left-[-9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-slate-200 group-hover:border-[#1e3a8a] transition-colors" />
+                                        
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-black text-slate-400">{item.date}</span>
+                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
+                                                        item.type === 'in' ? 'bg-blue-50 text-blue-600' : 
+                                                        item.type === 'out' ? 'bg-orange-50 text-orange-600' : 
+                                                        'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                        {getReasonLabel(item.reason)}
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className="text-sm font-bold text-slate-700">
+                                                    {item.source === 'conversion' && item.details ? (
+                                                        <div className="flex items-center gap-1.5">
+                                                            {item.details.isTo ? (
+                                                                <>
+                                                                    <span>加工により減少</span>
+                                                                    <ArrowRight className="w-3 h-3 text-slate-300" />
+                                                                    <span className="text-blue-600 font-black">+{item.details.peerQty} {peerProduct?.name}</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <span>加工により生成</span>
+                                                                    <span className="text-slate-300 mx-1">←</span>
+                                                                    <span className="text-orange-600 font-black">-{item.details.peerQty} {peerProduct?.name}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        getReasonLabel(item.reason)
+                                                    )}
+                                                </div>
+
+                                                {item.remarks && (
+                                                    <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg mt-1 border border-slate-100">
+                                                        {item.remarks}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="text-right">
+                                                <div className={`text-lg font-black flex items-center justify-end ${
+                                                    item.type === 'in' ? 'text-blue-600' : 
+                                                    item.type === 'out' ? 'text-orange-600' : 
+                                                    'text-slate-900'
+                                                }`}>
+                                                    {item.type === 'in' ? '+' : item.type === 'out' ? '-' : ''}
+                                                    {item.quantity}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-6 border-t border-slate-100 bg-slate-50 shrink-0">
+                    <button
+                        onClick={onClose}
+                        className="w-full py-3 bg-white border border-slate-200 text-slate-700 font-black rounded-xl hover:bg-slate-100 transition-all shadow-sm"
+                    >
+                        閉じる
+                    </button>
+                </div>
             </div>
         </div>
     );
