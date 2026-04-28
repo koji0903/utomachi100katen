@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { admin } from "@/lib/firebase-admin";
+import { admin, getAdminStorage, getStorageBucket } from "@/lib/firebase-admin";
 import { withAuth, internalError, logError } from "@/lib/apiAuth";
 
 const ALLOWED_FOLDERS = new Set<string>([
@@ -59,9 +59,11 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
     }
 
     try {
-        const storage = admin.storage();
-        // Dynamically get the storage bucket to ensure we have the latest config
-        const { getStorageBucket } = require("@/lib/firebase-admin");
+        const storage = getAdminStorage();
+        if (!storage) {
+            throw new Error("Firebase Admin SDK の初期化に失敗しました。");
+        }
+        
         const sBucket = getStorageBucket();
         const bucket = storage.bucket(sBucket);
         
