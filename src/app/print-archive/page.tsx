@@ -7,7 +7,6 @@ import { PrintArchive } from "@/lib/types/printArchive";
 import { showNotification } from "@/lib/notifications";
 import { UploadModal } from "@/components/PrintArchive/UploadModal";
 import { ArchiveDetailModal } from "@/components/PrintArchive/ArchiveDetailModal";
-import { ProxyInvoiceModal } from "@/components/ProxyInvoiceModal";
 
 function PrintArchivePageContent() {
     const { isLoaded, printArchives, deletePrintArchive, logArchiveActivity, restorePrintArchive, permanentlyDeletePrintArchive } = useStore();
@@ -15,7 +14,6 @@ function PrintArchivePageContent() {
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [selectedArchive, setSelectedArchive] = useState<PrintArchive | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-    const [isProxyInvoiceModalOpen, setIsProxyInvoiceModalOpen] = useState(false);
     const [showTrash, setShowTrash] = useState(false);
 
     if (!isLoaded) return <div className="p-8 text-slate-500">読み込み中...</div>;
@@ -93,13 +91,6 @@ function PrintArchivePageContent() {
                     >
                         <Trash2 className="w-4 h-4" />
                         {showTrash ? "戻る" : "ゴミ箱"}
-                    </button>
-                    <button
-                        onClick={() => setIsProxyInvoiceModalOpen(true)}
-                        className="flex items-center gap-2 bg-rose-50 text-rose-600 px-4 py-2.5 rounded-lg hover:bg-rose-100 transition-colors shadow-sm font-bold text-sm border border-rose-200"
-                    >
-                        <FileText className="w-4 h-4" />
-                        請求書作成代行
                     </button>
                     <button
                         onClick={() => setIsUploadModalOpen(true)}
@@ -242,10 +233,6 @@ function PrintArchivePageContent() {
                 isOpen={isUploadModalOpen}
                 onClose={() => setIsUploadModalOpen(false)}
             />
-
-            {isProxyInvoiceModalOpen && (
-                <ProxyInvoiceModal onClose={() => setIsProxyInvoiceModalOpen(false)} />
-            )}
 
             {selectedArchive && (
                 <ArchiveDetailModal

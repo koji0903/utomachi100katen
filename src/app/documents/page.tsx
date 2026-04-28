@@ -13,6 +13,7 @@ import { useStore, IssuedDocument } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
 import { NewDocumentModal } from "@/components/NewDocumentModal";
 import { ProxyInvoicePreviewModal } from "@/components/ProxyInvoicePreviewModal";
+import { ProxyInvoiceModal } from "@/components/ProxyInvoiceModal";
 import { summarizeTaxByRate } from "@/lib/taxUtils";
 import { calculateInvoiceBalance } from "@/lib/store";
 
@@ -136,6 +137,7 @@ function DocumentsPageContent() {
     const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
     const [convertingId, setConvertingId] = useState<string | null>(null);
     const [downloadingDoc, setDownloadingDoc] = useState<IssuedDocument | null>(null);
+    const [isProxyInvoiceModalOpen, setIsProxyInvoiceModalOpen] = useState(false);
     const [showTrash, setShowTrash] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isConvertingMultiple, setIsConvertingMultiple] = useState(false);
@@ -283,6 +285,13 @@ function DocumentsPageContent() {
                     >
                         <Trash2 className="w-4 h-4" />
                         {showTrash ? "戻る" : "ゴミ箱"}
+                    </button>
+                    <button
+                        onClick={() => setIsProxyInvoiceModalOpen(true)}
+                        className="flex items-center gap-2 bg-rose-50 text-rose-600 px-4 py-2.5 rounded-xl hover:bg-rose-100 transition-colors shadow-sm font-bold text-sm border border-rose-200"
+                    >
+                        <FileText className="w-4 h-4" />
+                        請求書作成代行
                     </button>
                     <button onClick={() => setShowNewModal(true)}
                         className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl shadow-sm transition-all hover:opacity-90"
@@ -600,6 +609,7 @@ function DocumentsPageContent() {
 
             {/* Modals */}
             {showNewModal && <NewDocumentModal onClose={() => setShowNewModal(false)} />}
+            {isProxyInvoiceModalOpen && <ProxyInvoiceModal onClose={() => setIsProxyInvoiceModalOpen(false)} />}
             {editingDoc && <NewDocumentModal editingDoc={editingDoc} onClose={() => setEditingDoc(null)} />}
             {previewDoc && (
                 previewDoc.type === 'proxy_invoice' ? (
