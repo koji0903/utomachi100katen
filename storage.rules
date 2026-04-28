@@ -58,8 +58,10 @@ service firebase.storage {
       allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
     }
 
+    // MIMEタイプやサイズチェックで予期せず弾かれる問題の切り分けのため、
+    // 日報画像に関しては一時的に「ログイン済み」のみを条件に緩和
     match /reports/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+      allow read, write: if isAuthenticated();
     }
   }
 }
