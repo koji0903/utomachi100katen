@@ -610,7 +610,13 @@ function DocumentsPageContent() {
             {/* Modals */}
             {showNewModal && <NewDocumentModal onClose={() => setShowNewModal(false)} />}
             {isProxyInvoiceModalOpen && <ProxyInvoiceModal onClose={() => setIsProxyInvoiceModalOpen(false)} />}
-            {editingDoc && <NewDocumentModal editingDoc={editingDoc} onClose={() => setEditingDoc(null)} />}
+            {editingDoc && (
+                editingDoc.type === 'proxy_invoice' ? (
+                    <ProxyInvoiceModal editingDoc={editingDoc} onClose={() => setEditingDoc(null)} />
+                ) : (
+                    <NewDocumentModal editingDoc={editingDoc} onClose={() => setEditingDoc(null)} />
+                )
+            )}
             {previewDoc && (
                 previewDoc.type === 'proxy_invoice' ? (
                     <ProxyInvoicePreviewModal

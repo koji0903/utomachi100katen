@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, X, Users } from "lucide-react";
-import { useStore, InvoiceItem, InvoiceAdjustment } from "@/lib/store";
+import { useStore, InvoiceItem, InvoiceAdjustment, IssuedDocument } from "@/lib/store";
 import { ProxyInvoicePreviewModal } from "./ProxyInvoicePreviewModal";
 import { InvoiceEditor } from "@/components/InvoiceEditor";
 
@@ -13,24 +13,25 @@ const year = new Date().getFullYear().toString();
 
 interface ProxyInvoiceModalProps {
     onClose: () => void;
+    editingDoc?: IssuedDocument;
 }
 
-export function ProxyInvoiceModal({ onClose }: ProxyInvoiceModalProps) {
-    const { suppliers, generateDocNumber, saveIssuedDocument } = useStore();
+export function ProxyInvoiceModal({ onClose, editingDoc }: ProxyInvoiceModalProps) {
+    const { suppliers, saveIssuedDocument, updateIssuedDocument } = useStore();
 
-    const [supplierId, setSupplierId] = useState("");
-    const [period, setPeriod] = useState(today());
+    const [supplierId, setSupplierId] = useState(editingDoc?.supplierId ?? "");
+    const [period, setPeriod] = useState(editingDoc?.period ?? today());
     const [isSaving, setIsSaving] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
 
-    const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
-    const [invoiceAdjustments, setInvoiceAdjustments] = useState<InvoiceAdjustment[]>([]);
-    const [taxRate, setTaxRate] = useState<8 | 10>(8);
-    const [taxType, setTaxType] = useState<'inclusive' | 'exclusive'>('inclusive');
-    const [finalAdjustment, setFinalAdjustment] = useState(0);
-    const [totalAmountState, setTotalAmountState] = useState(0);
+    const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>(editingDoc?.details ?? []);
+    const [invoiceAdjustments, setInvoiceAdjustments] = useState<InvoiceAdjustment[]>(editingDoc?.adjustments ?? []);
+    const [taxRate, setTaxRate] = useState<8 | 10>((editingDoc?.taxRate as 8 | 10) ?? 8);
+    const [taxType, setTaxType] = useState<'inclusive' | 'exclusive'>(editingDoc?.taxType ?? 'inclusive');
+    const [finalAdjustment, setFinalAdjustment] = useState(editingDoc?.finalAdjustment ?? 0);
+    const [totalAmountState, setTotalAmountState] = useState(editingDoc?.totalAmount ?? 0);
 
-    const [generatedDocNumber, setGeneratedDocNumber] = useState<string | null>(null);
+    const [generatedDocNumber, setGeneratedDocNumber] = useState<string | null>(editingDoc?.docNumber ?? null);
 
     const supplier = suppliers.find(s => s.id === supplierId);
     const canPreview = supplierId && period && invoiceItems.length > 0;
@@ -51,7 +52,7 @@ export function ProxyInvoiceModal({ onClose }: ProxyInvoiceModalProps) {
                 details: invoiceItems,
                 adjustments: invoiceAdjustments,
                 finalAdjustment,
-                memo: "代行作成分",
+                memo: editingDoc?.memo || "代行作成分",
             };
 
             const docNumber = generatedDocNumber || `P-INV-${Date.now().toString().slice(-8)}`;
@@ -59,12 +60,19 @@ export function ProxyInvoiceModal({ onClose }: ProxyInvoiceModalProps) {
                 setGeneratedDocNumber(docNumber);
             }
 
-            await saveIssuedDocument({
-                ...payload,
-                docNumber,
-                status,
-                issuedDate: today(),
-            });
+            if (editingDoc) {
+                await updateIssuedDocument(editingDoc.id, {
+                    ...payload,
+                    status,
+                });
+            } else {
+                await saveIssuedDocument({
+                    ...payload,
+                    docNumber,
+                    status,
+                    issuedDate: today(),
+                });
+            }
 
             if (openPreviewAfter) {
                 setShowPreview(true);
@@ -87,7 +95,9 @@ export function ProxyInvoiceModal({ onClose }: ProxyInvoiceModalProps) {
                         <div className="p-2 rounded-lg" style={{ backgroundColor: BRAND_LIGHT }}>
                             <Plus className="w-4 h-4" style={{ color: BRAND }} />
                         </div>
-                        <div className="font-bold text-slate-900">請求書作成代行（仕入先からの請求）</div>
+                        <div className="font-bold text-slate-900">
+                            {editingDoc ? "代行請求書の編集" : "請求書作成代行（仕入先からの請求）"}
+                        </div>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400">
                         <X className="w-4 h-4" />
