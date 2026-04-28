@@ -1,5 +1,6 @@
 import imageCompression from "browser-image-compression";
-import { apiFetch } from "@/lib/apiClient";
+import { storage } from "@/lib/firebase";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 /**
  * Detects if a file is a HEIC or HEIF image.
@@ -102,7 +103,8 @@ export const compressImage = async (file: File): Promise<File> => {
 };
 
 /**
- * Uploads a file to the server-side API with retry logic.
+ * Uploads a file directly to Firebase Storage using the Client SDK.
+ * This bypasses the /api/upload route, avoiding Vercel payload limits and Admin SDK credential issues.
  */
 export const uploadFile = async (
     file: File,
@@ -115,31 +117,48 @@ export const uploadFile = async (
         try {
             if (i > 0) console.log(`[Upload] Retry ${i}/${maxRetries} for ${file.name}`);
             
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("folderPath", folderPath);
-
-            const response = await apiFetch("/api/upload", {
-                method: "POST",
-                body: formData,
+            // ファイル名のサニタイズ（APIルートで行っていた処理と同等）
+            const sanitizeFileName = (name: string) => {
+                const base = name.replace(/^.*[\\/]/, "");
+                return base.replace(/[^\w.\-]/g, "_").slice(0, 120) || "file";
+            };
+            const fileName = sanitizeFileName(file.name);
+            const fullStoragePath = `${folderPath}/${Date.now()}_${fileName}`;
+            
+            const storageRef = ref(storage, fullStoragePath);
+            
+            // アップロードタスクの作成
+            const uploadTask = uploadBytesResumable(storageRef, file, {
+                contentType: file.type,
             });
 
-            if (!response.ok) {
-                if (response.status === 413) {
-                    throw new Error("ファイルサイズが制限を超えています(Vercel制限等)。");
-                }
-                const errorData = await response.json().catch(() => ({}));
-                const err = new Error(errorData.error || `アップロード失敗 (${response.status})`) as any;
-                if (errorData.detail) err.detail = errorData.detail;
-                throw err;
-            }
+            // プロミスでアップロード完了を待機
+            const downloadURL = await new Promise<string>((resolve, reject) => {
+                uploadTask.on(
+                    'state_changed',
+                    (snapshot) => {
+                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        if (progress % 25 === 0) console.log(`[Upload] Progress: ${progress}%`);
+                    },
+                    (error) => {
+                        reject(error);
+                    },
+                    async () => {
+                        // アップロード完了後、ダウンロードURLを取得
+                        try {
+                            const url = await getDownloadURL(uploadTask.snapshot.ref);
+                            resolve(url);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    }
+                );
+            });
 
-            const data = await response.json();
-            return data.url;
+            return downloadURL;
         } catch (error: any) {
             lastError = error;
             console.error(`[Upload] Attempt ${i + 1} failed:`, error.message);
-            // Wait a bit before retry
             if (i < maxRetries) await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
         }
     }
