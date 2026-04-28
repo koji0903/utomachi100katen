@@ -30,10 +30,12 @@ export function ProxyInvoiceModal({ onClose }: ProxyInvoiceModalProps) {
     const [finalAdjustment, setFinalAdjustment] = useState(0);
     const [totalAmountState, setTotalAmountState] = useState(0);
 
-    const supplier = suppliers.find(s => s.id === supplierId);
-    const canPreview = supplierId && period;
+    const [generatedDocNumber, setGeneratedDocNumber] = useState<string | null>(null);
 
-    const handleSave = async (status: "draft" | "issued") => {
+    const supplier = suppliers.find(s => s.id === supplierId);
+    const canPreview = supplierId && period && invoiceItems.length > 0;
+
+    const handleSave = async (status: "draft" | "issued", openPreviewAfter = false) => {
         if (!supplier || !period) return;
         setIsSaving(true);
         try {
@@ -42,7 +44,7 @@ export function ProxyInvoiceModal({ onClose }: ProxyInvoiceModalProps) {
                 period,
                 recipientType: "supplier" as const,
                 supplierId: supplier.id,
-                recipientName: supplier.name, // 発行元（データ上は相手先名に農家の名前を入れる）
+                recipientName: supplier.name, 
                 totalAmount: totalAmountState,
                 taxRate,
                 taxType,
@@ -52,7 +54,11 @@ export function ProxyInvoiceModal({ onClose }: ProxyInvoiceModalProps) {
                 memo: "代行作成分",
             };
 
-            const docNumber = `P-INV-${Date.now().toString().slice(-8)}`;
+            const docNumber = generatedDocNumber || `P-INV-${Date.now().toString().slice(-8)}`;
+            if (!generatedDocNumber) {
+                setGeneratedDocNumber(docNumber);
+            }
+
             await saveIssuedDocument({
                 ...payload,
                 docNumber,
@@ -60,7 +66,11 @@ export function ProxyInvoiceModal({ onClose }: ProxyInvoiceModalProps) {
                 issuedDate: today(),
             });
 
-            onClose();
+            if (openPreviewAfter) {
+                setShowPreview(true);
+            } else {
+                onClose();
+            }
         } catch (err) {
             console.error("Save failed:", err);
             alert("保存に失敗しました。");
@@ -131,7 +141,14 @@ export function ProxyInvoiceModal({ onClose }: ProxyInvoiceModalProps) {
 
                 <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex gap-2 justify-end">
                     <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-100">キャンセル</button>
-                    <button onClick={() => setShowPreview(true)} disabled={!canPreview || isSaving}
+                    <button 
+                        onClick={() => handleSave("draft", false)} 
+                        disabled={!canPreview || isSaving}
+                        className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl disabled:opacity-50 transition-all hover:bg-slate-50"
+                    >
+                        下書き保存
+                    </button>
+                    <button onClick={() => handleSave("draft", true)} disabled={!canPreview || isSaving}
                         className="px-4 py-2 text-sm font-bold text-white rounded-xl disabled:opacity-50 transition-all"
                         style={{ backgroundColor: BRAND }}>
                         プレビューして発行
@@ -143,11 +160,13 @@ export function ProxyInvoiceModal({ onClose }: ProxyInvoiceModalProps) {
                 <ProxyInvoicePreviewModal
                     supplierId={supplierId}
                     period={period}
+                    docNumber={generatedDocNumber || undefined}
                     customDetails={invoiceItems}
                     customAdjustments={invoiceAdjustments}
                     customTaxRate={taxRate}
                     customTaxType={taxType}
                     onClose={() => setShowPreview(false)}
+                    onSuccess={onClose}
                 />
             )}
         </div>

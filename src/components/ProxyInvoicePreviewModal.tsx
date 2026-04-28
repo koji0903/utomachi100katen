@@ -25,6 +25,7 @@ interface ProxyInvoicePreviewModalProps {
     customTaxType?: IssuedDocument['taxType'];
     autoDownload?: boolean;
     onClose: () => void;
+    onSuccess?: () => void;
 }
 
 const fmtMoney = (n: number) => `¥${n.toLocaleString()}`;
@@ -43,6 +44,7 @@ export function ProxyInvoicePreviewModal({
     customTaxType,
     autoDownload = false,
     onClose,
+    onSuccess,
 }: ProxyInvoicePreviewModalProps) {
     const { companySettings, suppliers, isLoaded, issuedDocuments, updateIssuedDocument, addPrintArchive } = useStore();
     
@@ -142,6 +144,8 @@ export function ProxyInvoicePreviewModal({
                 }
                 
                 alert("代行請求書を発行し、帳票アーカイブに保存しました。");
+                if (onSuccess) onSuccess();
+                onClose();
             }
         } catch (err: any) {
             console.error("Issue and Save failed:", err);
@@ -183,6 +187,15 @@ export function ProxyInvoicePreviewModal({
                     <div className="flex items-center gap-2">
                         <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors">
                             <Printer className="w-3.5 h-3.5" /> 印刷
+                        </button>
+                        <button 
+                            onClick={handleIssueAndSave} 
+                            disabled={isGenerating}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg text-white transition-all shadow-md active:scale-95 disabled:opacity-50"
+                            style={{ backgroundColor: BRAND }}
+                        >
+                            {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            発行して保存
                         </button>
                         <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-500">
                             <X className="w-5 h-5" />
