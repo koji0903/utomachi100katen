@@ -8,61 +8,63 @@ service firebase.storage {
     }
 
     // Helper: validate file size (15 MB max)
+    // 注意: write (create/update) 時のみ有効。read 時は request.resource が null のため使用不可。
     function isValidFileSize() {
       return request.resource.size <= 15 * 1024 * 1024;
     }
 
-    // Helper: validate MIME type (images, PDFs, videos only)
-    function isValidMimeType() {
-      let contentType = request.resource.contentType;
-      return contentType.matches('image/.*') ||
-             contentType == 'application/pdf' ||
-             contentType == 'video/mp4';
-    }
-
-    // Default deny all
-    match /{allPaths=**} {
-      allow read, write: if false;
-    }
-
-    // Allowed folders with restrictions
-    // スマホからのアップロード時に、一部の端末でMIMEタイプ（contentType）が正しく送信・認識されず
-    // 予期せぬアクセス拒否（unauthorized）が発生することを防ぐため、
-    // isValidMimeType の厳格なチェックは外し、ファイルサイズ制限（15MB以下）のみを必須としています。
+    // 共通のルール定義
+    // read と write を分離し、read 時にはファイルサイズチェックを行わないようにします。
+    // これにより、アップロード直後の getMetadata や getDownloadURL での権限エラーを回避します。
+    
     match /products/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize();
     }
 
     match /print-archives/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize();
     }
 
     match /settings/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize();
     }
 
     match /stores/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize();
     }
 
     match /invoices/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize();
     }
 
     match /delivery_notes/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize();
     }
 
     match /receipts/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize();
     }
 
     match /summaries/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize();
     }
 
     match /reports/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize();
+    }
+
+    // Default deny all (最後に配置)
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
