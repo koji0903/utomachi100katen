@@ -150,7 +150,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
             if (editingDoc) {
                 await updateIssuedDocument(editingDoc.id, payload);
             } else {
-                const docNumber = generateDocNumber(docType, year);
+                const docNumber = generateDocNumber(docType as any, year);
                 await saveIssuedDocument({
                     ...payload,
                     docNumber,
@@ -344,7 +344,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
 
             {showPreview && (
                 <DocumentPreviewModal
-                    type={docType}
+                    type={docType as any}
                     storeId={recipientType === "store" ? storeId : undefined}
                     supplierId={recipientType === "supplier" ? supplierId : undefined}
                     spotRecipientId={recipientType === "spot" ? spotRecipient?.id : undefined}

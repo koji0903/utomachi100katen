@@ -12,6 +12,7 @@ import {
 import { useStore, IssuedDocument } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
 import { NewDocumentModal } from "@/components/NewDocumentModal";
+import { ProxyInvoicePreviewModal } from "@/components/ProxyInvoicePreviewModal";
 import { summarizeTaxByRate } from "@/lib/taxUtils";
 import { calculateInvoiceBalance } from "@/lib/store";
 
@@ -23,7 +24,7 @@ const year = new Date().getFullYear().toString();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type DocStatus = "all" | "draft" | "issued" | "paid";
-type DocType = "all" | "delivery_note" | "invoice" | "receipt" | "payment_summary";
+type DocType = "all" | "delivery_note" | "invoice" | "receipt" | "payment_summary" | "proxy_invoice";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmtMoney = (n: number) => `¥${n.toLocaleString()}`;
@@ -75,6 +76,11 @@ function TypeBadge({ doc, allDocs }: { doc: IssuedDocument, allDocs: IssuedDocum
     if (type === "receipt") return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-600 border border-cyan-100">
             <Receipt className="w-2.5 h-2.5" />領収書
+        </span>
+    );
+    if (type === "proxy_invoice") return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-200">
+            <FileText className="w-2.5 h-2.5" />代行請求書
         </span>
     );
     return (
@@ -394,6 +400,7 @@ function DocumentsPageContent() {
                         <option value="all">すべての書類</option>
                         <option value="delivery_note">納品書</option>
                         <option value="invoice">請求書</option>
+                        <option value="proxy_invoice">代行請求書</option>
                         <option value="receipt">領収書</option>
                         <option value="payment_summary">支払明細</option>
                     </select>
@@ -595,39 +602,66 @@ function DocumentsPageContent() {
             {showNewModal && <NewDocumentModal onClose={() => setShowNewModal(false)} />}
             {editingDoc && <NewDocumentModal editingDoc={editingDoc} onClose={() => setEditingDoc(null)} />}
             {previewDoc && (
-                <DocumentPreviewModal
-                    type={previewDoc.type}
-                    storeId={previewDoc.storeId}
-                    supplierId={previewDoc.supplierId}
-                    period={previewDoc.period}
-                    month={previewDoc.period}
-                    docNumber={previewDoc.docNumber}
-                    recipientName={previewDoc.recipientName}
-                    spotRecipientId={previewDoc.spotRecipientId}
-                    customDetails={previewDoc.details}
-                    customAdjustments={previewDoc.adjustments}
-                    customTaxRate={previewDoc.taxRate}
-                    hidePrices={previewDoc.hidePrices}
-                    onClose={() => setPreviewDoc(null)}
-                />
+                previewDoc.type === 'proxy_invoice' ? (
+                    <ProxyInvoicePreviewModal
+                        supplierId={previewDoc.supplierId!}
+                        period={previewDoc.period}
+                        docNumber={previewDoc.docNumber}
+                        customDetails={previewDoc.details}
+                        customAdjustments={previewDoc.adjustments}
+                        customTaxRate={previewDoc.taxRate}
+                        customTaxType={previewDoc.taxType}
+                        onClose={() => setPreviewDoc(null)}
+                    />
+                ) : (
+                    <DocumentPreviewModal
+                        type={previewDoc.type as any}
+                        storeId={previewDoc.storeId}
+                        supplierId={previewDoc.supplierId}
+                        period={previewDoc.period}
+                        month={previewDoc.period}
+                        docNumber={previewDoc.docNumber}
+                        recipientName={previewDoc.recipientName}
+                        spotRecipientId={previewDoc.spotRecipientId}
+                        customDetails={previewDoc.details}
+                        customAdjustments={previewDoc.adjustments}
+                        customTaxRate={previewDoc.taxRate}
+                        hidePrices={previewDoc.hidePrices}
+                        onClose={() => setPreviewDoc(null)}
+                    />
+                )
             )}
             {downloadingDoc && (
-                <DocumentPreviewModal
-                    type={downloadingDoc.type}
-                    storeId={downloadingDoc.storeId}
-                    supplierId={downloadingDoc.supplierId}
-                    period={downloadingDoc.type !== 'payment_summary' ? downloadingDoc.period : undefined}
-                    month={downloadingDoc.type === 'payment_summary' ? downloadingDoc.period : undefined}
-                    docNumber={downloadingDoc.docNumber}
-                    recipientName={downloadingDoc.recipientName}
-                    spotRecipientId={downloadingDoc.spotRecipientId}
-                    customDetails={downloadingDoc.details}
-                    customAdjustments={downloadingDoc.adjustments}
-                    customTaxRate={downloadingDoc.taxRate}
-                    hidePrices={downloadingDoc.hidePrices}
-                    autoDownload={true}
-                    onClose={() => setDownloadingDoc(null)}
-                />
+                downloadingDoc.type === 'proxy_invoice' ? (
+                    <ProxyInvoicePreviewModal
+                        supplierId={downloadingDoc.supplierId!}
+                        period={downloadingDoc.period}
+                        docNumber={downloadingDoc.docNumber}
+                        customDetails={downloadingDoc.details}
+                        customAdjustments={downloadingDoc.adjustments}
+                        customTaxRate={downloadingDoc.taxRate}
+                        customTaxType={downloadingDoc.taxType}
+                        autoDownload={true}
+                        onClose={() => setDownloadingDoc(null)}
+                    />
+                ) : (
+                    <DocumentPreviewModal
+                        type={downloadingDoc.type as any}
+                        storeId={downloadingDoc.storeId}
+                        supplierId={downloadingDoc.supplierId}
+                        period={downloadingDoc.type !== 'payment_summary' ? downloadingDoc.period : undefined}
+                        month={downloadingDoc.type === 'payment_summary' ? downloadingDoc.period : undefined}
+                        docNumber={downloadingDoc.docNumber}
+                        recipientName={downloadingDoc.recipientName}
+                        spotRecipientId={downloadingDoc.spotRecipientId}
+                        customDetails={downloadingDoc.details}
+                        customAdjustments={downloadingDoc.adjustments}
+                        customTaxRate={downloadingDoc.taxRate}
+                        hidePrices={downloadingDoc.hidePrices}
+                        autoDownload={true}
+                        onClose={() => setDownloadingDoc(null)}
+                    />
+                )
             )}
         </div>
     );

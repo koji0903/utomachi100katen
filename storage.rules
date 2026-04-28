@@ -26,42 +26,43 @@ service firebase.storage {
     }
 
     // Allowed folders with restrictions
+    // スマホからのアップロード時に、一部の端末でMIMEタイプ（contentType）が正しく送信・認識されず
+    // 予期せぬアクセス拒否（unauthorized）が発生することを防ぐため、
+    // isValidMimeType の厳格なチェックは外し、ファイルサイズ制限（15MB以下）のみを必須としています。
     match /products/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+      allow read, write: if isAuthenticated() && isValidFileSize();
     }
 
     match /print-archives/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+      allow read, write: if isAuthenticated() && isValidFileSize();
     }
 
     match /settings/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+      allow read, write: if isAuthenticated() && isValidFileSize();
     }
 
     match /stores/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+      allow read, write: if isAuthenticated() && isValidFileSize();
     }
 
     match /invoices/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+      allow read, write: if isAuthenticated() && isValidFileSize();
     }
 
     match /delivery_notes/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+      allow read, write: if isAuthenticated() && isValidFileSize();
     }
 
     match /receipts/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+      allow read, write: if isAuthenticated() && isValidFileSize();
     }
 
     match /summaries/{allPaths=**} {
-      allow read, write: if isAuthenticated() && isValidFileSize() && isValidMimeType();
+      allow read, write: if isAuthenticated() && isValidFileSize();
     }
 
-    // MIMEタイプやサイズチェックで予期せず弾かれる問題の切り分けのため、
-    // 日報画像に関しては一時的に「ログイン済み」のみを条件に緩和
     match /reports/{allPaths=**} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isAuthenticated() && isValidFileSize();
     }
   }
 }
