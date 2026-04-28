@@ -111,6 +111,14 @@ export const uploadFile = async (
     folderPath: string,
     maxRetries: number = 2
 ): Promise<string> => {
+    // デモモード（Firebase Auth未ログイン状態）の場合は、Storageへアップロードせずに
+    // ローカルのBlob URLを返して擬似的に成功扱いにする（権限エラー回避）
+    const { auth } = require("@/lib/firebase");
+    if (!auth.currentUser) {
+        console.warn("[Upload] User is not authenticated (likely Demo Mode). Skipping actual upload and returning local Blob URL.");
+        return URL.createObjectURL(file);
+    }
+
     let lastError: any;
     
     for (let i = 0; i <= maxRetries; i++) {
@@ -127,9 +135,19 @@ export const uploadFile = async (
             
             const storageRef = ref(storage, fullStoragePath);
             
+            // ファイル拡張子などからContentTypeを推測するフォールバック
+            let contentType = file.type;
+            if (!contentType) {
+                const ext = fileName.split('.').pop()?.toLowerCase();
+                if (ext === 'png') contentType = 'image/png';
+                else if (ext === 'pdf') contentType = 'application/pdf';
+                else if (ext === 'mp4') contentType = 'video/mp4';
+                else contentType = 'image/jpeg'; // デフォルトはJPEG
+            }
+
             // アップロードタスクの作成
             const uploadTask = uploadBytesResumable(storageRef, file, {
-                contentType: file.type,
+                contentType: contentType,
             });
 
             // プロミスでアップロード完了を待機
