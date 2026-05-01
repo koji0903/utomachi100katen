@@ -39,6 +39,9 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
     const [showPreview, setShowPreview] = useState(false);
     const [hidePrices, setHidePrices] = useState(editingDoc?.hidePrices ?? false);
     const [transactionId, setTransactionId] = useState(editingDoc?.transactionId ?? initialTransactionId ?? "");
+    const [linkedConsignmentStoreId, setLinkedConsignmentStoreId] = useState(editingDoc?.linkedConsignmentStoreId ?? "");
+    const [skipInventoryAdjustment, setSkipInventoryAdjustment] = useState(editingDoc?.skipInventoryAdjustment ?? !!editingDoc?.linkedConsignmentStoreId);
+    const [attributeSalesToLinkedStore, setAttributeSalesToLinkedStore] = useState(editingDoc?.attributeSalesToLinkedStore ?? !!editingDoc?.linkedConsignmentStoreId);
 
     const recipientName = useMemo(() => {
         if (recipientType === "store") return retailStores.find(s => s.id === storeId)?.name ?? "";
@@ -145,6 +148,9 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                 paymentMethod: docType === "receipt" ? paymentMethod : undefined,
                 memo: editingDoc?.memo ?? "",
                 transactionId: ((docType === "invoice" || docType === "delivery_note") && transactionId) ? transactionId : undefined,
+                linkedConsignmentStoreId: linkedConsignmentStoreId || undefined,
+                skipInventoryAdjustment: skipInventoryAdjustment,
+                attributeSalesToLinkedStore: attributeSalesToLinkedStore,
             };
 
             if (editingDoc) {
@@ -221,6 +227,40 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                                 {retailStores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                         )}
+                        {recipientType === "store" && storeId && retailStores.find(s => s.id === storeId)?.linkedConsignmentStoreId && (
+                            <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl space-y-3 animate-in slide-in-from-top-2 duration-300">
+                                <div className="flex items-start gap-2">
+                                    <Link2 className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+                                    <div className="text-[10px] leading-relaxed text-indigo-700 font-medium">
+                                        この業者は<b>{retailStores.find(s => s.id === retailStores.find(st => st.id === storeId)?.linkedConsignmentStoreId)?.name}</b>と紐付いています。
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 gap-2 pl-6">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={skipInventoryAdjustment} 
+                                            onChange={e => setSkipInventoryAdjustment(e.target.checked)}
+                                            className="w-3.5 h-3.5 rounded border-indigo-200 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span className="text-[10px] text-indigo-700 font-bold group-hover:text-indigo-900 transition-colors">
+                                            実在庫の減算をスキップする
+                                        </span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={attributeSalesToLinkedStore} 
+                                            onChange={e => setAttributeSalesToLinkedStore(e.target.checked)}
+                                            className="w-3.5 h-3.5 rounded border-indigo-200 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span className="text-[10px] text-indigo-700 font-bold group-hover:text-indigo-900 transition-colors">
+                                            売上を紐付け先店舗に計上する
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        )}
                         {recipientType === "supplier" && (
                             <select value={supplierId} onChange={e => setSupplierId(e.target.value)}
                                 className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 font-medium text-slate-900">
@@ -231,6 +271,29 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                         {recipientType === "spot" && (
                             <SpotRecipientInput value={spotRecipient} onChange={setSpotRecipient} />
                         )}
+                    </div>
+
+                    {/* Auto-set linked store ID when store changes */}
+                    <div className="hidden">
+                        {(() => {
+                            if (recipientType === "store" && storeId) {
+                                const selected = retailStores.find(s => s.id === storeId);
+                                if (selected?.linkedConsignmentStoreId && selected.linkedConsignmentStoreId !== linkedConsignmentStoreId) {
+                                    setTimeout(() => {
+                                        setLinkedConsignmentStoreId(selected.linkedConsignmentStoreId!);
+                                        setSkipInventoryAdjustment(true);
+                                        setAttributeSalesToLinkedStore(true);
+                                    }, 0);
+                                } else if (!selected?.linkedConsignmentStoreId && linkedConsignmentStoreId) {
+                                    setTimeout(() => {
+                                        setLinkedConsignmentStoreId("");
+                                        setSkipInventoryAdjustment(false);
+                                        setAttributeSalesToLinkedStore(false);
+                                    }, 0);
+                                }
+                            }
+                            return null;
+                        })()}
                     </div>
 
                     <div className="space-y-2">

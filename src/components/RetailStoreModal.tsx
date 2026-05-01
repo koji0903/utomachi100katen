@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Image as ImageIcon, UploadCloud, Search, Check, Tag } from "lucide-react";
+import { X, Save, Store, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Image as ImageIcon, UploadCloud, Search, Check, Tag, Link2 } from "lucide-react";
 import { useStore, RetailStore, Product } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
 import { NumberInput } from "@/components/NumberInput";
@@ -18,7 +18,7 @@ interface RetailStoreModalProps {
 const BRAND = "#b27f79";
 
 export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreModalProps) {
-    const { addRetailStore, updateRetailStore } = useStore();
+    const { addRetailStore, updateRetailStore, retailStores } = useStore();
     const { zipStatus, lookupZip } = useZipCode();
 
     const [formData, setFormData] = useState({
@@ -45,6 +45,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         honorific: '御中' as '様' | '御中',
         squareLocationId: "",
         wholesaleRate: 60,
+        linkedConsignmentStoreId: "",
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -83,10 +84,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     honorific: initialData.honorific || '御中',
                     squareLocationId: initialData.squareLocationId || "",
                     wholesaleRate: initialData.wholesaleRate ?? 60,
+                    linkedConsignmentStoreId: initialData.linkedConsignmentStoreId || "",
                 });
                 setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0, honorific: '御中', squareLocationId: "", wholesaleRate: 60 });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0, honorific: '御中', squareLocationId: "", wholesaleRate: 60, linkedConsignmentStoreId: "" });
                 setPreviews([]);
             }
             setImageFiles([]);
@@ -316,6 +318,34 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                         ? "日報で商品を補充した時点で売上（手数料 0%）として計上されます。"
                                         : "自社での直接販売（手数料 0%）として扱われます。"}
                             </p>
+
+                            {/* 紐付け先委託販売先 (卸販売のみ) */}
+                            {formData.type === 'B' && (
+                                <div className="mt-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg">
+                                            <Link2 className="w-3.5 h-3.5" />
+                                        </div>
+                                        <label className="text-sm font-bold text-slate-800">紐付け先委託販売先</label>
+                                    </div>
+                                    <select
+                                        value={formData.linkedConsignmentStoreId}
+                                        onChange={e => setFormData({ ...formData, linkedConsignmentStoreId: e.target.value })}
+                                        className={inputCls}
+                                    >
+                                        <option value="">紐付けない（既存ロジック）</option>
+                                        {retailStores
+                                            .filter(s => s.type === 'A' && !s.isTrashed)
+                                            .map(s => (
+                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))
+                                        }
+                                    </select>
+                                    <p className="text-[10px] text-indigo-600/70 mt-1.5 leading-relaxed">
+                                        委託店舗を紐付けると、この業者への納品書発行時に<b>在庫を減算せず</b>、売上は<b>紐付け先の店舗</b>として計上されます。
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         {/* Square 連携設定 (直営店のみ) */}

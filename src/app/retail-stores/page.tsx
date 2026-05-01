@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon, ArrowUpDown, RotateCcw, X, Filter, ChevronDown, Check, Package } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Store, CloudSun, Cloud, CloudRain, CloudSnow, Thermometer, Wind, MapPin, ExternalLink, Phone, User, RefreshCw, Image as ImageIcon, ArrowUpDown, RotateCcw, X, Filter, ChevronDown, Check, Package, Link2 } from "lucide-react";
 import { useStore, RetailStore } from "@/lib/store";
 import { RetailStoreModal } from "@/components/RetailStoreModal";
 import { WeatherHistoryModal } from "@/components/WeatherHistoryModal";
@@ -173,6 +173,7 @@ function StoreCard({
     onShowHistory: () => void;
     onShowInventory: () => void;
 }) {
+    const { retailStores } = useStore();
     const gmapsUrl = store.address
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`
         : null;
@@ -228,6 +229,12 @@ function StoreCard({
                                     <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white bg-indigo-600">
                                         卸売率 {store.wholesaleRate ?? 60}%
                                     </span>
+                                )}
+                                {store.type === 'B' && store.linkedConsignmentStoreId && (
+                                    <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                                        <Link2 className="w-3 h-3" />
+                                        連動: {retailStores.find(s => s.id === store.linkedConsignmentStoreId)?.name || "不明"}
+                                    </div>
                                 )}
                             </div>
                         </div>

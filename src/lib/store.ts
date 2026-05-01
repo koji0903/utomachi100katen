@@ -119,6 +119,7 @@ export interface RetailStore extends BaseEntity {
     dailySalesGoal?: number; // 1日の売上目標額
     honorific?: '様' | '御中';
     squareLocationId?: string; // Square Location ID
+    linkedConsignmentStoreId?: string; // 紐付け先委託販売先 (タイプB用)
 }
 
 
@@ -297,6 +298,9 @@ export interface IssuedDocument extends BaseEntity {
     sourceDocIds?: string[];    // 元になった複数の帳票ID（合算請求書の場合）
     fulfillmentStatus?: 'pending' | 'sent' | 'paid'; // 請求書の状態管理
     pdfUrl?: string;            // Firebase Storage上のPDFへのリンク
+    linkedConsignmentStoreId?: string; // 紐付け先委託販売先
+    skipInventoryAdjustment?: boolean; // 在庫減算をスキップするか
+    attributeSalesToLinkedStore?: boolean; // 売上を紐付け先に計上するか
     createdAt?: string | any;
 }
 
@@ -1804,7 +1808,12 @@ export function useStore() {
         const newDoc: IssuedDocument = { id: newRef.id, ...data, createdAt: new Date().toISOString() };
 
         // --- Stock Deduction for Delivery Note ---
-        if (data.type === 'delivery_note' && data.details) {
+        // 紐付け先の委託販売先がある場合、在庫減算は委託先の日報で行われるためここではスキップする
+        const recipientStore = data.storeId ? retailStores.find(s => s.id === data.storeId) : null;
+        const isLinkedConsignment = !!data.linkedConsignmentStoreId || !!recipientStore?.linkedConsignmentStoreId;
+        const shouldSkipInventory = data.skipInventoryAdjustment !== undefined ? data.skipInventoryAdjustment : isLinkedConsignment;
+
+        if (data.type === 'delivery_note' && data.details && !shouldSkipInventory) {
             for (const item of data.details) {
                 if (item.productId) {
                     const product = products.find(p => p.id === item.productId);
@@ -2005,7 +2014,11 @@ export function useStore() {
 
             // 2. Apply new stock if the updated doc is a delivery note
             const newDoc = { ...oldDoc, ...data } as IssuedDocument;
-            if (newDoc.type === 'delivery_note' && newDoc.details && !newDoc.isTrashed) {
+            const newRecipientStore = newDoc.storeId ? retailStores.find(s => s.id === newDoc.storeId) : null;
+            const isNewLinked = !!newDoc.linkedConsignmentStoreId || !!newRecipientStore?.linkedConsignmentStoreId;
+            const shouldNewSkip = newDoc.skipInventoryAdjustment !== undefined ? newDoc.skipInventoryAdjustment : isNewLinked;
+
+            if (newDoc.type === 'delivery_note' && newDoc.details && !newDoc.isTrashed && !shouldNewSkip) {
                 for (const item of newDoc.details) {
                     if (item.productId) {
                         const product = products.find(p => p.id === item.productId);
@@ -2030,10 +2043,15 @@ export function useStore() {
         await updateDoc(doc(db, 'issued_documents', id), cleanObject(data));
         mutateIssuedDocuments();
     };
-
+    
     const deleteIssuedDocument = async (id: string) => {
         const oldDoc = issuedDocuments.find(d => d.id === id);
-        if (oldDoc && oldDoc.type === 'delivery_note' && oldDoc.details && !oldDoc.isTrashed) {
+        if (!oldDoc) return;
+        const recipientStore = oldDoc.storeId ? retailStores.find(s => s.id === oldDoc.storeId) : null;
+        const isLinkedConsignment = !!oldDoc.linkedConsignmentStoreId || !!recipientStore?.linkedConsignmentStoreId;
+        const shouldSkipOld = oldDoc.skipInventoryAdjustment !== undefined ? oldDoc.skipInventoryAdjustment : isLinkedConsignment;
+
+        if (oldDoc && oldDoc.type === 'delivery_note' && oldDoc.details && !oldDoc.isTrashed && !shouldSkipOld) {
             // Restore stock
             for (const item of oldDoc.details) {
                 if (item.productId) {
@@ -2060,7 +2078,11 @@ export function useStore() {
 
     const restoreIssuedDocument = async (id: string) => {
         const docToRestore = issuedDocuments.find(d => d.id === id);
-        if (docToRestore && docToRestore.type === 'delivery_note' && docToRestore.details && docToRestore.isTrashed) {
+        const recipientStore = docToRestore?.storeId ? retailStores.find(s => s.id === docToRestore.storeId) : null;
+        const isLinkedConsignment = !!docToRestore?.linkedConsignmentStoreId || !!recipientStore?.linkedConsignmentStoreId;
+        const shouldSkipRestore = docToRestore?.skipInventoryAdjustment !== undefined ? docToRestore.skipInventoryAdjustment : isLinkedConsignment;
+
+        if (docToRestore && docToRestore.type === 'delivery_note' && docToRestore.details && docToRestore.isTrashed && !shouldSkipRestore) {
             // Re-deduct stock
             for (const item of docToRestore.details) {
                 if (item.productId) {
@@ -2776,10 +2798,14 @@ export function useStore() {
                     netProfit: item.subtotal
                 })) || [];
 
+                const docLinkedStoreId = d.linkedConsignmentStoreId || (d.storeId && retailStores.find(s => s.id === d.storeId)?.linkedConsignmentStoreId);
+                const linkedStore = docLinkedStoreId ? retailStores.find(s => s.id === docLinkedStoreId) : null;
+                const shouldAttributeToLinked = d.attributeSalesToLinkedStore !== undefined ? d.attributeSalesToLinkedStore : !!docLinkedStoreId;
+
                 const baseSale = {
                     id: d.id,
-                    storeId: d.storeId || d.spotRecipientId || 'unknown',
-                    storeName: d.recipientName,
+                    storeId: (shouldAttributeToLinked && docLinkedStoreId) ? docLinkedStoreId : d.storeId || d.spotRecipientId || 'unknown',
+                    storeName: (shouldAttributeToLinked && linkedStore) ? linkedStore.name : d.recipientName,
                     recipientType: d.recipientType === 'spot' ? 'spot' as const : 'store' as const,
                     items: saleItems,
                     totalQuantity: saleItems.reduce((sum, i) => sum + i.quantity, 0),
