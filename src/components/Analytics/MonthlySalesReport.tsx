@@ -8,7 +8,7 @@ import { downloadPdfFromElement, getPdfBase64FromElement } from "@/lib/pdfGenera
 import { apiFetch, DemoModeError } from "@/lib/apiClient";
 
 export function MonthlySalesReport() {
-    const { products, retailStores, sales, spotRecipients, isLoaded } = useStore();
+    const { products, retailStores, unifiedSales, spotRecipients, isLoaded } = useStore();
     
     // Monthly Report State
     const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -23,7 +23,7 @@ export function MonthlySalesReport() {
         setIsGenerating(true);
         // Simulate a small delay for better UX
         setTimeout(() => {
-            const data = generateMonthlySalesReport(reportMonth, sales, products, retailStores, spotRecipients);
+            const data = generateMonthlySalesReport(reportMonth, unifiedSales, products, retailStores, spotRecipients);
             setMonthlyReportData(data);
             setIsGenerating(false);
         }, 600);

@@ -2750,10 +2750,21 @@ export function useStore() {
     // --- Unified Sales Performance (Computed) ---
     const unifiedSales = useMemo(() => {
         const manualSales = sales.filter(s => !s.isTrashed);
+
+        // 1. 請求書に紐付いている納品書を特定（二重計上防止）
+        const invoicedDocIds = new Set(
+            issuedDocuments
+                .filter(d => d.type === 'invoice' && !d.isTrashed)
+                .flatMap(d => [d.sourceDocId, ...(d.sourceDocIds || [])])
+                .filter(Boolean)
+        );
         
-        // Convert Invoices to Sale-compatible format
-        const invoiceSales = issuedDocuments
-            .filter(d => d.type === 'invoice' && !d.isTrashed && (d.status === 'issued' || d.fulfillmentStatus === 'paid' || d.fulfillmentStatus === 'sent' || !d.status))
+        // Convert Invoices and non-invoiced Delivery Notes to Sale-compatible format
+        const documentSales = issuedDocuments
+            .filter(d => !d.isTrashed && (
+                (d.type === 'invoice' && (d.status === 'issued' || d.fulfillmentStatus === 'paid' || d.fulfillmentStatus === 'sent' || !d.status)) ||
+                (d.type === 'delivery_note' && d.status === 'issued' && !invoicedDocIds.has(d.id))
+            ))
             .flatMap(d => {
                 const saleItems = d.details?.map(item => ({
                     productId: item.productId || 'custom',
@@ -2775,7 +2786,8 @@ export function useStore() {
                     totalAmount: d.totalAmount,
                     totalCommission: 0,
                     totalNetProfit: d.totalAmount,
-                    isInvoice: true,
+                    isInvoice: d.type === 'invoice',
+                    isDeliveryNote: d.type === 'delivery_note',
                     docNumber: d.docNumber,
                     transactionId: d.transactionId,
                     updatedAt: d.createdAt || d.issuedDate,
@@ -2811,22 +2823,22 @@ export function useStore() {
         // Deduplication and Merging
         const result = [...manualSales];
         
-        invoiceSales.forEach(inv => {
+        documentSales.forEach(docSale => {
             // Heuristic Deduplication: 
-            // 1. Same transactionId if exists (not currently in manual Sales, but for future-proofing)
+            // 1. Same transactionId if exists
             // 2. Same store, period, and amount (within 1 yen)
             const duplicateIndex = result.findIndex(s => 
-                (inv.transactionId && (s as any).transactionId === inv.transactionId) ||
-                (s.storeId === inv.storeId && 
-                 s.period === inv.period && 
-                 Math.abs(s.totalAmount - inv.totalAmount) < 2)
+                (docSale.transactionId && (s as any).transactionId === docSale.transactionId) ||
+                (s.storeId === docSale.storeId && 
+                 s.period === docSale.period && 
+                 Math.abs(s.totalAmount - docSale.totalAmount) < 2)
             );
             
             if (duplicateIndex !== -1) {
-                // Prioritize Invoice over manual entry
-                result[duplicateIndex] = inv;
+                // Prioritize Document (Invoice/DN) over manual entry
+                result[duplicateIndex] = docSale;
             } else {
-                result.push(inv);
+                result.push(docSale);
             }
         });
 
