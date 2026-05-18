@@ -632,8 +632,9 @@ export default function AnalyticsPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                     {kpiCards.map(card => {
                         const Icon = card.icon;
+                        const isExpenses = card.label === "営業経費";
                         return (
-                            <div key={card.label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+                            <div key={card.label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow relative group cursor-help">
                                 <div className="flex items-center gap-3 mb-3">
                                     <div className={`p-2 rounded-lg ${card.color}`}>
                                         <Icon className="w-4 h-4" />
@@ -642,6 +643,33 @@ export default function AnalyticsPage() {
                                 </div>
                                 <div className="text-2xl font-black text-slate-900">{card.value}</div>
                                 <div className="text-xs text-slate-400 mt-1">{card.sub}</div>
+
+                                {/* Custom breakdown Tooltip for Overhead Expenses */}
+                                {isExpenses && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-2xl shadow-xl p-4 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 z-50 border border-slate-700/50">
+                                        <div className="font-black border-b border-slate-700/50 pb-2 mb-2 text-slate-300 tracking-wider uppercase text-[10px]">経費内訳明細</div>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
+                                            {expensePieData.length > 0 ? (
+                                                expensePieData.map((item, idx) => {
+                                                    const pct = kpiTotals.totalExpenses > 0 ? (item.value / kpiTotals.totalExpenses) * 100 : 0;
+                                                    return (
+                                                        <div key={idx} className="flex justify-between items-center gap-4">
+                                                            <span className="font-bold text-slate-200">{item.name}</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] text-slate-400 font-semibold">{pct.toFixed(0)}%</span>
+                                                                <span className="font-black text-slate-100">¥{Math.round(item.value).toLocaleString()}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="text-slate-400 italic text-center py-2">経費データはありません</div>
+                                            )}
+                                        </div>
+                                        {/* Tooltip Arrow */}
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900/95"></div>
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
