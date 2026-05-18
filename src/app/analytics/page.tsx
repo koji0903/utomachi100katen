@@ -24,7 +24,7 @@ const fmtYen = (v: number) => `¥${Math.round(v).toLocaleString()}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 
 export default function AnalyticsPage() {
-    const { isLoaded, sales, unifiedSales, products, brands, retailStores, purchases, dailyReports, dailyWeather, expenses } = useStore();
+    const { isLoaded, sales, unifiedSales, products, brands, retailStores, purchases, dailyReports, dailyWeather, expenses, workLogs = [], fixedCosts = [] } = useStore();
 
     const now = new Date();
     const [viewMode, setViewMode] = useState<ViewMode>("monthly");
@@ -444,6 +444,57 @@ export default function AnalyticsPage() {
             return { name: p?.name || "商品未特定", qty };
         });
 
+        // Filter work logs by period
+        const periodWorkLogs = workLogs.filter(w => {
+            if (viewMode === "monthly") {
+                return w.workDate.startsWith(selectedYear);
+            } else {
+                return w.workDate.startsWith(selectedMonth);
+            }
+        });
+
+        const totalMinutes = periodWorkLogs.reduce((acc, curr) => acc + (curr.workMinutes || 0), 0);
+        const totalLaborCost = periodWorkLogs.reduce((acc, curr) => acc + (curr.laborCost || 0), 0);
+        const successLogs = periodWorkLogs.filter(w => w.efficiencyRating === "excellent");
+        const successRate = periodWorkLogs.length > 0 ? (successLogs.length / periodWorkLogs.length) * 100 : 0;
+
+        const totalProducedMq = periodWorkLogs.reduce((acc, w) => {
+            const p = products.find(prod => prod.id === w.relatedProductId);
+            const s = p?.standardSellingPrice || p?.sellingPrice || 0;
+            const v = p?.standardVariableCost || p?.costPrice || 0;
+            const mq = s - v;
+            return acc + (mq * (w.producedQuantity || 0));
+        }, 0);
+        const totalHours = totalMinutes / 60;
+        const averageMqPerWorkHour = totalHours > 0 ? Math.round(totalProducedMq / totalHours) : 0;
+
+        const workLogsSummary = {
+            totalMinutes,
+            totalLaborCost,
+            successRate,
+            averageMqPerWorkHour
+        };
+
+        // Filter fixed costs by period
+        const activeFixedCosts = fixedCosts.filter(c => {
+            if (viewMode === "monthly") {
+                return c.id.startsWith(selectedYear);
+            } else {
+                return c.id === selectedMonth;
+            }
+        });
+
+        const fixedCostsSummary = {
+            rentCost: activeFixedCosts.reduce((acc, c) => acc + (c.rentCost || 0), 0),
+            laborCost: activeFixedCosts.reduce((acc, c) => acc + (c.laborCost || 0), 0),
+            utilityCost: activeFixedCosts.reduce((acc, c) => acc + (c.utilityCost || 0), 0),
+            communicationCost: activeFixedCosts.reduce((acc, c) => acc + (c.communicationCost || 0), 0),
+            vehicleCost: activeFixedCosts.reduce((acc, c) => acc + (c.vehicleCost || 0), 0),
+            softwareCost: activeFixedCosts.reduce((acc, c) => acc + (c.softwareCost || 0), 0),
+            otherFixedCost: activeFixedCosts.reduce((acc, c) => acc + (c.otherFixedCost || 0), 0),
+            totalFixedCost: activeFixedCosts.reduce((acc, c) => acc + (c.totalFixedCost || 0), 0),
+        };
+
         return {
             period: viewMode === "monthly" ? `${selectedYear}年` : `${selectedMonth.replace("-", "/")}月`,
             viewMode,
@@ -458,9 +509,11 @@ export default function AnalyticsPage() {
                 share: kpiTotals.totalRevenue > 0 ? (utoMarinaRevenue / kpiTotals.totalRevenue) * 100 : 0,
                 topProducts: utoMarinaTopProducts
             },
-            expensePieData
+            expensePieData,
+            workLogsSummary,
+            fixedCostsSummary
         };
-    }, [viewMode, selectedYear, selectedMonth, kpiTotals, abcData, storePieData, dailyReports, dailyWeather, retailStores, products, periodSales, expensePieData]);
+    }, [viewMode, selectedYear, selectedMonth, kpiTotals, abcData, storePieData, dailyReports, dailyWeather, retailStores, products, periodSales, expensePieData, workLogs, fixedCosts]);
 
     if (!isLoaded) {
         return (

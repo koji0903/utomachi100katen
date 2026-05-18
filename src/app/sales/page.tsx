@@ -51,6 +51,12 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const [isSyncingSquare, setIsSyncingSquare] = useState(false);
 
+    // MQ states
+    const [salesChannel, setSalesChannel] = useState<string>("店頭販売");
+    const [shippingCost, setShippingCost] = useState<number>(0);
+    const [platformFee, setPlatformFee] = useState<number>(0);
+    const [packagingCost, setPackagingCost] = useState<number>(0);
+
     const handleSquareSync = async () => {
         if (!selectedStore?.squareLocationId) {
             showNotification("この店舗にはSquareの位置IDが設定されていません。", "error");
@@ -104,8 +110,18 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                 data[item.productId] = item.quantity;
             });
             setSalesData(data);
+
+            // Populate MQ metadata if available
+            setSalesChannel(editingSale.salesChannel || "店頭販売");
+            setShippingCost(editingSale.shippingCost || 0);
+            setPlatformFee(editingSale.platformFee || 0);
+            setPackagingCost(editingSale.packagingCost || 0);
         } else {
             setSalesData({});
+            setSalesChannel("店頭販売");
+            setShippingCost(0);
+            setPlatformFee(0);
+            setPackagingCost(0);
         }
         setSaveSuccess(false);
     }, [editingSale]);
@@ -120,6 +136,23 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const selectedSpot = useMemo(() =>
         spotRecipients.find(s => s.id === selectedStoreIdRaw), [spotRecipients, selectedStoreIdRaw]
     );
+
+    // Automatically derive sales channel for new entries
+    useEffect(() => {
+        if (!editingSale && selectedStoreId) {
+            if (isSpotSelection) {
+                setSalesChannel("卸販売");
+            } else if (selectedStore) {
+                if (selectedStore.type === 'B') {
+                    setSalesChannel("卸販売");
+                } else if (selectedStore.type === 'C') {
+                    setSalesChannel("店頭販売");
+                } else {
+                    setSalesChannel("店頭販売");
+                }
+            }
+        }
+    }, [selectedStoreId, isSpotSelection, selectedStore, editingSale]);
 
     // Fetch weather automatically if missing
     useEffect(() => {
@@ -275,6 +308,12 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                 totalAmount: totals.totalAmt,
                 totalCommission: totals.totalComm,
                 totalNetProfit: totals.totalNet,
+                // MQ Fields
+                salesChannel,
+                shippingCost,
+                platformFee,
+                packagingCost,
+                customerId: isSpotSelection ? selectedStoreIdRaw : "一般消費者",
                 ...(inputMode === 'daily' && weatherInfo ? {
                     weather: weatherInfo.weather,
                     weatherMain: weatherInfo.weatherMain,
@@ -429,6 +468,56 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                 value={inputMode === 'daily' ? targetDate : targetMonth}
                                 onChange={e => inputMode === 'daily' ? setTargetDate(e.target.value) : setTargetMonth(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-900" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* 販路・変動費設定 (MQ用) */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">販路・変動費設定 (MQ用)</div>
+                    <div className="space-y-3">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-500 block">販売チャネル</label>
+                            <select
+                                value={salesChannel}
+                                onChange={e => setSalesChannel(e.target.value)}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 font-medium text-xs cursor-pointer"
+                            >
+                                <option value="店頭販売">店頭販売</option>
+                                <option value="ECサイト">ECサイト</option>
+                                <option value="卸販売">卸販売</option>
+                                <option value="ふるさと納税">ふるさと納税</option>
+                                <option value="その他">その他</option>
+                            </select>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[9px] font-bold text-slate-500 block">送料 (円)</label>
+                                <NumberInput
+                                    min={0}
+                                    value={shippingCost}
+                                    onChange={val => setShippingCost(val ?? 0)}
+                                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-right text-xs font-medium focus:outline-none"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[9px] font-bold text-slate-500 block">手数料 (円)</label>
+                                <NumberInput
+                                    min={0}
+                                    value={platformFee}
+                                    onChange={val => setPlatformFee(val ?? 0)}
+                                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-right text-xs font-medium focus:outline-none"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[9px] font-bold text-slate-500 block">資材費 (円)</label>
+                                <NumberInput
+                                    min={0}
+                                    value={packagingCost}
+                                    onChange={val => setPackagingCost(val ?? 0)}
+                                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-right text-xs font-medium focus:outline-none"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -20,6 +20,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
     const { products, brands, suppliers, retailStores, addProduct, updateProduct, stockMovements } = useStore();
 
     const [activeTab, setActiveTab] = useState<'basic' | 'ec' | 'marketing' | 'history'>('basic');
+    const [isMqExpanded, setIsMqExpanded] = useState(false);
     const [instaCopy, setInstaCopy] = useState("");
     const [imagePrompt, setImagePrompt] = useState("");
     const [isGeneratingMarketing, setIsGeneratingMarketing] = useState(false);
@@ -60,6 +61,13 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         shopifySyncEnabled: false,
         squareVariantId: "",
         squareSyncEnabled: false,
+        // MQ Fields
+        standardSellingPrice: 0,
+        standardVariableCost: 0,
+        standardWorkMinutes: 0,
+        productCategory: "加工品",
+        isMqTarget: true,
+        producerId: "",
     };
 
     const [formData, setFormData] = useState(defaultFormData);
@@ -110,6 +118,13 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     shopifySyncEnabled: initialData.shopifySyncEnabled || false,
                     squareVariantId: initialData.squareVariantId || "",
                     squareSyncEnabled: initialData.squareSyncEnabled || false,
+                    // MQ Fields
+                    standardSellingPrice: initialData.standardSellingPrice || initialData.sellingPrice || 0,
+                    standardVariableCost: initialData.standardVariableCost || initialData.costPrice || 0,
+                    standardWorkMinutes: initialData.standardWorkMinutes || 0,
+                    productCategory: initialData.productCategory || "加工品",
+                    isMqTarget: initialData.isMqTarget ?? true,
+                    producerId: initialData.producerId || initialData.supplierId || "",
                 });
 
                 setImagePreview(initialData.imageUrl || null);
@@ -129,6 +144,13 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     shopifySyncEnabled: false,
                     squareVariantId: "",
                     squareSyncEnabled: false,
+                    // MQ Fields
+                    standardSellingPrice: 0,
+                    standardVariableCost: 0,
+                    standardWorkMinutes: 0,
+                    productCategory: "加工品",
+                    isMqTarget: true,
+                    producerId: suppliers.length > 0 ? suppliers[0].id : "",
                 });
                 setImagePreview(null);
             }
@@ -632,6 +654,170 @@ JANコード: ${formData.janCode || "なし"}
                                                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-amber-50/30 text-right"
                                             />
                                         </div>
+                                    </div>
+
+                                    {/* MQ Accounting Folding UI */}
+                                    <div className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden transition-all shadow-sm">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsMqExpanded(!isMqExpanded)}
+                                            className="w-full px-6 py-4 flex items-center justify-between bg-slate-100 hover:bg-slate-150 transition-colors text-left"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <Sparkles className="w-5 h-5 text-indigo-600" />
+                                                <div>
+                                                    <span className="font-bold text-slate-800 text-sm block">MQ会計・付加価値構造設計 (プロ向け)</span>
+                                                    <span className="text-slate-500 text-xs font-normal">時間あたりMQ・標準変動費を定義し、地域産業の利益率を高めます。</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {formData.isMqTarget && (
+                                                    <span className="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                        MQ分析対象
+                                                    </span>
+                                                )}
+                                                <span className="text-slate-600 font-black text-lg transition-transform">{isMqExpanded ? "−" : "＋"}</span>
+                                            </div>
+                                        </button>
+
+                                        {isMqExpanded && (
+                                            <div className="p-6 space-y-6 border-t border-slate-200 bg-white animate-in slide-in-from-top-2 duration-200">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-xs font-bold text-slate-700 block">商品カテゴリー</label>
+                                                        <select
+                                                            value={formData.productCategory}
+                                                            onChange={(e) => setFormData({ ...formData, productCategory: e.target.value })}
+                                                            className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:bg-white"
+                                                        >
+                                                            <option value="加工品">加工品</option>
+                                                            <option value="特産品">特産品</option>
+                                                            <option value="青果・一次産品">青果・一次産品</option>
+                                                            <option value="原材料">原材料</option>
+                                                            <option value="その他">その他</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <label className="text-xs font-bold text-slate-700 block">生産者・サプライヤー</label>
+                                                        <select
+                                                            value={formData.producerId}
+                                                            onChange={(e) => setFormData({ ...formData, producerId: e.target.value })}
+                                                            className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:bg-white"
+                                                        >
+                                                            <option value="">サプライヤーを選択</option>
+                                                            {suppliers.map(s => (
+                                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                                                    <div>
+                                                        <span className="text-xs font-bold text-slate-700 block">MQ分析の対象に含める</span>
+                                                        <span className="text-slate-500 text-[10px]">この商品の売上と工数を経営ダッシュボードのMQ分析に連携します。</span>
+                                                    </div>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.isMqTarget}
+                                                        onChange={(e) => setFormData({ ...formData, isMqTarget: e.target.checked })}
+                                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                </div>
+
+                                                <div className="bg-indigo-50/40 p-4 rounded-xl border border-indigo-100 flex items-center justify-between">
+                                                    <span className="text-xs text-indigo-900 font-medium">基本情報から標準価格・標準変動費を反映しますか？</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setFormData(prev => ({
+                                                                ...prev,
+                                                                standardSellingPrice: prev.sellingPrice,
+                                                                standardVariableCost: prev.costPrice
+                                                            }));
+                                                            showNotification("基本情報からコピーしました", "info");
+                                                        }}
+                                                        className="px-3 py-1.5 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-700 font-bold text-xs rounded-lg transition-colors shadow-sm"
+                                                    >
+                                                        価格設定からコピー
+                                                    </button>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-xs font-bold text-slate-700 block">標準販売価格 (S) (円)</label>
+                                                        <NumberInput
+                                                            min={0}
+                                                            value={formData.standardSellingPrice}
+                                                            onChange={(val) => setFormData({ ...formData, standardSellingPrice: val ?? 0 })}
+                                                            className="w-full px-4 py-2 border border-slate-300 rounded-lg text-right text-sm"
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <label className="text-xs font-bold text-slate-700 block">標準変動費 (V) (円)</label>
+                                                        <NumberInput
+                                                            min={0}
+                                                            value={formData.standardVariableCost}
+                                                            onChange={(val) => setFormData({ ...formData, standardVariableCost: val ?? 0 })}
+                                                            className="w-full px-4 py-2 border border-slate-300 rounded-lg text-right text-sm"
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <label className="text-xs font-bold text-slate-700 block">標準製造工数 (分)</label>
+                                                        <NumberInput
+                                                            min={0}
+                                                            value={formData.standardWorkMinutes}
+                                                            onChange={(val) => setFormData({ ...formData, standardWorkMinutes: val ?? 0 })}
+                                                            className="w-full px-4 py-2 border border-slate-300 rounded-lg text-right text-sm font-bold text-indigo-600 bg-indigo-50/20"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Calculated Preview Panel */}
+                                                {(() => {
+                                                    const s = formData.standardSellingPrice;
+                                                    const v = formData.standardVariableCost;
+                                                    const min = formData.standardWorkMinutes;
+                                                    const mq = s - v;
+                                                    const mqRate = s > 0 ? parseFloat(((mq / s) * 100).toFixed(1)) : 0;
+                                                    const mqPerHour = min > 0 ? Math.round(mq / (min / 60)) : 0;
+
+                                                    return (
+                                                        <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 space-y-4 shadow-inner">
+                                                            <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase block">
+                                                                リアルタイム付加価値シミュレーション (MQ)
+                                                            </span>
+                                                            <div className="grid grid-cols-3 gap-2 text-center">
+                                                                <div className="bg-slate-800/80 p-3 rounded-xl">
+                                                                    <span className="text-[10px] text-slate-400 block mb-0.5">標準個別MQ (M)</span>
+                                                                    <span className="text-base font-black text-emerald-400">
+                                                                        ¥{mq.toLocaleString()}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="bg-slate-800/80 p-3 rounded-xl">
+                                                                    <span className="text-[10px] text-slate-400 block mb-0.5">標準MQ率 (q)</span>
+                                                                    <span className="text-base font-black text-cyan-400">
+                                                                        {mqRate}%
+                                                                    </span>
+                                                                </div>
+                                                                <div className="bg-slate-800/80 p-3 rounded-xl">
+                                                                    <span className="text-[10px] text-slate-400 block mb-0.5">時間あたりMQ</span>
+                                                                    <span className="text-base font-black text-pink-400">
+                                                                        ¥{mqPerHour.toLocaleString()}/h
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 italic leading-relaxed text-center">
+                                                                ※ 目安: 時給¥1,200換算に対して、時間あたりMQがどれだけ回収できているかを評価します。
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Store Prices */}

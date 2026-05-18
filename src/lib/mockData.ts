@@ -58,6 +58,16 @@ export const mockProducts: any[] = [
         stock: 120,
         story: "有明海で育った風味豊かな初摘み海苔です。",
         createdAt: "2026-03-01T10:00:00Z",
+        // MQ Fields
+        standardSellingPrice: 540,
+        standardVariableCost: 300,
+        standardMq: 240,
+        standardMqRate: 44.4,
+        standardWorkMinutes: 10,
+        mqPerHour: 1440,
+        productCategory: "加工品",
+        producerId: "sup_001",
+        isMqTarget: true,
     },
     {
         id: "prod_002",
@@ -70,6 +80,16 @@ export const mockProducts: any[] = [
         stock: 50,
         story: "名水百選「轟水源」近くで精製された清めの塩。",
         createdAt: "2026-03-02T14:30:00Z",
+        // MQ Fields
+        standardSellingPrice: 380,
+        standardVariableCost: 150,
+        standardMq: 230,
+        standardMqRate: 60.5,
+        standardWorkMinutes: 5,
+        mqPerHour: 2760,
+        productCategory: "特産品",
+        producerId: "sup_002",
+        isMqTarget: true,
     },
     {
         id: "prod_003",
@@ -82,6 +102,16 @@ export const mockProducts: any[] = [
         stock: 30,
         story: "地元のタコを香ばしく炙りました。",
         createdAt: "2026-03-05T09:15:00Z",
+        // MQ Fields
+        standardSellingPrice: 850,
+        standardVariableCost: 400,
+        standardMq: 450,
+        standardMqRate: 52.9,
+        standardWorkMinutes: 15,
+        mqPerHour: 1800,
+        productCategory: "加工品",
+        producerId: "sup_003",
+        isMqTarget: true,
     },
 ];
 
@@ -92,6 +122,155 @@ export const mockSales = [
         period: "2026-03-20",
         totalAmount: 1500,
         items: [{ productId: "prod_001", quantity: 2, subtotal: 1080 }],
+    }
+];
+
+export const mockWorkLogs: any[] = [
+    {
+        id: "work_001",
+        workDate: "2026-05-18",
+        workType: "製造",
+        relatedProductId: "prod_001",
+        workMinutes: 120,
+        workerName: "田中 太郎",
+        workMemo: "焼き海苔のカットと袋詰め作業を行います。",
+        estimatedLaborCost: 2400,
+        mqPerWorkHour: 4800,
+        createdAt: "2026-05-18T10:00:00Z"
+    },
+    {
+        id: "work_002",
+        workDate: "2026-05-18",
+        workType: "包装",
+        relatedProductId: "prod_002",
+        workMinutes: 60,
+        workerName: "山田 花子",
+        workMemo: "天然塩の小分け袋詰めおよび合格祈願シールの貼り付け作業。",
+        estimatedLaborCost: 1200,
+        mqPerWorkHour: 13800,
+        createdAt: "2026-05-18T11:30:00Z"
+    },
+    {
+        id: "work_003",
+        workDate: "2026-05-19",
+        workType: "ラベル貼り",
+        relatedProductId: "prod_003",
+        workMinutes: 90,
+        workerName: "佐藤 次郎",
+        workMemo: "炙りタコめしの素のレトルトパウチ外装箱組み立てとラベル貼付。",
+        estimatedLaborCost: 1800,
+        mqPerWorkHour: 9000,
+        createdAt: "2026-05-19T09:00:00Z"
+    }
+];
+
+export const mockFixedCosts: any[] = [
+    {
+        id: "2026-05",
+        targetMonth: "2026-05",
+        rentCost: 120000,
+        laborCost: 350000,
+        utilityCost: 35000,
+        communicationCost: 15000,
+        vehicleCost: 25000,
+        softwareCost: 8000,
+        otherFixedCost: 10000,
+        totalFixedCost: 563000,
+        createdAt: "2026-05-01T00:00:00Z",
+        updatedAt: "2026-05-01T00:00:00Z"
+    }
+];
+
+export const mockMqSummaries: any[] = [
+    {
+        id: "2026-05",
+        targetMonth: "2026-05",
+        totalSales: 1250000,
+        totalVariableCost: 520000,
+        totalMq: 730000,
+        averageMqRate: 58.4,
+        totalFixedCost: 563000,
+        operatingProfit: 167000,
+        totalWorkMinutes: 270,
+        mqPerHour: 162222,
+        productSummaries: [
+            {
+                productId: "prod_001",
+                productName: "宇土の恵み 焼き海苔",
+                salesVolume: 800,
+                salesAmount: 432000,
+                variableCostAmount: 240000,
+                mqAmount: 192000,
+                mqRate: 44.4,
+                workMinutes: 120,
+                mqPerHour: 96000
+            },
+            {
+                productId: "prod_002",
+                productName: "合格祈願 天然塩",
+                salesVolume: 1200,
+                salesAmount: 456000,
+                variableCostAmount: 180000,
+                mqAmount: 276000,
+                mqRate: 60.5,
+                workMinutes: 60,
+                mqPerHour: 276000
+            },
+            {
+                productId: "prod_003",
+                productName: "炙りタコめしの素",
+                salesVolume: 425,
+                salesAmount: 362000,
+                variableCostAmount: 100000,
+                mqAmount: 262000,
+                mqRate: 72.4,
+                workMinutes: 90,
+                mqPerHour: 174667
+            }
+        ],
+        channelSummaries: [
+            {
+                channelName: "道の駅 宇土マリーナ",
+                salesAmount: 550000,
+                variableCostAmount: 250000,
+                mqAmount: 300000,
+                mqRate: 54.5
+            },
+            {
+                channelName: "ECサイト",
+                salesAmount: 480000,
+                variableCostAmount: 170000,
+                mqAmount: 310000,
+                mqRate: 64.6
+            },
+            {
+                channelName: "ふるさと納税",
+                salesAmount: 220000,
+                variableCostAmount: 100000,
+                mqAmount: 120000,
+                mqRate: 54.5
+            }
+        ],
+        customerSummaries: [
+            {
+                customerId: "cust_001",
+                customerName: "一般消費者",
+                salesAmount: 1030000,
+                variableCostAmount: 420000,
+                mqAmount: 610000,
+                mqRate: 59.2
+            },
+            {
+                customerId: "cust_002",
+                customerName: "宇土物産商事(株)",
+                salesAmount: 220000,
+                variableCostAmount: 100000,
+                mqAmount: 120000,
+                mqRate: 54.5
+            }
+        ],
+        createdAt: "2026-05-19T00:00:00Z",
+        updatedAt: "2026-05-19T00:00:00Z"
     }
 ];
 
@@ -130,7 +309,7 @@ export const mockBusinessManuals = [
   4. **Gemini AI** が自動的に「日付」「金額」「カテゴリー」「支払先」をスキャンしてフォームに入力します。
   5. 内容を確認・微調整し、支払方法を選択して **「追加する」** ボタンをクリックします。
 
-### 3. 小口現金の補充と移管管理（手許金のインアウト 🏦）
+### 3. 小口現面の補充と移管管理（手許金のインアウト 🏦）
 オフィスの金庫にある小口現金の補充や銀行への移管フローです。
 
 - **小口現金の補充**:
@@ -165,6 +344,9 @@ export const getMockData = (collectionName: string): any[] => {
         case "products": return mockProducts;
         case "retailStores": return mockRetailStores;
         case "sales": return mockSales;
+        case "workLogs": return mockWorkLogs;
+        case "fixedCosts": return mockFixedCosts;
+        case "mqSummaries": return mockMqSummaries;
         case "business_manuals": return mockBusinessManuals;
         default: return [];
     }

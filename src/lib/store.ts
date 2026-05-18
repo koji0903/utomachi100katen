@@ -247,6 +247,10 @@ export interface Sale extends BaseEntity {
         netProfit: number;
         productName?: string;
         catalogObjectId?: string;
+        // 追加
+        variableCostAmount?: number;
+        mqAmount?: number;
+        mqRate?: number;
     }[];
 
 
@@ -261,6 +265,15 @@ export interface Sale extends BaseEntity {
     temperatureMin?: number;
     temperatureMax?: number;
     updatedAt?: string | any;
+    // 追加
+    salesChannel?: string;
+    customerId?: string;
+    shippingCost?: number;
+    platformFee?: number;
+    packagingCost?: number;
+    variableCostAmount?: number;
+    mqAmount?: number;
+    mqRate?: number;
 }
 
 export interface PurchaseItem {
@@ -677,6 +690,90 @@ export interface Product extends BaseEntity {
     squareVariantId?: string; // Square Catalog Object ID for this product/variant
     lastSquareSyncAt?: string | any;
     createdAt?: string | any;
+    // MQ Fields
+    standardSellingPrice?: number;
+    standardVariableCost?: number;
+    standardMq?: number;
+    standardMqRate?: number;
+    standardWorkMinutes?: number;
+    mqPerHour?: number;
+    productCategory?: string;
+    producerId?: string;
+    isMqTarget?: boolean;
+}
+
+export interface WorkLog extends BaseEntity {
+    id: string;
+    workDate: string; // YYYY-MM-DD
+    workType: '製造' | '包装' | 'ラベル貼り' | '出荷' | '配送' | '仕入' | '営業' | 'EC登録' | '問い合わせ対応' | 'イベント販売' | 'その他';
+    relatedProductId?: string;
+    relatedProductName?: string;
+    relatedOrderId?: string;
+    workMinutes: number;
+    workerName: string;
+    workMemo?: string;
+    producedQuantity?: number;
+    laborCost?: number;
+    estimatedLaborCost?: number;
+    mqPerWorkHour?: number;
+    efficiencyRating?: string;
+    createdAt?: string | any;
+}
+
+export interface FixedCost extends BaseEntity {
+    id: string; // targetMonth matching YYYY-MM
+    targetMonth: string; // YYYY-MM
+    rentCost: number;
+    laborCost: number;
+    utilityCost: number;
+    communicationCost: number;
+    vehicleCost: number;
+    softwareCost: number;
+    otherFixedCost: number;
+    totalFixedCost: number;
+    createdAt?: string | any;
+    updatedAt?: string | any;
+}
+
+export interface MqSummary extends BaseEntity {
+    id: string; // targetMonth matching YYYY-MM
+    targetMonth: string; // YYYY-MM
+    totalSales: number;
+    totalVariableCost: number;
+    totalMq: number;
+    averageMqRate: number;
+    totalFixedCost: number;
+    operatingProfit: number;
+    totalWorkMinutes: number;
+    mqPerHour: number;
+    productSummaries: {
+        productId: string;
+        productName: string;
+        salesVolume: number;
+        salesAmount: number;
+        variableCostAmount: number;
+        mqAmount: number;
+        mqRate: number;
+        workMinutes: number;
+        mqPerHour: number;
+    }[];
+    channelSummaries: {
+        channelName: string;
+        salesAmount: number;
+        variableCostAmount: number;
+        mqAmount: number;
+        mqRate: number;
+    }[];
+    customerSummaries: {
+        customerId: string;
+        customerName: string;
+        salesAmount: number;
+        variableCostAmount: number;
+        mqAmount: number;
+        mqRate: number;
+    }[];
+    createdAt?: string | any;
+    updatedAt?: string | any;
 }
 
 // Reusable fetcher for SWR
@@ -753,6 +850,9 @@ export function useStore() {
     const { data: businessManuals = [], mutate: mutateBusinessManuals } = useSWR<BusinessManual[]>(["business_manuals", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<BusinessManual>(col, demo), swrConfig);
     const { data: promotionTasks = [], mutate: mutatePromotionTasks } = useSWR<PromotionTask[]>(["seasonal_tasks", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<PromotionTask>(col, demo), swrConfig);
     const { data: promotionEvents = [], mutate: mutatePromotionEvents } = useSWR<PromotionEvent[]>(["promotion_events", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<PromotionEvent>(col, demo), swrConfig);
+    const { data: workLogs = [], mutate: mutateWorkLogs, isLoading: loadingWorkLogs } = useSWR<WorkLog[]>(["workLogs", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<WorkLog>(col, demo), swrConfig);
+    const { data: fixedCosts = [], mutate: mutateFixedCosts, isLoading: loadingFixedCosts } = useSWR<FixedCost[]>(["fixedCosts", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<FixedCost>(col, demo), swrConfig);
+    const { data: mqSummaries = [], mutate: mutateMqSummaries, isLoading: loadingMqSummaries } = useSWR<MqSummary[]>(["mqSummaries", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<MqSummary>(col, demo), swrConfig);
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
@@ -776,7 +876,7 @@ export function useStore() {
         { ...swrConfig, revalidateOnFocus: false }
     );
 
-    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingPrintArchives;
+    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingPrintArchives && !loadingWorkLogs && !loadingFixedCosts && !loadingMqSummaries;
 
     const updateReportConfig = async (data: Partial<AutoReportConfig>) => {
         if (checkDemoMode()) return;
@@ -3190,6 +3290,360 @@ export function useStore() {
             } finally {
                 mutatePromotionEvents();
             }
+        },
+        // MQ Accounting Action Handlers
+        workLogs,
+        mutateWorkLogs,
+        addWorkLog: async (data: Omit<WorkLog, "id" | "createdAt">) => {
+            const newRef = doc(collection(db, "workLogs"));
+            const newLog: WorkLog = {
+                id: newRef.id,
+                ...data,
+                createdAt: new Date().toISOString()
+            };
+            mutateWorkLogs([newLog, ...workLogs], false);
+            if (checkDemoMode()) return newRef.id;
+            await setDoc(newRef, {
+                ...data,
+                createdAt: serverTimestamp()
+            });
+            mutateWorkLogs();
+            return newRef.id;
+        },
+        updateWorkLog: async (id: string, data: Partial<Omit<WorkLog, "id" | "createdAt">>) => {
+            mutateWorkLogs(workLogs.map(l => l.id === id ? { ...l, ...data } : l), false);
+            if (checkDemoMode()) return;
+            await updateDoc(doc(db, "workLogs", id), data);
+            mutateWorkLogs();
+        },
+        deleteWorkLog: async (id: string) => {
+            mutateWorkLogs(workLogs.filter(l => l.id !== id), false);
+            if (checkDemoMode()) return;
+            await deleteDoc(doc(db, "workLogs", id));
+            mutateWorkLogs();
+        },
+        fixedCosts,
+        mutateFixedCosts,
+        saveFixedCosts: async (data: Omit<FixedCost, "createdAt" | "updatedAt">) => {
+            const docRef = doc(db, "fixedCosts", data.id);
+            const now = new Date().toISOString();
+            const record = {
+                ...data,
+                createdAt: now,
+                updatedAt: now
+            };
+            const newCosts = fixedCosts.some(c => c.id === data.id)
+                ? fixedCosts.map(c => c.id === data.id ? record : c)
+                : [...fixedCosts, record];
+            mutateFixedCosts(newCosts, false);
+
+            // Mapping FixedCost aggregate fields to template categories from Basic Settings
+            const fieldMappings: Record<string, string[]> = {
+                rentCost: ["地代家賃"],
+                laborCost: ["給与・手当", "外注費"],
+                utilityCost: ["水道光熱費"],
+                communicationCost: ["通信費"],
+                vehicleCost: ["交通費"],
+                softwareCost: ["諸会費・サブスク"],
+                otherFixedCost: ["その他"]
+            };
+
+            const templates = companySettings?.fixedCostTemplates && companySettings.fixedCostTemplates.length > 0
+                ? companySettings.fixedCostTemplates.filter(t => t.enabled)
+                : [];
+
+            let newExpenses = [...(expenses || [])];
+            const targetDate = `${data.targetMonth}-01`;
+            const activeSyncedExpenseIds = new Set<string>();
+
+            // Process each FixedCost field to generate proportional allocations or default fallbacks
+            for (const [fieldKey, categories] of Object.entries(fieldMappings)) {
+                const totalAmount = Number((data as any)[fieldKey]) || 0;
+                const fieldTemplates = templates.filter(t => categories.includes(t.category));
+                const templateSum = fieldTemplates.reduce((sum, t) => sum + (t.amount || 0), 0);
+
+                if (totalAmount > 0) {
+                    if (fieldTemplates.length === 0) {
+                        // Fallback: Create a single default expense record if no template exists
+                        const expenseId = `fixed_${data.targetMonth}_${fieldKey}`;
+                        activeSyncedExpenseIds.add(expenseId);
+
+                        const defaultCategory = categories[0] || "その他";
+                        const defaultPaymentMethod = (defaultCategory === "地代家賃" || defaultCategory === "給与・手当" ? "銀行振込" : defaultCategory === "その他" ? "小口現金" : "クレジット");
+
+                        const expenseRecord: Expense = {
+                            id: expenseId,
+                            date: targetDate,
+                            category: defaultCategory,
+                            paymentMethod: defaultPaymentMethod,
+                            item: `${defaultCategory}・経費 (毎月の固定費管理)`,
+                            amount: totalAmount,
+                            vendor: "固定費一括計上",
+                            isAnalyzed: false,
+                            isConfirmed: true,
+                            memo: "毎月の固定費管理から自動同期 (基本設定テンプレートなし)",
+                            isTrashed: false,
+                            createdAt: now,
+                            updatedAt: now
+                        };
+
+                        newExpenses = newExpenses.some(e => e.id === expenseId)
+                            ? newExpenses.map(e => e.id === expenseId ? expenseRecord : e)
+                            : [expenseRecord, ...newExpenses];
+
+                        if (!isDemoMode) {
+                            await setDoc(doc(db, "expenses", expenseId), {
+                                date: targetDate,
+                                category: defaultCategory,
+                                paymentMethod: defaultPaymentMethod,
+                                item: `${defaultCategory}・経費 (毎月の固定費管理)`,
+                                amount: totalAmount,
+                                vendor: "固定費一括計上",
+                                isAnalyzed: false,
+                                isConfirmed: true,
+                                memo: "毎月の固定費管理から自動同期 (基本設定テンプレートなし)",
+                                isTrashed: false,
+                                createdAt: serverTimestamp(),
+                                updatedAt: serverTimestamp()
+                            }, { merge: true });
+                        }
+                    } else {
+                        // Proportional distribution among matching templates
+                        for (const template of fieldTemplates) {
+                            const share = templateSum > 0 
+                                ? (template.amount || 0) / templateSum 
+                                : 1 / fieldTemplates.length;
+                            
+                            const allocatedAmount = Math.round(totalAmount * share);
+                            const expenseId = `fixed_${data.targetMonth}_${template.id || template.category}`;
+                            activeSyncedExpenseIds.add(expenseId);
+
+                            const expenseRecord: Expense = {
+                                id: expenseId,
+                                date: targetDate,
+                                category: template.category,
+                                paymentMethod: template.paymentMethod || "銀行振込",
+                                item: template.item || `${template.category}・固定費`,
+                                amount: allocatedAmount,
+                                vendor: template.vendor || "固定費一括計上",
+                                isAnalyzed: false,
+                                isConfirmed: true,
+                                memo: "毎月の固定費管理から自動同期 (テンプレート連動)",
+                                isTrashed: false,
+                                createdAt: now,
+                                updatedAt: now
+                            };
+
+                            newExpenses = newExpenses.some(e => e.id === expenseId)
+                               ? newExpenses.map(e => e.id === expenseId ? expenseRecord : e)
+                               : [expenseRecord, ...newExpenses];
+
+                            if (!isDemoMode) {
+                                await setDoc(doc(db, "expenses", expenseId), {
+                                    date: targetDate,
+                                    category: template.category,
+                                    paymentMethod: template.paymentMethod || "銀行振込",
+                                    item: template.item || `${template.category}・固定費`,
+                                    amount: allocatedAmount,
+                                    vendor: template.vendor || "固定費一括計上",
+                                    isAnalyzed: false,
+                                    isConfirmed: true,
+                                    memo: "毎月の固定費管理から自動同期 (テンプレート連動)",
+                                    isTrashed: false,
+                                    createdAt: serverTimestamp(),
+                                    updatedAt: serverTimestamp()
+                                }, { merge: true });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Clean up: Soft-delete/Trash any previously synced fixed-cost expense records for this month that are no longer active
+            const prefix = `fixed_${data.targetMonth}_`;
+            for (const exp of newExpenses) {
+                if (exp.id.startsWith(prefix) && !activeSyncedExpenseIds.has(exp.id)) {
+                    if (!exp.isTrashed) {
+                        newExpenses = newExpenses.map(e => e.id === exp.id ? { ...e, isTrashed: true, updatedAt: now } : e);
+                        if (!isDemoMode) {
+                            await updateDoc(doc(db, "expenses", exp.id), { isTrashed: true, updatedAt: serverTimestamp() }).catch(() => {});
+                        }
+                    }
+                }
+            }
+
+            mutateExpenses(newExpenses, false);
+
+            if (checkDemoMode()) return;
+
+            // Write fixed cost aggregates
+            await setDoc(docRef, {
+                ...data,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            mutateFixedCosts();
+            mutateExpenses();
+        },
+        mqSummaries,
+        mutateMqSummaries,
+        triggerMonthlyMqCalculation: async (targetMonth: string) => {
+            const monthSales = unifiedSales.filter(s => s.period.startsWith(targetMonth));
+            const monthWorkLogs = workLogs.filter(w => w.workDate.startsWith(targetMonth));
+            const monthFixedCost = fixedCosts.find(c => c.targetMonth === targetMonth) || {
+                rentCost: 0, laborCost: 0, utilityCost: 0, communicationCost: 0, vehicleCost: 0, softwareCost: 0, otherFixedCost: 0, totalFixedCost: 0
+            };
+
+            let totalSales = 0;
+            let totalVariableCost = 0;
+            let totalMq = 0;
+            let totalWorkMinutes = 0;
+
+            const productSummaryMap: Record<string, {
+                productId: string;
+                productName: string;
+                salesVolume: number;
+                salesAmount: number;
+                variableCostAmount: number;
+                mqAmount: number;
+                mqRate: number;
+                workMinutes: number;
+                mqPerHour: number;
+            }> = {};
+
+            const channelSummaryMap: Record<string, {
+                channelName: string;
+                salesAmount: number;
+                variableCostAmount: number;
+                mqAmount: number;
+                mqRate: number;
+            }> = {};
+
+            const customerSummaryMap: Record<string, {
+                customerId: string;
+                customerName: string;
+                salesAmount: number;
+                variableCostAmount: number;
+                mqAmount: number;
+                mqRate: number;
+            }> = {};
+
+            monthSales.forEach(sale => {
+                const channel = sale.salesChannel || "店頭販売";
+                const custId = sale.customerId || "一般消費者";
+                const custName = sale.customerId ? (spotRecipients.find(r => r.id === sale.customerId)?.name || "一般消費者") : "一般消費者";
+
+                if (!channelSummaryMap[channel]) {
+                    channelSummaryMap[channel] = { channelName: channel, salesAmount: 0, variableCostAmount: 0, mqAmount: 0, mqRate: 0 };
+                }
+                if (!customerSummaryMap[custId]) {
+                    customerSummaryMap[custId] = { customerId: custId, customerName: custName, salesAmount: 0, variableCostAmount: 0, mqAmount: 0, mqRate: 0 };
+                }
+
+                sale.items.forEach(item => {
+                    const prod = products.find(p => p.id === item.productId);
+                    const prodName = item.productName || prod?.name || "不明な商品";
+                    
+                    const qty = item.quantity || 0;
+                    const price = item.priceAtSale || 0;
+                    const amt = item.subtotal || (qty * price);
+
+                    const stdVarCostPerUnit = prod?.standardVariableCost || prod?.costPrice || 0;
+                    const itemVarCost = item.variableCostAmount || (qty * stdVarCostPerUnit);
+                    const itemMq = item.mqAmount || (amt - itemVarCost);
+
+                    totalSales += amt;
+                    totalVariableCost += itemVarCost;
+                    totalMq += itemMq;
+
+                    if (!productSummaryMap[item.productId]) {
+                        productSummaryMap[item.productId] = {
+                            productId: item.productId,
+                            productName: prodName,
+                            salesVolume: 0,
+                            salesAmount: 0,
+                            variableCostAmount: 0,
+                            mqAmount: 0,
+                            mqRate: 0,
+                            workMinutes: 0,
+                            mqPerHour: 0
+                        };
+                    }
+                    productSummaryMap[item.productId].salesVolume += qty;
+                    productSummaryMap[item.productId].salesAmount += amt;
+                    productSummaryMap[item.productId].variableCostAmount += itemVarCost;
+                    productSummaryMap[item.productId].mqAmount += itemMq;
+
+                    channelSummaryMap[channel].salesAmount += amt;
+                    channelSummaryMap[channel].variableCostAmount += itemVarCost;
+                    channelSummaryMap[channel].mqAmount += itemMq;
+
+                    customerSummaryMap[custId].salesAmount += amt;
+                    customerSummaryMap[custId].variableCostAmount += itemVarCost;
+                    customerSummaryMap[custId].mqAmount += itemMq;
+                });
+            });
+
+            monthWorkLogs.forEach(w => {
+                totalWorkMinutes += w.workMinutes;
+                if (w.relatedProductId && productSummaryMap[w.relatedProductId]) {
+                    productSummaryMap[w.relatedProductId].workMinutes += w.workMinutes;
+                }
+            });
+
+            const productSummaries = Object.values(productSummaryMap).map(p => {
+                p.mqRate = p.salesAmount > 0 ? parseFloat(((p.mqAmount / p.salesAmount) * 100).toFixed(1)) : 0;
+                p.mqPerHour = p.workMinutes > 0 ? Math.round(p.mqAmount / (p.workMinutes / 60)) : 0;
+                return p;
+            });
+
+            const channelSummaries = Object.values(channelSummaryMap).map(ch => {
+                ch.mqRate = ch.salesAmount > 0 ? parseFloat(((ch.mqAmount / ch.salesAmount) * 100).toFixed(1)) : 0;
+                return ch;
+            });
+
+            const customerSummaries = Object.values(customerSummaryMap).map(cu => {
+                cu.mqRate = cu.salesAmount > 0 ? parseFloat(((cu.mqAmount / cu.salesAmount) * 100).toFixed(1)) : 0;
+                return cu;
+            });
+
+            const averageMqRate = totalSales > 0 ? parseFloat(((totalMq / totalSales) * 100).toFixed(1)) : 0;
+            const operatingProfit = totalMq - monthFixedCost.totalFixedCost;
+            const mqPerHour = totalWorkMinutes > 0 ? Math.round(totalMq / (totalWorkMinutes / 60)) : 0;
+
+            const finalSummary: MqSummary = {
+                id: targetMonth,
+                targetMonth,
+                totalSales,
+                totalVariableCost,
+                totalMq,
+                averageMqRate,
+                totalFixedCost: monthFixedCost.totalFixedCost,
+                operatingProfit,
+                totalWorkMinutes,
+                mqPerHour,
+                productSummaries,
+                channelSummaries,
+                customerSummaries,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            mutateMqSummaries(
+                mqSummaries.some(s => s.id === targetMonth)
+                    ? mqSummaries.map(s => s.id === targetMonth ? finalSummary : s)
+                    : [...mqSummaries, finalSummary],
+                false
+            );
+
+            if (checkDemoMode()) return;
+            await setDoc(doc(db, "mqSummaries", targetMonth), {
+                ...finalSummary,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+            mutateMqSummaries();
         }
     };
 

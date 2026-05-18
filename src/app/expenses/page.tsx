@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, Suspense, useMemo, useEffect } from "react";
+import Link from "next/link";
 import { 
     Plus, Tag, CreditCard, Search, Calendar, ChevronLeft, ChevronRight, 
     MoreVertical, Trash2, Download, Mail, ArrowUpRight, Edit2, Wallet, ArrowDownCircle, ArrowUpCircle, Receipt, Eye
@@ -15,7 +16,6 @@ import { ExpenseEditModal } from "@/components/Expenses/ExpenseEditModal";
 import { PettyCashReplenishModal } from "@/components/Expenses/PettyCashReplenishModal";
 import { BankTransferModal } from "@/components/Expenses/BankTransferModal";
 import { FilePreviewModal } from "@/components/Expenses/FilePreviewModal";
-import { FixedCostModal } from "@/components/Expenses/FixedCostModal";
 
 const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
     '地代家賃': 'text-blue-600 bg-blue-50 border-blue-100',
@@ -45,7 +45,6 @@ function ExpensePageContent() {
     const [filterCategory, setFilterCategory] = useState<ExpenseCategory | 'すべて'>('すべて');
     const [filterPaymentMethod, setFilterPaymentMethod] = useState<PaymentMethod | 'すべて'>('すべて');
     const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
-    const [isFixedCostModalOpen, setIsFixedCostModalOpen] = useState(false);
 
     const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
@@ -57,7 +56,8 @@ function ExpensePageContent() {
             if (action === "new-expense") {
                 setIsUploadModalOpen(true);
             } else if (action === "fixed-cost") {
-                setIsFixedCostModalOpen(true);
+                // Redirect directly to the unified fixed-costs management page
+                window.location.href = "/fixed-costs";
             } else if (action === "replenish") {
                 setIsReplenishModalOpen(true);
             } else if (action === "transfer") {
@@ -142,12 +142,12 @@ function ExpensePageContent() {
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-4">
-                    <button
-                        onClick={() => setIsFixedCostModalOpen(true)}
+                    <Link
+                        href="/fixed-costs"
                         className="flex items-center gap-2 px-6 py-4 bg-rose-50 text-rose-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-100 transition-all border border-rose-100/50"
                     >
-                        <Plus className="w-4 h-4" /> 固定費を一括登録
-                    </button>
+                        <Plus className="w-4 h-4" /> 固定費の管理・一括計上
+                    </Link>
                     <button
                         onClick={() => setIsReplenishModalOpen(true)}
                         className="flex items-center gap-2 px-6 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-100 transition-all border border-emerald-100/50"
@@ -436,14 +436,6 @@ function ExpensePageContent() {
                 fileUrl={previewFile?.url || ""}
                 fileName={previewFile?.name}
             />
-
-            {isFixedCostModalOpen && (
-                <FixedCostModal 
-                    isOpen={isFixedCostModalOpen}
-                    onClose={() => setIsFixedCostModalOpen(false)}
-                    defaultPeriod={period}
-                />
-            )}
         </div>
     );
 }

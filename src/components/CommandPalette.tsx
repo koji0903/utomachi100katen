@@ -213,11 +213,11 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         },
         {
             id: "action_fixed_cost",
-            title: "毎月の固定費を一括登録する",
-            description: "経費管理を開き、固定費テンプレート一括登録ダイアログを自動起動します",
+            title: "毎月の固定費管理・一括計上",
+            description: "毎月の固定費を登録し、経費（元帳）へ一括自動計上します",
             category: "クイック操作",
             icon: Plus,
-            action: () => router.push("/expenses?action=fixed-cost")
+            action: () => router.push("/fixed-costs")
         },
         {
             id: "action_replenish",

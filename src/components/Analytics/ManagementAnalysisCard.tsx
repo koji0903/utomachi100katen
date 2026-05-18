@@ -27,6 +27,22 @@ interface ManagementAnalysisCardProps {
         topProducts: { name: string; qty: number }[];
     };
     expensePieData?: any[];
+    workLogsSummary?: {
+        totalMinutes: number;
+        totalLaborCost: number;
+        successRate: number;
+        averageMqPerWorkHour: number;
+    };
+    fixedCostsSummary?: {
+        rentCost: number;
+        laborCost: number;
+        utilityCost: number;
+        communicationCost: number;
+        vehicleCost: number;
+        softwareCost: number;
+        otherFixedCost: number;
+        totalFixedCost: number;
+    };
 }
 
 export function ManagementAnalysisCard({
@@ -38,7 +54,9 @@ export function ManagementAnalysisCard({
     recentReports,
     weatherSummary,
     targetStoreTrends,
-    expensePieData
+    expensePieData,
+    workLogsSummary,
+    fixedCostsSummary
 }: ManagementAnalysisCardProps) {
     const [report, setReport] = useState<string>("");
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -58,7 +76,9 @@ export function ManagementAnalysisCard({
                     recentReports,
                     weatherSummary,
                     targetStoreTrends,
-                    expensePieData
+                    expensePieData,
+                    workLogsSummary,
+                    fixedCostsSummary
                 }),
             });
             const data = await res.json();

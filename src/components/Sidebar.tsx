@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen, AlertCircle, Trash2, Building2, Mail, Sparkles, Printer, Receipt, Search } from "lucide-react";
+import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen, AlertCircle, Trash2, Building2, Mail, Sparkles, Printer, Receipt, Search, Clock, Coins } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { CURRENT_VERSION } from "@/lib/version";
@@ -28,13 +28,20 @@ export function Sidebar({ isOpen = true, onClose, onSearchClick }: SidebarProps)
       ]
     },
     {
+      label: "限界利益・MQ会計",
+      items: [
+        { name: "製造工数記録", href: "/work-logs", icon: Clock },
+        { name: "月次固定費管理", href: "/fixed-costs", icon: Coins },
+        { name: "注文・販路MQ管理", href: "/orders", icon: ShoppingCart },
+      ]
+    },
+    {
       label: "在庫・仕入れ",
       items: [
         { name: "商品管理", href: "/products", icon: Package },
         { name: "仕入管理", href: "/purchases", icon: Truck },
         { name: "在庫管理", href: "/inventory", icon: Archive },
         { name: "支払い管理", href: "/payments", icon: CreditCard },
-        { name: "注文管理", href: "/orders", icon: ShoppingCart },
       ]
     },
     {
