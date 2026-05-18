@@ -1,7 +1,7 @@
 // src/components/Expenses/FixedCostModal.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Calendar, Plus, Trash2, Loader2, Save, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { ExpenseCategory, PaymentMethod } from "@/lib/types/expense";
@@ -72,10 +72,20 @@ const INITIAL_TEMPLATES: FixedCostItem[] = [
 ];
 
 export function FixedCostModal({ isOpen, onClose, defaultPeriod }: FixedCostModalProps) {
-    const { addExpense } = useStore();
+    const { addExpense, companySettings } = useStore();
     const [period, setPeriod] = useState(defaultPeriod);
-    const [items, setItems] = useState<FixedCostItem[]>(INITIAL_TEMPLATES);
+    const [items, setItems] = useState<FixedCostItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+
+    // Sync templates dynamically from global settings doc on mount / open
+    useEffect(() => {
+        if (isOpen) {
+            const templates = companySettings?.fixedCostTemplates && companySettings.fixedCostTemplates.length > 0
+                ? companySettings.fixedCostTemplates
+                : INITIAL_TEMPLATES;
+            setItems(templates);
+        }
+    }, [isOpen, companySettings]);
 
     if (!isOpen) return null;
 

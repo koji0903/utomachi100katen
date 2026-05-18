@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useStore, CompanySettings, DEFAULT_COMPANY_SETTINGS } from "@/lib/store";
+import { useStore, CompanySettings, DEFAULT_COMPANY_SETTINGS, FixedCostItem } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
+import { ExpenseCategory, PaymentMethod } from "@/lib/types/expense";
 import {
     Building2, Phone, MapPin, Hash, Calculator,
     Save, CheckCircle2, ChevronDown, Info, FileText, Loader2, CheckCircle, AlertCircle,
-    CloudSun, Mail, ChevronRight
+    CloudSun, Mail, ChevronRight, Plus, Trash2
 } from "lucide-react";
 import { SettingsImageUpload } from "@/components/SettingsImageUpload";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
@@ -88,6 +89,46 @@ export default function SettingsPage() {
         setSealFile(null);
         setSealPreview(null);
         setForm(prev => ({ ...prev, sealUrl: "" }));
+    };
+
+    const handleTemplateToggle = (id: string) => {
+        setSaved(false);
+        const updated = (form.fixedCostTemplates || []).map(item =>
+            item.id === id ? { ...item, enabled: !item.enabled } : item
+        );
+        setForm(prev => ({ ...prev, fixedCostTemplates: updated }));
+    };
+
+    const handleTemplateFieldChange = (id: string, field: keyof FixedCostItem, value: any) => {
+        setSaved(false);
+        const updated = (form.fixedCostTemplates || []).map(item =>
+            item.id === id ? { ...item, [field]: value } : item
+        );
+        setForm(prev => ({ ...prev, fixedCostTemplates: updated }));
+    };
+
+    const handleAddTemplateRow = () => {
+        setSaved(false);
+        const newId = `template_${Date.now()}`;
+        const newItem: FixedCostItem = {
+            id: newId,
+            enabled: true,
+            category: "その他",
+            item: "新規固定費項目",
+            amount: 10000,
+            paymentMethod: "銀行振込",
+            vendor: "支払先名"
+        };
+        setForm(prev => ({
+            ...prev,
+            fixedCostTemplates: [...(prev.fixedCostTemplates || []), newItem]
+        }));
+    };
+
+    const handleRemoveTemplateRow = (id: string) => {
+        setSaved(false);
+        const updated = (form.fixedCostTemplates || []).filter(item => item.id !== id);
+        setForm(prev => ({ ...prev, fixedCostTemplates: updated }));
     };
 
     const handleSave = async () => {
@@ -428,6 +469,131 @@ export default function SettingsPage() {
                             onClear={handleClearSeal}
                             isUploading={isSaving}
                         />
+                    </div>
+                </div>
+
+
+                {/* ── 6. 固定費テンプレート初期設定 ───────────────────── */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                        <span className="text-sm">💸</span>
+                        <h2 className="font-semibold text-slate-800 text-sm">固定費テンプレート初期設定</h2>
+                        <span className="ml-auto text-[10px] text-slate-400">一括登録モーダルの初期値になります</span>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <p className="text-xs text-slate-500">経費入力画面の「固定費を一括登録」モーダルを開いたときに、デフォルトで入力される初期項目・金額を恒久的に管理できます。チェックを外した項目はデフォルトでオフになります。</p>
+                        
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse min-w-[600px]">
+                                <thead>
+                                    <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/20">
+                                        <th className="pb-3 pl-2 w-10 text-center">有効</th>
+                                        <th className="pb-3 w-32">カテゴリー</th>
+                                        <th className="pb-3">品目・内容</th>
+                                        <th className="pb-3 w-40">購入先 / 支払先</th>
+                                        <th className="pb-3 w-32">支払方法</th>
+                                        <th className="pb-3 w-28 text-right pr-2">金額 (円)</th>
+                                        <th className="pb-3 w-10 text-center"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {(form.fixedCostTemplates || []).map((item) => (
+                                        <tr key={item.id} className={`group hover:bg-slate-50/30 transition-colors ${!item.enabled ? 'opacity-40 grayscale' : ''}`}>
+                                            {/* Enabled Checkbox */}
+                                            <td className="py-3 text-center pl-2">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={item.enabled}
+                                                    onChange={() => handleTemplateToggle(item.id)}
+                                                    className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500/10 border-slate-300"
+                                                />
+                                            </td>
+                                            {/* Category Select */}
+                                            <td className="py-3 pr-2">
+                                                <select
+                                                    disabled={!item.enabled}
+                                                    value={item.category}
+                                                    onChange={(e) => handleTemplateFieldChange(item.id, "category", e.target.value as ExpenseCategory)}
+                                                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-400 transition-colors"
+                                                >
+                                                    {([
+                                                        '地代家賃', '給与・手当', '外注費', '水道光熱費', '諸会費・サブスク',
+                                                        '備品', '消耗品', '飲食費', '交通費', '通信費', '広告宣伝費', '支払手数料', 'その他'
+                                                    ] as ExpenseCategory[]).map(cat => (
+                                                        <option key={cat} value={cat}>{cat}</option>
+                                                    ))}
+                                                </select>
+                                            </td>
+                                            {/* Item Input */}
+                                            <td className="py-3 pr-2">
+                                                <input 
+                                                    type="text"
+                                                    disabled={!item.enabled}
+                                                    value={item.item}
+                                                    onChange={(e) => handleTemplateFieldChange(item.id, "item", e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400"
+                                                />
+                                            </td>
+                                            {/* Vendor Input */}
+                                            <td className="py-3 pr-2">
+                                                <input 
+                                                    type="text"
+                                                    disabled={!item.enabled}
+                                                    value={item.vendor}
+                                                    onChange={(e) => handleTemplateFieldChange(item.id, "vendor", e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400"
+                                                />
+                                            </td>
+                                            {/* Payment Method Select */}
+                                            <td className="py-3 pr-2">
+                                                <select
+                                                    disabled={!item.enabled}
+                                                    value={item.paymentMethod}
+                                                    onChange={(e) => handleTemplateFieldChange(item.id, "paymentMethod", e.target.value as PaymentMethod)}
+                                                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-400 transition-colors"
+                                                >
+                                                    {(['銀行振込', 'クレジット', '小口現金'] as PaymentMethod[]).map(pm => (
+                                                        <option key={pm} value={pm}>{pm}</option>
+                                                    ))}
+                                                </select>
+                                            </td>
+                                            {/* Amount Input */}
+                                            <td className="py-3 pr-2 text-right">
+                                                <div className="relative inline-block w-full">
+                                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">¥</span>
+                                                    <input 
+                                                        type="number"
+                                                        disabled={!item.enabled}
+                                                        value={item.amount || ""}
+                                                        onChange={(e) => handleTemplateFieldChange(item.id, "amount", Number(e.target.value))}
+                                                        className="w-full bg-slate-900 border-none rounded-lg pl-5 pr-2 py-1.5 text-right text-xs font-mono font-black text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                                    />
+                                                </div>
+                                            </td>
+                                            {/* Delete button */}
+                                            <td className="py-3 text-center">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveTemplateRow(item.id)}
+                                                    className="text-slate-300 hover:text-red-500 p-1.5 rounded-md hover:bg-slate-100 transition-colors"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <button
+                            type="button"
+                            onClick={handleAddTemplateRow}
+                            className="mt-3 flex items-center gap-1.5 px-4 py-2 border border-dashed border-slate-200 text-slate-400 hover:text-blue-600 rounded-xl hover:bg-blue-50/20 hover:border-blue-200 transition-all font-black text-xs group"
+                        >
+                            <Plus className="w-3.5 h-3.5 transition-transform group-hover:rotate-90" />
+                            初期項目を追加する
+                        </button>
                     </div>
                 </div>
 

@@ -22,7 +22,17 @@ const cleanObject = (obj: any) => {
 };
 import type { RoundingMode } from "@/lib/taxUtils";
 import type { PrintArchive, PrintArchiveHistory } from "./types/printArchive";
-import type { Expense, ExpenseCategory } from "./types/expense";
+import type { Expense, ExpenseCategory, PaymentMethod } from "./types/expense";
+
+export interface FixedCostItem {
+    id: string;
+    enabled: boolean;
+    category: ExpenseCategory;
+    item: string;
+    amount: number;
+    paymentMethod: PaymentMethod;
+    vendor: string;
+}
 
 // ─── 自社情報 / 会計設定 ─────────────────────────────────────────────
 export interface CompanySettings {
@@ -50,6 +60,7 @@ export interface CompanySettings {
     // ブランド資産
     logoUrl?: string;        // ロゴ画像 URL
     sealUrl?: string;        // 印影画像 URL
+    fixedCostTemplates?: FixedCostItem[]; // 固定費初期テンプレート
 }
 
 export interface AutoReportConfig {
@@ -81,6 +92,55 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     bankAccountType2: '普通',
     bankAccountNumber2: '',
     bankAccountHolder2: '',
+    logoUrl: '',
+    sealUrl: '',
+    fixedCostTemplates: [
+        {
+            id: "rent",
+            enabled: true,
+            category: "地代家賃",
+            item: "店舗・倉庫家賃",
+            amount: 150000,
+            paymentMethod: "銀行振込",
+            vendor: "不動産管理会社"
+        },
+        {
+            id: "payroll",
+            enabled: true,
+            category: "給与・手当",
+            item: "店舗スタッフ給与・手当",
+            amount: 300000,
+            paymentMethod: "銀行振込",
+            vendor: "従業員一同"
+        },
+        {
+            id: "outsourcing",
+            enabled: true,
+            category: "外注費",
+            item: "配送・ロジスティクス委託費",
+            amount: 85000,
+            paymentMethod: "銀行振込",
+            vendor: "ヤマト運輸・佐川急便"
+        },
+        {
+            id: "utilities",
+            enabled: true,
+            category: "水道光熱費",
+            item: "店舗電気・ガス・水道代（概算）",
+            amount: 28000,
+            paymentMethod: "クレジット",
+            vendor: "東京電力・東京ガス"
+        },
+        {
+            id: "subscription",
+            enabled: true,
+            category: "諸会費・サブスク",
+            item: "POSレジ・会計・在庫システム月額",
+            amount: 12800,
+            paymentMethod: "クレジット",
+            vendor: "スマレジ・MFクラウド"
+        }
+    ]
 };
 
 export const DEFAULT_REPORT_CONFIG: AutoReportConfig = {
