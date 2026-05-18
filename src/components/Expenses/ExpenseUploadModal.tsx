@@ -24,7 +24,21 @@ interface ExpenseUploadModalProps {
     onClose: () => void;
 }
 
-const CATEGORIES: ExpenseCategory[] = ['備品', '消耗品', '飲食費', '交通費', '通信費', '光熱費', '広告宣伝費', '支払手数料', 'その他'];
+const CATEGORIES: ExpenseCategory[] = [
+    '地代家賃',
+    '給与・手当',
+    '外注費',
+    '水道光熱費',
+    '諸会費・サブスク',
+    '備品',
+    '消耗品',
+    '飲食費',
+    '交通費',
+    '通信費',
+    '広告宣伝費',
+    '支払手数料',
+    'その他'
+];
 
 export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps) {
     const { addExpense } = useStore();
@@ -164,7 +178,7 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                 setCategory(data.category as ExpenseCategory);
                 newAnalyzedFields.add("category");
             }
-            if (data.paymentMethod && (data.paymentMethod === 'クレジット' || data.paymentMethod === '小口現金')) {
+            if (data.paymentMethod && (data.paymentMethod === 'クレジット' || data.paymentMethod === '小口現金' || data.paymentMethod === '銀行振込')) {
                 setPaymentMethod(data.paymentMethod as PaymentMethod);
                 newAnalyzedFields.add("paymentMethod");
             }
@@ -578,7 +592,7 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
                                         {analyzedFields.has("paymentMethod") && <span className="text-[9px] text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded italic font-bold">AI</span>}
                                     </label>
                                     <div className="flex gap-2">
-                                        {(['クレジット', '小口現金'] as PaymentMethod[]).map(pm => (
+                                        {(['クレジット', '小口現金', '銀行振込'] as PaymentMethod[]).map(pm => (
                                             <button
                                                 key={pm}
                                                 type="button"

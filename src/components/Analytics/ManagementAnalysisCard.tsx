@@ -13,6 +13,8 @@ interface ManagementAnalysisCardProps {
         grossProfit: number;
         totalNetProfit: number;
         cogRate: number;
+        totalExpenses: number;
+        finalNetProfit: number;
     };
     abcAnalysis: any[];
     storeDistribution: any[];
@@ -24,6 +26,7 @@ interface ManagementAnalysisCardProps {
         share: number;
         topProducts: { name: string; qty: number }[];
     };
+    expensePieData?: any[];
 }
 
 export function ManagementAnalysisCard({
@@ -34,7 +37,8 @@ export function ManagementAnalysisCard({
     storeDistribution,
     recentReports,
     weatherSummary,
-    targetStoreTrends
+    targetStoreTrends,
+    expensePieData
 }: ManagementAnalysisCardProps) {
     const [report, setReport] = useState<string>("");
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -53,7 +57,8 @@ export function ManagementAnalysisCard({
                     storeDistribution,
                     recentReports,
                     weatherSummary,
-                    targetStoreTrends
+                    targetStoreTrends,
+                    expensePieData
                 }),
             });
             const data = await res.json();

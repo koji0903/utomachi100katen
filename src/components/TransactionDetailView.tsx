@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TransactionModal } from "@/components/TransactionModal";
 import { NewDocumentModal } from "@/components/NewDocumentModal";
+import { AddPaymentModal } from "@/components/AddPaymentModal";
 
 const BRAND = "#1e3a8a";
 const BRAND_LIGHT = "#eff6ff";
@@ -29,6 +30,7 @@ export function TransactionDetailView({ id }: TransactionDetailViewProps) {
     const router = useRouter();
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isNewDocModalOpen, setIsNewDocModalOpen] = useState(false);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
     const transaction = useMemo(() => transactions.find(t => t.id === id), [transactions, id]);
     
@@ -267,7 +269,10 @@ export function TransactionDetailView({ id }: TransactionDetailViewProps) {
                                     ))
                                 )}
                             </div>
-                            <button className="w-full mt-6 py-4 text-xs font-black text-slate-400 hover:text-emerald-600 border border-dashed border-slate-200 rounded-2xl hover:bg-emerald-50/50 hover:border-emerald-200 transition-all flex items-center justify-center gap-2 group">
+                            <button 
+                                onClick={() => setIsPaymentModalOpen(true)}
+                                className="w-full mt-6 py-4 text-xs font-black text-slate-400 hover:text-emerald-600 border border-dashed border-slate-200 rounded-2xl hover:bg-emerald-50/50 hover:border-emerald-200 transition-all flex items-center justify-center gap-2 group"
+                            >
                                 <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
                                 入金記録を追加
                             </button>
@@ -304,6 +309,16 @@ export function TransactionDetailView({ id }: TransactionDetailViewProps) {
                 <NewDocumentModal 
                     onClose={() => setIsNewDocModalOpen(false)} 
                     initialTransactionId={id}
+                />
+            )}
+
+            {isPaymentModalOpen && (
+                <AddPaymentModal 
+                    isOpen={isPaymentModalOpen}
+                    onClose={() => setIsPaymentModalOpen(false)}
+                    transactionId={transaction.id}
+                    totalAmount={transaction.totalAmount}
+                    currentPaidAmount={transaction.paidAmount}
                 />
             )}
         </div>

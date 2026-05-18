@@ -2,17 +2,21 @@
 import { BaseEntity } from "../store";
 
 export type ExpenseCategory = 
+    | '地代家賃'
+    | '給与・手当'
+    | '外注費'
+    | '水道光熱費'
+    | '諸会費・サブスク'
     | '備品' 
     | '消耗品' 
     | '飲食費' 
     | '交通費' 
     | '通信費' 
-    | '光熱費' 
     | '広告宣伝費' 
     | '支払手数料' 
     | 'その他';
 
-export type PaymentMethod = 'クレジット' | '小口現金';
+export type PaymentMethod = 'クレジット' | '小口現金' | '銀行振込';
 export type ExpenseType = '支払' | '補充' | '移管';
 
 export interface Expense extends BaseEntity {

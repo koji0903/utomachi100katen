@@ -11,6 +11,8 @@ const kpisSchema = z.object({
     grossProfit: z.number(),
     totalNetProfit: z.number(),
     cogRate: z.number(),
+    totalExpenses: z.number().optional(),
+    finalNetProfit: z.number().optional(),
 }).passthrough();
 
 const abcItemSchema = z.object({
@@ -45,6 +47,7 @@ const bodySchema = z.object({
     storeDistribution: z.unknown().optional(),
     weatherSummary: z.string().max(4000).optional(),
     targetStoreTrends: targetStoreSchema.optional(),
+    expensePieData: z.array(z.any()).optional(),
 });
 
 export const POST = withAuth(async (req, ctx) => {
@@ -55,47 +58,55 @@ export const POST = withAuth(async (req, ctx) => {
 
     const parsed = await parseJson(req, bodySchema);
     if (parsed instanceof NextResponse) return parsed;
-    const { period, viewMode, kpis, abcAnalysis, recentReports, weatherSummary, targetStoreTrends } = parsed;
+    const { period, viewMode, kpis, abcAnalysis, recentReports, weatherSummary, targetStoreTrends, expensePieData } = parsed;
 
     const prompt = `
-あなたはウトマチ百貨店の経営執行責任者（COO）兼戦略コンサルタントです。
-以下の事業データ（${viewMode === "monthly" ? "月次" : "日次"}分析: ${period}）に基づき、経営的な視点での詳細な「経営分析レポート」を作成してください。
+あなたはウトマチ百貨店の最高財務責任者（CFO）兼戦略コンサルタントです。
+以下の詳細な事業データ（${viewMode === "monthly" ? "月次" : "日次"}分析: ${period}）に基づき、財務健全性の評価や損益分岐点分析を含む、詳細かつプロフェッショナルな「総合経営分析報告書」を作成してください。
 
-【1. KPIサマリー】
-売上高: ¥${kpis.totalRevenue.toLocaleString()}
-粗利益: ¥${kpis.grossProfit.toLocaleString()}
-純利益: ¥${kpis.totalNetProfit.toLocaleString()}
-原価率: ${kpis.cogRate.toFixed(1)}%
+【1. KPI財務サマリー】
+- 売上高: ¥${kpis.totalRevenue.toLocaleString()}
+- 売上総利益（粗利）: ¥${kpis.grossProfit.toLocaleString()} (原価率: ${kpis.cogRate.toFixed(1)}%)
+- 手数料差引後利益 (店舗委託手数料控除後): ¥${kpis.totalNetProfit.toLocaleString()}
+- 一般営業経費 (家賃・人件費・水道光熱費等): ¥${(kpis.totalExpenses || 0).toLocaleString()}
+- 最終純利益 (営業利益): ¥${(kpis.finalNetProfit || 0).toLocaleString()} ${ (kpis.finalNetProfit || 0) < 0 ? "⚠️ 赤字" : "✅ 黒字" }
 
-【2. 気象・環境データ】
+【2. 営業経費内訳（金額順）】
+${expensePieData && expensePieData.length > 0 ? expensePieData.map((e) => `- ${e.name}: ¥${Number(e.value).toLocaleString()}`).join("\n") : "経費明細なし"}
+
+【3. 気象・環境データ】
 ${weatherSummary || "データなし"}
 
-【3. 重点分析店舗（宇土マリーナ等）の概況】
+【4. 重点分析店舗（宇土マリーナ等）の概況】
 ${targetStoreTrends ? `
 - 店舗名: ${targetStoreTrends.name}
 - 売上高: ¥${targetStoreTrends.revenue.toLocaleString()} (全社シェア: ${targetStoreTrends.share.toFixed(1)}%)
 - 主要販売商品: ${targetStoreTrends.topProducts.map((p) => `${p.name}(${p.qty}点)`).join(", ")}
 ` : "特記店舗データなし"}
 
-【4. ABC分析（主要商品）】
+【5. ABC分析（主要商品ランク）】
 ${abcAnalysis.slice(0, 5).map((p) => `- ${p.name}: ¥${p.revenue.toLocaleString()} (ランク${p.group})`).join("\n")}
 
-【5. 現場からの直近トピック（日報要約）】
+【6. 現場からの直近トピック（日報要約）】
 ${recentReports && recentReports.length > 0 ? recentReports.map((r) => `- ${r.date}: ${r.summary}`).join("\n") : "特記事項なし"}
 
 ---
 【レポート作成指示】
-1. **経営概況サマリー**: 今期のパフォーマンスを経営者として総括してください。
-2. **多角的な相関分析**:
-   - **天気と売上の因果関係**: 気象データが客足や特定商品の売上にどう影響したか、現場の声（日報）と併せて分析してください。
-   - **商品構成と店舗特性**: 宇土マリーナ等の重点店舗で売れている商品と、全体のABC分析の結果から、どのような「売れる勝ちパターン」が見えるか読み解いてください。
-3. **重点店舗へのフィードバック**: 宇土マリーナの今後の売上向上のために必要な施策（商品ラインナップの調整や販促のタイミング等）について具体的に言及してください。
-4. **戦略的アクション案**: 短期および中長期で取り組むべき次の一手を、具体的に3つ提案してください。
+1. **経営・財務概況の総括**: 
+   売上高・粗利益率に加えて、一般営業経費の発生状況をふまえ、「最終純利益（営業利益）」が健全な水準であるかを財務視点で厳しく評価してください。
+2. **限界利益・損益分岐点（BEP）に関するアドバイス**:
+   - 今回の売上・原価・手数料・固定費データから概算的な損益分岐点（売上に対して固定費＋変動費が賄えるポイント）について触れ、利益率向上のための売上目標や固定費削減策を提案してください。
+3. **経費（Overhead Expenses）の分析と最適化策**:
+   - 地代家賃や人件費、水道光熱費などカテゴリ別の内訳から、コストが膨らんでいる部分を特定し、削減可能性やROI（投資対効果）を分析してください。
+4. **多角的な要因分析（天気・店舗特性・勝ちパターン）**:
+   - 気象と売上の関係、および宇土マリーナでの販売実績と全社ABC分析から見えるヒット商品の勝ちパターンを解説してください。
+5. **戦略的アクションプラン**:
+   - 財務の健全化と売上最大化を両立するために、短期および中長期で取り組むべき次の一手を、具体的かつ優先順位を明確にして3つ提案してください。
 
 【出力形式】
 - 日本語で出力してください。
-- 威厳と知性を感じさせるプロフェッショナルな文体で作成してください。
-- **重要なキーワードや分析結果は、マークダウンの太字（**）で強調してください。**
+- 威厳と知性を感じさせるプロフェッショナルなCFOの文体で作成してください。
+- **重要な財務目標、削減すべき経費額、具体的な施策などのキーワードは、マークダウンの太字（**）で強調してください。**
 - マークダウン形式で、セクションごとに見出し（#、##、###）を付けてください。
 `;
 

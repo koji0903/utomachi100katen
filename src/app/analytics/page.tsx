@@ -9,7 +9,7 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     type PieLabelRenderProps,
 } from "recharts";
-import { TrendingUp, DollarSign, Percent, ShoppingBag, Store, Filter, ChevronLeft, ChevronRight, FileText, BarChart3, PieChart as PieIcon, ListFilter } from "lucide-react";
+import { TrendingUp, DollarSign, Percent, ShoppingBag, Store, Filter, ChevronLeft, ChevronRight, FileText, BarChart3, PieChart as PieIcon, ListFilter, Receipt } from "lucide-react";
 import { showNotification } from "@/lib/notifications";
 
 import { MonthlySalesReport } from "@/components/Analytics/MonthlySalesReport";
@@ -24,7 +24,7 @@ const fmtYen = (v: number) => `¥${Math.round(v).toLocaleString()}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 
 export default function AnalyticsPage() {
-    const { isLoaded, sales, unifiedSales, products, brands, retailStores, purchases, dailyReports, dailyWeather } = useStore();
+    const { isLoaded, sales, unifiedSales, products, brands, retailStores, purchases, dailyReports, dailyWeather, expenses } = useStore();
 
     const now = new Date();
     const [viewMode, setViewMode] = useState<ViewMode>("monthly");
@@ -62,6 +62,17 @@ export default function AnalyticsPage() {
     const computeCOGS = (sale: (typeof sales)[number]) =>
         sale.items.reduce((sum, item) => sum + (productCostMap[item.productId] ?? 0) * item.quantity, 0);
 
+    // Filter expenses by period
+    const periodExpenses = useMemo(() => {
+        if (!expenses) return [];
+        const baseExpenses = expenses.filter(e => !e.isTrashed);
+        if (viewMode === "monthly") {
+            return baseExpenses.filter(e => e.date.startsWith(selectedYear));
+        } else {
+            return baseExpenses.filter(e => e.date.startsWith(selectedMonth));
+        }
+    }, [expenses, viewMode, selectedYear, selectedMonth]);
+
     // Global KPI totals over filtered period
     const kpiTotals = useMemo(() => {
         let totalRevenue = 0, totalCOGS = 0, totalNetProfit = 0;
@@ -70,20 +81,30 @@ export default function AnalyticsPage() {
             totalCOGS += computeCOGS(sale);
             totalNetProfit += sale.totalNetProfit;
         }
+
+        // 一般経費合計（補充は経費から除外）
+        const totalExpenses = periodExpenses
+            .filter(e => !e.type || e.type === '支払' || e.type === '移管')
+            .reduce((sum, e) => sum + e.amount, 0);
+
         const grossProfit = totalRevenue - totalCOGS;
         const cogRate = totalRevenue > 0 ? (totalCOGS / totalRevenue) * 100 : 0;
-        return { totalRevenue, totalCOGS, grossProfit, totalNetProfit, cogRate };
-    }, [periodSales, productCostMap]);
+        
+        // 最終純利益 = 手数料差引後利益 - 一般経費
+        const finalNetProfit = totalNetProfit - totalExpenses;
+
+        return { totalRevenue, totalCOGS, grossProfit, totalNetProfit, cogRate, totalExpenses, finalNetProfit };
+    }, [periodSales, periodExpenses, productCostMap]);
 
     // ─── Trend Chart Data ───
     const trendData = useMemo(() => {
-        const buckets: Record<string, { key: string; label: string; revenue: number; grossProfit: number; netProfit: number; prevRevenue: number }> = {};
+        const buckets: Record<string, { key: string; label: string; revenue: number; grossProfit: number; netProfit: number; expenses: number; finalNetProfit: number; prevRevenue: number }> = {};
 
         if (viewMode === "monthly") {
             // All 12 months of the selected year
             for (let m = 1; m <= 12; m++) {
                 const key = `${selectedYear}-${String(m).padStart(2, "0")}`;
-                buckets[key] = { key, label: `${m}月`, revenue: 0, grossProfit: 0, netProfit: 0, prevRevenue: 0 };
+                buckets[key] = { key, label: `${m}月`, revenue: 0, grossProfit: 0, netProfit: 0, expenses: 0, finalNetProfit: 0, prevRevenue: 0 };
             }
         } else {
             // All days in the selected month
@@ -91,7 +112,7 @@ export default function AnalyticsPage() {
             const daysInMonth = new Date(y, mo, 0).getDate();
             for (let d = 1; d <= daysInMonth; d++) {
                 const key = `${selectedMonth}-${String(d).padStart(2, "0")}`;
-                buckets[key] = { key, label: `${d}日`, revenue: 0, grossProfit: 0, netProfit: 0, prevRevenue: 0 };
+                buckets[key] = { key, label: `${d}日`, revenue: 0, grossProfit: 0, netProfit: 0, expenses: 0, finalNetProfit: 0, prevRevenue: 0 };
             }
         }
 
@@ -104,6 +125,20 @@ export default function AnalyticsPage() {
                 buckets[key].netProfit += sale.totalNetProfit;
             }
         }
+
+        // 経費をバケットに分配
+        for (const exp of periodExpenses) {
+            if (exp.type === '補充') continue;
+            const key = viewMode === "monthly" ? exp.date.slice(0, 7) : exp.date.slice(0, 10);
+            if (buckets[key]) {
+                buckets[key].expenses += exp.amount;
+            }
+        }
+
+        // 最終純利益を算出
+        Object.keys(buckets).forEach(k => {
+            buckets[k].finalNetProfit = buckets[k].netProfit - buckets[k].expenses;
+        });
 
         // Previous year comparison
         if (showYoY) {
@@ -133,7 +168,7 @@ export default function AnalyticsPage() {
         }
 
         return Object.values(buckets);
-    }, [periodSales, storeSales, viewMode, selectedYear, selectedMonth, productCostMap, showYoY]);
+    }, [periodSales, periodExpenses, storeSales, viewMode, selectedYear, selectedMonth, productCostMap, showYoY]);
 
     // ─── ABC Analysis Data ───
     const abcData = useMemo(() => {
@@ -166,6 +201,19 @@ export default function AnalyticsPage() {
             return { ...p, cumulativeRatio: ratio, group };
         });
     }, [periodSales, products]);
+
+    // ─── Expense Break-down Pie Data ───
+    const expensePieData = useMemo(() => {
+        const map: Record<string, number> = {};
+        for (const exp of periodExpenses) {
+            if (exp.type === '補充') continue;
+            const cat = exp.category || 'その他';
+            map[cat] = (map[cat] || 0) + exp.amount;
+        }
+        return Object.entries(map)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+    }, [periodExpenses]);
 
     // ─── Store Share Pie Data ───
     const storePieData = useMemo(() => {
@@ -272,34 +320,57 @@ export default function AnalyticsPage() {
     // ─── Summary Table Data ───
     const tableRows = useMemo(() => {
         if (viewMode === "monthly") {
-            const buckets: Record<string, { period: string; revenue: number; cogs: number; netProfit: number }> = {};
+            const buckets: Record<string, { period: string; revenue: number; cogs: number; commission: number; netProfit: number; expenses: number; finalNetProfit: number }> = {};
             for (let m = 1; m <= 12; m++) {
                 const key = `${selectedYear}-${String(m).padStart(2, "0")}`;
-                buckets[key] = { period: `${m}月`, revenue: 0, cogs: 0, netProfit: 0 };
+                buckets[key] = { period: `${m}月`, revenue: 0, cogs: 0, commission: 0, netProfit: 0, expenses: 0, finalNetProfit: 0 };
             }
+            
             for (const sale of periodSales) {
                 const key = sale.period.slice(0, 7);
                 if (buckets[key]) {
                     buckets[key].revenue += sale.totalAmount;
-                    buckets[key].cogs += computeCOGS(sale);
+                    const cogs = computeCOGS(sale);
+                    buckets[key].cogs += cogs;
                     buckets[key].netProfit += sale.totalNetProfit;
+                    buckets[key].commission += (sale.totalAmount - sale.totalNetProfit);
                 }
             }
+            
+            for (const exp of periodExpenses) {
+                if (exp.type === '補充') continue;
+                const key = exp.date.slice(0, 7);
+                if (buckets[key]) {
+                    buckets[key].expenses += exp.amount;
+                }
+            }
+            
+            Object.keys(buckets).forEach(k => {
+                buckets[k].finalNetProfit = buckets[k].netProfit - buckets[k].expenses;
+            });
+            
             return Object.entries(buckets).map(([, v]) => v);
         } else {
             // Group by store
-            const buckets: Record<string, { period: string; revenue: number; cogs: number; netProfit: number }> = {};
+            const buckets: Record<string, { period: string; revenue: number; cogs: number; commission: number; netProfit: number; expenses: number; finalNetProfit: number }> = {};
             for (const sale of periodSales) {
                 const storeId = sale.storeId;
                 const name = retailStores.find(s => s.id === storeId)?.name ?? "不明";
-                if (!buckets[storeId]) buckets[storeId] = { period: name, revenue: 0, cogs: 0, netProfit: 0 };
+                if (!buckets[storeId]) buckets[storeId] = { period: name, revenue: 0, cogs: 0, commission: 0, netProfit: 0, expenses: 0, finalNetProfit: 0 };
                 buckets[storeId].revenue += sale.totalAmount;
-                buckets[storeId].cogs += computeCOGS(sale);
+                const cogs = computeCOGS(sale);
+                buckets[storeId].cogs += cogs;
                 buckets[storeId].netProfit += sale.totalNetProfit;
+                buckets[storeId].commission += (sale.totalAmount - sale.totalNetProfit);
             }
+            
+            Object.keys(buckets).forEach(k => {
+                buckets[k].finalNetProfit = buckets[k].netProfit;
+            });
+            
             return Object.values(buckets);
         }
-    }, [periodSales, viewMode, selectedYear, retailStores, productCostMap]);
+    }, [periodSales, periodExpenses, viewMode, selectedYear, retailStores, productCostMap]);
 
     const availableYears = useMemo(() => {
         const years = new Set<string>();
@@ -383,9 +454,10 @@ export default function AnalyticsPage() {
                 revenue: utoMarinaRevenue,
                 share: kpiTotals.totalRevenue > 0 ? (utoMarinaRevenue / kpiTotals.totalRevenue) * 100 : 0,
                 topProducts: utoMarinaTopProducts
-            }
+            },
+            expensePieData
         };
-    }, [viewMode, selectedYear, selectedMonth, kpiTotals, abcData, storePieData, dailyReports, dailyWeather, retailStores, products, periodSales]);
+    }, [viewMode, selectedYear, selectedMonth, kpiTotals, abcData, storePieData, dailyReports, dailyWeather, retailStores, products, periodSales, expensePieData]);
 
     if (!isLoaded) {
         return (
@@ -426,31 +498,38 @@ export default function AnalyticsPage() {
         {
             label: "売上高",
             value: fmtYen(kpiTotals.totalRevenue),
-            sub: `仕入原価 ${fmtYen(kpiTotals.totalCOGS)}`,
+            sub: `原価率 ${fmtPct(kpiTotals.cogRate)}`,
             icon: DollarSign,
             color: "bg-blue-50 text-blue-600",
         },
         {
             label: "売上総利益（粗利）",
             value: fmtYen(kpiTotals.grossProfit),
-            sub: `原価率 ${fmtPct(kpiTotals.cogRate)}`,
+            sub: `売上原価 ${fmtYen(kpiTotals.totalCOGS)}`,
             icon: TrendingUp,
-            color: "bg-emerald-50 text-emerald-600",
+            color: "bg-teal-50 text-teal-600",
         },
         {
-            label: "手数料差引後 純利益",
+            label: "手数料差引後 利益",
             value: fmtYen(kpiTotals.totalNetProfit),
             sub: "店舗手数料控除後",
             icon: ShoppingBag,
             color: "bg-violet-50 text-violet-600",
         },
         {
-            label: "原価率",
-            value: fmtPct(kpiTotals.cogRate),
-            sub: "低いほど利益率が高い",
-            icon: Percent,
-            color: "bg-amber-50 text-amber-600",
+            label: "営業経費",
+            value: fmtYen(kpiTotals.totalExpenses),
+            sub: "地代家賃・人件費等",
+            icon: FileText,
+            color: "bg-rose-50 text-rose-600",
         },
+        {
+            label: "最終純利益",
+            value: fmtYen(kpiTotals.finalNetProfit),
+            sub: "手数料・一般経費控除後",
+            icon: TrendingUp,
+            color: kpiTotals.finalNetProfit >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600",
+        }
     ];
 
     const customTooltip = ({ active, payload, label }: any) => {
@@ -549,7 +628,7 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* KPI Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                     {kpiCards.map(card => {
                         const Icon = card.icon;
                         return (
@@ -595,9 +674,11 @@ export default function AnalyticsPage() {
                                     onClick={handleLegendClick}
                                     cursor="pointer"
                                 />
-                                <Bar dataKey="revenue" name="売上高" fill="#3b82f6" hide={hiddenSeries.has("revenue")} radius={[4, 4, 0, 0]} barSize={24} />
-                                <Bar dataKey="grossProfit" name="粗利益" fill="#10b981" hide={hiddenSeries.has("grossProfit")} radius={[4, 4, 0, 0]} barSize={24} />
-                                <Bar dataKey="netProfit" name="純利益" fill="#8b5cf6" hide={hiddenSeries.has("netProfit")} radius={[4, 4, 0, 0]} barSize={24} />
+                                <Bar dataKey="revenue" name="売上高" fill="#3b82f6" hide={hiddenSeries.has("revenue")} radius={[4, 4, 0, 0]} barSize={12} />
+                                <Bar dataKey="grossProfit" name="粗利益" fill="#0d9488" hide={hiddenSeries.has("grossProfit")} radius={[4, 4, 0, 0]} barSize={12} />
+                                <Bar dataKey="netProfit" name="手数料差引後利益" fill="#8b5cf6" hide={hiddenSeries.has("netProfit")} radius={[4, 4, 0, 0]} barSize={12} />
+                                <Bar dataKey="expenses" name="営業経費" fill="#f43f5e" hide={hiddenSeries.has("expenses")} radius={[4, 4, 0, 0]} barSize={12} />
+                                <Line type="monotone" dataKey="finalNetProfit" name="最終純利益" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} hide={hiddenSeries.has("finalNetProfit")} />
                                 {showYoY && (
                                     <Line type="monotone" dataKey="prevRevenue" name="前年売上" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="5 5" />
                                 )}
@@ -782,8 +863,8 @@ export default function AnalyticsPage() {
                     </div>
                 </div>
 
-                {/* Charts Row 3: Pie + Ranking */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                {/* Charts Row 3: Pies + Ranking */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                     {/* Store Share Pie */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                         <div className="flex items-center gap-2 mb-4">
@@ -791,11 +872,11 @@ export default function AnalyticsPage() {
                             <h2 className="font-bold text-slate-800 text-sm">店舗別売上シェア</h2>
                         </div>
                         {storePieData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={320}>
+                            <ResponsiveContainer width="100%" height={240}>
                                 <PieChart>
-                                    <Pie data={storePieData} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={80}
+                                    <Pie data={storePieData} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={60}
                                         label={(props: PieLabelRenderProps) => {
-                                            if ((props.percent ?? 0) < 0.05) return null;
+                                            if ((props.percent ?? 0) < 0.08) return null;
                                             return `${props.name ?? ""} ${(((props.percent ?? 0)) * 100).toFixed(0)}%`;
                                         }}
                                         labelLine={true}
@@ -806,7 +887,7 @@ export default function AnalyticsPage() {
                                         ))}
                                     </Pie>
                                     <Tooltip formatter={(v: any) => fmtYen(Number(v))} />
-                                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10, paddingTop: 20 }} />
+                                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 9, paddingTop: 10 }} />
                                 </PieChart>
                             </ResponsiveContainer>
                         ) : (
@@ -817,18 +898,51 @@ export default function AnalyticsPage() {
                         )}
                     </div>
 
+                    {/* Expense Category Share Pie */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <PieIcon className="w-4 h-4 text-rose-500" />
+                            <h2 className="font-bold text-slate-800 text-sm">経費カテゴリー別内訳</h2>
+                        </div>
+                        {expensePieData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <PieChart>
+                                    <Pie data={expensePieData} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={60}
+                                        label={(props: PieLabelRenderProps) => {
+                                            if ((props.percent ?? 0) < 0.08) return null;
+                                            return `${props.name ?? ""} ${(((props.percent ?? 0)) * 100).toFixed(0)}%`;
+                                        }}
+                                        labelLine={true}
+                                        className="focus:outline-none"
+                                    >
+                                        {expensePieData.map((_, i) => (
+                                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="white" strokeWidth={2} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(v: any) => fmtYen(Number(v))} />
+                                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 9, paddingTop: 10 }} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-[240px] flex items-center justify-center text-slate-300 flex-col gap-2">
+                                <Receipt className="w-10 h-10 text-slate-200" />
+                                <p className="text-sm">営業経費が未登録です</p>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Product Ranking */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                         <div className="flex items-center gap-2 mb-4">
-                            <BarChart3 className="w-4 h-4 text-slate-400" />
-                            <h2 className="font-bold text-slate-800 text-sm">商品別販売数ランキング（TOP 8）</h2>
+                            <BarChart3 className="w-4 h-4 text-amber-500" />
+                            <h2 className="font-bold text-slate-800 text-sm">商品別販売数ランキング</h2>
                         </div>
                         {productRankData.length > 0 ? (
                             <ResponsiveContainer width="100%" height={240}>
-                                <BarChart data={productRankData} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
+                                <BarChart data={productRankData} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                                     <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "#64748b" }} width={100} />
+                                    <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fill: "#64748b" }} width={80} />
                                     <Tooltip formatter={(v: any) => [`${v}個`, "販売数"]} cursor={{ fill: "#f8fafc" }} />
                                     <Bar dataKey="qty" name="販売数" fill="#f59e0b" radius={[0, 4, 4, 0]}>
                                         {productRankData.map((_, i) => (
@@ -850,35 +964,39 @@ export default function AnalyticsPage() {
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
                         <h2 className="font-bold text-slate-800 text-sm">
-                            {viewMode === "monthly" ? `${selectedYear}年 月次明細` : `${selectedMonth.replace("-", "年")}月 店舗別明細`}
+                            {viewMode === "monthly" ? `${selectedYear}年 損益計算書明細 (P&L)` : `${selectedMonth.replace("-", "年")}月 店舗別明細`}
                         </h2>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide border-b border-slate-200">
-                                    <th className="px-5 py-3 font-semibold text-left">期間 / 店舗</th>
-                                    <th className="px-5 py-3 font-semibold text-right">売上高</th>
-                                    <th className="px-5 py-3 font-semibold text-right">粗利益</th>
-                                    <th className="px-5 py-3 font-semibold text-right">純利益</th>
-                                    <th className="px-5 py-3 font-semibold text-right">原価率</th>
+                                    <th className="px-4 py-3 font-semibold text-left">期間 / 店舗</th>
+                                    <th className="px-4 py-3 font-semibold text-right">売上高</th>
+                                    <th className="px-4 py-3 font-semibold text-right">売上原価</th>
+                                    <th className="px-4 py-3 font-semibold text-right">委託手数料</th>
+                                    <th className="px-4 py-3 font-semibold text-right">営業経費</th>
+                                    <th className="px-4 py-3 font-semibold text-right">最終純利益</th>
+                                    <th className="px-4 py-3 font-semibold text-right">最終利益率</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {tableRows.map((row, i) => {
                                     const gp = row.revenue - row.cogs;
-                                    const cogRate = row.revenue > 0 ? (row.cogs / row.revenue) * 100 : 0;
                                     const hasData = row.revenue > 0;
+                                    const netProfitRate = row.revenue > 0 ? (row.finalNetProfit / row.revenue) * 100 : 0;
                                     return (
                                         <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
-                                            <td className="px-5 py-3.5 font-medium text-slate-700">{row.period}</td>
-                                            <td className={`px-5 py-3.5 text-right font-bold ${hasData ? "text-slate-900" : "text-slate-300"}`}>{fmtYen(row.revenue)}</td>
-                                            <td className={`px-5 py-3.5 text-right font-bold ${hasData ? "text-emerald-600" : "text-slate-300"}`}>{fmtYen(gp)}</td>
-                                            <td className={`px-5 py-3.5 text-right font-bold ${hasData ? "text-violet-600" : "text-slate-300"}`}>{fmtYen(row.netProfit)}</td>
-                                            <td className="px-5 py-3.5 text-right">
+                                            <td className="px-4 py-3.5 font-medium text-slate-700">{row.period}</td>
+                                            <td className={`px-4 py-3.5 text-right font-bold ${hasData ? "text-slate-900" : "text-slate-300"}`}>{fmtYen(row.revenue)}</td>
+                                            <td className="px-4 py-3.5 text-right text-slate-400">{hasData ? fmtYen(row.cogs) : "—"}</td>
+                                            <td className="px-4 py-3.5 text-right text-slate-400">{hasData ? fmtYen(row.commission) : "—"}</td>
+                                            <td className={`px-4 py-3.5 text-right font-semibold ${hasData && row.expenses > 0 ? "text-rose-500" : "text-slate-300"}`}>{hasData && row.expenses > 0 ? fmtYen(row.expenses) : "—"}</td>
+                                            <td className={`px-4 py-3.5 text-right font-bold ${hasData ? (row.finalNetProfit >= 0 ? "text-emerald-600" : "text-red-600") : "text-slate-300"}`}>{fmtYen(row.finalNetProfit)}</td>
+                                            <td className="px-4 py-3.5 text-right">
                                                 {hasData ? (
-                                                    <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-bold ${cogRate < 40 ? "bg-emerald-100 text-emerald-700" : cogRate < 60 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
-                                                        {fmtPct(cogRate)}
+                                                    <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-bold ${netProfitRate > 25 ? "bg-emerald-100 text-emerald-700" : netProfitRate > 0 ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"}`}>
+                                                        {fmtPct(netProfitRate)}
                                                     </span>
                                                 ) : <span className="text-slate-300">—</span>}
                                             </td>
@@ -887,14 +1005,16 @@ export default function AnalyticsPage() {
                                 })}
                             </tbody>
                             <tfoot className="bg-slate-50 border-t-2 border-slate-200">
-                                <tr className="text-sm">
-                                    <td className="px-5 py-4 font-bold text-slate-700">合計</td>
-                                    <td className="px-5 py-4 text-right font-black text-slate-900">{fmtYen(kpiTotals.totalRevenue)}</td>
-                                    <td className="px-5 py-4 text-right font-black text-emerald-600">{fmtYen(kpiTotals.grossProfit)}</td>
-                                    <td className="px-5 py-4 text-right font-black text-violet-600">{fmtYen(kpiTotals.totalNetProfit)}</td>
-                                    <td className="px-5 py-4 text-right">
-                                        <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-bold ${kpiTotals.cogRate < 40 ? "bg-emerald-100 text-emerald-700" : kpiTotals.cogRate < 60 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
-                                            {fmtPct(kpiTotals.cogRate)}
+                                <tr className="text-sm font-bold">
+                                    <td className="px-4 py-4 text-slate-700">合計</td>
+                                    <td className="px-4 py-4 text-right font-black text-slate-900">{fmtYen(kpiTotals.totalRevenue)}</td>
+                                    <td className="px-4 py-4 text-right text-slate-600">{fmtYen(kpiTotals.totalCOGS)}</td>
+                                    <td className="px-4 py-4 text-right text-slate-600">{fmtYen(kpiTotals.totalRevenue - kpiTotals.totalNetProfit)}</td>
+                                    <td className="px-4 py-4 text-right text-rose-600">{fmtYen(kpiTotals.totalExpenses)}</td>
+                                    <td className={`px-4 py-4 text-right font-black ${kpiTotals.finalNetProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>{fmtYen(kpiTotals.finalNetProfit)}</td>
+                                    <td className="px-4 py-4 text-right">
+                                        <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-bold ${kpiTotals.totalRevenue > 0 && (kpiTotals.finalNetProfit / kpiTotals.totalRevenue) * 100 > 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                                            {fmtPct(kpiTotals.totalRevenue > 0 ? (kpiTotals.finalNetProfit / kpiTotals.totalRevenue) * 100 : 0)}
                                         </span>
                                     </td>
                                 </tr>

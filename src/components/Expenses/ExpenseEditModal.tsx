@@ -18,7 +18,21 @@ interface ExpenseEditModalProps {
     expense: Expense | null;
 }
 
-const CATEGORIES: ExpenseCategory[] = ['備品', '消耗品', '飲食費', '交通費', '通信費', '光熱費', '広告宣伝費', '支払手数料', 'その他'];
+const CATEGORIES: ExpenseCategory[] = [
+    '地代家賃',
+    '給与・手当',
+    '外注費',
+    '水道光熱費',
+    '諸会費・サブスク',
+    '備品',
+    '消耗品',
+    '飲食費',
+    '交通費',
+    '通信費',
+    '広告宣伝費',
+    '支払手数料',
+    'その他'
+];
 
 export function ExpenseEditModal({ isOpen, onClose, expense }: ExpenseEditModalProps) {
     const { updateExpense } = useStore();
@@ -231,7 +245,7 @@ export function ExpenseEditModal({ isOpen, onClose, expense }: ExpenseEditModalP
                                         </span>
                                     </label>
                                     <div className="flex gap-2">
-                                        {(['クレジット', '小口現金'] as PaymentMethod[]).map(pm => (
+                                        {(['クレジット', '小口現金', '銀行振込'] as PaymentMethod[]).map(pm => (
                                             <button
                                                 key={pm}
                                                 type="button"

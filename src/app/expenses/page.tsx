@@ -15,14 +15,19 @@ import { ExpenseEditModal } from "@/components/Expenses/ExpenseEditModal";
 import { PettyCashReplenishModal } from "@/components/Expenses/PettyCashReplenishModal";
 import { BankTransferModal } from "@/components/Expenses/BankTransferModal";
 import { FilePreviewModal } from "@/components/Expenses/FilePreviewModal";
+import { FixedCostModal } from "@/components/Expenses/FixedCostModal";
 
 const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
-    '備品': 'text-blue-600 bg-blue-50 border-blue-100',
+    '地代家賃': 'text-blue-600 bg-blue-50 border-blue-100',
+    '給与・手当': 'text-purple-600 bg-purple-50 border-purple-100',
+    '外注費': 'text-indigo-600 bg-indigo-50 border-indigo-100',
+    '水道光熱費': 'text-yellow-600 bg-yellow-50 border-yellow-100',
+    '諸会費・サブスク': 'text-cyan-600 bg-cyan-50 border-cyan-100',
+    '備品': 'text-teal-600 bg-teal-50 border-teal-100',
     '消耗品': 'text-emerald-600 bg-emerald-50 border-emerald-100',
     '飲食費': 'text-orange-600 bg-orange-50 border-orange-100',
-    '交通費': 'text-purple-600 bg-purple-50 border-purple-100',
-    '通信費': 'text-cyan-600 bg-cyan-50 border-cyan-100',
-    '光熱費': 'text-yellow-600 bg-yellow-50 border-yellow-100',
+    '交通費': 'text-violet-600 bg-violet-50 border-violet-100',
+    '通信費': 'text-sky-600 bg-sky-50 border-sky-100',
     '広告宣伝費': 'text-rose-600 bg-rose-50 border-rose-100',
     '支払手数料': 'text-slate-600 bg-slate-50 border-slate-100',
     'その他': 'text-slate-500 bg-slate-50 border-slate-200',
@@ -40,6 +45,7 @@ function ExpensePageContent() {
     const [filterCategory, setFilterCategory] = useState<ExpenseCategory | 'すべて'>('すべて');
     const [filterPaymentMethod, setFilterPaymentMethod] = useState<PaymentMethod | 'すべて'>('すべて');
     const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+    const [isFixedCostModalOpen, setIsFixedCostModalOpen] = useState(false);
 
     const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
@@ -114,6 +120,12 @@ function ExpensePageContent() {
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-4">
+                    <button
+                        onClick={() => setIsFixedCostModalOpen(true)}
+                        className="flex items-center gap-2 px-6 py-4 bg-rose-50 text-rose-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-100 transition-all border border-rose-100/50"
+                    >
+                        <Plus className="w-4 h-4" /> 固定費を一括登録
+                    </button>
                     <button
                         onClick={() => setIsReplenishModalOpen(true)}
                         className="flex items-center gap-2 px-6 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-100 transition-all border border-emerald-100/50"
@@ -208,7 +220,7 @@ function ExpensePageContent() {
                 <div className="flex flex-col gap-4 mt-6">
                     <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
                         <Tag className="w-4 h-4 text-slate-400 flex-shrink-0 mr-2" />
-                        {(['すべて', '備品', '消耗品', '飲食費', '交通費', '通信費', '光熱費', '広告宣伝費', '支払手数料', 'その他'] as const).map(cat => (
+                        {(['すべて', '地代家賃', '給与・手当', '外注費', '水道光熱費', '諸会費・サブスク', '備品', '消耗品', '飲食費', '交通費', '通信費', '広告宣伝費', '支払手数料', 'その他'] as const).map(cat => (
                             <button
                                 key={cat}
                                 onClick={() => setFilterCategory(cat)}
@@ -220,7 +232,7 @@ function ExpensePageContent() {
                     </div>
                     <div className="flex items-center gap-2 overflow-x-auto pb-4 lg:pb-0 scrollbar-hide">
                         <CreditCard className="w-4 h-4 text-slate-400 flex-shrink-0 mr-2" />
-                        {(['すべて', 'クレジット', '小口現金'] as const).map(pm => (
+                        {(['すべて', 'クレジット', '小口現金', '銀行振込'] as const).map(pm => (
                             <button
                                 key={pm}
                                 onClick={() => setFilterPaymentMethod(pm)}
@@ -268,26 +280,26 @@ function ExpensePageContent() {
                                         </div>
                                     </td>
                                     <td className="px-8 py-6">
-                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
                                             expense.type === '補充' 
-                                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
                                                 : expense.type === '移管'
-                                                    ? 'bg-blue-50 text-blue-600 border border-blue-100'
-                                                    : 'bg-slate-50 text-slate-500 border border-slate-100'
+                                                    ? 'bg-blue-50 text-blue-600 border-blue-100'
+                                                    : (CATEGORY_COLORS[expense.category as ExpenseCategory] || 'bg-slate-50 text-slate-500 border-slate-100')
                                         }`}>
                                             {expense.type === '補充' ? '補充' : expense.type === '移管' ? '移管' : expense.category}
                                         </span>
                                     </td>
                                     <td className="px-8 py-6">
                                         <div className="flex items-center gap-2">
-                                            {(expense.paymentMethod === 'クレジット') ? (
+                                            {expense.paymentMethod === 'クレジット' ? (
                                                 <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                                            ) : expense.paymentMethod === '銀行振込' ? (
+                                                <ArrowUpRight className="w-3.5 h-3.5 text-blue-500" />
+                                            ) : expense.type === '補充' ? (
+                                                <ArrowDownCircle className="w-3.5 h-3.5 text-emerald-400" />
                                             ) : (
-                                                expense.type === '補充' ? (
-                                                    <ArrowDownCircle className="w-3.5 h-3.5 text-emerald-400" />
-                                                ) : (
-                                                    <div className="w-3.5 h-3.5 rounded-full bg-emerald-50 flex items-center justify-center text-[8px] font-bold text-emerald-600">¥</div>
-                                                )
+                                                <div className="w-3.5 h-3.5 rounded-full bg-emerald-50 flex items-center justify-center text-[8px] font-bold text-emerald-600">¥</div>
                                             )}
                                             <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
                                                 {expense.type === '補充' ? '入金' : expense.type === '移管' ? '出金（銀行へ）' : (expense.paymentMethod || '小口現金')}
@@ -402,6 +414,14 @@ function ExpensePageContent() {
                 fileUrl={previewFile?.url || ""}
                 fileName={previewFile?.name}
             />
+
+            {isFixedCostModalOpen && (
+                <FixedCostModal 
+                    isOpen={isFixedCostModalOpen}
+                    onClose={() => setIsFixedCostModalOpen(false)}
+                    defaultPeriod={period}
+                />
+            )}
         </div>
     );
 }
