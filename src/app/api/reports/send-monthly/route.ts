@@ -16,6 +16,8 @@ const summaryDataSchema = z.object({
     grandTotalAmount: z.number(),
     grandTotalQuantity: z.number(),
     totals: z.array(storeTotalSchema),
+    totalExpenses: z.number().optional(),
+    netProfit: z.number().optional(),
 }).passthrough();
 
 const bodySchema = z.object({
@@ -55,22 +57,27 @@ export const POST = withAuth(async (req, ctx) => {
         await transporter.verify();
 
         const reportMonth = month.replace(/-/g, "/");
-        const subject = `【売上レポート】${reportMonth}月分 月次売上報告書`;
+        const subject = `【月次損益レポート】${reportMonth}月分 月次損益（P&L）報告書`;
 
         const storeBreakdown = summaryData.totals
             .map((s) => `・${s.storeName.padEnd(20)}: ${s.storeTotalQuantity.toLocaleString().padStart(5)}個 / ¥${s.storeTotalAmount.toLocaleString().padStart(10)}`)
             .join("\n");
 
+        const expensesText = summaryData.totalExpenses !== undefined ? `・一般営業経費: ¥${summaryData.totalExpenses.toLocaleString()}` : '';
+        const netProfitText = summaryData.netProfit !== undefined ? `・最終純利益: ¥${summaryData.netProfit.toLocaleString()}` : '';
+
         const textBody = `
 ウトマチ 運営担当者 様
 
-${reportMonth}月の月次売上レポートをお送りいたします。
-売上概況および店舗別の集計結果を以下の通りお知らせいたします。
+${reportMonth}月の月次損益（P&L）レポートをお送りいたします。
+売上高、委託手数料、営業経費、および最終損益の集計結果をお知らせいたします。
 詳細は添付のPDFファイルをご確認ください。
 
-【${reportMonth}月 売上概況】
-・合計売上額: ¥${summaryData.grandTotalAmount.toLocaleString()}
+【${reportMonth}月 損益総合サマリ】
+・合計売上高: ¥${summaryData.grandTotalAmount.toLocaleString()}
 ・合計売上個数: ${summaryData.grandTotalQuantity.toLocaleString()} 個
+${expensesText}
+${netProfitText}
 ・対象店舗数: ${summaryData.totals.length} 店舗
 
 【店舗別売上サマリ】

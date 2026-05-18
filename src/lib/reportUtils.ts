@@ -1,5 +1,6 @@
 // src/lib/reportUtils.ts
 import { Sale, Product, RetailStore, DailyReport, SpotRecipient } from "./store";
+import { Expense } from "./types/expense";
 
 export interface ReportData {
     period: {
@@ -178,6 +179,11 @@ export interface MonthlySalesReportData {
     }[];
     grandTotalAmount: number;
     grandTotalQuantity: number;
+    
+    // 【NEW】損益関連フィールドの追加
+    totalExpenses: number;
+    expenseDetails: { category: string; amount: number }[];
+    netProfit: number;
 }
 
 export function generateMonthlySalesReport(
@@ -185,7 +191,8 @@ export function generateMonthlySalesReport(
     sales: Sale[],
     products: Product[],
     retailStores: RetailStore[],
-    spotRecipients: SpotRecipient[]
+    spotRecipients: SpotRecipient[],
+    expenses: Expense[] = []
 ): MonthlySalesReportData {
     const monthSales = sales.filter(s => s.period.startsWith(targetMonth) && !s.isTrashed);
     
@@ -238,10 +245,44 @@ export function generateMonthlySalesReport(
     const grandTotalAmount = totals.reduce((sum, t) => sum + t.storeTotalAmount, 0);
     const grandTotalQuantity = totals.reduce((sum, t) => sum + t.storeTotalQuantity, 0);
 
+    // 【NEW】経費集計ロジックの組み込み
+    const monthExpenses = expenses.filter(e => 
+        e.date.startsWith(targetMonth) && 
+        !e.isTrashed && 
+        e.type !== "補充" && 
+        e.type !== "移管"
+    );
+    const totalExpenses = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+    // カテゴリ別経費の集計
+    const expenseCategoryMap: Record<string, number> = {};
+    monthExpenses.forEach(e => {
+        const cat = e.category || "その他";
+        expenseCategoryMap[cat] = (expenseCategoryMap[cat] || 0) + e.amount;
+    });
+    const expenseDetails = Object.entries(expenseCategoryMap)
+        .map(([category, amount]) => ({ category, amount }))
+        .sort((a, b) => b.amount - a.amount);
+
+    // 各店舗の委託手数料（または手数料率）を引いて最終純利益を計算
+    let totalCommissions = 0;
+    totals.forEach(store => {
+        const storeObj = retailStores.find(rs => rs.id === store.storeId);
+        if (storeObj && storeObj.commissionRate) {
+            const commission = store.storeTotalAmount * (storeObj.commissionRate / 100);
+            totalCommissions += commission;
+        }
+    });
+
+    const netProfit = grandTotalAmount - totalCommissions - totalExpenses;
+
     return {
         month: targetMonth,
         totals,
         grandTotalAmount,
-        grandTotalQuantity
+        grandTotalQuantity,
+        totalExpenses,
+        expenseDetails,
+        netProfit
     };
 }
