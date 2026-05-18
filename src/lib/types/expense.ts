@@ -23,7 +23,7 @@ export interface Expense extends BaseEntity {
     id: string;
     date: string;          // YYYY-MM-DD
     type?: ExpenseType;    // デフォルトは '支払'
-    category: ExpenseCategory;
+    category: string;      // 任意のカスタムカテゴリーを許容するため string に拡張
     paymentMethod: PaymentMethod;
     item: string;          // 品目・内容
     amount: number;        // 金額

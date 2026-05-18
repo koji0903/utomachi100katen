@@ -27,7 +27,7 @@ import type { Expense, ExpenseCategory, PaymentMethod } from "./types/expense";
 export interface FixedCostItem {
     id: string;
     enabled: boolean;
-    category: ExpenseCategory;
+    category: string; // 標準カテゴリの選択とカスタム文字列設定を両立するため string に緩和
     item: string;
     amount: number;
     paymentMethod: PaymentMethod;

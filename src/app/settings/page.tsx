@@ -508,30 +508,28 @@ export default function SettingsPage() {
                                                     className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500/10 border-slate-300"
                                                 />
                                             </td>
-                                            {/* Category Select */}
+                                            {/* Category Input with Datalist */}
                                             <td className="py-3 pr-2">
-                                                <select
+                                                <input
+                                                    type="text"
+                                                    list="category-options"
                                                     disabled={!item.enabled}
                                                     value={item.category}
-                                                    onChange={(e) => handleTemplateFieldChange(item.id, "category", e.target.value as ExpenseCategory)}
-                                                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-400 transition-colors"
-                                                >
-                                                    {([
-                                                        '地代家賃', '給与・手当', '外注費', '水道光熱費', '諸会費・サブスク',
-                                                        '備品', '消耗品', '飲食費', '交通費', '通信費', '広告宣伝費', '支払手数料', 'その他'
-                                                    ] as ExpenseCategory[]).map(cat => (
-                                                        <option key={cat} value={cat}>{cat}</option>
-                                                    ))}
-                                                </select>
+                                                    onChange={(e) => handleTemplateFieldChange(item.id, "category", e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400"
+                                                    placeholder="カテゴリー"
+                                                />
                                             </td>
-                                            {/* Item Input */}
+                                            {/* Item Input with Datalist */}
                                             <td className="py-3 pr-2">
                                                 <input 
                                                     type="text"
+                                                    list="item-options"
                                                     disabled={!item.enabled}
                                                     value={item.item}
                                                     onChange={(e) => handleTemplateFieldChange(item.id, "item", e.target.value)}
                                                     className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400"
+                                                    placeholder="品目・内容"
                                                 />
                                             </td>
                                             {/* Vendor Input */}
@@ -594,6 +592,35 @@ export default function SettingsPage() {
                             <Plus className="w-3.5 h-3.5 transition-transform group-hover:rotate-90" />
                             初期項目を追加する
                         </button>
+
+                        {/* Datalists for Predefined Standard Categories and Items */}
+                        <datalist id="category-options">
+                            <option value="地代家賃" />
+                            <option value="給与・手当" />
+                            <option value="外注費" />
+                            <option value="水道光熱費" />
+                            <option value="諸会費・サブスク" />
+                            <option value="備品" />
+                            <option value="消耗品" />
+                            <option value="飲食費" />
+                            <option value="交通費" />
+                            <option value="通信費" />
+                            <option value="広告宣伝費" />
+                            <option value="支払手数料" />
+                            <option value="その他" />
+                        </datalist>
+
+                        <datalist id="item-options">
+                            <option value="店舗・倉庫家賃" />
+                            <option value="店舗スタッフ給与・手当" />
+                            <option value="配送・ロジスティクス委託費" />
+                            <option value="店舗電気・ガス・水道代（概算）" />
+                            <option value="POSレジ・会計・在庫システム月額" />
+                            <option value="インターネット回線・電話代" />
+                            <option value="SNS広告・Web広告運用費" />
+                            <option value="店舗清掃・消耗品購入費" />
+                            <option value="税理士・会計士顧問料" />
+                        </datalist>
                     </div>
                 </div>
 

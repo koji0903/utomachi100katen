@@ -43,7 +43,7 @@ export function ExpenseEditModal({ isOpen, onClose, expense }: ExpenseEditModalP
     const [vendor, setVendor] = useState("");
     const [amount, setAmount] = useState<number>(0);
     const [item, setItem] = useState("");
-    const [category, setCategory] = useState<ExpenseCategory>('消耗品');
+    const [category, setCategory] = useState<string>('消耗品');
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('小口現金');
     const [memo, setMemo] = useState("");
 
@@ -224,7 +224,7 @@ export function ExpenseEditModal({ isOpen, onClose, expense }: ExpenseEditModalP
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-3">
                                         <Tag className="w-3.5 h-3.5 text-slate-300" /> カテゴリー
                                     </label>
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-3 gap-2 mb-3">
                                         {CATEGORIES.map(cat => (
                                             <button
                                                 key={cat}
@@ -236,6 +236,19 @@ export function ExpenseEditModal({ isOpen, onClose, expense }: ExpenseEditModalP
                                             </button>
                                         ))}
                                     </div>
+                                    <input
+                                        type="text"
+                                        list="edit-modal-category-options"
+                                        placeholder="または任意のカテゴリーを直接入力..."
+                                        value={category}
+                                        onChange={(e) => setCategory(e.target.value)}
+                                        className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all text-xs font-black text-slate-800"
+                                    />
+                                    <datalist id="edit-modal-category-options">
+                                        {CATEGORIES.map(cat => (
+                                            <option key={cat} value={cat} />
+                                        ))}
+                                    </datalist>
                                 </div>
 
                                 <div>

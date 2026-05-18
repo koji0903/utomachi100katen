@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Calendar, Plus, Trash2, Loader2, Save, Sparkles } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { useStore, FixedCostItem } from "@/lib/store";
 import { ExpenseCategory, PaymentMethod } from "@/lib/types/expense";
 import { showNotification } from "@/lib/notifications";
 
@@ -11,16 +11,6 @@ interface FixedCostModalProps {
     isOpen: boolean;
     onClose: () => void;
     defaultPeriod: string; // YYYY-MM
-}
-
-interface FixedCostItem {
-    id: string;
-    enabled: boolean;
-    category: ExpenseCategory;
-    item: string;
-    amount: number;
-    paymentMethod: PaymentMethod;
-    vendor: string;
 }
 
 const INITIAL_TEMPLATES: FixedCostItem[] = [
@@ -211,30 +201,28 @@ export function FixedCostModal({ isOpen, onClose, defaultPeriod }: FixedCostModa
                                             className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500/10 border-slate-300"
                                         />
                                     </td>
-                                    {/* Category Select */}
+                                    {/* Category Input with Datalist */}
                                     <td className="py-4">
-                                        <select
+                                        <input
+                                            type="text"
+                                            list="modal-category-options"
                                             disabled={!item.enabled}
                                             value={item.category}
-                                            onChange={(e) => handleUpdateField(item.id, "category", e.target.value as ExpenseCategory)}
-                                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-2 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:border-rose-500 transition-colors"
-                                        >
-                                            {([
-                                                '地代家賃', '給与・手当', '外注費', '水道光熱費', '諸会費・サブスク',
-                                                '備品', '消耗品', '飲食費', '交通費', '通信費', '広告宣伝費', '支払手数料', 'その他'
-                                            ] as ExpenseCategory[]).map(cat => (
-                                                <option key={cat} value={cat}>{cat}</option>
-                                            ))}
-                                        </select>
+                                            onChange={(e) => handleUpdateField(item.id, "category", e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/10 focus:border-rose-500"
+                                            placeholder="カテゴリー"
+                                        />
                                     </td>
-                                    {/* Item Input */}
+                                    {/* Item Input with Datalist */}
                                     <td className="py-4">
                                         <input 
                                             type="text"
+                                            list="modal-item-options"
                                             disabled={!item.enabled}
                                             value={item.item}
                                             onChange={(e) => handleUpdateField(item.id, "item", e.target.value)}
                                             className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/10 focus:border-rose-500"
+                                            placeholder="品目・内容"
                                         />
                                     </td>
                                     {/* Vendor Input */}
@@ -331,6 +319,35 @@ export function FixedCostModal({ isOpen, onClose, defaultPeriod }: FixedCostModa
                         </button>
                     </div>
                 </div>
+
+                {/* Datalists for Predefined Standard Categories and Items */}
+                <datalist id="modal-category-options">
+                    <option value="地代家賃" />
+                    <option value="給与・手当" />
+                    <option value="外注費" />
+                    <option value="水道光熱費" />
+                    <option value="諸会費・サブスク" />
+                    <option value="備品" />
+                    <option value="消耗品" />
+                    <option value="飲食費" />
+                    <option value="交通費" />
+                    <option value="通信費" />
+                    <option value="広告宣伝費" />
+                    <option value="支払手数料" />
+                    <option value="その他" />
+                </datalist>
+
+                <datalist id="modal-item-options">
+                    <option value="店舗・倉庫家賃" />
+                    <option value="店舗スタッフ給与・手当" />
+                    <option value="配送・ロジスティクス委託費" />
+                    <option value="店舗電気・ガス・水道代（概算）" />
+                    <option value="POSレジ・会計・在庫システム月額" />
+                    <option value="インターネット回線・電話代" />
+                    <option value="SNS広告・Web広告運用費" />
+                    <option value="店舗清掃・消耗品購入費" />
+                    <option value="税理士・会計士顧問料" />
+                </datalist>
             </div>
         </div>
     );
