@@ -321,10 +321,10 @@ export default function AnalyticsPage() {
     // ─── Summary Table Data ───
     const tableRows = useMemo(() => {
         if (viewMode === "monthly") {
-            const buckets: Record<string, { period: string; revenue: number; cogs: number; commission: number; netProfit: number; expenses: number; finalNetProfit: number }> = {};
+            const buckets: Record<string, { period: string; revenue: number; cogs: number; commission: number; netProfit: number; expenses: number; finalNetProfit: number; categories: Record<string, number> }> = {};
             for (let m = 1; m <= 12; m++) {
                 const key = `${selectedYear}-${String(m).padStart(2, "0")}`;
-                buckets[key] = { period: `${m}月`, revenue: 0, cogs: 0, commission: 0, netProfit: 0, expenses: 0, finalNetProfit: 0 };
+                buckets[key] = { period: `${m}月`, revenue: 0, cogs: 0, commission: 0, netProfit: 0, expenses: 0, finalNetProfit: 0, categories: {} };
             }
             
             for (const sale of periodSales) {
@@ -343,6 +343,8 @@ export default function AnalyticsPage() {
                 const key = exp.date.slice(0, 7);
                 if (buckets[key]) {
                     buckets[key].expenses += exp.amount;
+                    const cat = exp.category || 'その他';
+                    buckets[key].categories[cat] = (buckets[key].categories[cat] || 0) + exp.amount;
                 }
             }
             
@@ -353,11 +355,11 @@ export default function AnalyticsPage() {
             return Object.entries(buckets).map(([, v]) => v);
         } else {
             // Group by store
-            const buckets: Record<string, { period: string; revenue: number; cogs: number; commission: number; netProfit: number; expenses: number; finalNetProfit: number }> = {};
+            const buckets: Record<string, { period: string; revenue: number; cogs: number; commission: number; netProfit: number; expenses: number; finalNetProfit: number; categories: Record<string, number> }> = {};
             for (const sale of periodSales) {
                 const storeId = sale.storeId;
                 const name = retailStores.find(s => s.id === storeId)?.name ?? "不明";
-                if (!buckets[storeId]) buckets[storeId] = { period: name, revenue: 0, cogs: 0, commission: 0, netProfit: 0, expenses: 0, finalNetProfit: 0 };
+                if (!buckets[storeId]) buckets[storeId] = { period: name, revenue: 0, cogs: 0, commission: 0, netProfit: 0, expenses: 0, finalNetProfit: 0, categories: {} };
                 buckets[storeId].revenue += sale.totalAmount;
                 const cogs = computeCOGS(sale);
                 buckets[storeId].cogs += cogs;
@@ -1020,7 +1022,47 @@ export default function AnalyticsPage() {
                                             <td className={`px-4 py-3.5 text-right font-bold ${hasData ? "text-slate-900" : "text-slate-300"}`}>{fmtYen(row.revenue)}</td>
                                             <td className="px-4 py-3.5 text-right text-slate-400">{hasData ? fmtYen(row.cogs) : "—"}</td>
                                             <td className="px-4 py-3.5 text-right text-slate-400">{hasData ? fmtYen(row.commission) : "—"}</td>
-                                            <td className={`px-4 py-3.5 text-right font-semibold ${hasData && row.expenses > 0 ? "text-rose-500" : "text-slate-300"}`}>{hasData && row.expenses > 0 ? fmtYen(row.expenses) : "—"}</td>
+                                            <td className="px-4 py-3.5 text-right relative group">
+                                                {hasData && row.expenses > 0 ? (
+                                                    <>
+                                                        <span className="font-semibold text-rose-500 cursor-help border-b border-dashed border-rose-400/50 pb-0.5">
+                                                            {fmtYen(row.expenses)}
+                                                        </span>
+                                                        
+                                                        {/* Custom breakdown Tooltip for Monthly Overhead Expenses */}
+                                                        <div className="absolute bottom-full right-4 mb-2 w-60 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-2xl shadow-xl p-4 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 z-50 border border-slate-700/50 text-left">
+                                                            <div className="font-black border-b border-slate-700/50 pb-1.5 mb-1.5 text-slate-300 tracking-wider uppercase text-[10px] flex justify-between">
+                                                                <span>{row.period} 経費内訳</span>
+                                                                <span className="text-rose-400">計 {fmtYen(row.expenses)}</span>
+                                                            </div>
+                                                            <div className="space-y-1.5 max-h-40 overflow-y-auto scrollbar-thin">
+                                                                {Object.entries(row.categories || {}).length > 0 ? (
+                                                                    Object.entries(row.categories)
+                                                                        .sort((a, b) => b[1] - a[1])
+                                                                        .map(([name, val], idx) => {
+                                                                            const pct = row.expenses > 0 ? (val / row.expenses) * 100 : 0;
+                                                                            return (
+                                                                                <div key={idx} className="flex justify-between items-center gap-3">
+                                                                                    <span className="font-bold text-slate-200">{name}</span>
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <span className="text-[9px] text-slate-400 font-semibold">{pct.toFixed(0)}%</span>
+                                                                                        <span className="font-black text-slate-100">¥{Math.round(val).toLocaleString()}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })
+                                                                ) : (
+                                                                    <div className="text-slate-400 italic text-center py-1">内訳データはありません</div>
+                                                                )}
+                                                            </div>
+                                                            {/* Tooltip Arrow */}
+                                                            <div className="absolute top-full right-8 -mt-1 border-4 border-transparent border-t-slate-900/95"></div>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-slate-300">—</span>
+                                                )}
+                                            </td>
                                             <td className={`px-4 py-3.5 text-right font-bold ${hasData ? (row.finalNetProfit >= 0 ? "text-emerald-600" : "text-red-600") : "text-slate-300"}`}>{fmtYen(row.finalNetProfit)}</td>
                                             <td className="px-4 py-3.5 text-right">
                                                 {hasData ? (
