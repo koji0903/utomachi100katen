@@ -90,21 +90,21 @@ export default function AnalyticsPage() {
         const grossProfit = totalRevenue - totalCOGS;
         const cogRate = totalRevenue > 0 ? (totalCOGS / totalRevenue) * 100 : 0;
         
-        // 最終純利益 = 手数料差引後利益 - 一般経費
-        const finalNetProfit = totalNetProfit - totalExpenses;
+        // 最終純利益 = 手数料差引後利益 - 売上原価 - 一般経費
+        const finalNetProfit = totalNetProfit - totalCOGS - totalExpenses;
 
         return { totalRevenue, totalCOGS, grossProfit, totalNetProfit, cogRate, totalExpenses, finalNetProfit };
     }, [periodSales, periodExpenses, productCostMap]);
 
     // ─── Trend Chart Data ───
     const trendData = useMemo(() => {
-        const buckets: Record<string, { key: string; label: string; revenue: number; grossProfit: number; netProfit: number; expenses: number; finalNetProfit: number; prevRevenue: number }> = {};
+        const buckets: Record<string, { key: string; label: string; revenue: number; cogs: number; grossProfit: number; netProfit: number; expenses: number; finalNetProfit: number; prevRevenue: number }> = {};
 
         if (viewMode === "monthly") {
             // All 12 months of the selected year
             for (let m = 1; m <= 12; m++) {
                 const key = `${selectedYear}-${String(m).padStart(2, "0")}`;
-                buckets[key] = { key, label: `${m}月`, revenue: 0, grossProfit: 0, netProfit: 0, expenses: 0, finalNetProfit: 0, prevRevenue: 0 };
+                buckets[key] = { key, label: `${m}月`, revenue: 0, cogs: 0, grossProfit: 0, netProfit: 0, expenses: 0, finalNetProfit: 0, prevRevenue: 0 };
             }
         } else {
             // All days in the selected month
@@ -112,7 +112,7 @@ export default function AnalyticsPage() {
             const daysInMonth = new Date(y, mo, 0).getDate();
             for (let d = 1; d <= daysInMonth; d++) {
                 const key = `${selectedMonth}-${String(d).padStart(2, "0")}`;
-                buckets[key] = { key, label: `${d}日`, revenue: 0, grossProfit: 0, netProfit: 0, expenses: 0, finalNetProfit: 0, prevRevenue: 0 };
+                buckets[key] = { key, label: `${d}日`, revenue: 0, cogs: 0, grossProfit: 0, netProfit: 0, expenses: 0, finalNetProfit: 0, prevRevenue: 0 };
             }
         }
 
@@ -121,6 +121,7 @@ export default function AnalyticsPage() {
             if (buckets[key]) {
                 const cogs = computeCOGS(sale);
                 buckets[key].revenue += sale.totalAmount;
+                buckets[key].cogs += cogs;
                 buckets[key].grossProfit += sale.totalAmount - cogs;
                 buckets[key].netProfit += sale.totalNetProfit;
             }
@@ -137,7 +138,7 @@ export default function AnalyticsPage() {
 
         // 最終純利益を算出
         Object.keys(buckets).forEach(k => {
-            buckets[k].finalNetProfit = buckets[k].netProfit - buckets[k].expenses;
+            buckets[k].finalNetProfit = buckets[k].netProfit - buckets[k].cogs - buckets[k].expenses;
         });
 
         // Previous year comparison
@@ -346,7 +347,7 @@ export default function AnalyticsPage() {
             }
             
             Object.keys(buckets).forEach(k => {
-                buckets[k].finalNetProfit = buckets[k].netProfit - buckets[k].expenses;
+                buckets[k].finalNetProfit = buckets[k].netProfit - buckets[k].cogs - buckets[k].expenses;
             });
             
             return Object.entries(buckets).map(([, v]) => v);
@@ -365,7 +366,7 @@ export default function AnalyticsPage() {
             }
             
             Object.keys(buckets).forEach(k => {
-                buckets[k].finalNetProfit = buckets[k].netProfit;
+                buckets[k].finalNetProfit = buckets[k].netProfit - buckets[k].cogs;
             });
             
             return Object.values(buckets);
