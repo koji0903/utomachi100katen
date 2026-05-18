@@ -88,7 +88,6 @@ ${reportsText}
             "gemini-3-flash",
             "gemini-2.5-flash",
             "gemini-1.5-flash",
-            "gemini-1.5-pro",
         ];
         let responseText = "";
         for (const modelName of modelsToTry) {

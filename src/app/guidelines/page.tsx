@@ -1,17 +1,107 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { BookOpen, Plus, Edit2, Trash2, ArrowRightCircle, ExternalLink, Sparkles, AlertCircle, Search, X } from "lucide-react";
 import { useStore, BusinessManual } from "@/lib/store";
 import { GuidelineEditorModal } from "@/components/GuidelineEditorModal";
 import { showNotification } from "@/lib/notifications";
 
 export default function GuidelinesPage() {
-    const { businessManuals, deleteBusinessManual, printArchives, isLoaded } = useStore();
+    const { businessManuals, deleteBusinessManual, addBusinessManual, printArchives, isLoaded } = useStore();
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
     const [editingManual, setEditingManual] = useState<BusinessManual | undefined>(undefined);
     const [searchQuery, setSearchQuery] = useState("");
+
+    const handleCreateTemplate = async () => {
+        try {
+            const newId = await addBusinessManual({
+                title: "支出・経費管理マニュアル",
+                category: "経費管理",
+                order: 1,
+                content: `# 支出・経費管理マニュアル
+
+このマニュアルでは、ウトマチ百貨店における日々の経費入力、固定費の一括登録、および領収書のスキャン手順について説明します。
+正確な経費入力を行うことで、経営分析ダッシュボードの「営業経費」および「最終純利益（営業利益）」が自動計算され、Gemini AIから高精度な財務アドバイスを得ることができます。
+
+---
+
+## 📌 経費登録の3つの方法
+
+### 1. 毎月の固定費を一括登録する（推奨 💡）
+家賃や給与、サブスクなど、毎月決まって発生する固定費はテンプレートから一括登録できます。
+
+- **操作手順**:
+  1. メニューから **「支出・経費管理」** 画面を開きます。
+  2. 画面右上にある薄いピンク色の **「➕ 固定費を一括登録」** ボタンをクリックします。
+  3. テンプレート一覧（地代家賃、人件費、サブスク、概算光熱費など）が表示されます。
+  4. 金額や適用日を個別に編集し、不要なもののチェックを外します。
+  5. 最下部の **「固定費を一括登録」** ボタンを押して完了します。
+
+### 2. レシート・領収書をAIスキャンで個別登録する（AI OCR 📸）
+日々の買い出しや備品購入などのレシートは、画像から自動解析して登録できます。
+
+- **操作手順**:
+  1. メニューから **「支出・経費管理」** 画面を開きます。
+  2. 画面右上にある黒い **「📅 記録を追加」** ボタンをクリックします。
+  3. レシートや領収書の写真（JPEG/PNGなど）をドラッグ＆ドロップまたは選択してアップロードします。
+  4. **Gemini AI** が自動的に「日付」「金額」「カテゴリー」「支払先」をスキャンしてフォームに入力します。
+  5. 内容を確認・微調整し、支払方法を選択して **「追加する」** ボタンをクリックします。
+
+### 3. 小口現金の補充と移管管理（手許金のインアウト 🏦）
+オフィスの金庫にある小口現金の補充や銀行への移管フローです。
+
+- **小口現金の補充**:
+  - 銀行から現金を引き出して補充した際、**「➕ 現金を補充する」** ボタンから金額と補充元銀行を入力して登録します。
+- **銀行への預け入れ（移管）**:
+  - 小口現力を銀行口座へ預け入れた際、**「↗️ 銀行へ移管」** ボタンから金額と移管先銀行を入力して登録します。
+  - ※これらの補充や移管は、営業経費（コスト）からは正しく除外され、純利益計算を歪めることなく「手許の小口現金残金」のみを正確に連動させます。
+
+---
+
+## 🔍 入力後のデータ連携と経営活用
+
+登録した経費データは、システム全体にリアルタイムで反映されます。
+
+1. **店舗・事業分析 (Analytics)**:
+   - KPIカードに「営業経費」と「最終純利益」が表示され、収支状況が一瞬でわかります。
+   - 経費カテゴリー別の円グラフで、何にコストが多く使われているか（比率）を確認できます。
+   - 滝のように流れる **損益計算書 (P&L)** で月次の財務状況を詳細に確認できます。
+2. **Gemini AI 財務レポート**:
+   - 損益分岐点（BEP）や、カテゴリー別のコスト削減案について、プロのCFO視点のアドバイスレポートが出力されます。`,
+                attachedDocumentIds: [],
+                links: []
+            });
+            showNotification("「支出・経費管理マニュアル」を作成しました！");
+            if (newId) setSelectedId(newId);
+        } catch (error) {
+            console.error("Failed to create template manual", error);
+            showNotification("マニュアルの作成に失敗しました");
+        }
+    };
+
+    // Handle action and select query parameters from global Command Palette
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            const action = params.get("action");
+            const selectId = params.get("select");
+
+            if (action === "new-guideline") {
+                setEditingManual(undefined);
+                setEditorOpen(true);
+            }
+
+            if (selectId) {
+                setSelectedId(selectId);
+            }
+
+            if (action || selectId) {
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        }
+    }, [businessManuals]);
 
     const filteredManuals = useMemo(() => {
         if (!searchQuery.trim()) return businessManuals;
@@ -133,12 +223,18 @@ export default function GuidelinesPage() {
                     <div className="w-20 h-20 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto">
                         <BookOpen className="w-10 h-10" />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-4">
                         <h3 className="text-xl font-bold text-slate-800">マニュアルがまだありません</h3>
-                        <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
+                        <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed mb-4">
                             右上のボタンから、配送手順、在庫管理、経費の承認フローなど、<br />
                             チームで共有すべき業務マニュアルを追加しましょう。
                         </p>
+                        <button
+                            onClick={handleCreateTemplate}
+                            className="inline-flex items-center gap-2 px-6 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl font-black text-xs uppercase tracking-widest transition-all hover:scale-105 border border-blue-100/50 shadow-sm"
+                        >
+                            <Sparkles className="w-4 h-4 text-blue-500" /> 支出・経費管理マニュアルを自動作成
+                        </button>
                     </div>
                 </div>
             ) : (

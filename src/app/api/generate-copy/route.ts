@@ -38,7 +38,6 @@ export const POST = withAuth(async (req, ctx) => {
             "gemini-3.0-flash",
             "gemini-2.5-flash",
             "gemini-1.5-flash",
-            "gemini-1.5-pro",
         ];
         let responseText = "";
         for (const modelName of modelsToTry) {

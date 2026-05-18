@@ -4,18 +4,32 @@ import { useAuth } from "@/lib/authContext";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
-import { Menu } from "lucide-react";
+import { Menu, Search } from "lucide-react";
+import { CommandPalette } from "@/components/CommandPalette";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { user, loading } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
 
     // Close drawer on route change
     useEffect(() => {
         setSidebarOpen(false);
     }, [pathname]);
+
+    // Keyboard shortcut to open Command Palette
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+                e.preventDefault();
+                setIsSearchOpen(prev => !prev);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
 
     useEffect(() => {
         if (!loading && !user && pathname !== "/login") {
@@ -45,7 +59,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="flex h-screen bg-[#f8fafc] overflow-hidden text-slate-900 font-sans">
-            <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <Sidebar 
+                isOpen={sidebarOpen} 
+                onClose={() => setSidebarOpen(false)} 
+                onSearchClick={() => setIsSearchOpen(true)}
+            />
 
             <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative">
                 {/* Mobile header bar */}
@@ -53,7 +71,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <div className="flex items-center gap-4">
                         <button
                             onClick={() => setSidebarOpen(true)}
-                            className="p-2.5 -ml-2 rounded-xl text-slate-600 hover:text-[#1e3a8a] hover:bg-slate-100 transition-all active:scale-95"
+                            className="p-2.5 -ml-2 rounded-xl text-slate-600 hover:text-[#1e3a8a] hover:bg-slate-100 transition-all active:scale-95 cursor-pointer"
                             aria-label="メニューを開く"
                         >
                             <Menu className="w-6 h-6" />
@@ -62,6 +80,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             ウトマチ百貨店
                         </h1>
                     </div>
+                    {/* Mobile Search Button */}
+                    <button
+                        onClick={() => setIsSearchOpen(true)}
+                        className="p-2.5 rounded-xl text-slate-600 hover:text-[#1e3a8a] hover:bg-slate-50 transition-all active:scale-95 cursor-pointer"
+                        aria-label="検索を開く"
+                    >
+                        <Search className="w-5 h-5" />
+                    </button>
                 </header>
 
                 <main className="flex-1 overflow-y-auto bg-[#f8fafc]">
@@ -70,6 +96,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </div>
                 </main>
             </div>
+
+            {/* Global Command Palette Popup */}
+            <CommandPalette isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
         </div>
     );
 }

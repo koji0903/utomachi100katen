@@ -1,7 +1,7 @@
 // src/app/expenses/page.tsx
 "use client";
 
-import { useState, Suspense, useMemo } from "react";
+import { useState, Suspense, useMemo, useEffect } from "react";
 import { 
     Plus, Tag, CreditCard, Search, Calendar, ChevronLeft, ChevronRight, 
     MoreVertical, Trash2, Download, Mail, ArrowUpRight, Edit2, Wallet, ArrowDownCircle, ArrowUpCircle, Receipt, Eye
@@ -48,6 +48,28 @@ function ExpensePageContent() {
     const [isFixedCostModalOpen, setIsFixedCostModalOpen] = useState(false);
 
     const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
+
+    // Handle action query parameter from global Command Palette
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            const action = params.get("action");
+            if (action === "new-expense") {
+                setIsUploadModalOpen(true);
+            } else if (action === "fixed-cost") {
+                setIsFixedCostModalOpen(true);
+            } else if (action === "replenish") {
+                setIsReplenishModalOpen(true);
+            } else if (action === "transfer") {
+                setIsTransferModalOpen(true);
+            }
+
+            if (action) {
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        }
+    }, []);
 
     // Petty Cash Calculations (Reactive to any change in expenses or period)
     const { 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Plus,
     Search,
@@ -260,6 +260,22 @@ export default function TodoPage() {
     const [filterCategory, setFilterCategory] = useState<string>("all");
     const [filterStatus, setFilterStatus] = useState<string>("all");
     const [showTrash, setShowTrash] = useState(false);
+
+    // Handle action query parameter from global Command Palette
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            const action = params.get("action");
+            if (action === "new-todo") {
+                handleOpenModal();
+            }
+
+            if (action) {
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        }
+    }, []);
 
     // Form state
     const [formData, setFormData] = useState({

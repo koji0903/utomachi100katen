@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen, AlertCircle, Trash2, Building2, Mail, Sparkles, Printer, Receipt } from "lucide-react";
+import { Package, LayoutDashboard, ShoppingCart, Users, Settings, Tag, LogOut, Store, Truck, BarChart3, CreditCard, BarChart2, X, FileText, CloudSun, Archive, BookOpen, AlertCircle, Trash2, Building2, Mail, Sparkles, Printer, Receipt, Search } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { CURRENT_VERSION } from "@/lib/version";
@@ -10,9 +10,10 @@ import { CURRENT_VERSION } from "@/lib/version";
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
+  onSearchClick?: () => void;
 }
 
-export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
+export function Sidebar({ isOpen = true, onClose, onSearchClick }: SidebarProps) {
   const pathname = usePathname();
 
   const groups = [
@@ -103,6 +104,20 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             <X className="w-6 h-6" />
           </button>
         )}
+      </div>
+      <div className="px-6 pt-4 shrink-0">
+        <button
+          onClick={onSearchClick}
+          className="w-full flex items-center justify-between px-4 py-3.5 bg-slate-50 border border-slate-100 hover:border-slate-200/80 text-slate-400 hover:text-slate-600 rounded-2xl text-xs font-bold transition-all text-left shadow-sm group hover:scale-[1.02] cursor-pointer"
+        >
+          <span className="flex items-center gap-2">
+            <Search className="w-4 h-4 text-slate-400 group-hover:text-[#1e3a8a] transition-colors" />
+            機能・データ検索...
+          </span>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[9px] font-black text-slate-400 shadow-sm">
+            ⌘K
+          </kbd>
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6 scrollbar-hide">
         {groups.map((group) => (
