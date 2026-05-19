@@ -6,7 +6,7 @@ import {
     Plus, ArrowLeft, Search, Filter, 
     TrendingUp, Coins, Package, Truck, Percent, 
     ShoppingBag, Calendar, User, ShoppingCart, 
-    AlertTriangle, CheckCircle, Edit2 
+    AlertTriangle, CheckCircle, Edit2, Store
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
@@ -335,15 +335,30 @@ export default function OrdersPage() {
                                                         : (spotRecipients.find(r => r.id === sale.customerId)?.name || sale.customerId || "一般消費者")
                                                     }
                                                 </div>
-                                                <span className={`inline-block mt-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-                                                    sale.salesChannel === "ECサイト" ? "bg-blue-50 text-blue-700 border border-blue-100" :
-                                                    sale.salesChannel === "店頭販売" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" :
-                                                    sale.salesChannel === "卸販売" ? "bg-purple-50 text-purple-700 border border-purple-100" :
-                                                    sale.salesChannel === "ふるさと納税" ? "bg-orange-50 text-orange-700 border border-orange-100" :
-                                                    "bg-slate-50 text-slate-700 border border-slate-100"
-                                                }`}>
-                                                    {sale.salesChannel || "店頭販売"}
-                                                </span>
+                                                {/* Target Store Information */}
+                                                {(() => {
+                                                     const store = retailStores.find(s => s.id === sale.storeId);
+                                                     if (!store) return null;
+                                                     return (
+                                                         <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                                             <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 border border-slate-100 rounded px-1.5 py-0.5">
+                                                                 <Store className="w-3 h-3 text-slate-400" />
+                                                                 {store.name || store.id}
+                                                             </span>
+                                                         </div>
+                                                     );
+                                                 })()}
+                                                <div className="mt-1.5">
+                                                    <span className={`inline-block text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                                                        sale.salesChannel === "ECサイト" ? "bg-blue-50 text-blue-700 border border-blue-100" :
+                                                        sale.salesChannel === "店頭販売" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" :
+                                                        sale.salesChannel === "卸販売" ? "bg-purple-50 text-purple-700 border border-purple-100" :
+                                                        sale.salesChannel === "ふるさと納税" ? "bg-orange-50 text-orange-700 border border-orange-100" :
+                                                        "bg-slate-50 text-slate-700 border border-slate-100"
+                                                    }`}>
+                                                        {sale.salesChannel || "店頭販売"}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="py-4 px-6">
                                                 <div className="space-y-1">
