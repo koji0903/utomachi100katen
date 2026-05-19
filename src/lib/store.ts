@@ -829,6 +829,8 @@ const swrConfig = {
     dedupingInterval: 60000, // 1 minute deduplication
 };
 
+let globalHasLoadedOnce = false;
+
 export function useStore() {
     const { isAuthLoading, user, isDemoMode } = useAuth() as any; // Temporary fix for type mismatch if any
 
@@ -895,7 +897,13 @@ export function useStore() {
         { ...swrConfig, revalidateOnFocus: false }
     );
 
-    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingPrintArchives && !loadingWorkLogs && !loadingFixedCosts && !loadingMqSummaries && !loadingCompanySettings;
+    const isLoadedComputed = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingPrintArchives && !loadingWorkLogs && !loadingFixedCosts && !loadingMqSummaries && !loadingCompanySettings;
+
+    if (isLoadedComputed) {
+        globalHasLoadedOnce = true;
+    }
+
+    const isLoaded = globalHasLoadedOnce || isLoadedComputed;
 
     const updateReportConfig = async (data: Partial<AutoReportConfig>) => {
         if (checkDemoMode()) return;
