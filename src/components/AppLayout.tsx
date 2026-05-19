@@ -31,6 +31,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, []);
 
+    // Unregister active service workers in development mode to prevent HMR and reload issues
+    useEffect(() => {
+        if (process.env.NODE_ENV === "development" && "serviceWorker" in navigator) {
+            navigator.serviceWorker.getRegistrations().then((registrations) => {
+                for (const registration of registrations) {
+                    registration.unregister().then((success) => {
+                        if (success) {
+                            console.log("[PWA] Unregistered active service worker in development mode.");
+                        }
+                    });
+                }
+            });
+        }
+    }, []);
+
     useEffect(() => {
         if (!loading && !user && pathname !== "/login") {
             router.push("/login");

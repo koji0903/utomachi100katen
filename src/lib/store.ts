@@ -825,7 +825,7 @@ const fetcher = async <T>(collectionName: string, isDemoMode: boolean): Promise<
 
 const swrConfig = {
     revalidateOnFocus: false, // Prevents unnecessary reads on window focus
-    revalidateOnReconnect: true,
+    revalidateOnReconnect: false,
     dedupingInterval: 60000, // 1 minute deduplication
 };
 
