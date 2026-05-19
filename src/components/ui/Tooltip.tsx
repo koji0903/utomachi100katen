@@ -41,7 +41,7 @@ export function Tooltip({ content, children, position = 'top', className = '', i
             )}
             
             {isVisible && (
-                <div className={`absolute z-[100] w-max max-w-[250px] p-2.5 text-xs font-medium text-white bg-slate-800 rounded-lg shadow-xl animate-in fade-in zoom-in-95 duration-150 ${positionClasses[position]}`}>
+                <div className={`absolute z-[100] w-max max-w-[320px] p-2.5 text-xs font-medium text-white bg-slate-800 rounded-lg shadow-xl animate-in fade-in zoom-in-95 duration-150 ${positionClasses[position]}`}>
                     {content}
                     <div className={`absolute w-0 h-0 border-[6px] ${arrowClasses[position]}`} />
                 </div>

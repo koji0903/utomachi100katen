@@ -11,6 +11,7 @@ import {
 import { useStore } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
 import { showNotification } from "@/lib/notifications";
+import { Tooltip } from "@/components/ui/Tooltip";
 
 const getTimestampString = (val: any): string => {
     if (!val) return "";
@@ -315,7 +316,34 @@ export default function OrdersPage() {
                                         <th className="py-4 px-6">顧客 / 販路</th>
                                         <th className="py-4 px-6">注文内訳</th>
                                         <th className="py-4 px-6 text-right">売上総額</th>
-                                        <th className="py-4 px-6 text-right">MQ額 (MQ率)</th>
+                                        <th className="py-4 px-6 text-right">
+                                            <div className="flex items-center justify-end gap-1 select-none">
+                                                <span>MQ額 (MQ率)</span>
+                                                <Tooltip 
+                                                    position="bottom"
+                                                    content={
+                                                        <div className="space-y-1.5 text-left text-slate-100 font-sans leading-relaxed">
+                                                            <div className="font-bold border-b border-slate-700 pb-1 text-slate-200">
+                                                                MQ (限界利益) の計算式
+                                                            </div>
+                                                            <div className="text-[11px]">
+                                                                <span className="font-extrabold text-indigo-300">■ MQ額 (限界利益)</span>
+                                                                <br />
+                                                                ＝ 売上総額 － 変動費総額
+                                                            </div>
+                                                            <div className="text-[11px]">
+                                                                <span className="font-extrabold text-indigo-300">■ MQ率 (限界利益率)</span>
+                                                                <br />
+                                                                ＝ (MQ額 ÷ 売上総額) × 100
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 border-t border-slate-700 pt-1">
+                                                                ※ 変動費には、商品の標準仕入・製造原価のほか、支払手数料・配送料・プラットフォーム利用料・梱包資材費が含まれます。
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                />
+                                            </div>
+                                        </th>
                                         <th className="py-4 px-6 text-center">ステータス</th>
                                         <th className="py-4 px-6 text-center">操作</th>
                                     </tr>
@@ -373,12 +401,70 @@ export default function OrdersPage() {
                                                 ¥{(sale.totalAmount || 0).toLocaleString()}
                                             </td>
                                             <td className="py-4 px-6 text-right">
-                                                <div className="font-extrabold text-indigo-600">
-                                                    ¥{(sale.mqAmount || 0).toLocaleString()}
-                                                </div>
-                                                <div className="text-[10px] text-slate-400 font-bold">
-                                                    ({sale.mqRate || 0}%)
-                                                </div>
+                                                <Tooltip
+                                                    position="left"
+                                                    content={
+                                                        <div className="space-y-1.5 text-left text-slate-100 font-sans leading-relaxed min-w-[220px]">
+                                                            <div className="font-bold border-b border-slate-700 pb-1 text-slate-200 flex justify-between gap-4">
+                                                                <span>MQ計算内訳</span>
+                                                                <span className="text-slate-450 font-mono text-[10px]">ID: {sale.id.slice(0, 8)}</span>
+                                                            </div>
+                                                            <div className="text-[11px] space-y-0.5">
+                                                                <div className="flex justify-between">
+                                                                    <span>売上総額:</span>
+                                                                    <span className="font-bold text-slate-200">¥{(sale.totalAmount || 0).toLocaleString()}</span>
+                                                                </div>
+                                                                <div className="flex justify-between text-red-300 font-bold border-b border-slate-700/50 pb-0.5 mt-1">
+                                                                    <span>変動費合計:</span>
+                                                                    <span>-¥{(sale.variableCostAmount || 0).toLocaleString()}</span>
+                                                                </div>
+                                                                <div className="pl-2 space-y-0.5 text-slate-300 text-[10px]">
+                                                                    <div className="flex justify-between">
+                                                                        <span>・商品標準原価:</span>
+                                                                        <span>¥{((sale.items || []).reduce((acc: number, item: any) => acc + (item.variableCostAmount || 0), 0)).toLocaleString()}</span>
+                                                                    </div>
+                                                                    {(sale.totalCommission || 0) > 0 && (
+                                                                        <div className="flex justify-between">
+                                                                            <span>・支払手数料:</span>
+                                                                            <span>¥{(sale.totalCommission || 0).toLocaleString()}</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {(sale.shippingCost || 0) > 0 && (
+                                                                        <div className="flex justify-between">
+                                                                            <span>・配送料:</span>
+                                                                            <span>¥{(sale.shippingCost || 0).toLocaleString()}</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {(sale.platformFee || 0) > 0 && (
+                                                                        <div className="flex justify-between">
+                                                                            <span>・プラットフォーム費:</span>
+                                                                            <span>¥{(sale.platformFee || 0).toLocaleString()}</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {(sale.packagingCost || 0) > 0 && (
+                                                                        <div className="flex justify-between">
+                                                                            <span>・梱包資材費:</span>
+                                                                            <span>¥{(sale.packagingCost || 0).toLocaleString()}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-[11px] border-t border-slate-700 pt-1 mt-1 font-bold text-indigo-300 flex justify-between gap-4">
+                                                                <span>限界利益 (MQ):</span>
+                                                                <span>¥{(sale.mqAmount || 0).toLocaleString()} ({sale.mqRate || 0}%)</span>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                >
+                                                    <div className="cursor-help text-right select-none group/mq">
+                                                        <div className="font-extrabold text-indigo-600 group-hover/mq:text-indigo-800 transition-colors">
+                                                            ¥{(sale.mqAmount || 0).toLocaleString()}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 font-bold group-hover/mq:text-slate-650 transition-colors">
+                                                            ({sale.mqRate || 0}%)
+                                                        </div>
+                                                    </div>
+                                                </Tooltip>
                                             </td>
                                             <td className="py-4 px-6 text-center">
                                                 <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
