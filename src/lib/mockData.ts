@@ -168,14 +168,79 @@ export const mockFixedCosts: any[] = [
     {
         id: "2026-05",
         targetMonth: "2026-05",
-        rentCost: 120000,
-        laborCost: 350000,
-        utilityCost: 35000,
-        communicationCost: 15000,
-        vehicleCost: 25000,
-        softwareCost: 8000,
-        otherFixedCost: 10000,
-        totalFixedCost: 563000,
+        rentCost: 150000,
+        laborCost: 385000,
+        utilityCost: 28000,
+        communicationCost: 0,
+        vehicleCost: 0,
+        softwareCost: 12800,
+        otherFixedCost: 20000,
+        totalFixedCost: 595800,
+        items: [
+            {
+                id: "rent",
+                enabled: true,
+                category: "地代家賃",
+                item: "店舗・倉庫家賃",
+                amount: 150000,
+                paymentMethod: "銀行振込",
+                vendor: "UTOMESHI株式会社"
+            },
+            {
+                id: "payroll",
+                enabled: true,
+                category: "給与・手当",
+                item: "店舗スタッフ給料・手当",
+                amount: 300000,
+                paymentMethod: "銀行振込",
+                vendor: "従業員一同"
+            },
+            {
+                id: "outsourcing",
+                enabled: true,
+                category: "外注費",
+                item: "配送・ロジスティクス委託費",
+                amount: 85000,
+                paymentMethod: "銀行振込",
+                vendor: "ヤマト運輸・佐川急便"
+            },
+            {
+                id: "utilities",
+                enabled: true,
+                category: "水道光熱費",
+                item: "店舗電気・ガス・水道代（概算）",
+                amount: 28000,
+                paymentMethod: "クレジット",
+                vendor: "東京電力・東京ガス"
+            },
+            {
+                id: "subscription",
+                enabled: true,
+                category: "諸会費・サブスク",
+                item: "POSレジ・会計・在庫システム月額",
+                amount: 12800,
+                paymentMethod: "クレジット",
+                vendor: "スマレジ・MFクラウド"
+            },
+            {
+                id: "other_advisory",
+                enabled: true,
+                category: "その他",
+                item: "税理士・会計士顧問料",
+                amount: 10000,
+                paymentMethod: "銀行振込",
+                vendor: "支払先名"
+            },
+            {
+                id: "other_misc",
+                enabled: true,
+                category: "その他2",
+                item: "その他固定費項目",
+                amount: 10000,
+                paymentMethod: "銀行振込",
+                vendor: "支払先名"
+            }
+        ],
         createdAt: "2026-05-01T00:00:00Z",
         updatedAt: "2026-05-01T00:00:00Z"
     }
@@ -189,8 +254,8 @@ export const mockMqSummaries: any[] = [
         totalVariableCost: 520000,
         totalMq: 730000,
         averageMqRate: 58.4,
-        totalFixedCost: 563000,
-        operatingProfit: 167000,
+        totalFixedCost: 595800,
+        operatingProfit: 134200,
         totalWorkMinutes: 270,
         mqPerHour: 162222,
         productSummaries: [

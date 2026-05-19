@@ -139,6 +139,24 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
             amount: 12800,
             paymentMethod: "クレジット",
             vendor: "スマレジ・MFクラウド"
+        },
+        {
+            id: "other_advisory",
+            enabled: true,
+            category: "その他",
+            item: "税理士・会計士顧問料",
+            amount: 10000,
+            paymentMethod: "銀行振込",
+            vendor: "支払先名"
+        },
+        {
+            id: "other_misc",
+            enabled: true,
+            category: "その他2",
+            item: "その他固定費項目",
+            amount: 10000,
+            paymentMethod: "銀行振込",
+            vendor: "支払先名"
         }
     ]
 };
@@ -731,6 +749,7 @@ export interface FixedCost extends BaseEntity {
     softwareCost: number;
     otherFixedCost: number;
     totalFixedCost: number;
+    items?: FixedCostItem[];
     createdAt?: string | any;
     updatedAt?: string | any;
 }
@@ -866,7 +885,7 @@ export function useStore() {
     );
 
     // Company Settings — fetched once from Firestore doc (not a collection)
-    const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings } = useSWR<CompanySettings>(
+    const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings, isLoading: loadingCompanySettings } = useSWR<CompanySettings>(
         "company_settings",
         async () => {
             const snap = await getDoc(doc(db, "company_settings", "main"));
@@ -876,7 +895,7 @@ export function useStore() {
         { ...swrConfig, revalidateOnFocus: false }
     );
 
-    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingPrintArchives && !loadingWorkLogs && !loadingFixedCosts && !loadingMqSummaries;
+    const isLoaded = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingPrintArchives && !loadingWorkLogs && !loadingFixedCosts && !loadingMqSummaries && !loadingCompanySettings;
 
     const updateReportConfig = async (data: Partial<AutoReportConfig>) => {
         if (checkDemoMode()) return;
@@ -3345,12 +3364,14 @@ export function useStore() {
                 communicationCost: ["通信費"],
                 vehicleCost: ["交通費"],
                 softwareCost: ["諸会費・サブスク"],
-                otherFixedCost: ["その他"]
+                otherFixedCost: ["その他", "その他2"]
             };
 
-            const templates = companySettings?.fixedCostTemplates && companySettings.fixedCostTemplates.length > 0
-                ? companySettings.fixedCostTemplates.filter(t => t.enabled)
-                : [];
+            const templates = (data as any).items && (data as any).items.length > 0
+                ? (data as any).items.filter((t: any) => t.enabled)
+                : (companySettings?.fixedCostTemplates && companySettings.fixedCostTemplates.length > 0
+                    ? companySettings.fixedCostTemplates.filter(t => t.enabled)
+                    : []);
 
             let newExpenses = [...(expenses || [])];
             const targetDate = `${data.targetMonth}-01`;
@@ -3359,8 +3380,8 @@ export function useStore() {
             // Process each FixedCost field to generate proportional allocations or default fallbacks
             for (const [fieldKey, categories] of Object.entries(fieldMappings)) {
                 const totalAmount = Number((data as any)[fieldKey]) || 0;
-                const fieldTemplates = templates.filter(t => categories.includes(t.category));
-                const templateSum = fieldTemplates.reduce((sum, t) => sum + (t.amount || 0), 0);
+                const fieldTemplates = templates.filter((t: any) => categories.includes(t.category));
+                const templateSum = fieldTemplates.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
 
                 if (totalAmount > 0) {
                     if (fieldTemplates.length === 0) {
