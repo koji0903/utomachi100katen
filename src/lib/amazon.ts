@@ -136,15 +136,21 @@ export async function getAmazonOrders(): Promise<AmazonOrder[]> {
         const createdAfter = oneWeekAgo.toISOString().split('.')[0] + 'Z';
 
         const queryParams = new URLSearchParams();
-        queryParams.append('MarketplaceIds', MARKETPLACE_ID_JP);
-        queryParams.append('CreatedAfter', createdAfter);
+        if (process.env.AMAZON_USE_SANDBOX === "true") {
+            // Static sandbox models are often defined with the US Marketplace ID (ATVPDKIKX0DER)
+            queryParams.append('MarketplaceIds', 'ATVPDKIKX0DER');
+            queryParams.append('CreatedAfter', 'TEST_CASE_200');
+        } else {
+            queryParams.append('MarketplaceIds', MARKETPLACE_ID_JP);
+            queryParams.append('CreatedAfter', createdAfter);
+        }
         
         // Use commas in a single encode as standard for SP-API
         queryParams.append('OrderStatuses', 'Unshipped,PartiallyShipped,Shipped');
 
-        // AWS API Gateway (SP-API) often requires commas to be UNENCODED to correctly parse them as an array.
-        // It treats %2C as a single continuous string and fails the enum validation.
-        const queryString = queryParams.toString().replace(/%2C/g, ',');
+        // AWS API Gateway (SP-API) often requires commas and colons to be UNENCODED to correctly parse them.
+        // It treats %2C as a single continuous string and fails the enum validation, and %3A in timestamps can cause format errors.
+        const queryString = queryParams.toString().replace(/%2C/g, ',').replace(/%3A/g, ':');
         const url = `${SP_API_REGION_ENDPOINT}/orders/v0/orders?${queryString}`;
         
         console.log(`[Amazon] Fetching orders URL: ${url}`);

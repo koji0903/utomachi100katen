@@ -44,6 +44,7 @@ service cloud.firestore {
     match /sync_logs/{docId} { allow read, write: if isAuthenticated(); }
     match /seasonal_tasks/{docId} { allow read, write: if isAuthenticated(); }
     match /promotion_events/{docId} { allow read, write: if isAuthenticated(); }
+    match /composite_productions/{docId} { allow read, write: if isAuthenticated(); }
 
     // 設定ドキュメント
     match /settings/{docId} { allow read, write: if isAuthenticated(); }
