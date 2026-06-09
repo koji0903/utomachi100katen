@@ -173,25 +173,37 @@ export async function getAmazonOrders(): Promise<AmazonOrder[]> {
         const formattedOrders: AmazonOrder[] = [];
 
         for (const order of orders) {
+            const amazonOrderId = order.AmazonOrderId || order.amazonOrderId || "";
+            if (!amazonOrderId) continue;
+
             // 各注文のアイテム詳細を取得
-            const itemsUrl = `${SP_API_REGION_ENDPOINT}/orders/v0/orders/${order.AmazonOrderId}/orderItems`;
+            const itemsUrl = `${SP_API_REGION_ENDPOINT}/orders/v0/orders/${amazonOrderId}/orderItems`;
             const itemsRes = await fetch(itemsUrl, {
                 headers: { "x-amz-access-token": accessToken }
             });
 
             const itemsData = await itemsRes.json();
-            const items = itemsData.payload?.OrderItems || [];
+            const items = itemsData.payload?.OrderItems || itemsData.payload?.orderItems || [];
+
+            const purchaseDateStr = order.PurchaseDate || order.purchaseDate || "";
+            const orderStatusStr = order.OrderStatus || order.orderStatus || "";
+            const orderTotalAmount = order.OrderTotal?.Amount || order.orderTotal?.amount || order.OrderTotal?.amount || order.orderTotal?.Amount || "0";
 
             formattedOrders.push({
-                amazonOrderId: order.AmazonOrderId,
-                purchaseDate: order.PurchaseDate,
-                orderStatus: order.OrderStatus,
-                totalAmount: parseFloat(order.OrderTotal?.Amount || "0"),
-                items: items.map((item: any) => ({
-                    sku: item.SellerSKU,
-                    quantity: item.QuantityOrdered,
-                    price: parseFloat(item.ItemPrice?.Amount || "0")
-                }))
+                amazonOrderId: amazonOrderId,
+                purchaseDate: purchaseDateStr,
+                orderStatus: orderStatusStr,
+                totalAmount: parseFloat(orderTotalAmount),
+                items: items.map((item: any) => {
+                    const itemSku = item.SellerSKU || item.sellerSKU || item.sku || "";
+                    const itemQuantity = item.QuantityOrdered || item.quantityOrdered || item.quantity || 0;
+                    const itemPriceAmount = item.ItemPrice?.Amount || item.itemPrice?.amount || item.ItemPrice?.amount || item.itemPrice?.Amount || "0";
+                    return {
+                        sku: itemSku,
+                        quantity: itemQuantity,
+                        price: parseFloat(itemPriceAmount)
+                    };
+                })
             });
         }
 

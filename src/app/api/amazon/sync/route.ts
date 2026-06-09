@@ -25,7 +25,16 @@ export const POST = withAuth(async (_req, { uid }) => {
 
         if (!lastLogSnap.empty) {
             const lastLog = lastLogSnap.docs[0].data();
-            const lastTimestamp = lastLog.timestamp?.toDate() || new Date(0);
+            let lastTimestamp = new Date(0);
+            if (lastLog.timestamp) {
+                if (typeof lastLog.timestamp.toDate === "function") {
+                    lastTimestamp = lastLog.timestamp.toDate();
+                } else if (lastLog.timestamp instanceof Date) {
+                    lastTimestamp = lastLog.timestamp;
+                } else {
+                    lastTimestamp = new Date(lastLog.timestamp);
+                }
+            }
             const now = new Date();
             const diffMinutes = (now.getTime() - lastTimestamp.getTime()) / (1000 * 60);
 
@@ -132,13 +141,14 @@ export const POST = withAuth(async (_req, { uid }) => {
                     // Use atomic transaction for order processing
                     await db.runTransaction(async (txn: any) => {
                         const transactionRef = db.collection("transactions").doc();
+                        const orderDateStr = order.purchaseDate ? order.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0];
                         const transactionData = {
                             customerName: amazonStore ? amazonStore.name : "Amazon Customer",
                             storeId: amazonStore?.id || null,
                             storeName: amazonStore?.name || null,
                             channel: "EC",
                             transactionType: "Amazon注文",
-                            orderDate: order.purchaseDate.split('T')[0],
+                            orderDate: orderDateStr,
                             transactionStatus: "受注",
                             subtotal: order.totalAmount,
                             tax: 0,
@@ -182,7 +192,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                                 quantity: update.quantity,
                                 reason: 'amazon_sync',
                                 referenceId: transactionRef.id,
-                                date: order.purchaseDate.split('T')[0],
+                                date: order.purchaseDate ? order.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0],
                                 createdAt: admin.firestore.FieldValue.serverTimestamp()
                             });
                         }
@@ -192,7 +202,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                         await db.collection("sales").add({
                             storeId: amazonStore.id,
                             type: 'daily',
-                            period: order.purchaseDate.split('T')[0],
+                            period: order.purchaseDate ? order.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0],
                             items: saleItems,
                             totalAmount: order.totalAmount,
                             isTrashed: false,

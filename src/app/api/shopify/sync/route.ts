@@ -1,17 +1,20 @@
 // src/app/api/shopify/sync/route.ts
 
 import { NextResponse } from "next/server";
-import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { adminDb, admin } from "@/lib/firebase-admin";
 import { getShopifyProduct, getShopifyOrders, updateShopifyInventory } from "@/lib/shopify";
 import { processShopifyOrder } from "@/lib/shopify-processor";
 import { withAuth, internalError, logError } from "@/lib/apiAuth";
 
 export const POST = withAuth(async (_req, { uid }) => {
     try {
-        const productsRef = collection(db, "products");
-        const q = query(productsRef, where("shopifySyncEnabled", "==", true));
-        const querySnapshot = await getDocs(q);
+        if (!adminDb) {
+            logError("Shopify Sync", new Error("adminDb is not initialized"));
+            return internalError();
+        }
+        const db = adminDb;
+        const productsRef = db.collection("products");
+        const querySnapshot = await productsRef.where("shopifySyncEnabled", "==", true).get();
 
         const syncResults = [];
 
@@ -22,8 +25,8 @@ export const POST = withAuth(async (_req, { uid }) => {
                 const success = await updateShopifyInventory(product.shopifyVariantId, currentStock);
 
                 if (success) {
-                    await updateDoc(doc(db, "products", productDoc.id), {
-                        lastShopifySyncAt: serverTimestamp(),
+                    await productDoc.ref.update({
+                        lastShopifySyncAt: admin.firestore.FieldValue.serverTimestamp(),
                     });
 
                     syncResults.push({
@@ -50,7 +53,7 @@ export const POST = withAuth(async (_req, { uid }) => {
 
         const logData = {
             type: 'Shopify',
-            timestamp: serverTimestamp(),
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
             status: 'success',
             productCount: syncResults.length,
             orderCount: newOrdersCount,
@@ -60,7 +63,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                 newOrderIds: processedOrders
             }
         };
-        await setDoc(doc(collection(db, "sync_logs")), logData);
+        await db.collection("sync_logs").add(logData);
 
         return NextResponse.json({
             success: true,
