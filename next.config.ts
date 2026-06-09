@@ -7,7 +7,7 @@ const withPWA = withPWAInit({
   register: true,
   reloadOnOnline: false,
   workboxOptions: {
-    denylist: [/^\/analytics/, /^\/api/],
+    navigateFallbackDenylist: [/^\/analytics/, /^\/api/],
   },
 });
 
