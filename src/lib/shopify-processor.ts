@@ -36,9 +36,17 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         return { success: false, reason: "duplicate" };
     }
 
+    const customerNameStr = order.customer
+        ? `${order.customer.lastName} ${order.customer.firstName}`.trim() || order.customer.email
+        : (shopifyStore ? shopifyStore.name : "Shopify Customer");
+
     const newTransactionRef = db.collection("transactions").doc();
     const transactionData = {
-        customerName: shopifyStore ? shopifyStore.name : "Shopify Customer",
+        customerName: customerNameStr,
+        customerEmail: order.customer?.email || null,
+        shopifyCustomerId: order.customer?.id || null,
+        isRepeatCustomer: order.customer ? order.customer.ordersCount > 1 : false,
+        shopifyOrdersCount: order.customer?.ordersCount || null,
         storeId: shopifyStore?.id || null,
         storeName: shopifyStore?.name || null,
         channel: "EC",

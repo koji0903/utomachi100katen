@@ -50,6 +50,13 @@ export async function POST(req: Request) {
                 quantity: item.quantity,
                 price: parseFloat(item.price),
             })),
+            customer: orderData.customer ? {
+                id: orderData.customer.id.toString(),
+                email: orderData.customer.email || "",
+                firstName: orderData.customer.first_name || "",
+                lastName: orderData.customer.last_name || "",
+                ordersCount: orderData.customer.orders_count || 0,
+            } : undefined,
         };
 
         // 3. 注文処理の実行 (Firestore 更新・在庫減算)

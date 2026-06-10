@@ -411,6 +411,10 @@ export interface Transaction extends BaseEntity {
     id: string;
     transactionType: string;
     customerName: string;
+    customerEmail?: string;
+    shopifyCustomerId?: string;
+    isRepeatCustomer?: boolean;
+    shopifyOrdersCount?: number;
     storeId?: string;       // 関連する販売店舗ID
     storeName?: string;     // 関連する販売店舗名 (非正規化)
     channel: 'スポット注文' | '卸販売' | '委託販売' | '店頭販売' | 'EC' | 'イベント販売';

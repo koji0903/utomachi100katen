@@ -287,7 +287,31 @@ export function TransactionDetailView({ id }: TransactionDetailViewProps) {
                                 <ArrowRight className="w-3.5 h-3.5 text-blue-500" />{transaction.channel || '指定なし'}
                             </div>
                         </div>
-                        <div className="space-y-1">
+                        {transaction.customerEmail && (
+                            <div className="space-y-1 pt-2 border-t border-slate-200/60">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">顧客連絡先</div>
+                                <div className="text-sm font-bold text-slate-800">
+                                    {transaction.customerEmail}
+                                </div>
+                            </div>
+                        )}
+                        {transaction.isRepeatCustomer !== undefined && (
+                            <div className="space-y-1 pt-2 border-t border-slate-200/60">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">顧客区分</div>
+                                <div className="text-sm font-bold mt-1">
+                                    {transaction.isRepeatCustomer ? (
+                                        <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full text-xs font-black shadow-sm inline-block">
+                                            リピーター {transaction.shopifyOrdersCount ? `(累計: ${transaction.shopifyOrdersCount}回目)` : ""}
+                                        </span>
+                                    ) : (
+                                        <span className="text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full text-xs font-bold inline-block">
+                                            新規顧客 (初回)
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        <div className="space-y-1 pt-2 border-t border-slate-200/60">
                             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">備考・社内メモ</div>
                             <div className="text-sm text-slate-600 leading-relaxed font-medium bg-white p-3 rounded-xl border border-slate-200 shadow-inner italic">
                                 {transaction.remarks || '備考はありません。'}

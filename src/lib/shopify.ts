@@ -22,6 +22,13 @@ export interface ShopifyOrder {
         quantity: number;
         price: number;
     }[];
+    customer?: {
+        id: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+        ordersCount: number;
+    };
 }
 
 async function shopifyFetch(path: string, options: RequestInit = {}) {
@@ -73,6 +80,13 @@ export async function getShopifyOrders(): Promise<ShopifyOrder[]> {
             quantity: item.quantity,
             price: parseFloat(item.price),
         })),
+        customer: order.customer ? {
+            id: order.customer.id.toString(),
+            email: order.customer.email || "",
+            firstName: order.customer.first_name || "",
+            lastName: order.customer.last_name || "",
+            ordersCount: order.customer.orders_count || 0,
+        } : undefined,
     }));
 }
 
