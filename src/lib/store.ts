@@ -286,6 +286,12 @@ export interface Sale extends BaseEntity {
     // 追加
     salesChannel?: string;
     customerId?: string;
+    customerName?: string;
+    customerEmail?: string | null;
+    shopifyCustomerId?: string | null;
+    isRepeatCustomer?: boolean;
+    shopifyOrdersCount?: number | null;
+    transactionId?: string;
     shippingCost?: number;
     platformFee?: number;
     packagingCost?: number;
@@ -3060,8 +3066,26 @@ export function useStore() {
             }
         });
 
-        return result.sort((a, b) => b.period.localeCompare(a.period));
-    }, [sales, issuedDocuments]);
+        // 取引(Transaction)から顧客情報を紐付ける
+        const mappedResult = result.map(s => {
+            if (s.transactionId) {
+                const tx = transactions.find(t => t.id === s.transactionId);
+                if (tx) {
+                    return {
+                        ...s,
+                        customerName: tx.customerName,
+                        customerEmail: (tx as any).customerEmail,
+                        shopifyCustomerId: (tx as any).shopifyCustomerId,
+                        isRepeatCustomer: (tx as any).isRepeatCustomer,
+                        shopifyOrdersCount: (tx as any).shopifyOrdersCount,
+                    };
+                }
+            }
+            return s;
+        });
+
+        return mappedResult.sort((a, b) => b.period.localeCompare(a.period));
+    }, [sales, issuedDocuments, transactions]);
 
     return {
         isLoaded,

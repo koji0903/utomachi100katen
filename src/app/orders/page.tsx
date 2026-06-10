@@ -356,12 +356,26 @@ export default function OrdersPage() {
                                                 <div className="text-[10px] text-slate-400 font-mono">ID: {sale.id.slice(0, 8)}...</div>
                                             </td>
                                             <td className="py-4 px-6">
-                                                <div className="font-semibold text-slate-700 flex items-center gap-1.5">
-                                                    <User className="w-3.5 h-3.5 text-slate-400" />
-                                                    {sale.customerId === "一般消費者" 
-                                                        ? "一般消費者" 
-                                                        : (spotRecipients.find(r => r.id === sale.customerId)?.name || sale.customerId || "一般消費者")
-                                                    }
+                                                <div className="font-semibold text-slate-700 flex flex-col gap-0.5">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <User className="w-3.5 h-3.5 text-slate-400" />
+                                                        {sale.customerName || (sale.customerId === "一般消費者" 
+                                                            ? "一般消費者" 
+                                                            : (spotRecipients.find(r => r.id === sale.customerId)?.name || sale.customerId || "一般消費者"))
+                                                        }
+                                                    </div>
+                                                    {sale.customerEmail && (
+                                                        <div className="text-[10px] text-slate-400 pl-5 font-mono">
+                                                            {sale.customerEmail}
+                                                        </div>
+                                                    )}
+                                                    {sale.isRepeatCustomer && (
+                                                        <div className="pl-5 mt-0.5">
+                                                            <span className="inline-flex items-center text-[9px] font-extrabold px-1.5 py-0.2 bg-indigo-50 text-indigo-600 rounded">
+                                                                リピーター{sale.shopifyOrdersCount ? ` (累計: ${sale.shopifyOrdersCount}回目)` : ''}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 {/* Target Store Information */}
                                                 {(() => {
