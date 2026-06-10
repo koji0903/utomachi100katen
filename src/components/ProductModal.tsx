@@ -58,6 +58,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         amazonSyncEnabled: false,
         shopifyProductId: "",
         shopifyVariantId: "",
+        shopifyVariantIds: [] as string[],
         shopifySyncEnabled: false,
         squareVariantId: "",
         squareSyncEnabled: false,
@@ -82,6 +83,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
     useEffect(() => {
         if (isOpen) {
             if (initialData) {
+                const initialVariantIds = initialData.shopifyVariantIds || (initialData.shopifyVariantId ? [initialData.shopifyVariantId] : []);
                 setFormData({
                     name: initialData.name,
                     variantName: initialData.variantName || "",
@@ -114,7 +116,8 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     amazonSku: initialData.amazonSku || "",
                     amazonSyncEnabled: initialData.amazonSyncEnabled || false,
                     shopifyProductId: initialData.shopifyProductId || "",
-                    shopifyVariantId: initialData.shopifyVariantId || "",
+                    shopifyVariantId: initialVariantIds.join(", "),
+                    shopifyVariantIds: initialVariantIds,
                     shopifySyncEnabled: initialData.shopifySyncEnabled || false,
                     squareVariantId: initialData.squareVariantId || "",
                     squareSyncEnabled: initialData.squareSyncEnabled || false,
@@ -141,6 +144,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                     amazonSyncEnabled: false,
                     shopifyProductId: "",
                     shopifyVariantId: "",
+                    shopifyVariantIds: [],
                     shopifySyncEnabled: false,
                     squareVariantId: "",
                     squareSyncEnabled: false,
@@ -348,7 +352,16 @@ JANコード: ${formData.janCode || "なし"}
                 currentImageUrl = await uploadImageWithCompression(imageFile);
             }
 
-            const finalData = { ...formData, imageUrl: currentImageUrl };
+            const idsArray = formData.shopifyVariantId
+                ? formData.shopifyVariantId.split(",").map(id => id.trim()).filter(Boolean)
+                : [];
+
+            const finalData = { 
+                ...formData, 
+                imageUrl: currentImageUrl,
+                shopifyVariantIds: idsArray,
+                shopifyVariantId: idsArray[0] || "",
+            };
 
             if (initialData && initialData.id) {
                 updateProduct(initialData.id, finalData);
@@ -1096,13 +1109,13 @@ JANコード: ${formData.janCode || "なし"}
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <label className="text-[11px] font-bold text-slate-700">Shopify バリアントID</label>
+                                                <label className="text-[11px] font-bold text-slate-700">Shopify バリアントID (複数ある場合はカンマ区切り)</label>
                                                 <input
                                                     type="text"
                                                     value={formData.shopifyVariantId}
                                                     onChange={(e) => setFormData({ ...formData, shopifyVariantId: e.target.value })}
                                                     className="w-full p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
-                                                    placeholder="gid://shopify/ProductVariant/..."
+                                                    placeholder="例: 51331791487272, 51348513653032"
                                                 />
                                             </div>
                                         </div>

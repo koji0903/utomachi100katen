@@ -20,11 +20,28 @@ export const POST = withAuth(async (_req, { uid }) => {
 
         for (const productDoc of querySnapshot.docs) {
             const product = productDoc.data();
-            if (product.shopifyVariantId) {
-                const currentStock = product.stock || 0;
-                const success = await updateShopifyInventory(product.shopifyVariantId, currentStock);
+            const variantIds = product.shopifyVariantIds || (product.shopifyVariantId ? [product.shopifyVariantId] : []);
 
-                if (success) {
+            if (variantIds.length > 0) {
+                const currentStock = product.stock || 0;
+                let allSuccess = true;
+                const syncedIds = [];
+
+                for (const variantId of variantIds) {
+                    try {
+                        const success = await updateShopifyInventory(variantId, currentStock);
+                        if (success) {
+                            syncedIds.push(variantId);
+                        } else {
+                            allSuccess = false;
+                        }
+                    } catch (err) {
+                        logError("Shopify Sync:variant", err, { productId: productDoc.id, variantId });
+                        allSuccess = false;
+                    }
+                }
+
+                if (syncedIds.length > 0) {
                     await productDoc.ref.update({
                         lastShopifySyncAt: admin.firestore.FieldValue.serverTimestamp(),
                     });
@@ -32,8 +49,8 @@ export const POST = withAuth(async (_req, { uid }) => {
                     syncResults.push({
                         id: productDoc.id,
                         name: product.name,
-                        variantId: product.shopifyVariantId,
-                        status: "Synced"
+                        variantIds: syncedIds,
+                        status: allSuccess ? "Synced" : "Partially Synced"
                     });
                 }
             }

@@ -701,6 +701,7 @@ export interface Product extends BaseEntity {
     // Shopify Integration fields
     shopifyProductId?: string;
     shopifyVariantId?: string;
+    shopifyVariantIds?: string[];
     shopifySyncEnabled?: boolean;
     lastShopifySyncAt?: string | any;
     // Square Integration fields

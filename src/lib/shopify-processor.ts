@@ -62,9 +62,18 @@ export async function processShopifyOrder(order: ShopifyOrder) {
     
     for (const item of order.lineItems) {
         if (!item.variantId) continue;
-        const pSnap = await db.collection("products")
-            .where("shopifyVariantId", "==", item.variantId)
+        
+        // 1. shopifyVariantIds の配列に含まれるか検索
+        let pSnap = await db.collection("products")
+            .where("shopifyVariantIds", "array-contains", item.variantId)
             .get();
+
+        // 2. 見つからなければ、後方互換性のため従来の shopifyVariantId (等価) で検索
+        if (pSnap.empty) {
+            pSnap = await db.collection("products")
+                .where("shopifyVariantId", "==", item.variantId)
+                .get();
+        }
 
         if (!pSnap.empty) {
             const productDoc = pSnap.docs[0];
