@@ -61,8 +61,8 @@ async function printOrderDetails() {
                     name: order.name,
                     createdAt: order.created_at,
                     financialStatus: order.financial_status,
-                    totalPrice: order.total_price,
                     email: order.email || "(なし)",
+                    customer: order.customer || null,
                     lineItems: order.line_items.map((item: any) => ({
                         title: item.title,
                         variantTitle: item.variant_title || "",

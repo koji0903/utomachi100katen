@@ -248,8 +248,8 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
         if (productId) {
             const qty = parseFloat(item.quantity);
             
-            // 在庫への影響は新規作成時かつ在庫スキップモードでない場合のみ
-            if (!isUpdate && !skipInventory) {
+            // 在庫への影響は新規作成時かつ在庫スキップモードでない場合のみ（未連携商品は除く）
+            if (!isUpdate && !skipInventory && productId !== "SQUARE_UNLINKED") {
                 // 在庫減算
 
                 await updateDoc(doc(db, "products", productId), {

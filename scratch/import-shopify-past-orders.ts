@@ -90,6 +90,13 @@ async function importPastOrders() {
                     quantity: item.quantity,
                     price: parseFloat(item.price),
                 })),
+                customer: rawOrder.customer ? {
+                    id: rawOrder.customer.id.toString(),
+                    email: rawOrder.customer.email || "",
+                    firstName: rawOrder.customer.first_name || "",
+                    lastName: rawOrder.customer.last_name || "",
+                    ordersCount: rawOrder.customer.orders_count || 0,
+                } : undefined,
             };
 
             // 注文インポート実行

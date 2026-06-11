@@ -40,13 +40,27 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         ? `${order.customer.lastName} ${order.customer.firstName}`.trim() || order.customer.email
         : (shopifyStore ? shopifyStore.name : "Shopify Customer");
 
+    // リピーター判定 (Shopify APIのread_customers権限がなくても機能するようFirestore内から件数をカウント)
+    let ordersCount = 1;
+    if (order.customer?.id) {
+        const matchingTxSnap = await db.collection("transactions")
+            .where("shopifyCustomerId", "==", order.customer.id)
+            .get();
+        ordersCount = matchingTxSnap.size + 1;
+    } else if (order.customer?.email) {
+        const matchingTxSnap = await db.collection("transactions")
+            .where("customerEmail", "==", order.customer.email)
+            .get();
+        ordersCount = matchingTxSnap.size + 1;
+    }
+
     const newTransactionRef = db.collection("transactions").doc();
     const transactionData = {
         customerName: customerNameStr,
         customerEmail: order.customer?.email || null,
         shopifyCustomerId: order.customer?.id || null,
-        isRepeatCustomer: order.customer ? order.customer.ordersCount > 1 : false,
-        shopifyOrdersCount: order.customer?.ordersCount || null,
+        isRepeatCustomer: ordersCount > 1,
+        shopifyOrdersCount: ordersCount,
         storeId: shopifyStore?.id || null,
         storeName: shopifyStore?.name || null,
         channel: "EC",
