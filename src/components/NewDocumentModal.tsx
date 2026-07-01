@@ -154,7 +154,10 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
             };
 
             if (editingDoc) {
-                await updateIssuedDocument(editingDoc.id, payload);
+                await updateIssuedDocument(editingDoc.id, {
+                    ...payload,
+                    status,
+                });
             } else {
                 const docNumber = generateDocNumber(docType as any, year);
                 await saveIssuedDocument({

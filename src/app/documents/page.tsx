@@ -562,6 +562,22 @@ function DocumentsPageContent() {
                                                             className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors">
                                                             <Download className="w-4 h-4" />
                                                         </button>
+                                                        {doc.status === 'draft' && (
+                                                            <button onClick={async () => {
+                                                                if (window.confirm("この下書きを発行済に変更しますか？")) {
+                                                                    try {
+                                                                        await updateIssuedDocument(doc.id, { status: 'issued' });
+                                                                    } catch (err) {
+                                                                        console.error("Failed to issue:", err);
+                                                                        alert("発行に失敗しました。");
+                                                                    }
+                                                                }
+                                                            }}
+                                                                title="発行する"
+                                                                className="p-1.5 rounded-lg hover:bg-emerald-50 text-amber-600 hover:text-emerald-600 transition-colors">
+                                                                <CheckCircle2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                         <button onClick={() => setEditingDoc(doc)}
                                                             title="編集"
                                                             className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-500 hover:text-amber-600 transition-colors">

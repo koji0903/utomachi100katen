@@ -76,6 +76,11 @@ export function DocumentPreviewModal({
     const [isGeneratingMemo, setIsGeneratingMemo] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
 
+    const targetDoc = useMemo(() => {
+        if (!currentDocNumber) return null;
+        return issuedDocuments.find(d => d.docNumber === currentDocNumber);
+    }, [issuedDocuments, currentDocNumber]);
+
     if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
 
     const rounding = companySettings?.roundingMode ?? "floor";
@@ -366,6 +371,17 @@ export function DocumentPreviewModal({
                             <Printer className="w-3.5 h-3.5" />
                             印刷
                         </button>
+                        {targetDoc && targetDoc.status === 'draft' && (
+                            <button
+                                onClick={handleIssueAndSave}
+                                disabled={isGenerating}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg text-white transition-all shadow-md active:scale-95 disabled:opacity-50"
+                                style={{ backgroundColor: BRAND }}
+                            >
+                                {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                発行して保存
+                            </button>
+                        )}
                         <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-500">
                             <X className="w-5 h-5" />
                         </button>
