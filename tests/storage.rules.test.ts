@@ -1,14 +1,9 @@
 /**
  * Storage セキュリティルールのユニットテスト
  *
- * 前提: Firebase Emulator Suite (Storage) が起動していること
- *   npm run emulator:start
- *
- * 実行: vitest の設定でデフォルト除外されているため、
- *   npx vitest run tests/storage.rules.test.ts --exclude=''
- *   のように明示指定して実行する。
+ * `npm run test:storage-rules` で Storage Emulator を起動して実行する。
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, beforeAll, afterAll, beforeEach } from "vitest";
 import {
     initializeTestEnvironment,
     RulesTestEnvironment,
@@ -41,16 +36,16 @@ beforeEach(async () => {
 });
 
 describe("storage.rules", () => {
-    it("未認証ユーザーはアップロードできない", async () => {
+    it("未認証ユーザーは見積書PDFをアップロードできない", async () => {
         const unauth = testEnv.unauthenticatedContext().storage();
-        const fileRef = ref(unauth, "uploads/test.txt");
-        await assertFails(uploadString(fileRef, "hello"));
+        const fileRef = ref(unauth, "estimates/EST-2026-002.pdf");
+        await assertFails(uploadString(fileRef, "pdf-data", "raw", { contentType: "application/pdf" }));
     });
 
-    it("認証済みユーザーはアップロードできる", async () => {
+    it("認証済みユーザーは見積書PDFをアップロードできる", async () => {
         const auth = testEnv.authenticatedContext("user-001").storage();
-        const fileRef = ref(auth, "uploads/test.txt");
-        await assertSucceeds(uploadString(fileRef, "hello"));
+        const fileRef = ref(auth, "estimates/EST-2026-001.pdf");
+        await assertSucceeds(uploadString(fileRef, "pdf-data", "raw", { contentType: "application/pdf" }));
     });
 
     it("未認証ユーザーは既存ファイルの URL を取得できない", async () => {

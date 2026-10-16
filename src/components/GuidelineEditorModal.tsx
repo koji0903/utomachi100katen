@@ -108,8 +108,10 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
         })),
         ...issuedDocuments.filter(d => !d.isTrashed).map(d => {
             const typeLabels: Record<string, string> = {
+                'estimate': '見積書',
                 'delivery_note': '納品書',
                 'invoice': '請求書',
+                'proxy_invoice': '代行請求書',
                 'receipt': '領収書',
                 'payment_summary': '支払明細'
             };

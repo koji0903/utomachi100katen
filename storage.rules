@@ -42,6 +42,11 @@ service firebase.storage {
       allow write: if isAuthenticated() && isValidFileSize();
     }
 
+    match /estimates/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize();
+    }
+
     match /delivery_notes/{allPaths=**} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && isValidFileSize();

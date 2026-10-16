@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:storage-rules": "firebase emulators:exec --only storage --project utomachi100katen-rules-test \"vitest run --config vitest.storage.config.ts\"",
     "test:watch": "vitest",
     "emulator:start": "firebase emulators:start --import=./.emulator-data --export-on-exit",
     "emulator:export": "firebase emulators:export ./.emulator-data",

@@ -13,7 +13,13 @@ import { NumberInput } from "@/components/NumberInput";
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
 
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
 const year = new Date().getFullYear().toString();
 
 interface NewDocumentModalProps {
@@ -56,6 +62,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
     const [finalAdjustment, setFinalAdjustment] = useState(editingDoc?.finalAdjustment ?? 0);
     const [totalAmountState, setTotalAmountState] = useState(editingDoc?.totalAmount ?? 0);
     const [paymentMethod, setPaymentMethod] = useState<IssuedDocument['paymentMethod']>(editingDoc?.paymentMethod ?? "現金");
+    const [issuingDoc, setIssuingDoc] = useState<IssuedDocument | null>(null);
 
     useEffect(() => {
         if (editingDoc?.spotRecipientId) {
@@ -154,17 +161,21 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                 attributeSalesToLinkedStore: attributeSalesToLinkedStore,
             };
 
+            let savedDoc: IssuedDocument;
+            const persistedStatus = status === "issued" ? "draft" : status;
+
             if (editingDoc) {
                 await updateIssuedDocument(editingDoc.id, {
                     ...payload,
-                    status,
+                    status: persistedStatus,
                 });
+                savedDoc = { ...editingDoc, ...payload, status: persistedStatus };
             } else {
-                const docNumber = generateDocNumber(docType as any, year);
-                await saveIssuedDocument({
+                const docNumber = generateDocNumber(docType, year);
+                savedDoc = await saveIssuedDocument({
                     ...payload,
                     docNumber,
-                    status,
+                    status: persistedStatus,
                     issuedDate: today(),
                 });
             }
@@ -173,7 +184,11 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                 await updateSpotRecipient(spotRecipient.id, { lastUsedAt: new Date().toISOString() });
             }
 
-            onClose();
+            if (status === "issued") {
+                setIssuingDoc(savedDoc);
+            } else {
+                onClose();
+            }
         } catch (err) {
             console.error("Save failed:", err);
             alert("保存に失敗しました。");
@@ -423,6 +438,26 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                     customTaxType={(docType === "estimate" || docType === "invoice" || docType === "delivery_note") ? taxType : undefined}
                     hidePrices={docType === "delivery_note" ? hidePrices : false}
                     onClose={() => setShowPreview(false)}
+                />
+            )}
+            {issuingDoc && (
+                <DocumentPreviewModal
+                    type={issuingDoc.type === "proxy_invoice" ? "invoice" : issuingDoc.type}
+                    storeId={issuingDoc.storeId}
+                    supplierId={issuingDoc.supplierId}
+                    spotRecipientId={issuingDoc.spotRecipientId}
+                    recipientName={issuingDoc.recipientName}
+                    period={issuingDoc.type !== "payment_summary" ? issuingDoc.period : undefined}
+                    month={issuingDoc.type === "payment_summary" ? issuingDoc.period : undefined}
+                    docNumber={issuingDoc.docNumber}
+                    customDetails={issuingDoc.details}
+                    customAdjustments={issuingDoc.adjustments}
+                    customTaxRate={issuingDoc.taxRate}
+                    customTaxType={issuingDoc.taxType}
+                    hidePrices={issuingDoc.hidePrices}
+                    autoIssue
+                    onIssued={onClose}
+                    onClose={() => setIssuingDoc(null)}
                 />
             )}
         </div>

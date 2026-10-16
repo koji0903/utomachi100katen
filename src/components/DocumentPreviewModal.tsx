@@ -36,6 +36,8 @@ interface DocumentPreviewModalProps {
     customTaxType?: IssuedDocument['taxType'];
     hidePrices?: boolean;
     autoDownload?: boolean; // New prop
+    autoIssue?: boolean;
+    onIssued?: () => void;
     onClose: () => void;
 }
 
@@ -44,6 +46,11 @@ const fmtMoney = (n: number) => `¥${n.toLocaleString()}`;
 const today = () => {
     const d = new Date();
     return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+};
+const formatIssuedDate = (date: string) => {
+    const [year, month, day] = date.split("-").map(Number);
+    if (!year || !month || !day) return date.replace(/-/g, "/");
+    return `${year}年${month}月${day}日`;
 };
 
 // ─── Component ───────────────────────────────────────────────────────────
@@ -62,6 +69,8 @@ export function DocumentPreviewModal({
     customTaxType,
     hidePrices: propHidePrices,
     autoDownload = false,
+    autoIssue = false,
+    onIssued,
     onClose,
 }: DocumentPreviewModalProps) {
     const { companySettings, sales, products, retailStores, purchases, suppliers, isLoaded, spotRecipients, invoicePayments, issuedDocuments, generateDocNumber, saveIssuedDocument, updateIssuedDocument } = useStore();
@@ -75,13 +84,12 @@ export function DocumentPreviewModal({
     const [memo, setMemo] = useState("");
     const [isGeneratingMemo, setIsGeneratingMemo] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const autoIssueStarted = useRef(false);
 
     const targetDoc = useMemo(() => {
         if (!currentDocNumber) return null;
         return issuedDocuments.find(d => d.docNumber === currentDocNumber);
     }, [issuedDocuments, currentDocNumber]);
-
-    if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
 
     const rounding = companySettings?.roundingMode ?? "floor";
 
@@ -303,7 +311,7 @@ export function DocumentPreviewModal({
         window.print();
     }, []);
 
-    const handleIssueAndSave = async () => {
+    const handleIssueAndSave = useCallback(async () => {
         if (!previewRef.current) return;
         setIsGenerating(true);
         try {
@@ -323,6 +331,7 @@ export function DocumentPreviewModal({
                     pdfUrl: pdfUrl 
                 });
                 alert("帳票を発行し、PDFをStorageに保存しました。");
+                onIssued?.();
             } else {
                 // For new docs being issued from preview
                 // This logic might need store expansion, but for now we update existing draft
@@ -333,7 +342,7 @@ export function DocumentPreviewModal({
         } finally {
             setIsGenerating(false);
         }
-    };
+    }, [docNumber, isEstimate, isInvoice, isDeliveryNote, isReceipt, issuedDocuments, updateIssuedDocument, onIssued]);
 
     // Auto-download logic
     useEffect(() => {
@@ -347,6 +356,18 @@ export function DocumentPreviewModal({
             return () => clearTimeout(timer);
         }
     }, [autoDownload, isLoaded, handleDownload, onClose]);
+
+    useEffect(() => {
+        if (!autoIssue || !isLoaded || !targetDoc || !previewRef.current || autoIssueStarted.current) return;
+        const timer = setTimeout(() => {
+            if (autoIssueStarted.current) return;
+            autoIssueStarted.current = true;
+            void handleIssueAndSave();
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [autoIssue, isLoaded, targetDoc, handleIssueAndSave]);
+
+    if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
 
     // ─ Render ──────────────────────────────────────────────────────
     return (
@@ -372,7 +393,7 @@ export function DocumentPreviewModal({
                             <Printer className="w-3.5 h-3.5" />
                             印刷
                         </button>
-                        {targetDoc && targetDoc.status === 'draft' && (
+                        {targetDoc && (targetDoc.status === 'draft' || !targetDoc.pdfUrl) && (
                             <button
                                 onClick={handleIssueAndSave}
                                 disabled={isGenerating}
@@ -380,7 +401,7 @@ export function DocumentPreviewModal({
                                 style={{ backgroundColor: BRAND }}
                             >
                                 {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                発行して保存
+                                {targetDoc.status === 'draft' ? '発行して保存' : 'PDFを保存'}
                             </button>
                         )}
                         <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-500">
@@ -483,7 +504,7 @@ export function DocumentPreviewModal({
                                 textAlign: "right", fontSize: "11px", color: "#555", lineHeight: "1.6",
                                 marginBottom: "4px"
                             }}>
-                                <div>発行日: {today()}</div>
+                                <div>発行日: {existingDoc?.issuedDate ? formatIssuedDate(existingDoc.issuedDate) : today()}</div>
                                 <div style={{ fontWeight: 600 }}>文書番号: {docNumber}</div>
                                 {periodLabel && <div>対象期間: {periodLabel}</div>}
                             </div>
