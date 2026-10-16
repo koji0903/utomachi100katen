@@ -11,7 +11,7 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.8.0";
+export const CURRENT_VERSION = "v1.9.0";
 export const RELEASE_DATE = "2026.10.16";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
@@ -67,7 +67,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "高信頼性・データ整合性基盤",
-        description: "在庫・売上のアトミック更新、リアルタイム同期時の入力保護、二重送信防止ロック、WASMメモリリーク解消。",
+        description: "アトミック在庫更新、ゴミ箱除外集計、PDF/画像圧縮バイパス、全画面防御ガードによる例外安全稼働環境の確立。",
         status: "completed"
     }
 ];

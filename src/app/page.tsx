@@ -183,7 +183,7 @@ export default function DashboardPage() {
     const currentMonthStats = useMemo(() => {
         const now = new Date();
         const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        const monthlySales = unifiedSales.filter(s => !s.isTrashed && s.period.startsWith(monthPrefix));
+        const monthlySales = unifiedSales.filter(s => !s.isTrashed && s.period?.startsWith(monthPrefix));
         
         // 店舗ごとの売上集計
         const storeSalesMap = new Map<string, number>();
@@ -206,7 +206,7 @@ export default function DashboardPage() {
         return {
             sales: monthlySales.reduce((sum, s) => sum + s.totalAmount, 0),
             storeSales,
-            reports: dailyReports.filter(r => !r.isTrashed && r.date.startsWith(monthPrefix)).length,
+            reports: dailyReports.filter(r => !r.isTrashed && r.date?.startsWith(monthPrefix)).length,
             purchases: purchases.filter(p => !p.isTrashed && (p.orderDate?.startsWith(monthPrefix) || p.arrivalDate?.startsWith(monthPrefix))).length,
             label: `${now.getMonth() + 1}月の実績`
         };

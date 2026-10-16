@@ -92,11 +92,11 @@ function ExpensePageContent() {
             .reduce((sum, e) => sum + e.amount, 0);
         
         const monthlyRefill = pettyCashTransactions
-            .filter(e => e.type === '補充' && e.date.startsWith(period))
+            .filter(e => e.type === '補充' && (e.date || '').startsWith(period))
             .reduce((sum, e) => sum + e.amount, 0);
         
         const monthlyOut = pettyCashTransactions
-            .filter(e => (!e.type || e.type === '支払' || e.type === '移管') && e.date.startsWith(period))
+            .filter(e => (!e.type || e.type === '支払' || e.type === '移管') && (e.date || '').startsWith(period))
             .reduce((sum, e) => sum + e.amount, 0);
 
         return {
@@ -110,14 +110,14 @@ function ExpensePageContent() {
 
     const filteredExpenses = expenses
         .filter(e => !e.isTrashed)
-        .filter(e => e.date.startsWith(period))
+        .filter(e => (e.date || '').startsWith(period))
         .filter(e => filterCategory === 'すべて' || e.category === filterCategory)
         .filter(e => filterPaymentMethod === 'すべて' || (e.paymentMethod || '小口現金') === filterPaymentMethod)
         .filter(e => 
             (e.vendor || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
             (e.memo || "").toLowerCase().includes(searchQuery.toLowerCase())
         )
-        .sort((a, b) => b.date.localeCompare(a.date));
+        .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
     const totalAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 

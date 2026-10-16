@@ -3656,8 +3656,8 @@ export function useStore() {
         mqSummaries,
         mutateMqSummaries,
         triggerMonthlyMqCalculation: async (targetMonth: string) => {
-            const monthSales = unifiedSales.filter(s => s.period.startsWith(targetMonth));
-            const monthWorkLogs = workLogs.filter(w => w.workDate.startsWith(targetMonth));
+            const monthSales = unifiedSales.filter(s => !s.isTrashed && (s.period || '').startsWith(targetMonth));
+            const monthWorkLogs = workLogs.filter(w => !w.isTrashed && (w.workDate || '').startsWith(targetMonth));
             const monthFixedCost = fixedCosts.find(c => c.targetMonth === targetMonth) || {
                 rentCost: 0, laborCost: 0, utilityCost: 0, communicationCost: 0, vehicleCost: 0, softwareCost: 0, otherFixedCost: 0, totalFixedCost: 0
             };

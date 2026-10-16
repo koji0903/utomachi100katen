@@ -28,7 +28,16 @@ function PrintArchivePageContent() {
                 archive.category.toLowerCase().includes(searchQuery.toLowerCase());
             return matchesSearch;
         })
-        .sort((a, b) => new Date(b.updatedAt?.seconds ? b.updatedAt.seconds * 1000 : b.updatedAt).getTime() - new Date(a.updatedAt?.seconds ? a.updatedAt.seconds * 1000 : a.updatedAt).getTime());
+        .sort((a, b) => {
+            const getTimestamp = (val: any) => {
+                if (!val) return 0;
+                if (typeof val === 'number') return val;
+                if (val.seconds) return val.seconds * 1000;
+                const t = new Date(val).getTime();
+                return isNaN(t) ? 0 : t;
+            };
+            return getTimestamp(b.updatedAt) - getTimestamp(a.updatedAt);
+        });
 
     const handleDelete = (id: string) => {
         if (showTrash) {
@@ -60,9 +69,17 @@ function PrintArchivePageContent() {
         // Simple print: open in new tab and suggest printing
         const win = window.open(archive.fileUrl, '_blank');
         if (win) {
-            win.onload = () => {
-                win.print();
-            };
+            try {
+                win.onload = () => {
+                    try {
+                        win.print();
+                    } catch (_) {
+                        // Ignore cross-origin SOP restriction error
+                    }
+                };
+            } catch (_) {
+                // Ignore window access restriction error
+            }
         }
     };
 

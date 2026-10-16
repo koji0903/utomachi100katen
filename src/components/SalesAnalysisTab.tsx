@@ -110,7 +110,7 @@ export function SalesAnalysisTab() {
         return unifiedSales.filter(s => {
             if (s.isTrashed) return false;
             if (filterStoreId && s.storeId !== filterStoreId) return false;
-            if (!s.period.startsWith(filterYear)) return false;
+            if (!s.period || !s.period.startsWith(filterYear)) return false;
             // Only include daily/spot entries for daily analysis
             const isDaily = s.type === 'daily' || (!s.type && s.period && s.period.length === 10);
             return isDaily;

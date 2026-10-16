@@ -112,11 +112,34 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.8.0 */}
+                    {/* v1.9.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">データ集計精度向上・ファイル圧縮最適化・全画面防御ガードの実装</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "売上予測・消化速度のゴミ箱除外：4週間売上予測および14日間商品消化速度（velocityMap）からゴミ箱レコードを除外し、正確な発注推奨数を算出",
+                                    "月次MQ算出の完全整合性：MQ集計（triggerMonthlyMqCalculation）において削除済みの売上・作業ログを集計対象から確実に除外",
+                                    "PDF・SVG画像圧縮処理のバイパス：PDF帳票や領収書のアップロード時に不要な画像圧縮処理をスキップし、アップロード処理を高速化・安定化",
+                                    "印刷アーカイブのクロスオリジン安全性向上：別オリジンURLプレビュー印刷時のSame-Origin制約エラーを防止し、タイムスタンプソートの不正値耐性を強化",
+                                    "帳票・経費・作業ログの例外安全防御：日付プロパティ未定義時における文字列操作（startsWith / localeCompare）クラッシュを全画面で包括的に防止"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.8.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.8.0 - 2026.10.16</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">外部連携・委託在庫・データ整合性の総合改修とUX向上</h3>
                             <ul className="space-y-2">
                                 {[

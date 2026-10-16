@@ -408,8 +408,9 @@ export default function AnalyticsPage() {
         let totalTemp = 0;
 
         const periodWeather = dailyWeather.filter(w => {
-            if (viewMode === "monthly") return w.date.startsWith(selectedYear);
-            return w.date.startsWith(selectedMonth);
+            const d = w.date || "";
+            if (viewMode === "monthly") return d.startsWith(selectedYear);
+            return d.startsWith(selectedMonth);
         });
 
         periodWeather.forEach(w => {
@@ -446,10 +447,12 @@ export default function AnalyticsPage() {
 
         // Filter work logs by period
         const periodWorkLogs = workLogs.filter(w => {
+            if (w.isTrashed) return false;
+            const wd = w.workDate || "";
             if (viewMode === "monthly") {
-                return w.workDate.startsWith(selectedYear);
+                return wd.startsWith(selectedYear);
             } else {
-                return w.workDate.startsWith(selectedMonth);
+                return wd.startsWith(selectedMonth);
             }
         });
 

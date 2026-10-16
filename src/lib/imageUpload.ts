@@ -26,6 +26,15 @@ export const isHeicFile = (file: File | Blob): boolean => {
  * If it's a HEIC file, it converts it to JPEG.
  */
 export const ensureProcessableImage = async (file: File): Promise<File> => {
+    if (
+        file.type.startsWith("video/") ||
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf") ||
+        file.type === "image/svg+xml"
+    ) {
+        return file;
+    }
+
     if (!isHeicFile(file)) return file;
 
     let timerId: ReturnType<typeof setTimeout> | undefined;
@@ -72,7 +81,14 @@ export const ensureProcessableImage = async (file: File): Promise<File> => {
  * Compresses an image file with predefined settings for the app.
  */
 export const compressImage = async (file: File): Promise<File> => {
-    if (file.type.startsWith("video/")) return file;
+    if (
+        file.type.startsWith("video/") ||
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf") ||
+        file.type === "image/svg+xml"
+    ) {
+        return file;
+    }
 
     let timerId: ReturnType<typeof setTimeout> | undefined;
     try {

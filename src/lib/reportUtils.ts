@@ -101,9 +101,9 @@ export function generateReportData(
     // 4. Forecast Logic (Simple 4-week MA)
     const twentyEightDaysAgo = new Date();
     twentyEightDaysAgo.setDate(now.getDate() - 28);
-    const twentyEightDaysAgoStr = twentyEightDaysAgo.toISOString().split('T')[0];
+    const twentyEightDaysAgoStr = getLocalDateString(twentyEightDaysAgo);
 
-    const lastFourWeeksSales = sales.filter(s => s.type === 'daily' && s.period >= twentyEightDaysAgoStr && s.period < todayStr);
+    const lastFourWeeksSales = sales.filter(s => !s.isTrashed && s.type === 'daily' && s.period >= twentyEightDaysAgoStr && s.period < todayStr);
     const avgWeeklyAmount = lastFourWeeksSales.reduce((sum, s) => sum + s.totalAmount, 0) / 4;
 
     // Trend detection
@@ -116,7 +116,7 @@ export function generateReportData(
     // 5. Restocking Recommendations
     // Calculate daily velocity (last 14 days)
     const velocityMap: Record<string, number> = {};
-    const last14DaysSales = sales.filter(s => s.type === 'daily' && s.period >= fourteenDaysAgoStr && s.period < todayStr);
+    const last14DaysSales = sales.filter(s => !s.isTrashed && s.type === 'daily' && s.period >= fourteenDaysAgoStr && s.period < todayStr);
 
     last14DaysSales.forEach(s => {
         s.items.forEach(item => {
@@ -201,7 +201,7 @@ export function generateMonthlySalesReport(
     spotRecipients: SpotRecipient[],
     expenses: Expense[] = []
 ): MonthlySalesReportData {
-    const monthSales = sales.filter(s => s.period.startsWith(targetMonth) && !s.isTrashed);
+    const monthSales = sales.filter(s => (s.period || '').startsWith(targetMonth) && !s.isTrashed);
     
     const storeMap: Record<string, { 
         storeName: string; 
@@ -254,7 +254,7 @@ export function generateMonthlySalesReport(
 
     // 【NEW】経費集計ロジックの組み込み
     const monthExpenses = expenses.filter(e => 
-        e.date.startsWith(targetMonth) && 
+        (e.date || '').startsWith(targetMonth) && 
         !e.isTrashed && 
         e.type !== "補充" && 
         e.type !== "移管"

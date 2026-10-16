@@ -221,7 +221,7 @@ function DocumentsPageContent() {
         
         const currentMonth = new Date().toISOString().slice(0, 7);
         const thisMonthPayments = invoicePayments
-            .filter(p => !p.isTrashed && p.date.startsWith(currentMonth))
+            .filter(p => !p.isTrashed && (p.date || '').startsWith(currentMonth))
             .reduce((sum, p) => sum + p.amount, 0);
             
         return { unpaidCount, arBalance, thisMonthPayments };

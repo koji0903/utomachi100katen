@@ -816,10 +816,11 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                 if (filterDate) {
                     return s.period === filterDate;
                 }
+                const p = s.period || '';
                 if (logType === 'daily') {
-                    return s.period.startsWith(filterMonth);
+                    return p.startsWith(filterMonth);
                 } else {
-                    return s.period.startsWith(filterYear);
+                    return p.startsWith(filterYear);
                 }
             });
     }, [unifiedSales, logType, filterStoreId, filterMonth, filterYear, filterDate, showTrash]);

@@ -47,11 +47,11 @@ export default function WorkLogsPage() {
     // Filter work logs list
     const filteredLogs = useMemo(() => {
         return workLogs.filter(w => {
-            const matchesSearch = w.workerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                w.workType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            const matchesSearch = (w.workerName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (w.workType || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (w.relatedProductName && w.relatedProductName.toLowerCase().includes(searchQuery.toLowerCase()));
             return matchesSearch;
-        }).sort((a, b) => b.workDate.localeCompare(a.workDate));
+        }).sort((a, b) => (b.workDate || "").localeCompare(a.workDate || ""));
     }, [workLogs, searchQuery]);
 
     // Live calculations for the work log entry
