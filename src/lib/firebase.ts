@@ -1,7 +1,7 @@
 // src/lib/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, connectAuthEmulator } from "firebase/auth";
-import { initializeFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { initializeFirestore, getFirestore, connectFirestoreEmulator, type Firestore } from "firebase/firestore";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 
 const firebaseConfig = {
@@ -17,9 +17,15 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
-export const db = initializeFirestore(app, {
-    ignoreUndefinedProperties: true,
-});
+let dbInstance: Firestore;
+try {
+    dbInstance = initializeFirestore(app, {
+        ignoreUndefinedProperties: true,
+    });
+} catch {
+    dbInstance = getFirestore(app);
+}
+export const db = dbInstance;
 export const storage = getStorage(app);
 
 // --- Firebase Emulator 接続 (ローカル開発専用) ---

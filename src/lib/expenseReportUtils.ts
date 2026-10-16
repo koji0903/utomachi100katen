@@ -4,16 +4,17 @@ import jsPDF from "jspdf";
 
 export function generateExpensePDF(expenses: Expense[], period: string) {
     const doc = new jsPDF();
+    const activeExpenses = expenses.filter(e => !e.isTrashed);
     
     // Add title
     doc.setFontSize(18);
     doc.text(`Expense Report - ${period}`, 14, 22);
     
     // Add Summary
-    const total = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const total = activeExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     doc.setFontSize(12);
     doc.text(`Total Amount: ¥${total.toLocaleString()}`, 14, 32);
-    doc.text(`Total Count: ${expenses.length} items`, 14, 38);
+    doc.text(`Total Count: ${activeExpenses.length} items`, 14, 38);
     
     // Table Header
     doc.setFontSize(10);
@@ -29,16 +30,16 @@ export function generateExpensePDF(expenses: Expense[], period: string) {
     y += 10;
     
     // Rows
-    expenses.forEach((e) => {
+    activeExpenses.forEach((e) => {
         if (y > 280) {
             doc.addPage();
             y = 20;
         }
-        doc.text(e.date, 14, y);
-        doc.text(e.item, 40, y, { maxWidth: 55 });
-        doc.text(e.category, 100, y);
+        doc.text(e.date || "-", 14, y);
+        doc.text(e.item || "-", 40, y, { maxWidth: 55 });
+        doc.text(e.category || "-", 100, y);
         doc.text(e.vendor || "-", 140, y, { maxWidth: 35 });
-        doc.text(`¥${e.amount.toLocaleString()}`, 190, y, { align: 'right' });
+        doc.text(`¥${(e.amount ?? 0).toLocaleString()}`, 190, y, { align: 'right' });
         y += 8;
     });
     

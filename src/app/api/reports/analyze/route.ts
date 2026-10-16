@@ -61,7 +61,6 @@ ${restocking?.map((r) => `- ${r.productName}: ${r.qty}個`).join("\n") || "な�
 
     try {
         const modelsToTry = [
-            "gemini-3.0-flash",
             "gemini-2.5-flash",
             "gemini-1.5-flash",
         ];

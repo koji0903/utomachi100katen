@@ -17,7 +17,10 @@ export class DemoModeError extends Error {
  */
 export function checkIsDemoMode(): boolean {
     if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("demo_mode") === "true";
+    return (
+        process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "true" &&
+        window.localStorage.getItem("demo_mode") === "true"
+    );
 }
 
 /**
@@ -32,6 +35,9 @@ export async function apiFetch(
 ): Promise<Response> {
     if (checkIsDemoMode()) {
         throw new DemoModeError();
+    }
+    if (!auth.currentUser && typeof auth.authStateReady === "function") {
+        await auth.authStateReady();
     }
     const user = auth.currentUser;
     if (!user) {

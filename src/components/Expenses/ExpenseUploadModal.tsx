@@ -210,7 +210,7 @@ export function ExpenseUploadModal({ isOpen, onClose }: ExpenseUploadModalProps)
         setIsSaving(true);
         try {
             let fileUrl = "";
-            let storagePath = "";
+            const storagePath = "";
             
             // 1. Upload to Storage if file exists
             if (file) {

@@ -37,7 +37,7 @@ export default function AnalyticsPage() {
 
     // Filter sales by store
     const storeSales = useMemo(() => {
-        let baseSales = unifiedSales.filter(s => !s.isTrashed);
+        const baseSales = unifiedSales.filter(s => !s.isTrashed);
         if (selectedStoreId === "all") return baseSales;
         return baseSales.filter(s => s.storeId === selectedStoreId);
     }, [unifiedSales, selectedStoreId]);

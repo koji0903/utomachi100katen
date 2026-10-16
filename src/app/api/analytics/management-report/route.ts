@@ -164,9 +164,8 @@ ${recentReports && recentReports.length > 0 ? recentReports.map((r) => `- ${r.da
 
     try {
         const modelsToTry = [
-            "gemini-3.0-flash",
             "gemini-2.5-flash",
-            "gemini-1.5-flash-latest",
+            "gemini-1.5-flash",
         ];
         let responseText = "";
         for (const modelName of modelsToTry) {

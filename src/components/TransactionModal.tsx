@@ -99,31 +99,41 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
         }));
     }, [formData.subtotal, formData.tax]);
 
+    const [isSaving, setIsSaving] = useState(false);
+
     if (!isOpen) return null;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        // Auto-register new spot recipient if needed
-        if (customerType === 'spot' && isNewSpot && formData.customerName.trim() !== '') {
-            // Check if it doesn't already exist to avoid duplicates
-            if (!spotRecipients.some(s => s.name === formData.customerName.trim())) {
-                addSpotRecipient({ name: formData.customerName.trim() });
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            // Auto-register new spot recipient if needed
+            if (customerType === 'spot' && isNewSpot && formData.customerName.trim() !== '') {
+                // Check if it doesn't already exist to avoid duplicates
+                if (!spotRecipients.some(s => s.name === formData.customerName.trim())) {
+                    await addSpotRecipient({ name: formData.customerName.trim() });
+                }
             }
-        }
 
-        const submission = {
-            ...formData,
-            paidAmount: initialData ? initialData.paidAmount : 0,
-            balanceAmount: initialData ? initialData.balanceAmount : formData.totalAmount
-        };
+            const submission = {
+                ...formData,
+                paidAmount: initialData ? initialData.paidAmount : 0,
+                balanceAmount: initialData ? Math.max(0, formData.totalAmount - (initialData.paidAmount || 0)) : formData.totalAmount
+            };
 
-        if (initialData) {
-            updateTransaction(initialData.id, submission);
-        } else {
-            addTransaction(submission);
+            if (initialData) {
+                await updateTransaction(initialData.id, submission);
+            } else {
+                await addTransaction(submission);
+            }
+            onClose();
+        } catch (error) {
+            console.error("Failed to save transaction:", error);
+            alert("保存に失敗しました。");
+        } finally {
+            setIsSaving(false);
         }
-        onClose();
     };
 
     return (
@@ -379,10 +389,11 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                     <button
                         type="submit"
                         form="transaction-form"
-                        className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-colors shadow-sm"
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-colors shadow-sm disabled:opacity-50"
                     >
                         <Save className="w-4 h-4" />
-                        保存
+                        {isSaving ? "保存中..." : "保存"}
                     </button>
                 </div>
             </div>

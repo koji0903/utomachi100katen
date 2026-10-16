@@ -13,6 +13,21 @@ export const POST = withAuth(async (_req, { uid }) => {
             return internalError();
         }
         const db = adminDb;
+
+        // 1. まずShopifyからの受注を取り込み、ローカル在庫を減算する
+        const orders = await getShopifyOrders();
+        let newOrdersCount = 0;
+        const processedOrders = [];
+
+        for (const order of orders) {
+            const result = await processShopifyOrder(order);
+            if (result.success) {
+                newOrdersCount++;
+                processedOrders.push(result.orderId);
+            }
+        }
+
+        // 2. 最新のローカル在庫を取得し、Shopifyへ在庫数をプッシュする
         const productsRef = db.collection("products");
         const querySnapshot = await productsRef.where("shopifySyncEnabled", "==", true).get();
 
@@ -53,18 +68,6 @@ export const POST = withAuth(async (_req, { uid }) => {
                         status: allSuccess ? "Synced" : "Partially Synced"
                     });
                 }
-            }
-        }
-
-        const orders = await getShopifyOrders();
-        let newOrdersCount = 0;
-        const processedOrders = [];
-
-        for (const order of orders) {
-            const result = await processShopifyOrder(order);
-            if (result.success) {
-                newOrdersCount++;
-                processedOrders.push(result.orderId);
             }
         }
 

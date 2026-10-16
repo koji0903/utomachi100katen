@@ -52,8 +52,6 @@ export function ProxyInvoicePreviewModal({
     const [isGenerating, setIsGenerating] = useState(false);
     const [memo, setMemo] = useState("ご請求申し上げます。");
 
-    if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
-
     const rounding = companySettings?.roundingMode ?? "floor";
 
     // ─── Document Data ───────────────────────────────────────────────────
@@ -164,6 +162,8 @@ export function ProxyInvoicePreviewModal({
             return () => clearTimeout(timer);
         }
     }, [autoDownload, isLoaded, handleDownload, onClose]);
+
+    if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
 
     // ─── Styles ──────────────────────────────────────────────────────────
     const thStyle = { padding: "8px", borderBottom: `2px solid ${BRAND}`, color: "#fff", fontWeight: 600 };

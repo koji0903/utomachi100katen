@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { admin, getAdminStorage, getStorageBucket } from "@/lib/firebase-admin";
 import { withAuth, internalError, logError } from "@/lib/apiAuth";
 
@@ -11,6 +12,7 @@ const ALLOWED_FOLDERS = new Set<string>([
     "delivery_notes",
     "receipts",
     "summaries",
+    "estimates",
     "reports/activity",
     "reports/maintenance/before",
     "reports/maintenance/after",
@@ -81,30 +83,20 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
         const buffer = Buffer.from(arrayBuffer);
 
         const object = bucket.file(fullStoragePath);
+        const downloadToken = crypto.randomUUID();
         
         await object.save(buffer, {
             contentType: file.type,
             resumable: false,
             metadata: {
-                metadata: { uploadedBy: uid },
+                metadata: {
+                    uploadedBy: uid,
+                    firebaseStorageDownloadTokens: downloadToken,
+                },
             },
         });
 
-        await object.makePublic().catch(() => {
-            // Non-public buckets will surface via getSignedUrl below; swallow here.
-        });
-
-        let url: string;
-        try {
-            const [signed] = await object.getSignedUrl({
-                action: "read",
-                expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-            });
-            url = signed;
-        } catch (signedErr: any) {
-            console.warn("[API-Upload] getSignedUrl failed, falling back to public URL:", signedErr.message);
-            url = `https://storage.googleapis.com/${bucket.name}/${encodeURI(fullStoragePath)}`;
-        }
+        const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(fullStoragePath)}?alt=media&token=${downloadToken}`;
 
         return NextResponse.json({ url, storagePath: fullStoragePath });
     } catch (error: any) {

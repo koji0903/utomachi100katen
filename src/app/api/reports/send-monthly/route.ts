@@ -88,6 +88,8 @@ ${storeBreakdown}
 Automated Reporting System
 `.trim();
 
+        const cleanPdfBase64 = pdfBase64.includes("base64,") ? pdfBase64.split("base64,")[1] : pdfBase64;
+
         const info = await transporter.sendMail({
             from: `"ウトマチプラットフォーム" <${process.env.GMAIL_USER}>`,
             to: recipient,
@@ -96,7 +98,7 @@ Automated Reporting System
             attachments: [
                 {
                     filename: `monthly_report_${month}.pdf`,
-                    content: pdfBase64,
+                    content: cleanPdfBase64,
                     encoding: "base64",
                 },
             ],

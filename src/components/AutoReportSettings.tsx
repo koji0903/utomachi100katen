@@ -1,7 +1,7 @@
 // src/components/AutoReportSettings.tsx
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
     Mail, Calendar, Clock, Save,
     Play, Eye, AlertCircle, CheckCircle2,
@@ -28,25 +28,35 @@ export function AutoReportSettings() {
     const [localEmail, setLocalEmail] = useState(reportConfig.emailRecipient || "");
 
     // Sync local state when reportConfig loads
-    useMemo(() => {
+    useEffect(() => {
         if (reportConfig.emailRecipient && !localEmail) {
             setLocalEmail(reportConfig.emailRecipient);
         }
-    }, [reportConfig.emailRecipient]);
+    }, [reportConfig.emailRecipient, localEmail]);
 
     const reportData = useMemo(() => {
         return generateReportData(sales, products, retailStores, dailyReports, spotRecipients);
     }, [sales, products, retailStores, dailyReports, spotRecipients]);
 
+    const handleSave = async (updates: Partial<typeof reportConfig>) => {
+        setIsSaving(true);
+        try {
+            await updateReportConfig(updates);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const handleEmailBlur = () => {
         if (localEmail !== reportConfig.emailRecipient) {
-            updateReportConfig({ emailRecipient: localEmail });
+            handleSave({ emailRecipient: localEmail });
         }
     };
 
     const sendTestEmail = async () => {
         setTestSent(false);
         setTestError(null);
+        setIsSaving(true);
         try {
             const res = await apiFetch('/api/reports/send', {
                 method: 'POST',
@@ -69,6 +79,8 @@ export function AutoReportSettings() {
             } else {
                 setTestError("送信に失敗しました");
             }
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -193,7 +205,7 @@ export function AutoReportSettings() {
                             </div>
                             <button
                                 onClick={sendTestEmail}
-                                disabled={!localEmail}
+                                disabled={!localEmail || isSaving}
                                 className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors disabled:opacity-30"
                             >
                                 <Play className="w-3 h-3" />

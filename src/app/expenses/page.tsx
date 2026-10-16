@@ -383,7 +383,7 @@ function ExpensePageContent() {
                             ))}
                             {filteredExpenses.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-8 py-32 text-center">
+                                    <td colSpan={7} className="px-8 py-32 text-center">
                                         <div className="flex flex-col items-center gap-6">
                                             <div className="p-8 bg-slate-50 text-slate-200 rounded-[2.5rem] border border-slate-100 shadow-inner">
                                                 <Receipt className="w-20 h-20" />

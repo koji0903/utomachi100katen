@@ -79,90 +79,108 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
     const [isCopying, setIsCopying] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const initializedKeyRef = useRef<string | null>(null);
+
     // Set default values when data loads or modal opens
     useEffect(() => {
-        if (isOpen) {
-            if (initialData) {
-                const initialVariantIds = initialData.shopifyVariantIds || (initialData.shopifyVariantId ? [initialData.shopifyVariantId] : []);
-                setFormData({
-                    name: initialData.name,
-                    variantName: initialData.variantName || "",
-                    brandId: initialData.brandId,
-                    supplierId: initialData.supplierId,
-                    costPrice: initialData.costPrice,
-                    sellingPrice: initialData.sellingPrice,
-                    storePrices: initialData.storePrices || [],
-                    storeWholesalePrices: initialData.storeWholesalePrices || [],
-                    stock: initialData.stock,
-                    story: initialData.story || "",
-                    producerStory: initialData.producerStory || "",
-                    regionBackground: initialData.regionBackground || "",
-                    servingSuggestion: initialData.servingSuggestion || "",
-                    imageUrl: initialData.imageUrl || "",
-                    taxRate: initialData.taxRate || 'reduced',
-                    alertThreshold: initialData.alertThreshold ?? 20,
-                    janCode: initialData.janCode || "",
-                    isComposite: initialData.isComposite || false,
-                    components: initialData.components || [],
-                    productContent: initialData.productContent || "",
-                    ingredients: initialData.ingredients || "",
-                    amount: initialData.amount || "",
-                    storageMethod: initialData.storageMethod || "",
-                    shelfLife: initialData.shelfLife || "",
-                    shippingMethod: initialData.shippingMethod || "",
-                    precautions: initialData.precautions || "",
-                    dimensions: initialData.dimensions || { width: 0, height: 0, depth: 0 },
-                    amazonAsin: initialData.amazonAsin || "",
-                    amazonSku: initialData.amazonSku || "",
-                    amazonSyncEnabled: initialData.amazonSyncEnabled || false,
-                    shopifyProductId: initialData.shopifyProductId || "",
-                    shopifyVariantId: initialVariantIds.join(", "),
-                    shopifyVariantIds: initialVariantIds,
-                    shopifySyncEnabled: initialData.shopifySyncEnabled || false,
-                    squareVariantId: initialData.squareVariantId || "",
-                    squareSyncEnabled: initialData.squareSyncEnabled || false,
-                    // MQ Fields
-                    standardSellingPrice: initialData.standardSellingPrice || initialData.sellingPrice || 0,
-                    standardVariableCost: initialData.standardVariableCost || initialData.costPrice || 0,
-                    standardWorkMinutes: initialData.standardWorkMinutes || 0,
-                    productCategory: initialData.productCategory || "加工品",
-                    isMqTarget: initialData.isMqTarget ?? true,
-                    producerId: initialData.producerId || initialData.supplierId || "",
-                });
-
-                setImagePreview(initialData.imageUrl || null);
-            } else {
-                setFormData({
-                    ...defaultFormData,
-                    brandId: brands.length > 0 ? brands[0].id : "",
-                    supplierId: suppliers.length > 0 ? suppliers[0].id : "",
-                    storePrices: [],
-                    storeWholesalePrices: [],
-                    janCode: "",
-                    amazonAsin: "",
-                    amazonSku: "",
-                    amazonSyncEnabled: false,
-                    shopifyProductId: "",
-                    shopifyVariantId: "",
-                    shopifyVariantIds: [],
-                    shopifySyncEnabled: false,
-                    squareVariantId: "",
-                    squareSyncEnabled: false,
-                    // MQ Fields
-                    standardSellingPrice: 0,
-                    standardVariableCost: 0,
-                    standardWorkMinutes: 0,
-                    productCategory: "加工品",
-                    isMqTarget: true,
-                    producerId: suppliers.length > 0 ? suppliers[0].id : "",
-                });
-                setImagePreview(null);
-            }
-            setImageFile(null);
-            setActiveTab('basic');
-            setInstaCopy("");
-            setImagePrompt("");
+        if (!isOpen) {
+            initializedKeyRef.current = null;
+            return;
         }
+        const currentKey = initialData?.id || 'new';
+        if (initializedKeyRef.current === currentKey) {
+            if (!initialData) {
+                setFormData(prev => ({
+                    ...prev,
+                    brandId: prev.brandId || (brands.length > 0 ? brands[0].id : ""),
+                    supplierId: prev.supplierId || (suppliers.length > 0 ? suppliers[0].id : ""),
+                    producerId: prev.producerId || (suppliers.length > 0 ? suppliers[0].id : ""),
+                }));
+            }
+            return;
+        }
+        initializedKeyRef.current = currentKey;
+
+        if (initialData) {
+            const initialVariantIds = initialData.shopifyVariantIds || (initialData.shopifyVariantId ? [initialData.shopifyVariantId] : []);
+            setFormData({
+                name: initialData.name,
+                variantName: initialData.variantName || "",
+                brandId: initialData.brandId,
+                supplierId: initialData.supplierId,
+                costPrice: initialData.costPrice,
+                sellingPrice: initialData.sellingPrice,
+                storePrices: initialData.storePrices || [],
+                storeWholesalePrices: initialData.storeWholesalePrices || [],
+                stock: initialData.stock,
+                story: initialData.story || "",
+                producerStory: initialData.producerStory || "",
+                regionBackground: initialData.regionBackground || "",
+                servingSuggestion: initialData.servingSuggestion || "",
+                imageUrl: initialData.imageUrl || "",
+                taxRate: initialData.taxRate || 'reduced',
+                alertThreshold: initialData.alertThreshold ?? 20,
+                janCode: initialData.janCode || "",
+                isComposite: initialData.isComposite || false,
+                components: initialData.components || [],
+                productContent: initialData.productContent || "",
+                ingredients: initialData.ingredients || "",
+                amount: initialData.amount || "",
+                storageMethod: initialData.storageMethod || "",
+                shelfLife: initialData.shelfLife || "",
+                shippingMethod: initialData.shippingMethod || "",
+                precautions: initialData.precautions || "",
+                dimensions: initialData.dimensions || { width: 0, height: 0, depth: 0 },
+                amazonAsin: initialData.amazonAsin || "",
+                amazonSku: initialData.amazonSku || "",
+                amazonSyncEnabled: initialData.amazonSyncEnabled || false,
+                shopifyProductId: initialData.shopifyProductId || "",
+                shopifyVariantId: initialVariantIds.join(", "),
+                shopifyVariantIds: initialVariantIds,
+                shopifySyncEnabled: initialData.shopifySyncEnabled || false,
+                squareVariantId: initialData.squareVariantId || "",
+                squareSyncEnabled: initialData.squareSyncEnabled || false,
+                // MQ Fields
+                standardSellingPrice: initialData.standardSellingPrice || initialData.sellingPrice || 0,
+                standardVariableCost: initialData.standardVariableCost || initialData.costPrice || 0,
+                standardWorkMinutes: initialData.standardWorkMinutes || 0,
+                productCategory: initialData.productCategory || "加工品",
+                isMqTarget: initialData.isMqTarget ?? true,
+                producerId: initialData.producerId || initialData.supplierId || "",
+            });
+
+            setImagePreview(initialData.imageUrl || null);
+        } else {
+            setFormData({
+                ...defaultFormData,
+                brandId: brands.length > 0 ? brands[0].id : "",
+                supplierId: suppliers.length > 0 ? suppliers[0].id : "",
+                storePrices: [],
+                storeWholesalePrices: [],
+                janCode: "",
+                amazonAsin: "",
+                amazonSku: "",
+                amazonSyncEnabled: false,
+                shopifyProductId: "",
+                shopifyVariantId: "",
+                shopifyVariantIds: [],
+                shopifySyncEnabled: false,
+                squareVariantId: "",
+                squareSyncEnabled: false,
+                // MQ Fields
+                standardSellingPrice: 0,
+                standardVariableCost: 0,
+                standardWorkMinutes: 0,
+                productCategory: "加工品",
+                isMqTarget: true,
+                producerId: suppliers.length > 0 ? suppliers[0].id : "",
+            });
+            setImagePreview(null);
+        }
+        setImageFile(null);
+        setActiveTab('basic');
+        setInstaCopy("");
+        setImagePrompt("");
     }, [isOpen, initialData, brands, suppliers]);
 
     const handleSellingPriceChange = (newPrice: number) => {
@@ -344,6 +362,7 @@ JANコード: ${formData.janCode || "なし"}
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isUploading) return;
         setIsUploading(true);
         let currentImageUrl = formData.imageUrl;
 
@@ -364,10 +383,10 @@ JANコード: ${formData.janCode || "なし"}
             };
 
             if (initialData && initialData.id) {
-                updateProduct(initialData.id, finalData);
+                await updateProduct(initialData.id, finalData);
                 showNotification("商品を更新しました。");
             } else {
-                addProduct(finalData);
+                await addProduct(finalData);
                 showNotification("商品を登録しました。");
             }
 

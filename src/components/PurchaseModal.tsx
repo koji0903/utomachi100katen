@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { X, Save, ShoppingBag, Plus, Trash2 } from "lucide-react";
 import { useStore, Purchase, PurchaseItem } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { showNotification } from "@/lib/notifications";
 
 interface PurchaseModalProps {
     isOpen: boolean;
@@ -14,6 +15,8 @@ interface PurchaseModalProps {
 
 export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalProps) {
     const { products, suppliers, addPurchase, updatePurchase } = useStore();
+    const [isSaving, setIsSaving] = useState(false);
+    const initializedKeyRef = useRef<string | null>(null);
 
     const [formData, setFormData] = useState({
         type: 'A' as 'A' | 'B',
@@ -30,48 +33,60 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
     });
 
     useEffect(() => {
-        if (isOpen) {
-            if (initialData) {
-                // Determine items (migrate legacy if items is missing)
-                let itemsList = initialData.items || [];
-                if (itemsList.length === 0 && initialData.productId) {
-                    itemsList = [{
-                        productId: initialData.productId,
-                        quantity: initialData.quantity || 1,
-                        receivedQuantity: (initialData.status === 'received' || initialData.status === 'paid') ? (initialData.quantity || 1) : 0,
-                        unitCost: initialData.unitCost || 0,
-                        totalCost: initialData.totalCost || 0
-                    }];
-                }
-
-                setFormData({
-                    type: initialData.type || 'A',
-                    status: initialData.status as Purchase['status'] || 'ordered_pending',
-                    supplierId: initialData.supplierId,
-                    items: itemsList,
-                    totalAmount: initialData.totalAmount || initialData.totalCost || 0,
-                    orderDate: initialData.orderDate,
-                    arrivalDate: initialData.arrivalDate || "",
-                    receivedDate: initialData.receivedDate || initialData.arrivalDate || "",
-                    paymentDate: initialData.paymentDate || "",
-                    expectedArrivalDate: initialData.expectedArrivalDate || "",
-                    memo: initialData.memo || "",
-                });
-            } else {
-                setFormData({
-                    type: 'A',
-                    status: 'ordered_pending',
-                    supplierId: suppliers.length > 0 ? suppliers[0].id : "",
-                    items: [],
-                    totalAmount: 0,
-                    orderDate: new Date().toISOString().split("T")[0],
-                    arrivalDate: "",
-                    receivedDate: "",
-                    paymentDate: "",
-                    expectedArrivalDate: "",
-                    memo: "",
-                });
+        if (!isOpen) {
+            initializedKeyRef.current = null;
+            return;
+        }
+        const currentKey = initialData?.id || 'new';
+        if (initializedKeyRef.current === currentKey) {
+            // Only fill default supplierId if still empty when suppliers load
+            if (!initialData && suppliers.length > 0) {
+                setFormData(prev => prev.supplierId ? prev : { ...prev, supplierId: suppliers[0].id });
             }
+            return;
+        }
+        initializedKeyRef.current = currentKey;
+
+        if (initialData) {
+            // Determine items (migrate legacy if items is missing)
+            let itemsList = initialData.items || [];
+            if (itemsList.length === 0 && initialData.productId) {
+                itemsList = [{
+                    productId: initialData.productId,
+                    quantity: initialData.quantity || 1,
+                    receivedQuantity: (initialData.status === 'received' || initialData.status === 'paid') ? (initialData.quantity || 1) : 0,
+                    unitCost: initialData.unitCost || 0,
+                    totalCost: initialData.totalCost || 0
+                }];
+            }
+
+            setFormData({
+                type: initialData.type || 'A',
+                status: initialData.status as Purchase['status'] || 'ordered_pending',
+                supplierId: initialData.supplierId,
+                items: itemsList,
+                totalAmount: initialData.totalAmount || initialData.totalCost || 0,
+                orderDate: initialData.orderDate,
+                arrivalDate: initialData.arrivalDate || "",
+                receivedDate: initialData.receivedDate || initialData.arrivalDate || "",
+                paymentDate: initialData.paymentDate || "",
+                expectedArrivalDate: initialData.expectedArrivalDate || "",
+                memo: initialData.memo || "",
+            });
+        } else {
+            setFormData({
+                type: 'A',
+                status: 'ordered_pending',
+                supplierId: suppliers.length > 0 ? suppliers[0].id : "",
+                items: [],
+                totalAmount: 0,
+                orderDate: new Date().toISOString().split("T")[0],
+                arrivalDate: "",
+                receivedDate: "",
+                paymentDate: "",
+                expectedArrivalDate: "",
+                memo: "",
+            });
         }
     }, [isOpen, initialData, suppliers]);
 
@@ -161,23 +176,33 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        // Remove items with no productId
-        const validItems = formData.items.filter(i => i.productId !== "");
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            // Remove items with no productId
+            const validItems = formData.items.filter(i => i.productId !== "");
 
-        const submission = {
-            ...formData,
-            items: validItems
-        };
+            const submission = {
+                ...formData,
+                items: validItems
+            };
 
-        if (initialData) {
-            updatePurchase(initialData.id, submission);
-        } else {
-            addPurchase(submission);
+            if (initialData) {
+                await updatePurchase(initialData.id, submission);
+                showNotification("仕入情報を更新しました。");
+            } else {
+                await addPurchase(submission);
+                showNotification("仕入情報を登録しました。");
+            }
+            onClose();
+        } catch (error) {
+            console.error("Failed to save purchase:", error);
+            showNotification("保存に失敗しました。", "error");
+        } finally {
+            setIsSaving(false);
         }
-        onClose();
     };
 
     return (
@@ -464,11 +489,11 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                     <button
                         type="submit"
                         form="purchase-form"
-                        disabled={formData.items.length === 0 && !!formData.supplierId}
+                        disabled={isSaving || (formData.items.length === 0 && !!formData.supplierId)}
                         className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Save className="w-4 h-4" />
-                        情報を保存
+                        {isSaving ? "保存中..." : "情報を保存"}
                     </button>
                 </div>
             </div>

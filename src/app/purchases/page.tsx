@@ -39,14 +39,14 @@ function PurchasesPageContent() {
             // Group needed products by supplierId
             const supplierOrders: { [supplierId: string]: { productId: string, quantity: number, receivedQuantity: number, unitCost: number, totalCost: number }[] } = {};
 
-            for (const product of products) {
+            for (const product of products.filter(p => !p.isTrashed)) {
                 const days = calculateDaysRemaining(product, sales);
                 const isUnderThreshold = product.stock <= (product.alertThreshold ?? 20);
                 const isRunningOutSoon = days !== Infinity && days <= 7;
 
                 if (isUnderThreshold || isRunningOutSoon) {
                     // Check if there's already an active PO (ordered_pending/ordered) for THIS product
-                    const hasActivePO = purchases.some(p => p.status !== 'received' && p.status !== 'paid' && (p.items || []).some(i => i.productId === product.id));
+                    const hasActivePO = purchases.filter(p => !p.isTrashed).some(p => p.status !== 'received' && p.status !== 'paid' && (p.items || []).some(i => i.productId === product.id));
                     if (hasActivePO) continue;
 
                     const threshold = product.alertThreshold ?? 20;
@@ -137,6 +137,9 @@ function PurchasesPageContent() {
         if (currentIndex < statusOrder.length - 1) {
             nextStatus = statusOrder[currentIndex + 1];
         } else {
+            if (!window.confirm("支払済の発注記録を発注済に戻しますか？入荷日・支払日もリセットされます。")) {
+                return;
+            }
             // Loop back to the beginning
             nextStatus = statusOrder[0];
         }

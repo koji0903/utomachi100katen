@@ -112,7 +112,8 @@ export function SalesAnalysisTab() {
             if (filterStoreId && s.storeId !== filterStoreId) return false;
             if (!s.period.startsWith(filterYear)) return false;
             // Only include daily/spot entries for daily analysis
-            return s.type === 'daily' || !s.type;
+            const isDaily = s.type === 'daily' || (!s.type && s.period && s.period.length === 10);
+            return isDaily;
         });
     }, [unifiedSales, filterStoreId, filterYear]);
 
@@ -122,10 +123,13 @@ export function SalesAnalysisTab() {
             day: WEEKDAYS[i], qty: 0, amount: 0, count: 0, dayIdx: i
         }));
         dailySales.forEach(sale => {
+            if (!sale.period || sale.period.length !== 10) return;
             const d = new Date(sale.period);
+            if (isNaN(d.getTime())) return;
             const dow = d.getDay(); // 0=Sun
-            counts[dow].qty += sale.totalQuantity;
-            counts[dow].amount += sale.totalAmount;
+            if (!counts[dow]) return;
+            counts[dow].qty += sale.totalQuantity || 0;
+            counts[dow].amount += sale.totalAmount || 0;
             counts[dow].count++;
         });
         // Compute average

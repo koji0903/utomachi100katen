@@ -606,7 +606,7 @@ export default function InventoryPage() {
                                     )}
                                     {(viewType === 'store' || viewType === 'delivery') && !selectedStoreId && (
                                         <tr>
-                                            <td colSpan={5} className="px-6 py-20 text-center text-slate-400 font-bold">
+                                            <td colSpan={6} className="px-6 py-20 text-center text-slate-400 font-bold">
                                                 店舗を選択してください
                                             </td>
                                         </tr>
@@ -695,7 +695,7 @@ function StoreStockAdjustmentModal({ target, onClose }: { target: { storeId: str
         setIsSubmitting(true);
         try {
             const finalReason = inputType === 'absolute' ? 'audit' : reason;
-            await updateStoreStock(target.storeId, target.productId, qty, finalReason, undefined, new Date().toISOString().split('T')[0], inputType === 'absolute');
+            await updateStoreStock(target.storeId, target.productId, qty, finalReason, undefined, new Date().toISOString().split('T')[0], inputType === 'absolute', remarks);
             onClose();
         } catch (error) {
             console.error(error);

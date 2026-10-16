@@ -31,26 +31,33 @@ export async function POST(req: Request) {
             .update(body, "utf8")
             .digest("base64");
 
-        if (generatedHmac !== hmac) {
-            logError("shopify/webhook", new Error("Invalid HMAC signature"), { expected: hmac, received: generatedHmac });
+        const hmacBuf = Buffer.from(hmac, "utf8");
+        const generatedBuf = Buffer.from(generatedHmac, "utf8");
+
+        if (hmacBuf.byteLength !== generatedBuf.byteLength || !crypto.timingSafeEqual(hmacBuf, generatedBuf)) {
+            logError("shopify/webhook", new Error("Invalid HMAC signature"));
             return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
         }
 
         const orderData = JSON.parse(body);
 
+        if (!orderData?.id || !Array.isArray(orderData?.line_items)) {
+            return NextResponse.json({ error: "Invalid order payload" }, { status: 400 });
+        }
+
         // 2. 注文データのパース (ShopifyOrder インターフェースに合わせる)
         const order = {
             shopifyOrderId: orderData.id.toString(),
-            createdAt: orderData.created_at,
-            financialStatus: orderData.financial_status,
-            totalPrice: parseFloat(orderData.total_price),
+            createdAt: orderData.created_at || new Date().toISOString(),
+            financialStatus: orderData.financial_status || "",
+            totalPrice: parseFloat(orderData.total_price || "0"),
             lineItems: orderData.line_items.map((item: any) => ({
                 variantId: item.variant_id?.toString() || "",
                 sku: item.sku || "",
-                quantity: item.quantity,
-                price: parseFloat(item.price),
+                quantity: Number(item.quantity) || 0,
+                price: parseFloat(item.price || "0"),
             })),
-            customer: orderData.customer ? {
+            customer: orderData.customer?.id ? {
                 id: orderData.customer.id.toString(),
                 email: orderData.customer.email || "",
                 firstName: orderData.customer.first_name || "",

@@ -57,9 +57,13 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
     let isUpdate = false;
     let transRef;
 
-    const orderDate = order.createdAt.split('T')[0];
+    const orderDate = (() => {
+        const d = order.createdAt ? new Date(order.createdAt) : new Date();
+        const ts = Number.isNaN(d.getTime()) ? Date.now() : d.getTime();
+        return new Date(ts + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
+    })();
 
-    // --- 【超強力クリーンアップ】重複やゴミデータの徹底排除 ---
+    // --- 既存レコードのクリーンアップ（該当注文に紐づくデータのみ対象） ---
     const cleanupExistingRecords = async () => {
         if (!order.id) return;
 
@@ -79,7 +83,6 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
                 for (const iDoc of snapItems.docs) await deleteDoc(iDoc.ref);
             }
 
-            
             // 紐づく売上データの削除 (transactionId ベース)
             if (tId) {
                 const qSalesByTrans = query(collection(db, "sales"), where("transactionId", "==", tId));
@@ -88,23 +91,8 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
             }
         }
 
-        // 2. 日付と店舗が一致する古い売上データの削除 (念のための掃き出し)
-        if (retailStore) {
-            const qSalesByDate = query(
-                collection(db, "sales"), 
-                where("period", "==", orderDate), 
-                where("storeId", "==", retailStore.id),
-                where("isTrashed", "==", false)
-            );
-            const snapSalesByDate = await getDocs(qSalesByDate);
-            for (const sDoc of snapSalesByDate.docs) {
-                const sData = sDoc.data();
-                // Square由来である可能性が高いもの（transactionIdがある、または特定のIDパターン）を削除
-                if (sData.transactionId || sDoc.id.startsWith("square_") || sData.remarks?.includes("Square")) {
-                    await deleteDoc(sDoc.ref);
-                }
-            }
-        }
+        // 2. この注文の確定的IDの売上データのみ削除（同日他注文の売上を巻き込まない）
+        await deleteDoc(doc(db, "sales", `square_${order.id}`));
     };
 
     await cleanupExistingRecords();
@@ -115,7 +103,7 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
 
 
 
-    let orderTotalRaw = formatSquareMoney(order.totalMoney);
+    const orderTotalRaw = formatSquareMoney(order.totalMoney);
     const totalOrderDiscount = formatSquareMoney(order.totalDiscountMoney || { amount: 0, currency: "JPY" });
     const netTotalFromSquare = order.netAmounts ? formatSquareMoney(order.netAmounts.total_money) : null;
     
@@ -146,7 +134,7 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
         storeName: retailStore?.name || null,
         channel: "店頭販売",
         transactionType: "Square注文",
-        orderDate: order.createdAt.split('T')[0],
+        orderDate: orderDate,
         transactionStatus: "完了",
         subtotal: effectiveOrderTotal,
         tax: 0,
@@ -266,7 +254,7 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
                     reason: 'sale',
                     remarks: 'Square注文による自動減算',
                     referenceId: transRef.id,
-                    date: order.createdAt.split('T')[0],
+                    date: orderDate,
                     createdAt: serverTimestamp()
                 });
             }
@@ -300,7 +288,7 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
             storeName: retailStore.name,
             recipientType: 'store',
             type: 'daily',
-            period: order.createdAt.split('T')[0],
+            period: orderDate,
             items: saleItems,
             totalQuantity: totalQuantity,
             totalAmount: effectiveOrderTotal,

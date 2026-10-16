@@ -116,7 +116,7 @@ export default function StockConversionPage() {
                                         className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-slate-50"
                                     >
                                         <option value="">商品を選択</option>
-                                        {products.map(p => (
+                                        {products.filter(p => !p.isTrashed).map(p => (
                                             <option key={p.id} value={p.id}>
                                                 {p.name} {p.variantName} (在庫: {p.stock})
                                             </option>
@@ -155,7 +155,7 @@ export default function StockConversionPage() {
                                         className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all bg-slate-50"
                                     >
                                         <option value="">商品を選択</option>
-                                        {products.map(p => (
+                                        {products.filter(p => !p.isTrashed).map(p => (
                                             <option key={p.id} value={p.id}>
                                                 {p.name} {p.variantName} (在庫: {p.stock})
                                             </option>
@@ -219,7 +219,11 @@ export default function StockConversionPage() {
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {[...stockConversions].sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime()).map((conv) => {
+                            {[...stockConversions].sort((a, b) => {
+                                const timeA = (a.createdAt as any)?.seconds ? (a.createdAt as any).seconds * 1000 : (a.createdAt ? new Date(a.createdAt as string).getTime() : 0) || 0;
+                                const timeB = (b.createdAt as any)?.seconds ? (b.createdAt as any).seconds * 1000 : (b.createdAt ? new Date(b.createdAt as string).getTime() : 0) || 0;
+                                return timeB - timeA;
+                            }).map((conv) => {
                                 const inputP = products.find(p => p.id === conv.inputProductId);
                                 const outputP = products.find(p => p.id === conv.outputProductId);
                                 return (

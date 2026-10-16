@@ -54,8 +54,14 @@ async function getAccessToken(): Promise<string> {
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Amazon LWA Token Error: ${errorData.error_description || response.statusText}`);
+        const text = await response.text();
+        let errorData: any = null;
+        try {
+            errorData = JSON.parse(text);
+        } catch {
+            errorData = { error_description: text };
+        }
+        throw new Error(`Amazon LWA Token Error: ${errorData?.error_description || response.statusText}`);
     }
 
     const data = await response.json();
@@ -86,8 +92,8 @@ export async function getAmazonProduct(sku: string): Promise<AmazonProduct | nul
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(`Listings API Error: ${JSON.stringify(error)}`);
+            const text = await response.text();
+            throw new Error(`Listings API Error (${response.status}): ${text}`);
         }
 
         const data = await response.json();
@@ -163,8 +169,8 @@ export async function getAmazonOrders(): Promise<AmazonOrder[]> {
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(`Orders API Error: ${JSON.stringify(error)}`);
+            const text = await response.text();
+            throw new Error(`Orders API Error (${response.status}): ${text}`);
         }
 
         const data = await response.json();
@@ -181,6 +187,12 @@ export async function getAmazonOrders(): Promise<AmazonOrder[]> {
             const itemsRes = await fetch(itemsUrl, {
                 headers: { "x-amz-access-token": accessToken }
             });
+
+            if (!itemsRes.ok) {
+                const errText = await itemsRes.text();
+                console.error(`[Amazon] Failed to fetch orderItems for ${amazonOrderId} (${itemsRes.status}): ${errText}`);
+                continue;
+            }
 
             const itemsData = await itemsRes.json();
             const items = itemsData.payload?.OrderItems || itemsData.payload?.orderItems || [];
@@ -275,8 +287,8 @@ export async function updateAmazonListing(sku: string, quantity?: number, price?
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(`Listing Patch API Error: ${JSON.stringify(error)}`);
+            const text = await response.text();
+            throw new Error(`Listing Patch API Error (${response.status}): ${text}`);
         }
 
         return true;

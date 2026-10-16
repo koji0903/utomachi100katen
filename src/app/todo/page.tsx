@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
     Plus,
     Search,
@@ -261,21 +261,7 @@ export default function TodoPage() {
     const [filterStatus, setFilterStatus] = useState<string>("all");
     const [showTrash, setShowTrash] = useState(false);
 
-    // Handle action query parameter from global Command Palette
-    useEffect(() => {
-        if (typeof window !== "undefined") {
-            const params = new URLSearchParams(window.location.search);
-            const action = params.get("action");
-            if (action === "new-todo") {
-                handleOpenModal();
-            }
-
-            if (action) {
-                const newUrl = window.location.pathname;
-                window.history.replaceState({}, document.title, newUrl);
-            }
-        }
-    }, []);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -287,7 +273,7 @@ export default function TodoPage() {
         status: "todo" as any,
     });
 
-    const handleOpenModal = (challenge?: BusinessChallenge) => {
+    const handleOpenModal = useCallback((challenge?: BusinessChallenge) => {
         if (challenge) {
             setEditingChallenge(challenge);
             setFormData({
@@ -312,10 +298,28 @@ export default function TodoPage() {
             setCommentAuthor("山口");
         }
         setIsModalOpen(true);
-    };
+    }, []);
+
+    // Handle action query parameter from global Command Palette
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            const action = params.get("action");
+            if (action === "new-todo") {
+                handleOpenModal();
+            }
+
+            if (action) {
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        }
+    }, [handleOpenModal]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSaving) return;
+        setIsSaving(true);
         try {
             if (editingChallenge) {
                 await updateChallenge(editingChallenge.id, formData);
@@ -328,6 +332,8 @@ export default function TodoPage() {
         } catch (error) {
             console.error("Failed to save challenge:", error);
             showNotification("保存に失敗しました。", "error");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -371,6 +377,14 @@ export default function TodoPage() {
         }
     };
 
+    const parseTime = (val: any): number => {
+        if (!val) return 0;
+        if (typeof val === 'string') return new Date(val).getTime() || 0;
+        if (val.toDate) return val.toDate().getTime();
+        if (typeof val.seconds === 'number') return val.seconds * 1000;
+        return 0;
+    };
+
     const filteredChallenges = (challenges || [])
         .filter(c => !!c.isTrashed === showTrash)
         .filter((c: BusinessChallenge) =>
@@ -387,8 +401,8 @@ export default function TodoPage() {
             if (aPrio !== bPrio) return aPrio - bPrio;
 
             // Then by createdAt (Oldest > Newest)
-            const aTime = a.createdAt ? (typeof a.createdAt === 'string' ? new Date(a.createdAt).getTime() : ((a.createdAt as any).toDate ? (a.createdAt as any).toDate().getTime() : 0)) : 0;
-            const bTime = b.createdAt ? (typeof b.createdAt === 'string' ? new Date(b.createdAt).getTime() : ((b.createdAt as any).toDate ? (b.createdAt as any).toDate().getTime() : 0)) : 0;
+            const aTime = parseTime(a.createdAt);
+            const bTime = parseTime(b.createdAt);
             return aTime - bTime;
         });
 
@@ -781,9 +795,10 @@ export default function TodoPage() {
 
                             <button
                                 type="submit"
-                                className="w-full bg-[#1e3a8a] text-white py-4 rounded-3xl font-black text-lg shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                disabled={isSaving}
+                                className="w-full bg-[#1e3a8a] text-white py-4 rounded-3xl font-black text-lg shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
                             >
-                                {editingChallenge ? "変更を保存する" : "課題を登録する"}
+                                {isSaving ? "保存中..." : editingChallenge ? "変更を保存する" : "課題を登録する"}
                             </button>
                                     </form>
                                 </>

@@ -75,7 +75,7 @@ export const ensureAdminInitialized = () => {
 
     // 3. Application Default Credentials (Vercel Integration etc.)
     try {
-        const options: any = {
+        const options: admin.AppOptions = {
             credential: admin.credential.applicationDefault(),
             projectId: pId,
             storageBucket: sBucket,
@@ -83,20 +83,9 @@ export const ensureAdminInitialized = () => {
         admin.initializeApp(options);
         console.log("[firebase-admin] Initialized with ADC");
         return true;
-    } catch (err: any) {
-        console.error("[firebase-admin] ADC init failed:", err.message);
-        
-        // Final fallback: try to init with just project ID (will work for some operations, but not storage/auth without creds)
-        try {
-            if (admin.apps.length === 0) {
-                admin.initializeApp({
-                    projectId: pId,
-                    storageBucket: sBucket,
-                });
-                console.warn("[firebase-admin] Initialized with ONLY ProjectID (Limited capability)");
-                return true;
-            }
-        } catch (finalErr) {}
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("[firebase-admin] ADC init failed:", message);
     }
     
     return false;

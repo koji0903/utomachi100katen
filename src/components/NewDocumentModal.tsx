@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
     Plus, X, Receipt, FileText, Store, Users, UserCircle, Link2, ClipboardList
 } from "lucide-react";
@@ -64,17 +64,43 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
     const [paymentMethod, setPaymentMethod] = useState<IssuedDocument['paymentMethod']>(editingDoc?.paymentMethod ?? "現金");
     const [issuingDoc, setIssuingDoc] = useState<IssuedDocument | null>(null);
 
+    const initializedKeyRef = useRef<string | null>(null);
+
     useEffect(() => {
         if (editingDoc?.spotRecipientId) {
             const spot = spotRecipients.find(r => r.id === editingDoc.spotRecipientId);
-            if (spot) setSpotRecipient(spot);
+            if (spot && !spotRecipient) setSpotRecipient(spot);
         }
-    }, [editingDoc, spotRecipients]);
+    }, [editingDoc, spotRecipients, spotRecipient]);
+
+    useEffect(() => {
+        if (editingDoc) return;
+        if (recipientType === "store" && storeId) {
+            const selected = retailStores.find(s => s.id === storeId);
+            if (selected?.linkedConsignmentStoreId) {
+                setLinkedConsignmentStoreId(selected.linkedConsignmentStoreId);
+                setSkipInventoryAdjustment(true);
+                setAttributeSalesToLinkedStore(true);
+            } else {
+                setLinkedConsignmentStoreId("");
+                setSkipInventoryAdjustment(false);
+                setAttributeSalesToLinkedStore(false);
+            }
+        } else {
+            setLinkedConsignmentStoreId("");
+            setSkipInventoryAdjustment(false);
+            setAttributeSalesToLinkedStore(false);
+        }
+    }, [recipientType, storeId, retailStores, editingDoc]);
 
     useEffect(() => {
         if (editingDoc) return;
 
         if ((docType === "invoice" || docType === "delivery_note") && recipientName && period) {
+            const initKey = `${docType}-${recipientType}-${storeId}-${supplierId}-${spotRecipient?.id || ""}-${period}`;
+            if (initializedKeyRef.current === initKey) return;
+            initializedKeyRef.current = initKey;
+
             if (recipientType === "spot") {
                 setInvoiceItems([]);
                 return;
@@ -128,7 +154,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
             }
             setInvoiceItems(Array.from(map.values()));
         }
-    }, [docType, recipientName, period, sales, products, editingDoc, recipientType, storeId]);
+    }, [docType, recipientName, period, sales, products, editingDoc, recipientType, storeId, supplierId, spotRecipient, retailStores]);
 
     const canPreview = recipientName && period;
 
@@ -290,29 +316,6 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                         {recipientType === "spot" && (
                             <SpotRecipientInput value={spotRecipient} onChange={setSpotRecipient} />
                         )}
-                    </div>
-
-                    {/* Auto-set linked store ID when store changes */}
-                    <div className="hidden">
-                        {(() => {
-                            if (recipientType === "store" && storeId) {
-                                const selected = retailStores.find(s => s.id === storeId);
-                                if (selected?.linkedConsignmentStoreId && selected.linkedConsignmentStoreId !== linkedConsignmentStoreId) {
-                                    setTimeout(() => {
-                                        setLinkedConsignmentStoreId(selected.linkedConsignmentStoreId!);
-                                        setSkipInventoryAdjustment(true);
-                                        setAttributeSalesToLinkedStore(true);
-                                    }, 0);
-                                } else if (!selected?.linkedConsignmentStoreId && linkedConsignmentStoreId) {
-                                    setTimeout(() => {
-                                        setLinkedConsignmentStoreId("");
-                                        setSkipInventoryAdjustment(false);
-                                        setAttributeSalesToLinkedStore(false);
-                                    }, 0);
-                                }
-                            }
-                            return null;
-                        })()}
                     </div>
 
                     <div className="space-y-2">

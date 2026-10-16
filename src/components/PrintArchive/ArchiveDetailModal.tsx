@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, FileText, Printer, Eye, MessageSquare, History, Calendar, User, Save, Trash2, Tag, Plus, Check, Loader2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { PrintArchive, PrintArchiveHistory, ArchiveCategory } from "@/lib/types/printArchive";
@@ -24,6 +24,16 @@ export function ArchiveDetailModal({ isOpen, onClose, archive }: ArchiveDetailMo
     const [isSaving, setIsSaving] = useState(false);
     const [isSavingCategory, setIsSavingCategory] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && archive) {
+            setMemo(archive.memo || "");
+            setSelectedCategory(archive.category);
+            setIsEditingMemo(false);
+            setIsEditingCategory(false);
+            setNewTag("");
+        }
+    }, [isOpen, archive]);
 
     if (!isOpen) return null;
 

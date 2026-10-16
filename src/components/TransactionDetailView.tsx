@@ -265,7 +265,7 @@ export function TransactionDetailView({ id }: TransactionDetailViewProps) {
                                                 <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-50 text-slate-500 rounded-full">{payment.method}</span>
                                             </div>
                                             <div className="text-lg font-black text-slate-900 mt-0.5">{fmtMoney(payment.amount)}</div>
-                                            {payment.notes && <div className="text-[10px] text-slate-400 italic mt-1 font-bold">"{payment.notes}"</div>}
+                                            {payment.notes && <div className="text-[10px] text-slate-400 italic mt-1 font-bold">&quot;{payment.notes}&quot;</div>}
                                         </div>
                                     ))
                                 )}

@@ -16,7 +16,7 @@ export function convertToCSV<T extends object>(data: T[]): string {
     for (const row of data) {
         const values = headers.map(header => {
             const val = row[header];
-            const escaped = String(val).replace(/"/g, '""');
+            const escaped = String(val ?? "").replace(/"/g, '""');
             return `"${escaped}"`;
         });
         csvRows.push(values.join(","));
@@ -68,4 +68,5 @@ export function downloadCSV(csvContent: string, fileName: string) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

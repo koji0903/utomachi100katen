@@ -36,7 +36,8 @@ export default function OrdersPage() {
         products = [], 
         retailStores = [], 
         spotRecipients = [], 
-        updateSale
+        updateSale,
+        updateIssuedDocument
     } = useStore();
 
     // UI state
@@ -56,7 +57,7 @@ export default function OrdersPage() {
 
     // Compute dynamic MQ fields for all actual sales from unifiedSales
     const computedSales = useMemo(() => {
-        return (unifiedSales || []).map(sale => {
+        return (unifiedSales || []).filter(sale => !sale.isTrashed).map(sale => {
             let itemsGrossAmount = 0;
             let itemsTotalVarCost = 0;
             let itemsTotalQty = 0;
@@ -166,12 +167,21 @@ export default function OrdersPage() {
         if (!selectedSaleForMqEdit) return;
         setIsSavingMq(true);
         try {
-            await updateSale(selectedSaleForMqEdit.id, {
-                salesChannel: editMqChannel,
-                shippingCost: editMqShipping,
-                platformFee: editMqPlatform,
-                packagingCost: editMqPackaging
-            });
+            if (selectedSaleForMqEdit.isInvoice) {
+                await updateIssuedDocument(selectedSaleForMqEdit.id, {
+                    salesChannel: editMqChannel,
+                    shippingCost: editMqShipping,
+                    platformFee: editMqPlatform,
+                    packagingCost: editMqPackaging
+                } as any);
+            } else {
+                await updateSale(selectedSaleForMqEdit.id, {
+                    salesChannel: editMqChannel,
+                    shippingCost: editMqShipping,
+                    platformFee: editMqPlatform,
+                    packagingCost: editMqPackaging
+                });
+            }
             showNotification("MQ変動費情報を更新しました！", "success");
             setSelectedSaleForMqEdit(null);
         } catch (err: any) {
@@ -496,9 +506,9 @@ export default function OrdersPage() {
                                                         <Edit2 className="w-3.5 h-3.5" />
                                                     </button>
                                                     <Link
-                                                        href={`/sales?id=${sale.id}`}
+                                                        href={(sale as any).isInvoice ? `/documents?id=${sale.id}` : `/sales?id=${sale.id}`}
                                                         className="p-1.5 bg-slate-50 text-slate-650 rounded-lg hover:bg-slate-100 transition-colors"
-                                                        title="売上管理で数量・商品を編集"
+                                                        title={(sale as any).isInvoice ? "請求書管理で確認・編集" : "売上管理で数量・商品を編集"}
                                                     >
                                                         <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
                                                     </Link>

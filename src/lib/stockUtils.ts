@@ -19,12 +19,16 @@ export function calculateDaysRemaining(product: Product, sales: Sale[]): number 
 
     // Filter sales for this product in the last 30 days
     sales.forEach(sale => {
+        if (sale.isTrashed) return;
         // Handle YYYY-MM-DD format
         const saleDate = new Date(sale.period);
-        if (sale.type === 'daily' && saleDate >= thirtyDaysAgo && saleDate <= now) {
-            const item = sale.items.find(i => i.productId === productId);
-            if (item) {
-                totalSold += item.quantity;
+        if (sale.type === 'daily' && !isNaN(saleDate.getTime())) {
+            const saleTime = saleDate.getTime();
+            if (saleTime >= thirtyDaysAgo.getTime() - 24 * 60 * 60 * 1000 && saleTime <= now.getTime() + 24 * 60 * 60 * 1000) {
+                const item = sale.items?.find(i => i.productId === productId);
+                if (item) {
+                    totalSold += item.quantity || 0;
+                }
             }
         }
     });

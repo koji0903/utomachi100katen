@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { getAdminAuth } from "@/lib/firebase-admin";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { z, ZodError, ZodType } from "zod";
@@ -78,8 +79,13 @@ export function withCronSecret(
                 { status: 500 },
             );
         }
-        const header = req.headers.get("authorization");
-        if (header !== `Bearer ${secret}`) {
+        const header = req.headers.get("authorization") || "";
+        const expected = `Bearer ${secret}`;
+        const headerBuf = Buffer.from(header, "utf8");
+        const expectedBuf = Buffer.from(expected, "utf8");
+        const matches = headerBuf.length === expectedBuf.length && crypto.timingSafeEqual(headerBuf, expectedBuf);
+
+        if (!matches) {
             return NextResponse.json(
                 { error: "Unauthorized" },
                 { status: 401 },

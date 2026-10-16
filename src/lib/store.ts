@@ -20,7 +20,7 @@ const cleanObject = (obj: any) => {
     });
     return newObj;
 };
-import type { RoundingMode } from "@/lib/taxUtils";
+import { applyRounding, type RoundingMode } from "@/lib/taxUtils";
 import type { PrintArchive, PrintArchiveHistory } from "./types/printArchive";
 import type { Expense, ExpenseCategory, PaymentMethod } from "./types/expense";
 
@@ -815,7 +815,7 @@ const fetcher = async <T>(collectionName: string, isDemoMode: boolean): Promise<
     const querySnapshot = await getDocs(collection(db, collectionName));
 
     return querySnapshot.docs.map((doc) => {
-        let data = { id: doc.id, ...doc.data() } as any;
+        const data = { id: doc.id, ...doc.data() } as any;
 
         // Migrate legacy purchases to new format
         if (collectionName === 'inbound_shipments') {
@@ -844,6 +844,10 @@ let globalHasLoadedOnce = false;
 
 export function useStore() {
     const { isAuthLoading, user, isDemoMode } = useAuth() as any; // Temporary fix for type mismatch if any
+
+    if (!user && !isDemoMode) {
+        globalHasLoadedOnce = false;
+    }
 
     const checkDemoMode = () => {
         if (isDemoMode) {
@@ -888,8 +892,9 @@ export function useStore() {
 
     // Auto Report Config
     const { data: reportConfig = DEFAULT_REPORT_CONFIG, mutate: mutateReportConfig } = useSWR<AutoReportConfig>(
-        "auto_report_config",
-        async () => {
+        ["auto_report_config", isDemoMode],
+        async ([, demo]: [string, boolean]) => {
+            if (demo) return DEFAULT_REPORT_CONFIG;
             const snap = await getDoc(doc(db, "settings", "auto_report"));
             if (snap.exists()) return { ...DEFAULT_REPORT_CONFIG, ...snap.data() } as AutoReportConfig;
             return DEFAULT_REPORT_CONFIG;
@@ -899,8 +904,9 @@ export function useStore() {
 
     // Company Settings — fetched once from Firestore doc (not a collection)
     const { data: companySettings = DEFAULT_COMPANY_SETTINGS, mutate: mutateCompanySettings, isLoading: loadingCompanySettings } = useSWR<CompanySettings>(
-        "company_settings",
-        async () => {
+        ["company_settings", isDemoMode],
+        async ([, demo]: [string, boolean]) => {
+            if (demo) return DEFAULT_COMPANY_SETTINGS;
             const snap = await getDoc(doc(db, "company_settings", "main"));
             if (snap.exists()) return { ...DEFAULT_COMPANY_SETTINGS, ...snap.data() } as CompanySettings;
             return DEFAULT_COMPANY_SETTINGS;
@@ -910,7 +916,7 @@ export function useStore() {
 
     const isLoadedComputed = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingPrintArchives && !loadingWorkLogs && !loadingFixedCosts && !loadingMqSummaries && !loadingCompanySettings;
 
-    if (isLoadedComputed) {
+    if (isLoadedComputed && (user || isDemoMode)) {
         globalHasLoadedOnce = true;
     }
 
@@ -1016,7 +1022,8 @@ export function useStore() {
 
         // Amazon同期が有効な場合、バックグラウンドでプッシュ
         const product = products.find(p => p.id === id);
-        if (product && product.amazonSyncEnabled) {
+        const shouldSyncAmazon = productUpdate.amazonSyncEnabled ?? product?.amazonSyncEnabled;
+        if (shouldSyncAmazon) {
             syncProductToAmazon(id).catch(err => console.error("Amazon sync failed on update:", err));
         }
     };
@@ -2147,21 +2154,45 @@ export function useStore() {
 
         // New logic: Flat aggregation with remarks (preserve all items)
         const aggregatedItems: InvoiceItem[] = [];
+        const aggregatedAdjustments: InvoiceAdjustment[] = [];
+        let aggregatedFinalAdjustment = 0;
+
         for (const doc of sortedOriginals) {
-            if (!doc.details) continue;
             const dateStr = doc.issuedDate; // YYYY-MM-DD
             const formattedDate = dateStr ? `${parseInt(dateStr.split('-')[1])}月${parseInt(dateStr.split('-')[2])}日` : "";
             
-            for (const item of doc.details) {
-                aggregatedItems.push({
-                    ...item,
-                    id: crypto.randomUUID(),
-                    remarks: formattedDate ? `${formattedDate}分 ${item.remarks || ""}`.trim() : item.remarks
-                });
+            if (doc.details) {
+                for (const item of doc.details) {
+                    aggregatedItems.push({
+                        ...item,
+                        id: crypto.randomUUID(),
+                        remarks: formattedDate ? `${formattedDate}分 ${item.remarks || ""}`.trim() : item.remarks
+                    });
+                }
+            }
+            if (doc.adjustments) {
+                for (const adj of doc.adjustments) {
+                    aggregatedAdjustments.push({
+                        ...adj,
+                        id: crypto.randomUUID(),
+                        label: formattedDate ? `${adj.label} (${formattedDate}分)` : adj.label,
+                    });
+                }
+            }
+            if (doc.finalAdjustment) {
+                aggregatedFinalAdjustment += doc.finalAdjustment;
             }
         }
 
-        const totalAmount = aggregatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+        const taxRate = first.taxRate || 8;
+        const taxType = first.taxType || 'inclusive';
+        const itemsSubtotal = aggregatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+        const adjustmentsTotal = aggregatedAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
+        const baseAmount = itemsSubtotal + adjustmentsTotal;
+        const taxAmount = taxType === 'exclusive'
+            ? applyRounding(baseAmount * (taxRate / 100), companySettings?.roundingMode || 'floor')
+            : 0;
+        const totalAmount = baseAmount + taxAmount + aggregatedFinalAdjustment;
 
         return saveIssuedDocument({
             type: 'invoice',
@@ -2175,11 +2206,11 @@ export function useStore() {
             spotRecipientId: first.spotRecipientId,
             recipientName: first.recipientName,
             totalAmount: totalAmount,
-            taxRate: first.taxRate || 8,
-            taxType: first.taxType || 'inclusive',
+            taxRate: taxRate,
+            taxType: taxType,
             details: aggregatedItems,
-            adjustments: [],
-            finalAdjustment: 0,
+            adjustments: aggregatedAdjustments,
+            finalAdjustment: aggregatedFinalAdjustment,
             memo: originals.map(d => d.docNumber).join(', ') + " の合算請求書",
             sourceDocIds: ids,
             fulfillmentStatus: 'pending',
@@ -2190,7 +2221,11 @@ export function useStore() {
         const oldDoc = issuedDocuments.find(d => d.id === id);
         if (oldDoc) {
             // 1. Reverse old stock if it was a delivery note
-            if (oldDoc.type === 'delivery_note' && oldDoc.details && !oldDoc.isTrashed) {
+            const oldRecipientStore = oldDoc.storeId ? retailStores.find(s => s.id === oldDoc.storeId) : null;
+            const isOldLinked = !!oldDoc.linkedConsignmentStoreId || !!oldRecipientStore?.linkedConsignmentStoreId;
+            const shouldOldSkip = oldDoc.skipInventoryAdjustment !== undefined ? oldDoc.skipInventoryAdjustment : isOldLinked;
+
+            if (oldDoc.type === 'delivery_note' && oldDoc.details && !oldDoc.isTrashed && !shouldOldSkip) {
                 for (const item of oldDoc.details) {
                     if (item.productId) {
                         const product = products.find(p => p.id === item.productId);
@@ -2383,6 +2418,15 @@ export function useStore() {
     const deleteTransaction = async (id: string) => {
         const transaction = rawTransactions.find(t => t.id === id);
         if (!transaction) return;
+        const relatedItems = transactionItems.filter(item => item.transactionId === id);
+        for (const item of relatedItems) {
+            await moveToTrash(item.id, "transaction_items", item, `取引明細: ${item.productName}`);
+            await deleteDoc(doc(db, "transaction_items", item.id));
+        }
+        if (relatedItems.length > 0) {
+            mutateTransactionItems(transactionItems.filter(item => item.transactionId !== id), false);
+            mutateTransactionItems();
+        }
         await moveToTrash(id, "transactions", transaction, `取引: ${transaction.customerName} (${transaction.orderDate})`);
         mutateTransactions(rawTransactions.filter(t => t.id !== id), false);
         await deleteDoc(doc(db, "transactions", id));
@@ -2572,6 +2616,9 @@ export function useStore() {
     };
 
     const permanentlyDeleteChallenge = async (id: string) => {
+        if (!checkDemoMode()) {
+            await deleteDoc(doc(db, 'business_challenges', id));
+        }
         mutateChallenges();
     };
 
@@ -2650,6 +2697,8 @@ export function useStore() {
         // Special handling: Sale/Purchase stock logic
         if (item.collectionName === 'sales') {
             const sale = item.data as Sale;
+            const targetStore = sale.storeId ? retailStores.find(s => s.id === sale.storeId) : null;
+            const isConsignment = targetStore?.type === 'A' || (targetStore?.type as string) === 'consignment';
             for (const sItem of sale.items) {
                 const product = products.find(p => p.id === sItem.productId);
                 if (product) {
@@ -2657,23 +2706,34 @@ export function useStore() {
                         for (const comp of product.components) {
                             const compProduct = products.find(p => p.id === comp.productId);
                             if (compProduct) {
-                                await adjustProductStock(compProduct.id, -(comp.quantity * sItem.quantity));
+                                if (!isConsignment) {
+                                    await adjustProductStock(compProduct.id, -(comp.quantity * sItem.quantity));
+                                } else {
+                                    await updateStoreStock(sale.storeId, compProduct.id, -(comp.quantity * sItem.quantity), 'sale', item.originalId, sale.period.split('T')[0]);
+                                }
                             }
                         }
                     } else {
-                        await adjustProductStock(product.id, -sItem.quantity);
+                        if (!isConsignment) {
+                            await adjustProductStock(product.id, -sItem.quantity);
+                        } else {
+                            await updateStoreStock(sale.storeId, product.id, -sItem.quantity, 'sale', item.originalId, sale.period.split('T')[0]);
+                        }
                     }
                 }
             }
         } else if (item.collectionName === 'inbound_shipments') {
             const purchase = item.data as Purchase;
-            const isReceived = (purchase.status === 'received' || purchase.status === 'paid');
+            const isReceived = (purchase.status === 'received' || purchase.status === 'paid' || purchase.status === 'partially_received');
             if (isReceived) {
                 const purchaseItems = purchase.items || [];
                 for (const pItem of purchaseItems) {
-                    const product = products.find(p => p.id === pItem.productId);
-                    if (product) {
-                        await adjustProductStock(product.id, pItem.quantity);
+                    const receivedQty = pItem.receivedQuantity ?? (purchase.status === 'partially_received' ? 0 : pItem.quantity);
+                    if (receivedQty > 0) {
+                        const product = products.find(p => p.id === pItem.productId);
+                        if (product) {
+                            await adjustProductStock(product.id, receivedQty);
+                        }
                     }
                 }
             }
@@ -2694,6 +2754,7 @@ export function useStore() {
         mutateDailyReports();
         mutateIssuedDocuments();
         mutateTransactions();
+        mutateTransactionItems();
         mutateSpotRecipients();
         mutateChallenges();
     };
@@ -2733,7 +2794,16 @@ export function useStore() {
         mutateStoreStockMovements();
     };
 
-    const updateStoreStock = async (storeId: string, productId: string, qty: number, reason: StoreStockMovement['reason'], referenceId?: string, date?: string, isAbsolute: boolean = false) => {
+    const updateStoreStock = async (
+        storeId: string,
+        productId: string,
+        qty: number,
+        reason: StoreStockMovement['reason'],
+        referenceId?: string,
+        date?: string,
+        isAbsolute: boolean = false,
+        remarks?: string
+    ) => {
         const docId = `${storeId}_${productId}`;
         const storeStockRef = doc(db, "store_stocks", docId);
         const currentSS = storeStocks.find(ss => ss.id === docId);
@@ -2764,7 +2834,7 @@ export function useStore() {
 
         mutateStoreStocks((prev = []) => {
             const exists = prev.some(ss => ss.id === docId);
-            if (exists) return prev.map(ss => ss.id === docId ? { ...ss, stock: newStock } : ss);
+            if (exists) return prev.map(ss => ss.id === docId ? { ...ss, stock: isAbsolute ? newStock : (ss.stock || 0) + diff } : ss);
             return [{ id: docId, storeId, productId, stock: newStock } as StoreStock, ...prev];
         }, false);
 
@@ -2777,7 +2847,8 @@ export function useStore() {
             quantity: Math.abs(diff),
             reason,
             referenceId,
-            date: date || new Date().toISOString().split('T')[0]
+            date: date || new Date().toISOString().split('T')[0],
+            ...(remarks !== undefined ? { remarks } : {})
         });
 
         mutateStoreStocks();
@@ -2810,15 +2881,16 @@ export function useStore() {
         const now = new Date().toISOString();
         const date = now.split('T')[0];
 
+        const diffByProduct = new Map<string, number>();
+
         // 1. Update each product stock and log movement
         for (const item of audit.items) {
             if (item.diff !== 0) {
-                // Adjust product stock
+                diffByProduct.set(item.productId, (diffByProduct.get(item.productId) || 0) + item.diff);
+                // Adjust product stock using atomic increment
                 const productRef = doc(db, "products", item.productId);
-                const currentProduct = products.find(p => p.id === item.productId);
-                const newStock = (currentProduct?.stock || 0) + item.diff;
                 batch.update(productRef, {
-                    stock: newStock,
+                    stock: increment(item.diff),
                     updatedAt: serverTimestamp()
                 });
 
@@ -2835,6 +2907,13 @@ export function useStore() {
                     createdAt: serverTimestamp()
                 });
             }
+        }
+
+        if (diffByProduct.size > 0) {
+            mutateProducts(
+                (prev = []) => prev.map(p => diffByProduct.has(p.id) ? { ...p, stock: (p.stock || 0) + (diffByProduct.get(p.id) || 0) } : p),
+                false
+            );
         }
 
         // 2. Mark audit as completed
@@ -3085,7 +3164,7 @@ export function useStore() {
         });
 
         return mappedResult.sort((a, b) => b.period.localeCompare(a.period));
-    }, [sales, issuedDocuments, transactions]);
+    }, [sales, issuedDocuments, transactions, retailStores]);
 
     return {
         isLoaded,
@@ -3467,12 +3546,18 @@ export function useStore() {
                         }
                     } else {
                         // Proportional distribution among matching templates
-                        for (const template of fieldTemplates) {
+                        let distributedSum = 0;
+                        for (let idx = 0; idx < fieldTemplates.length; idx++) {
+                            const template = fieldTemplates[idx];
+                            const isLast = idx === fieldTemplates.length - 1;
                             const share = templateSum > 0 
                                 ? (template.amount || 0) / templateSum 
                                 : 1 / fieldTemplates.length;
                             
-                            const allocatedAmount = Math.round(totalAmount * share);
+                            const allocatedAmount = isLast
+                                ? totalAmount - distributedSum
+                                : Math.round(totalAmount * share);
+                            distributedSum += allocatedAmount;
                             const expenseId = `fixed_${data.targetMonth}_${template.id || template.category}`;
                             activeSyncedExpenseIds.add(expenseId);
 
@@ -3603,13 +3688,13 @@ export function useStore() {
                     const prod = products.find(p => p.id === item.productId);
                     const prodName = item.productName || prod?.name || "不明な商品";
                     
-                    const qty = item.quantity || 0;
-                    const price = item.priceAtSale || 0;
-                    const amt = item.subtotal || (qty * price);
+                    const qty = item.quantity ?? 0;
+                    const price = item.priceAtSale ?? 0;
+                    const amt = item.subtotal ?? (qty * price);
 
-                    const stdVarCostPerUnit = prod?.standardVariableCost || prod?.costPrice || 0;
-                    const itemVarCost = item.variableCostAmount || (qty * stdVarCostPerUnit);
-                    const itemMq = item.mqAmount || (amt - itemVarCost);
+                    const stdVarCostPerUnit = prod?.standardVariableCost ?? prod?.costPrice ?? 0;
+                    const itemVarCost = item.variableCostAmount ?? (qty * stdVarCostPerUnit);
+                    const itemMq = item.mqAmount ?? (amt - itemVarCost);
 
                     totalSales += amt;
                     totalVariableCost += itemVarCost;

@@ -23,7 +23,6 @@ export const POST = withAuth(async (req, ctx) => {
 
     try {
         const modelsToTry = [
-            "gemini-3.0-flash",
             "gemini-2.5-flash",
             "gemini-1.5-flash",
         ];

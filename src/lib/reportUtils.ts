@@ -33,6 +33,13 @@ export interface ReportData {
     }[];
 }
 
+function getLocalDateString(d: Date = new Date()): string {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 export function generateReportData(
     sales: Sale[],
     products: Product[],
@@ -41,19 +48,19 @@ export function generateReportData(
     spotRecipients: SpotRecipient[]
 ): ReportData {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getLocalDateString(now);
 
     // 1. Weekly Sales Calculation
-    const sevenDaysAgo = new Date();
+    const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(now.getDate() - 7);
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    const sevenDaysAgoStr = getLocalDateString(sevenDaysAgo);
 
-    const fourteenDaysAgo = new Date();
+    const fourteenDaysAgo = new Date(now);
     fourteenDaysAgo.setDate(now.getDate() - 14);
-    const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().split('T')[0];
+    const fourteenDaysAgoStr = getLocalDateString(fourteenDaysAgo);
 
-    const currentWeekSales = sales.filter(s => s.type === 'daily' && s.period >= sevenDaysAgoStr && s.period < todayStr);
-    const previousWeekSales = sales.filter(s => s.type === 'daily' && s.period >= fourteenDaysAgoStr && s.period < sevenDaysAgoStr);
+    const currentWeekSales = sales.filter(s => !s.isTrashed && s.type === 'daily' && s.period >= sevenDaysAgoStr && s.period <= todayStr);
+    const previousWeekSales = sales.filter(s => !s.isTrashed && s.type === 'daily' && s.period >= fourteenDaysAgoStr && s.period < sevenDaysAgoStr);
 
     const currentAmount = currentWeekSales.reduce((sum, s) => sum + s.totalAmount, 0);
     const previousAmount = previousWeekSales.reduce((sum, s) => sum + s.totalAmount, 0);

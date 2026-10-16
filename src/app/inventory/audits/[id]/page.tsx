@@ -11,8 +11,9 @@ import {
     ArrowRight
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import type { InventoryAudit, InventoryAuditItem } from "@/lib/store";
+import { showNotification } from "@/lib/notifications";
 
 export default function InventoryAuditDetailPage() {
     const { id } = useParams();
@@ -22,16 +23,25 @@ export default function InventoryAuditDetailPage() {
         products,
         updateInventoryAudit,
         completeInventoryAudit,
-        addInventoryAudit
+        addInventoryAudit,
+        isLoaded
     } = useStore();
 
     const [audit, setAudit] = useState<InventoryAudit | null>(null);
     const [isNew, setIsNew] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const initializedAuditIdRef = useRef<string | null>(null);
 
     // Initialize or fetch audit
     useEffect(() => {
-        if (id === 'new') {
+        if (!isLoaded) return;
+        const targetId = Array.isArray(id) ? id[0] : id;
+        if (!targetId) return;
+
+        if (targetId === 'new') {
+            if (initializedAuditIdRef.current === 'new') return;
+            if (products.length === 0) return;
+            initializedAuditIdRef.current = 'new';
             setIsNew(true);
             const today = new Date().toISOString().split('T')[0];
             const items: InventoryAuditItem[] = products
@@ -53,12 +63,16 @@ export default function InventoryAuditDetailPage() {
                 isTrashed: false
             } as InventoryAudit);
         } else {
-            const found = inventoryAudits.find(a => a.id === id);
+            const found = inventoryAudits.find(a => a.id === targetId);
             if (found) {
-                setAudit(found);
+                if (initializedAuditIdRef.current !== targetId || found.status === 'completed') {
+                    initializedAuditIdRef.current = targetId;
+                    setIsNew(false);
+                    setAudit(found);
+                }
             }
         }
-    }, [id, inventoryAudits, products]);
+    }, [id, inventoryAudits, products, isLoaded]);
 
     const handleStockChange = (productId: string, actualValue: string) => {
         if (!audit) return;
@@ -91,12 +105,13 @@ export default function InventoryAuditDetailPage() {
     }, [audit]);
 
     const handleSave = async () => {
-        if (!audit) return;
+        if (!audit || isSaving) return;
         setIsSaving(true);
         try {
             if (isNew) {
                 const { id: _, status: __, ...auditData } = audit as any;
                 const newId = await addInventoryAudit({ ...auditData, status: 'draft' });
+                showNotification("一時保存しました");
                 router.replace(`/inventory/audits/${newId}`);
             } else {
                 await updateInventoryAudit(audit.id, {
@@ -104,26 +119,49 @@ export default function InventoryAuditDetailPage() {
                     items: audit.items,
                     remarks: audit.remarks
                 });
+                showNotification("一時保存しました");
             }
+        } catch (err) {
+            console.error("Failed to save inventory audit:", err);
+            showNotification("保存に失敗しました", "error");
         } finally {
             setIsSaving(false);
         }
     };
 
     const handleComplete = async () => {
-        if (!audit || id === 'new') return;
+        if (!audit || id === 'new' || isSaving) return;
         if (!window.confirm("棚卸しを確定しますか？在庫数が実在庫数に更新され、履歴が記録されます。")) return;
 
         setIsSaving(true);
         try {
             await completeInventoryAudit(audit.id, audit);
+            showNotification("棚卸しを確定しました");
             router.push('/inventory/audits');
+        } catch (err) {
+            console.error("Failed to complete inventory audit:", err);
+            showNotification("保存に失敗しました", "error");
         } finally {
             setIsSaving(false);
         }
     };
 
-    if (!audit) return <div className="p-20 text-center font-bold text-slate-400">読み込み中...</div>;
+    if (!isLoaded) return <div className="p-20 text-center font-bold text-slate-400">読み込み中...</div>;
+
+    if (!audit) {
+        return (
+            <div className="max-w-xl mx-auto p-12 text-center space-y-4">
+                <p className="text-lg font-bold text-slate-700">指定された棚卸しデータが見つかりません</p>
+                <button
+                    onClick={() => router.push('/inventory/audits')}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a8a] text-white font-bold rounded-xl hover:bg-blue-800 transition-all text-sm"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    棚卸し一覧へ戻る
+                </button>
+            </div>
+        );
+    }
 
     const isCompleted = audit.status === 'completed';
 

@@ -10,7 +10,7 @@ service firebase.storage {
     // Helper: validate file size (15 MB max)
     // 注意: write (create/update) 時のみ有効。read 時は request.resource が null のため使用不可。
     function isValidFileSize() {
-      return request.resource.size <= 15 * 1024 * 1024;
+      return request.resource == null || request.resource.size <= 15 * 1024 * 1024;
     }
 
     // 共通のルール定義

@@ -70,12 +70,13 @@ export function FixedCostModal({ isOpen, onClose, defaultPeriod }: FixedCostModa
     // Sync templates dynamically from global settings doc on mount / open
     useEffect(() => {
         if (isOpen) {
+            setPeriod(defaultPeriod);
             const templates = companySettings?.fixedCostTemplates && companySettings.fixedCostTemplates.length > 0
                 ? companySettings.fixedCostTemplates
                 : INITIAL_TEMPLATES;
             setItems(templates);
         }
-    }, [isOpen, companySettings]);
+    }, [isOpen, defaultPeriod, companySettings]);
 
     if (!isOpen) return null;
 

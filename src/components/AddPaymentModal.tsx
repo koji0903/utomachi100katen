@@ -1,7 +1,7 @@
 // src/components/AddPaymentModal.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Calendar, CreditCard, Receipt, Loader2, Save } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
@@ -40,6 +40,15 @@ export function AddPaymentModal({
     const [amount, setAmount] = useState<number>(remainingAmount);
     const [method, setMethod] = useState<'銀行振込' | '現金' | 'QR決済' | 'その他'>('銀行振込');
     const [notes, setNotes] = useState("");
+
+    useEffect(() => {
+        if (isOpen) {
+            setDate(getLocalDateString());
+            setAmount(remainingAmount);
+            setMethod('銀行振込');
+            setNotes("");
+        }
+    }, [isOpen, remainingAmount]);
 
     if (!isOpen) return null;
 

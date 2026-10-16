@@ -23,13 +23,15 @@ export default function WorkLogsPage() {
     const [viewMode, setViewMode] = useState<"list" | "create">("list");
     const [searchQuery, setSearchQuery] = useState("");
 
+    const [isSaving, setIsSaving] = useState(false);
+
     // Form state
     const defaultForm = {
         workDate: new Date().toISOString().split("T")[0],
         workerName: "製造担当 A",
         workType: "製造" as WorkLog["workType"],
         workMinutes: 60,
-        relatedProductId: products[0]?.id || "",
+        relatedProductId: products.find(p => !p.isTrashed)?.id || "",
         producedQuantity: 10
     };
 
@@ -85,6 +87,7 @@ export default function WorkLogsPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSaving) return;
 
         if (!formData.relatedProductId) {
             showNotification("関連する商品を選択してください", "error");
@@ -92,7 +95,7 @@ export default function WorkLogsPage() {
         }
 
         const selectedProd = products.find(p => p.id === formData.relatedProductId);
-
+        setIsSaving(true);
         try {
             await addWorkLog({
                 workDate: formData.workDate,
@@ -116,6 +119,8 @@ export default function WorkLogsPage() {
         } catch (err: any) {
             console.error("Failed to add work log:", err);
             showNotification("作業記録の保存に失敗しました", "error");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -369,7 +374,7 @@ export default function WorkLogsPage() {
                                         className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm bg-white cursor-pointer"
                                     >
                                         <option value="" disabled>商品を選択してください</option>
-                                        {products.map(p => (
+                                        {products.filter(p => !p.isTrashed).map(p => (
                                             <option key={p.id} value={p.id}>
                                                 {p.name} {p.variantName ? `(${p.variantName})` : ""}
                                             </option>
@@ -466,10 +471,11 @@ export default function WorkLogsPage() {
 
                             <button
                                 type="submit"
-                                className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm rounded-2xl transition-all shadow-lg shadow-emerald-950/20 flex items-center justify-center gap-2 active:scale-95"
+                                disabled={isSaving}
+                                className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black text-sm rounded-2xl transition-all shadow-lg shadow-emerald-950/20 flex items-center justify-center gap-2 active:scale-95"
                             >
                                 <Play className="w-4 h-4" />
-                                作業記録を確定・保存
+                                {isSaving ? "保存中..." : "作業記録を確定・保存"}
                             </button>
                         </div>
                     </div>

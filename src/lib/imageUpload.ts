@@ -1,5 +1,5 @@
 import imageCompression from "browser-image-compression";
-import { storage } from "@/lib/firebase";
+import { auth, storage } from "@/lib/firebase";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 /**
@@ -28,6 +28,7 @@ export const isHeicFile = (file: File | Blob): boolean => {
 export const ensureProcessableImage = async (file: File): Promise<File> => {
     if (!isHeicFile(file)) return file;
 
+    let timerId: ReturnType<typeof setTimeout> | undefined;
     try {
         console.log(`[ImageUpload] HEIC detected, converting...: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
         
@@ -36,7 +37,7 @@ export const ensureProcessableImage = async (file: File): Promise<File> => {
         
         // Timeout for HEIC conversion as it can hang on mobile
         const conversionTimeout = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error("HEIC変換がタイムアウトしました。")), 45000);
+            timerId = setTimeout(() => reject(new Error("HEIC変換がタイムアウトしました。")), 45000);
         });
 
         const conversionPromise = heic2any({
@@ -62,6 +63,8 @@ export const ensureProcessableImage = async (file: File): Promise<File> => {
     } catch (error) {
         console.error("[ImageUpload] HEIC conversion failed or timed out, falling back to original:", error);
         return file;
+    } finally {
+        if (timerId) clearTimeout(timerId);
     }
 };
 
@@ -71,6 +74,7 @@ export const ensureProcessableImage = async (file: File): Promise<File> => {
 export const compressImage = async (file: File): Promise<File> => {
     if (file.type.startsWith("video/")) return file;
 
+    let timerId: ReturnType<typeof setTimeout> | undefined;
     try {
         console.log(`[ImageUpload] Starting compression for: ${file.name}`);
         const options = {
@@ -83,7 +87,7 @@ export const compressImage = async (file: File): Promise<File> => {
         };
 
         const compressionTimeout = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error("画像圧縮がタイムアウトしました。")), 45000);
+            timerId = setTimeout(() => reject(new Error("画像圧縮がタイムアウトしました。")), 45000);
         });
 
         const compressedFile: any = await Promise.race([
@@ -99,6 +103,8 @@ export const compressImage = async (file: File): Promise<File> => {
     } catch (error) {
         console.warn("[ImageUpload] Compression failed, using original:", error);
         return file;
+    } finally {
+        if (timerId) clearTimeout(timerId);
     }
 };
 
@@ -113,7 +119,6 @@ export const uploadFile = async (
 ): Promise<string> => {
     // デモモード（Firebase Auth未ログイン状態）の場合は、Storageへアップロードせずに
     // ローカルのBlob URLを返して擬似的に成功扱いにする（権限エラー回避）
-    const { auth } = require("@/lib/firebase");
     if (!auth.currentUser) {
         console.warn("[Upload] User is not authenticated (likely Demo Mode). Skipping actual upload and returning local Blob URL.");
         return URL.createObjectURL(file);
@@ -191,8 +196,9 @@ export const uploadImageWithCompression = async (
     file: File,
     folderPath: string = "products"
 ): Promise<string> => {
+    let timerId: ReturnType<typeof setTimeout> | undefined;
     const globalTimeout = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("アップロード処理がタイムアウトしました(120s)。")), 120000);
+        timerId = setTimeout(() => reject(new Error("アップロード処理がタイムアウトしました(120s)。")), 120000);
     });
 
     const logic = async () => {
@@ -201,5 +207,9 @@ export const uploadImageWithCompression = async (
         return await uploadFile(compressed, folderPath);
     };
 
-    return Promise.race([logic(), globalTimeout]);
+    try {
+        return await Promise.race([logic(), globalTimeout]);
+    } finally {
+        if (timerId) clearTimeout(timerId);
+    }
 };

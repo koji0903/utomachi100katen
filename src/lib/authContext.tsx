@@ -27,6 +27,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const isDemoEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "true";
+        if (!isDemoEnabled && typeof window !== "undefined") {
+            localStorage.removeItem("demo_mode");
+        }
         const demoModeActive = isDemoEnabled && typeof window !== "undefined" && localStorage.getItem("demo_mode") === "true";
 
         if (demoModeActive) {
@@ -39,12 +42,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 isAnonymous: false,
                 metadata: {},
                 providerData: [],
-            } as any as User);
+            } as unknown as User);
             setLoading(false);
         }
 
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            if (typeof window !== "undefined" && !localStorage.getItem("demo_mode")) {
+            if (typeof window !== "undefined" && !(isDemoEnabled && localStorage.getItem("demo_mode") === "true")) {
                 setUser(currentUser);
                 setLoading(false);
             }

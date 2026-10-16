@@ -84,6 +84,7 @@ export function DocumentPreviewModal({
     const [memo, setMemo] = useState("");
     const [isGeneratingMemo, setIsGeneratingMemo] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [isIssuingReceipt, setIsIssuingReceipt] = useState(false);
     const autoIssueStarted = useRef(false);
 
     const targetDoc = useMemo(() => {
@@ -940,37 +941,46 @@ export function DocumentPreviewModal({
                                                         </button>
                                                     ) : (
                                                         <button 
+                                                            disabled={isIssuingReceipt}
                                                             onClick={async () => {
-                                                                const { storeId: pStoreId, supplierId: pSupplierId, recipientName: pRecipientName, period: pPeriod } = invoiceDoc;
-                                                                const newDocNumber = generateDocNumber('receipt', String(new Date().getFullYear()));
-                                                                
-                                                                const newReceiptData: Omit<IssuedDocument, 'id' | 'createdAt'> = {
-                                                                    type: 'receipt',
-                                                                    docNumber: newDocNumber,
-                                                                    status: 'issued',
-                                                                    issuedDate: payment.date,
-                                                                    period: pPeriod,
-                                                                    recipientType: invoiceDoc.recipientType,
-                                                                    storeId: pStoreId,
-                                                                    supplierId: pSupplierId,
-                                                                    recipientName: pRecipientName,
-                                                                    totalAmount: payment.amount,
-                                                                    taxRate: invoiceDoc.taxRate,
-                                                                    paymentMethod: payment.method as any,
-                                                                    memo: payment.notes || "お品代として",
-                                                                    sourceDocId: payment.id,
-                                                                };
-                                                                
-                                                                await saveIssuedDocument(newReceiptData);
-                                                                
-                                                                // Switch modal view to show the new receipt
-                                                                setCurrentType('receipt');
-                                                                setCurrentDocNumber(newDocNumber);
+                                                                if (isIssuingReceipt) return;
+                                                                setIsIssuingReceipt(true);
+                                                                try {
+                                                                    const { storeId: pStoreId, supplierId: pSupplierId, recipientName: pRecipientName, period: pPeriod } = invoiceDoc;
+                                                                    const newDocNumber = generateDocNumber('receipt', String(new Date().getFullYear()));
+                                                                    
+                                                                    const newReceiptData: Omit<IssuedDocument, 'id' | 'createdAt'> = {
+                                                                        type: 'receipt',
+                                                                        docNumber: newDocNumber,
+                                                                        status: 'issued',
+                                                                        issuedDate: payment.date,
+                                                                        period: pPeriod,
+                                                                        recipientType: invoiceDoc.recipientType,
+                                                                        storeId: pStoreId,
+                                                                        supplierId: pSupplierId,
+                                                                        recipientName: pRecipientName,
+                                                                        totalAmount: payment.amount,
+                                                                        taxRate: invoiceDoc.taxRate,
+                                                                        paymentMethod: payment.method as any,
+                                                                        memo: payment.notes || "お品代として",
+                                                                        sourceDocId: payment.id,
+                                                                    };
+                                                                    
+                                                                    await saveIssuedDocument(newReceiptData);
+                                                                    
+                                                                    // Switch modal view to show the new receipt
+                                                                    setCurrentType('receipt');
+                                                                    setCurrentDocNumber(newDocNumber);
+                                                                } catch (err) {
+                                                                    console.error("Failed to issue receipt:", err);
+                                                                } finally {
+                                                                    setIsIssuingReceipt(false);
+                                                                }
                                                             }}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 rounded-lg transition-colors border border-emerald-200"
                                                         >
                                                             <Receipt className="w-3.5 h-3.5" />
-                                                            領収書を発行
+                                                            {isIssuingReceipt ? "発行中..." : "領収書を発行"}
                                                         </button>
                                                     )}
                                                 </div>

@@ -26,7 +26,8 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         shopifyStore = { id: storeSnap.docs[0].id, name: storeSnap.docs[0].data().name };
     }
 
-    // 2. 重複チェック
+    // 2. 重複チェック（過去のランダムID分も含めて事前確認）
+    const deterministicTxRef = db.collection("transactions").doc(`shopify_${order.shopifyOrderId}`);
     const existingDocs = await db.collection("transactions")
         .where("shopifyOrderId", "==", order.shopifyOrderId)
         .get();
@@ -35,6 +36,12 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         console.log(`[Shopify Processor] Order ${order.shopifyOrderId} already exists. Skipping.`);
         return { success: false, reason: "duplicate" };
     }
+
+    const orderDate = (() => {
+        const d = order.createdAt ? new Date(order.createdAt) : new Date();
+        const ts = Number.isNaN(d.getTime()) ? Date.now() : d.getTime();
+        return new Date(ts + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
+    })();
 
     const customerNameStr = order.customer
         ? `${order.customer.lastName} ${order.customer.firstName}`.trim() || order.customer.email
@@ -54,7 +61,7 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         ordersCount = matchingTxSnap.size + 1;
     }
 
-    const newTransactionRef = db.collection("transactions").doc();
+    const newTransactionRef = deterministicTxRef;
     const transactionData = {
         customerName: customerNameStr,
         customerEmail: order.customer?.email || null,
@@ -65,7 +72,7 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         storeName: shopifyStore?.name || null,
         channel: "EC",
         transactionType: "Shopify注文",
-        orderDate: order.createdAt.split('T')[0],
+        orderDate: orderDate,
         transactionStatus: "受注",
         subtotal: order.totalPrice,
         tax: 0,
@@ -78,8 +85,13 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    // 3. 必要な商品情報をトランザクションの前に取得しておく (トランザクション内でのクエリ読み取りを避けるため)
-    const productUpdates: any[] = [];
+    // 3. 必要な商品情報をトランザクションの前に取得し、同一商品の数量を集約する
+    const productUpdatesMap = new Map<string, {
+        docRef: FirebaseFirestore.DocumentReference;
+        productId: string;
+        productName: string;
+        quantity: number;
+    }>();
     const saleItems: any[] = [];
     
     for (const item of order.lineItems) {
@@ -100,14 +112,17 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         if (!pSnap.empty) {
             const productDoc = pSnap.docs[0];
             const pData = productDoc.data();
-            
-            productUpdates.push({
-                docRef: productDoc.ref,
-                productId: productDoc.id,
-                productName: pData.name,
-                currentStock: pData.stock || 0,
-                quantity: item.quantity
-            });
+            const existing = productUpdatesMap.get(productDoc.id);
+            if (existing) {
+                existing.quantity += item.quantity;
+            } else {
+                productUpdatesMap.set(productDoc.id, {
+                    docRef: productDoc.ref,
+                    productId: productDoc.id,
+                    productName: pData.name,
+                    quantity: item.quantity
+                });
+            }
 
             saleItems.push({
                 productId: productDoc.id,
@@ -120,8 +135,13 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         }
     }
 
-    // 4. 取引(Transaction)登録、明細登録、在庫減算をアトミックに書き込み
-    await db.runTransaction(async (txn: any) => {
+    // 4. 取引(Transaction)登録、明細登録、在庫減算、売上(Sales)登録をアトミックに書き込み
+    const isDuplicateInTx = await db.runTransaction(async (txn: any) => {
+        const existingTxDoc = await txn.get(newTransactionRef);
+        if (existingTxDoc.exists) {
+            return true;
+        }
+
         txn.set(newTransactionRef, transactionData);
 
         for (const item of order.lineItems) {
@@ -138,10 +158,10 @@ export async function processShopifyOrder(order: ShopifyOrder) {
             });
         }
 
-        for (const update of productUpdates) {
-            // 在庫減算
+        for (const update of productUpdatesMap.values()) {
+            // アトミックな在庫減算
             txn.update(update.docRef, {
-                stock: update.currentStock - update.quantity,
+                stock: admin.firestore.FieldValue.increment(-update.quantity),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
@@ -155,26 +175,33 @@ export async function processShopifyOrder(order: ShopifyOrder) {
                 reason: 'manual',
                 remarks: 'Shopify注文による自動減算',
                 referenceId: newTransactionRef.id,
-                date: order.createdAt.split('T')[0],
+                date: orderDate,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
         }
+
+        if (shopifyStore && saleItems.length > 0) {
+            const saleRef = db.collection("sales").doc(`shopify_${order.shopifyOrderId}`);
+            const saleData = {
+                storeId: shopifyStore.id,
+                type: 'daily',
+                period: orderDate,
+                items: saleItems,
+                totalAmount: order.totalPrice,
+                isTrashed: false,
+                transactionId: newTransactionRef.id,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+            txn.set(saleRef, saleData);
+        }
+
+        return false;
     });
 
-    // 4. 売上(Sales)登録
-    if (shopifyStore && saleItems.length > 0) {
-        const saleData = {
-            storeId: shopifyStore.id,
-            type: 'daily',
-            period: order.createdAt.split('T')[0],
-            items: saleItems,
-            totalAmount: order.totalPrice,
-            isTrashed: false,
-            transactionId: newTransactionRef.id,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
-        await db.collection("sales").add(saleData);
+    if (isDuplicateInTx) {
+        console.log(`[Shopify Processor] Order ${order.shopifyOrderId} already exists in transaction. Skipping.`);
+        return { success: false, reason: "duplicate" };
     }
 
     return { success: true, transactionId: newTransactionRef.id, orderId: order.shopifyOrderId };

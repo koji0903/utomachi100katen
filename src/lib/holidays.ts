@@ -102,7 +102,7 @@ export function getHolidaysForYear(year: number): Holiday[] {
     holidays.forEach(h => {
         const d = new Date(h.date);
         if (d.getDay() === 0) { // Sunday
-            let subDate = new Date(d);
+            const subDate = new Date(d);
             while (true) {
                 subDate.setDate(subDate.getDate() + 1);
                 const subDateStr = formatDate(subDate);

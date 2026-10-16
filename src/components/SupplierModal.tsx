@@ -66,6 +66,8 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, initialData]);
 
+    const [isSaving, setIsSaving] = useState(false);
+
     if (!isOpen) return null;
 
     // Zip auto-fill handler
@@ -78,38 +80,47 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
         });
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const supplierData: Omit<Supplier, "id"> = {
-            name: formData.name,
-            category: formData.category || undefined,
-            zipCode: formData.zipCode || undefined,
-            address: formData.address || undefined,
-            tel: formData.tel || undefined,
-            email: formData.email || undefined,
-            pic: formData.pic || undefined,
-            bankInfo: (formData.bankName || formData.accountNumber) ? {
-                bankName: formData.bankName || undefined,
-                branchName: formData.branchName || undefined,
-                accountType: formData.accountType,
-                accountNumber: formData.accountNumber || undefined,
-                accountHolder: formData.accountHolder || undefined,
-            } : undefined,
-            paymentTerms: (formData.closingDay || formData.paymentDay) ? {
-                closingDay: formData.closingDay ? parseInt(formData.closingDay) : undefined,
-                paymentDay: formData.paymentDay ? parseInt(formData.paymentDay) : undefined,
-            } : undefined,
-            suppliedProducts: formData.suppliedProducts.filter(p => p.productId !== ""),
-            memo: formData.memo || undefined,
-        };
-        if (initialData) {
-            updateSupplier(initialData.id, supplierData);
-            showNotification("仕入先を更新しました。");
-        } else {
-            addSupplier(supplierData);
-            showNotification("仕入先を登録しました。");
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            const supplierData: Omit<Supplier, "id"> = {
+                name: formData.name,
+                category: formData.category || undefined,
+                zipCode: formData.zipCode || undefined,
+                address: formData.address || undefined,
+                tel: formData.tel || undefined,
+                email: formData.email || undefined,
+                pic: formData.pic || undefined,
+                bankInfo: (formData.bankName || formData.accountNumber) ? {
+                    bankName: formData.bankName || undefined,
+                    branchName: formData.branchName || undefined,
+                    accountType: formData.accountType,
+                    accountNumber: formData.accountNumber || undefined,
+                    accountHolder: formData.accountHolder || undefined,
+                } : undefined,
+                paymentTerms: (formData.closingDay || formData.paymentDay) ? {
+                    closingDay: formData.closingDay ? parseInt(formData.closingDay) : undefined,
+                    paymentDay: formData.paymentDay ? parseInt(formData.paymentDay) : undefined,
+                } : undefined,
+                suppliedProducts: formData.suppliedProducts.filter(p => p.productId !== ""),
+                memo: formData.memo || undefined,
+            };
+            if (initialData) {
+                await updateSupplier(initialData.id, supplierData);
+                showNotification("仕入先を更新しました。");
+            } else {
+                await addSupplier(supplierData);
+                showNotification("仕入先を登録しました。");
+            }
+            onClose();
+        } catch (error) {
+            console.error("Failed to save supplier:", error);
+            showNotification("保存に失敗しました。", "error");
+        } finally {
+            setIsSaving(false);
         }
-        onClose();
     };
 
     const inputClass = "w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-slate-50 focus:bg-white text-sm";
@@ -390,9 +401,9 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
                     <button type="button" onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
                         キャンセル
                     </button>
-                    <button type="submit" form="supplier-form" className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                    <button type="submit" form="supplier-form" disabled={isSaving} className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50">
                         <Save className="w-4 h-4" />
-                        保存する
+                        {isSaving ? "保存中..." : "保存する"}
                     </button>
                 </div>
             </div>

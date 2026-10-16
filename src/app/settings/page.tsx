@@ -134,7 +134,7 @@ export default function SettingsPage() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            let updatedSettings = { ...form };
+            const updatedSettings = { ...form };
 
             // Upload logo if changed
             if (logoFile) {

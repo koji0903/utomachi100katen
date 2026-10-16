@@ -30,8 +30,8 @@ export const GET = withAuth(async (req, ctx) => {
         const data = await res.json();
 
         const first = data.list?.[0];
-        const currentTime = new Date();
-        const todayStr = currentTime.toISOString().split("T")[0];
+        const nowJst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        const todayStr = nowJst.toISOString().split("T")[0];
 
         const todayForecasts = data.list?.filter((item: { dt_txt: string }) => item.dt_txt.startsWith(todayStr)) || [];
 

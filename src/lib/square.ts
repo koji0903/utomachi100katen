@@ -73,9 +73,15 @@ async function squareFetch(path: string, options: RequestInit = {}) {
     });
 
     if (!response.ok) {
-        const error = await response.json();
+        const text = await response.text();
+        let error: any = null;
+        try {
+            error = JSON.parse(text);
+        } catch {
+            error = { errors: [{ detail: text }] };
+        }
         console.error(`[Square API Error] ${path}:`, error);
-        throw new Error(error.errors?.[0]?.detail || `Square API error: ${response.statusText}`);
+        throw new Error(error?.errors?.[0]?.detail || `Square API error: ${response.statusText}`);
     }
 
     return response.json();

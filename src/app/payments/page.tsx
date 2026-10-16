@@ -34,6 +34,7 @@ export default function PaymentsPage() {
 
     // Filter completed shipments in selected month
     const monthShipments = purchases.filter(p => {
+        if (p.isTrashed) return false;
         if (!(p.status === "received" || p.status === "paid")) return false;
         const dateStr = p.arrivalDate || p.orderDate;
         return dateStr?.startsWith(selectedMonth);

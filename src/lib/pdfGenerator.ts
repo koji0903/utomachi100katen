@@ -8,22 +8,23 @@ import DOMPurify from "dompurify";
  */
 async function generatePdfInstance(element: HTMLElement): Promise<jsPDF> {
     try {
-        // 1. Create a hidden iframe for isolation
-        const iframe = document.createElement("iframe");
-        iframe.style.position = "absolute";
-        iframe.style.width = "0";
-        iframe.style.height = "0";
-        iframe.style.border = "none";
-        iframe.style.visibility = "hidden";
-        document.body.appendChild(iframe);
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "absolute";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    iframe.style.visibility = "hidden";
+    document.body.appendChild(iframe);
 
+    let canvas: HTMLCanvasElement;
+    try {
         const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
         if (!iframeDoc) throw new Error("Could not access iframe document");
 
         const rawHtml = element.innerHTML;
         const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
-            ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'p', 'br', 'strong', 'em', 'u', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'span', 'ul', 'ol', 'li'],
-            ALLOWED_ATTR: ['class', 'style', 'id'],
+            ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'p', 'br', 'strong', 'em', 'u', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'span', 'ul', 'ol', 'li', 'img', 'svg', 'path'],
+            ALLOWED_ATTR: ['class', 'style', 'id', 'src', 'alt', 'width', 'height', 'viewBox', 'd', 'fill', 'stroke', 'stroke-width', 'xmlns'],
         });
 
         iframeDoc.open();
@@ -72,15 +73,18 @@ async function generatePdfInstance(element: HTMLElement): Promise<jsPDF> {
         const captureArea = iframeDoc.getElementById("report-container");
         if (!captureArea) throw new Error("Could not find report container in iframe");
 
-        const canvas = await html2canvas(captureArea, {
+        canvas = await html2canvas(captureArea, {
             scale: 2,
             useCORS: true,
             allowTaint: false,
             backgroundColor: "#ffffff",
             logging: false,
         });
-
-        document.body.removeChild(iframe);
+    } finally {
+        if (iframe.parentNode) {
+            iframe.parentNode.removeChild(iframe);
+        }
+    }
 
         if (!canvas || canvas.width === 0 || canvas.height === 0) {
             throw new Error("Canvas generation failed");

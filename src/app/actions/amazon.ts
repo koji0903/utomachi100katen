@@ -1,7 +1,6 @@
 "use server";
 
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getAdminDb, admin } from "@/lib/firebase-admin";
 import { updateAmazonListing } from "@/lib/amazon";
 
 /**
@@ -9,14 +8,22 @@ import { updateAmazonListing } from "@/lib/amazon";
  */
 export async function syncProductToAmazon(productId: string) {
     try {
-        const productRef = doc(db, "products", productId);
-        const productSnap = await getDoc(productRef);
+        const db = getAdminDb();
+        if (!db) {
+            throw new Error("データベースの初期化に失敗しました。");
+        }
+
+        const productRef = db.collection("products").doc(productId);
+        const productSnap = await productRef.get();
         
-        if (!productSnap.exists()) {
+        if (!productSnap.exists) {
             throw new Error("商品は存在しません。");
         }
 
         const product = productSnap.data();
+        if (!product) {
+            throw new Error("商品データが取得できませんでした。");
+        }
         
         if (!product.amazonSyncEnabled || !product.amazonSku) {
             console.log(`[Amazon push] Sync not enabled for ${product.name}`);
@@ -33,8 +40,8 @@ export async function syncProductToAmazon(productId: string) {
         );
 
         if (success) {
-            await updateDoc(productRef, {
-                lastAmazonSyncAt: serverTimestamp(),
+            await productRef.update({
+                lastAmazonSyncAt: admin.firestore.FieldValue.serverTimestamp(),
             });
             return { success: true, message: "Amazonとの同期に成功しました。" };
         } else {

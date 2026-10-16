@@ -41,14 +41,18 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
         setIsArchiveSearchOpen(false);
     }, [manual, isOpen]);
 
+    const [isSaving, setIsSaving] = useState(false);
+
     if (!isOpen) return null;
 
     const handleSave = async () => {
+        if (isSaving) return;
         if (!title.trim() || !category.trim()) {
             showNotification("タイトルとカテゴリーは必須です。", "error");
             return;
         }
 
+        setIsSaving(true);
         try {
             if (manual) {
                 await updateBusinessManual(manual.id, {
@@ -75,6 +79,8 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
         } catch (error) {
             console.error(error);
             showNotification("データの保存に失敗しました。", "error");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -424,10 +430,11 @@ export function GuidelineEditorModal({ isOpen, onClose, manual }: GuidelineEdito
                     </button>
                     <button
                         onClick={handleSave}
-                        className="flex items-center gap-2 px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 active:scale-95 transition-all"
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 active:scale-95 transition-all disabled:opacity-50"
                     >
                         <Save className="w-4 h-4" />
-                        保存して公開
+                        {isSaving ? "保存中..." : "保存して公開"}
                     </button>
                 </div>
             </div>

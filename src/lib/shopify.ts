@@ -47,9 +47,18 @@ async function shopifyFetch(path: string, options: RequestInit = {}) {
     });
 
     if (!response.ok) {
-        const error = await response.json();
+        const text = await response.text();
+        let error: any = null;
+        try {
+            error = JSON.parse(text);
+        } catch {
+            error = { errors: text };
+        }
         console.error(`[Shopify API Error] ${path}:`, error);
-        throw new Error(error.errors || `Shopify API error: ${response.statusText}`);
+        const errMsg = error?.errors
+            ? (typeof error.errors === "string" ? error.errors : JSON.stringify(error.errors))
+            : `Shopify API error: ${response.statusText}`;
+        throw new Error(errMsg);
     }
 
     return response.json();

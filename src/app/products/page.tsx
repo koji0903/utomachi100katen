@@ -580,7 +580,7 @@ export default function ProductsPage() {
               })}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-slate-500">
+                  <td colSpan={7} className="p-12 text-center text-slate-500">
                     <div className="flex flex-col items-center gap-3">
                       <Search className="w-8 h-8 text-slate-300" />
                       <p>条件に一致する商品が見つかりませんでした。</p>

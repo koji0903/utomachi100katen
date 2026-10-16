@@ -250,7 +250,11 @@ export default function CompositeProductionPage() {
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {[...compositeProductions].sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime()).map((prod) => (
+                            {[...compositeProductions].sort((a, b) => {
+                                const timeA = (a.createdAt as any)?.seconds ? (a.createdAt as any).seconds * 1000 : (a.createdAt ? new Date(a.createdAt as string).getTime() : 0) || 0;
+                                const timeB = (b.createdAt as any)?.seconds ? (b.createdAt as any).seconds * 1000 : (b.createdAt ? new Date(b.createdAt as string).getTime() : 0) || 0;
+                                return timeB - timeA;
+                            }).map((prod) => (
                                 <div key={prod.id} className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50 space-y-3 hover:bg-white transition-all hover:shadow-md hover:border-blue-100 group">
                                     <div className="flex justify-between items-start">
                                         <div className="flex flex-col">

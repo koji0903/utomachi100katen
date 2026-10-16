@@ -275,12 +275,17 @@ function ReportForm({
     }, [storeId, selectedStore?.lat, selectedStore?.lng, date, type]);
 
     // Cleanup object URLs on unmount
+    const previewsRef = useRef({ before: beforePreviews, after: afterPreviews });
+    useEffect(() => {
+        previewsRef.current = { before: beforePreviews, after: afterPreviews };
+    }, [beforePreviews, afterPreviews]);
+
     useEffect(() => {
         return () => {
-            beforePreviews.forEach(p => { if (!p.isExisting) URL.revokeObjectURL(p.url); });
-            afterPreviews.forEach(p => { if (!p.isExisting) URL.revokeObjectURL(p.url); });
+            previewsRef.current.before.forEach(p => { if (!p.isExisting && p.url.startsWith("blob:")) URL.revokeObjectURL(p.url); });
+            previewsRef.current.after.forEach(p => { if (!p.isExisting && p.url.startsWith("blob:")) URL.revokeObjectURL(p.url); });
         };
-    }, [beforePreviews, afterPreviews]);
+    }, []);
 
     const handleBeforeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = Array.from(e.target.files || []);
@@ -386,19 +391,19 @@ function ReportForm({
 
     const removeBeforeImage = (index: number) => {
         const preview = beforePreviews[index];
+        if (preview && !preview.isExisting && preview.url.startsWith("blob:")) {
+            URL.revokeObjectURL(preview.url);
+        }
         const nextPreviews = [...beforePreviews];
         nextPreviews.splice(index, 1);
         setBeforePreviews(nextPreviews);
-
-        if (!preview.isExisting && preview.fileIndex !== undefined) {
-            // We don't necessarily need to remove from beforeFiles because we'll filter before submit
-            // but for cleanliness:
-            // Note: correctly managing indices in files array when removing is tricky
-            // Easier: just reconstruct files when submitting based on current previews
-        }
     };
 
     const removeAfterImage = (index: number) => {
+        const preview = afterPreviews[index];
+        if (preview && !preview.isExisting && preview.url.startsWith("blob:")) {
+            URL.revokeObjectURL(preview.url);
+        }
         const nextPreviews = [...afterPreviews];
         nextPreviews.splice(index, 1);
         setAfterPreviews(nextPreviews);

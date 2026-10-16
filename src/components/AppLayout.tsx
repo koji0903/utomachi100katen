@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Menu, Search } from "lucide-react";
 import { CommandPalette } from "@/components/CommandPalette";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { user, loading } = useAuth();
@@ -107,7 +108,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
                 <main className="flex-1 overflow-y-auto bg-[#f8fafc]">
                     <div className="max-w-[1600px] mx-auto min-h-full">
-                        {children}
+                        <ErrorBoundary key={pathname}>
+                            {children}
+                        </ErrorBoundary>
                     </div>
                 </main>
             </div>

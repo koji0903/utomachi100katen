@@ -107,13 +107,18 @@ export const POST = withAuth(async (_req, { uid }) => {
 
         for (const order of orders) {
             try {
+                if (!order.items || order.items.length === 0) {
+                    console.warn(`[Amazon Sync] Order ${order.amazonOrderId} has 0 items. Skipping.`);
+                    continue;
+                }
+
                 const existingDocs = await db.collection("transactions")
                     .where("amazonOrderId", "==", order.amazonOrderId)
                     .get();
 
                 if (existingDocs.empty) {
                     const saleItems: any[] = [];
-                    const productUpdates: Map<string, { newStock: number; productName: string; quantity: number }> = new Map();
+                    const productUpdates: Map<string, { productName: string; quantity: number }> = new Map();
 
                     for (const item of order.items) {
                         const pSnap = await db.collection("products")
@@ -124,9 +129,10 @@ export const POST = withAuth(async (_req, { uid }) => {
                             const pDoc = pSnap.docs[0];
                             const pId = pDoc.id;
                             const pData = pDoc.data();
-                            const newStock = (pData.stock || 0) - item.quantity;
+                            const existing = productUpdates.get(pId);
+                            const nextQty = (existing ? existing.quantity : 0) + item.quantity;
 
-                            productUpdates.set(pId, { newStock, productName: pData.name, quantity: item.quantity });
+                            productUpdates.set(pId, { productName: pData.name, quantity: nextQty });
                             saleItems.push({
                                 productId: pId,
                                 quantity: item.quantity,
@@ -138,10 +144,20 @@ export const POST = withAuth(async (_req, { uid }) => {
                         }
                     }
 
+                    const orderDateStr = (() => {
+                        const d = order.purchaseDate ? new Date(order.purchaseDate) : new Date();
+                        const ts = Number.isNaN(d.getTime()) ? Date.now() : d.getTime();
+                        return new Date(ts + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
+                    })();
+
                     // Use atomic transaction for order processing
-                    await db.runTransaction(async (txn: any) => {
-                        const transactionRef = db.collection("transactions").doc();
-                        const orderDateStr = order.purchaseDate ? order.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0];
+                    const isDuplicateInTx = await db.runTransaction(async (txn: any) => {
+                        const transactionRef = db.collection("transactions").doc(`amazon_${order.amazonOrderId}`);
+                        const existingTxDoc = await txn.get(transactionRef);
+                        if (existingTxDoc.exists) {
+                            return true;
+                        }
+
                         const transactionData = {
                             customerName: amazonStore ? amazonStore.name : "Amazon Customer",
                             storeId: amazonStore?.id || null,
@@ -180,7 +196,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                         for (const [pId, update] of productUpdates.entries()) {
                             const pRef = db.collection("products").doc(pId);
                             txn.update(pRef, {
-                                stock: update.newStock,
+                                stock: admin.firestore.FieldValue.increment(-update.quantity),
                                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
                             });
 
@@ -192,31 +208,36 @@ export const POST = withAuth(async (_req, { uid }) => {
                                 quantity: update.quantity,
                                 reason: 'amazon_sync',
                                 referenceId: transactionRef.id,
-                                date: order.purchaseDate ? order.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0],
+                                date: orderDateStr,
                                 createdAt: admin.firestore.FieldValue.serverTimestamp()
                             });
                         }
+
+                        if (amazonStore && saleItems.length > 0) {
+                            const saleRef = db.collection("sales").doc(`amazon_${order.amazonOrderId}`);
+                            txn.set(saleRef, {
+                                storeId: amazonStore.id,
+                                type: 'daily',
+                                period: orderDateStr,
+                                items: saleItems,
+                                totalAmount: order.totalAmount,
+                                isTrashed: false,
+                                transactionId: transactionRef.id,
+                                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            });
+                        }
+
+                        return false;
                     });
 
-                    if (amazonStore && saleItems.length > 0) {
-                        await db.collection("sales").add({
-                            storeId: amazonStore.id,
-                            type: 'daily',
-                            period: order.purchaseDate ? order.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0],
-                            items: saleItems,
-                            totalAmount: order.totalAmount,
-                            isTrashed: false,
-                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        });
+                    if (!isDuplicateInTx) {
+                        newOrdersCount++;
+                        processedOrders.push(order.amazonOrderId);
                     }
-
-                    newOrdersCount++;
-                    processedOrders.push(order.amazonOrderId);
                 }
             } catch (err) {
                 logError("Amazon Sync:order", err, { amazonOrderId: order.amazonOrderId });
-                processedOrders.push(order.amazonOrderId);
             }
         }
 

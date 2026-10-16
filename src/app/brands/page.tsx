@@ -19,7 +19,7 @@ export default function BrandsPage() {
         return brands
             .filter(b => !!b.isTrashed === showTrash)
             .map(brand => {
-                const productCount = products.filter(p => p.brandId === brand.id).length;
+                const productCount = products.filter(p => !p.isTrashed && p.brandId === brand.id).length;
                 return { ...brand, productCount };
             });
     }, [brands, products, showTrash]);
@@ -217,9 +217,9 @@ export default function BrandsPage() {
                                     </td>
                                 </tr>
                             ))}
-                            {brands.length === 0 && (
+                            {sortedBrands.length === 0 && (
                                 <tr>
-                                    <td colSpan={3} className="p-12 text-center text-slate-500">
+                                    <td colSpan={4} className="p-12 text-center text-slate-500">
                                         ブランドが登録されていません。
                                     </td>
                                 </tr>

@@ -89,18 +89,20 @@ export default function TransactionsPage() {
             totalBalance += t.balanceAmount;
             
             // 今月売上 (Sales this month): orderDate starts with currentMonthPrefix
-            if (t.orderDate.startsWith(currentMonthPrefix)) {
-                monthSales += t.totalAmount;
+            if (t.orderDate && t.orderDate.startsWith(currentMonthPrefix)) {
+                monthSales += t.totalAmount || 0;
             }
-            
-            // 今月入金額 (Amount paid this month): we approximate this by checking if the _transaction_ was this month, 
-            // OR ideally we'd look at invoicePayments. For simplicity, if we only have transaction list here, 
-            // maybe we shouldn't rely on orderDate for payments. Wait, we don't have invoicePayments imported here.
-            // Let's import invoicePayments to get accurate monthPaid.
+        });
+
+        (invoicePayments || []).forEach(p => {
+            if (p.isTrashed) return;
+            if (p.date && p.date.startsWith(currentMonthPrefix)) {
+                monthPaid += p.amount || 0;
+            }
         });
 
         return { ongoing, unpaid, totalBalance, monthSales, monthPaid };
-    }, [transactions, isLoaded]); // We'll add invoicePayments in a moment.
+    }, [transactions, invoicePayments, isLoaded]);
 
     if (!isLoaded) return <div className="p-8 text-slate-500 animate-pulse">読み込み中...</div>;
 

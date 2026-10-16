@@ -273,7 +273,7 @@ export function SeasonalAlarm() {
         });
 
         return combinedAlerts.sort((a, b) => a.date.localeCompare(b.date));
-    }, [promotionTasks, promotionEvents, retailStores]);
+    }, [promotionTasks, promotionEvents]);
 
     const handleSaveEdit = async (data: any) => {
         try {
@@ -444,22 +444,25 @@ export function SeasonalAlarm() {
             )}
 
             {/* Task Management Modal */}
-            {selectedEvent && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedEvent(null)} />
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl relative z-10 animate-in fade-in zoom-in duration-200">
-                        <div className="p-8 pb-0 flex items-start justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className={`p-3 rounded-2xl bg-blue-50 text-blue-600`}>
-                                    <selectedEvent.icon className="w-5 h-5" />
+            {(() => {
+                if (!selectedEvent) return null;
+                const activeAlert = alerts.find(a => a.id === selectedEvent.id) || selectedEvent;
+                return (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedEvent(null)} />
+                        <div className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl relative z-10 animate-in fade-in zoom-in duration-200">
+                            <div className="p-8 pb-0 flex items-start justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-3 rounded-2xl bg-blue-50 text-blue-600`}>
+                                        <activeAlert.icon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-black text-slate-900 tracking-tight">{activeAlert.title}</h2>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            {new Date(activeAlert.date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' })}の準備
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="text-xl font-black text-slate-900 tracking-tight">{selectedEvent.title}</h2>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                        {new Date(selectedEvent.date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' })}の準備
-                                    </p>
-                                </div>
-                            </div>
                             <button onClick={() => setSelectedEvent(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-300">
                                 <X className="w-6 h-6" />
                             </button>
@@ -523,14 +526,14 @@ export function SeasonalAlarm() {
                             <div className="pt-6 border-t border-slate-100">
                                 <div className="flex justify-between items-end mb-2">
                                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">プロジェクト完了率</span>
-                                    <span className="text-xl font-black text-slate-900">{selectedEvent.actualProgress}%</span>
+                                    <span className="text-xl font-black text-slate-900">{activeAlert.actualProgress}%</span>
                                 </div>
                                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                                     <div 
                                         className={`h-full transition-all duration-700 ease-out rounded-full ${
-                                            selectedEvent.actualProgress === 100 ? 'bg-emerald-500' : 'bg-blue-600'
+                                            activeAlert.actualProgress === 100 ? 'bg-emerald-500' : 'bg-blue-600'
                                         }`}
-                                        style={{ width: `${selectedEvent.actualProgress}%` }}
+                                        style={{ width: `${activeAlert.actualProgress}%` }}
                                     />
                                 </div>
                             </div>
@@ -544,7 +547,8 @@ export function SeasonalAlarm() {
                         </div>
                     </div>
                 </div>
-            )}
+                );
+            })()}
         </div>
     );
 }

@@ -87,111 +87,126 @@ self.onmessage = async (e: MessageEvent) => {
         // 3. Process with OpenCV
         sendProgress(50, 'レシートの形を探しています...');
         
-        let src = cv.matFromImageData(imgData);
-        let gray = new cv.Mat();
-        let blurred = new cv.Mat();
-        let edged = new cv.Mat();
-        let contours = new cv.MatVector();
-        let hierarchy = new cv.Mat();
+        let src: any = null;
+        let gray: any = null;
+        let blurred: any = null;
+        let edged: any = null;
+        let contours: any = null;
+        let hierarchy: any = null;
+        let resized: any = null;
+        let receiptContour: any = null;
+        let srcPts: any = null;
+        let dstPts: any = null;
+        let transform: any = null;
+        let finalWarped: any = null;
 
-        // Resize for faster contour detection
-        const ratio = src.rows / 800;
-        const width = Math.round(src.cols / ratio);
-        const height = 800;
-        let resized = new cv.Mat();
-        cv.resize(src, resized, new cv.Size(width, height));
+        try {
+            src = cv.matFromImageData(imgData);
+            gray = new cv.Mat();
+            blurred = new cv.Mat();
+            edged = new cv.Mat();
+            contours = new cv.MatVector();
+            hierarchy = new cv.Mat();
 
-        cv.cvtColor(resized, gray, cv.COLOR_RGBA2GRAY);
-        cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-        cv.Canny(blurred, edged, 75, 200);
+            // Resize for faster contour detection
+            const ratio = src.rows / 800;
+            const width = Math.round(src.cols / ratio);
+            const height = 800;
+            resized = new cv.Mat();
+            cv.resize(src, resized, new cv.Size(width, height));
 
-        cv.findContours(edged, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+            cv.cvtColor(resized, gray, cv.COLOR_RGBA2GRAY);
+            cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+            cv.Canny(blurred, edged, 75, 200);
 
-        let receiptContour = null;
-        let maxArea = 0;
+            cv.findContours(edged, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-        for (let i = 0; i < contours.size(); ++i) {
-            let cnt = contours.get(i);
-            let area = cv.contourArea(cnt);
-            let peri = cv.arcLength(cnt, true);
-            let approx = new cv.Mat();
-            cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+            let maxArea = 0;
 
-            if (approx.rows === 4 && area > maxArea && area > (width * height * 0.05)) {
-                receiptContour = approx;
-                maxArea = area;
+            for (let i = 0; i < contours.size(); ++i) {
+                const cnt = contours.get(i);
+                const area = cv.contourArea(cnt);
+                const peri = cv.arcLength(cnt, true);
+                const approx = new cv.Mat();
+                cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+
+                if (approx.rows === 4 && area > maxArea && area > (width * height * 0.05)) {
+                    if (receiptContour) receiptContour.delete();
+                    receiptContour = approx;
+                    maxArea = area;
+                } else {
+                    approx.delete();
+                }
+                cnt.delete();
+            }
+
+            if (!receiptContour) {
+                sendProgress(90, 'レシートを検出できませんでしたが、元の画像を進めます');
+                sendResult(fileBlob);
+                return;
+            }
+
+            sendProgress(70, '形を正面に補正しています...');
+            
+            // Perspective Transform
+            const points: any[] = [];
+            for (let i = 0; i < 4; i++) {
+                points.push({ x: receiptContour.data32S[i * 2] * ratio, y: receiptContour.data32S[i * 2 + 1] * ratio });
+            }
+
+            points.sort((a, b) => a.y - b.y);
+            const top = points.slice(0, 2).sort((a, b) => a.x - b.x);
+            const bottom = points.slice(2, 4).sort((a, b) => a.x - b.x);
+            
+            srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                top[0].x, top[0].y,
+                top[1].x, top[1].y,
+                bottom[1].x, bottom[1].y,
+                bottom[0].x, bottom[0].y
+            ]);
+
+            const w1 = Math.hypot(top[1].x - top[0].x, top[1].y - top[0].y);
+            const w2 = Math.hypot(bottom[1].x - bottom[0].x, bottom[1].y - bottom[0].y);
+            const maxWidth = Math.max(w1, w2);
+
+            const h1 = Math.hypot(top[0].x - bottom[0].x, top[0].y - bottom[0].y);
+            const h2 = Math.hypot(top[1].x - bottom[1].x, top[1].y - bottom[1].y);
+            const maxHeight = Math.max(h1, h2);
+
+            dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                0, 0,
+                maxWidth - 1, 0,
+                maxWidth - 1, maxHeight - 1,
+                0, maxHeight - 1
+            ]);
+
+            transform = cv.getPerspectiveTransform(srcPts, dstPts);
+            finalWarped = new cv.Mat();
+            cv.warpPerspective(src, finalWarped, transform, new cv.Size(maxWidth, maxHeight));
+
+            sendProgress(90, '補正結果をレンダリング中...');
+            
+            // Back to Blob
+            const outCanvas = new OffscreenCanvas(maxWidth, maxHeight);
+            const imgDataOut = new ImageData(new Uint8ClampedArray(finalWarped.data), finalWarped.cols, finalWarped.rows);
+            const outCtx = outCanvas.getContext('2d');
+            if (outCtx) {
+                outCtx.putImageData(imgDataOut, 0, 0);
+                const blob = await outCanvas.convertToBlob({ type: 'image/jpeg', quality: 0.9 });
+                sendResult(blob);
             } else {
-                approx.delete();
+                throw new Error("Failed to get output context");
+            }
+        } finally {
+            [src, gray, blurred, edged, contours, hierarchy, resized, receiptContour, srcPts, dstPts, transform, finalWarped].forEach(m => {
+                if (m && typeof m.delete === 'function') {
+                    try { m.delete(); } catch (_) {}
+                }
+            });
+            if (imgBitmap && typeof imgBitmap.close === 'function') {
+                try { imgBitmap.close(); } catch (_) {}
             }
         }
-
-        if (!receiptContour) {
-            sendProgress(90, 'レシートを検出できませんでしたが、元の画像を進めます');
-            // Logic to send back original if needed, but for now we finish
-            sendResult(fileBlob);
-            return;
-        }
-
-        sendProgress(70, '形を正面に補正しています...');
-        
-        // Perspective Transform
-        let points: any[] = [];
-        for (let i = 0; i < 4; i++) {
-            points.push({ x: receiptContour.data32S[i * 2] * ratio, y: receiptContour.data32S[i * 2 + 1] * ratio });
-        }
-
-        points.sort((a, b) => a.y - b.y);
-        const top = points.slice(0, 2).sort((a, b) => a.x - b.x);
-        const bottom = points.slice(2, 4).sort((a, b) => a.x - b.x);
-        
-        let srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
-            top[0].x, top[0].y,
-            top[1].x, top[1].y,
-            bottom[1].x, bottom[1].y,
-            bottom[0].x, bottom[0].y
-        ]);
-
-        const w1 = Math.hypot(top[1].x - top[0].x, top[1].y - top[0].y);
-        const w2 = Math.hypot(bottom[1].x - bottom[0].x, bottom[1].y - bottom[0].y);
-        const maxWidth = Math.max(w1, w2);
-
-        const h1 = Math.hypot(top[0].x - bottom[0].x, top[0].y - bottom[0].y);
-        const h2 = Math.hypot(top[1].x - bottom[1].x, top[1].y - bottom[1].y);
-        const maxHeight = Math.max(h1, h2);
-
-        let dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
-            0, 0,
-            maxWidth - 1, 0,
-            maxWidth - 1, maxHeight - 1,
-            0, maxHeight - 1
-        ]);
-
-        let transform = cv.getPerspectiveTransform(srcPts, dstPts);
-        let finalWarped = new cv.Mat();
-        cv.warpPerspective(src, finalWarped, transform, new cv.Size(maxWidth, maxHeight));
-
-        sendProgress(90, '補正結果をレンダリング中...');
-        
-        // Back to Blob
-        const outCanvas = new OffscreenCanvas(maxWidth, maxHeight);
-        // OpenCV imshow on OffscreenCanvas isn't direct, use putImageData or use a simple loop/helper
-        // Actually we can use a temporary small canvas or helper
-        // Simplified: put back to image data and then to blob
-        // For efficiency in Worker:
-        let imgDataOut = new ImageData(new Uint8ClampedArray(finalWarped.data), finalWarped.cols, finalWarped.rows);
-        const outCtx = outCanvas.getContext('2d');
-        if (outCtx) {
-            outCtx.putImageData(imgDataOut, 0, 0);
-            const blob = await outCanvas.convertToBlob({ type: 'image/jpeg', quality: 0.9 });
-            sendResult(blob);
-        } else {
-            throw new Error("Failed to get output context");
-        }
-
-        // Cleanup
-        [src, gray, blurred, edged, contours, hierarchy, resized, receiptContour, srcPts, dstPts, transform, finalWarped].forEach(m => {
-            if (m && m.delete) m.delete();
-        });
 
     } catch (error: any) {
         console.error("[ScannerWorker] Fatal error:", error);
