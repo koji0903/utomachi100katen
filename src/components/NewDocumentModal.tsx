@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { 
-    Plus, X, Receipt, FileText, Store, Users, UserCircle, Clock, Link2 
+import {
+    Plus, X, Receipt, FileText, Store, Users, UserCircle, Link2, ClipboardList
 } from "lucide-react";
 import { useStore, IssuedDocument, SpotRecipient, InvoiceItem, InvoiceAdjustment } from "@/lib/store";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
@@ -129,7 +129,8 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
         if (!recipientName || !period) return;
         setIsSaving(true);
         try {
-            const totalAmount = (docType === "invoice" || docType === "delivery_note" || docType === "receipt") ? totalAmountState : 0;
+            const isSalesDocument = docType === "estimate" || docType === "invoice" || docType === "delivery_note";
+            const totalAmount = (isSalesDocument || docType === "receipt") ? totalAmountState : 0;
             const payload = {
                 type: docType,
                 period,
@@ -139,15 +140,15 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                 spotRecipientId: recipientType === "spot" ? spotRecipient?.id : undefined,
                 recipientName,
                 totalAmount,
-                taxRate: (docType === "invoice" || docType === "delivery_note") ? taxRate : undefined,
-                taxType: (docType === "invoice" || docType === "delivery_note") ? taxType : undefined,
-                details: (docType === "invoice" || docType === "delivery_note") ? invoiceItems : undefined,
-                adjustments: (docType === "invoice" || docType === "delivery_note") ? invoiceAdjustments : undefined,
-                finalAdjustment: (docType === "invoice" || docType === "delivery_note") ? finalAdjustment : undefined,
+                taxRate: isSalesDocument ? taxRate : undefined,
+                taxType: isSalesDocument ? taxType : undefined,
+                details: isSalesDocument ? invoiceItems : undefined,
+                adjustments: isSalesDocument ? invoiceAdjustments : undefined,
+                finalAdjustment: isSalesDocument ? finalAdjustment : undefined,
                 hidePrices: docType === "delivery_note" ? hidePrices : undefined,
                 paymentMethod: docType === "receipt" ? paymentMethod : undefined,
                 memo: editingDoc?.memo ?? "",
-                transactionId: ((docType === "invoice" || docType === "delivery_note") && transactionId) ? transactionId : undefined,
+                transactionId: (isSalesDocument && transactionId) ? transactionId : undefined,
                 linkedConsignmentStoreId: linkedConsignmentStoreId || undefined,
                 skipInventoryAdjustment: skipInventoryAdjustment,
                 attributeSalesToLinkedStore: attributeSalesToLinkedStore,
@@ -185,7 +186,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
-            <div className={`bg-white rounded-2xl shadow-2xl w-full translate-y-0 opacity-100 transition-all duration-300 ${docType === 'invoice' ? 'max-w-4xl' : 'max-w-lg'}`}>
+            <div className={`bg-white rounded-2xl shadow-2xl w-full translate-y-0 opacity-100 transition-all duration-300 ${docType === 'estimate' || docType === 'invoice' ? 'max-w-4xl' : 'max-w-lg'}`}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                     <div className="flex items-center gap-2">
                         <div className="p-2 rounded-lg" style={{ backgroundColor: BRAND_LIGHT }}>
@@ -199,8 +200,8 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                 <div className="p-6 space-y-5">
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">書類種別</label>
-                        <div className="grid grid-cols-4 gap-2 p-1 bg-slate-100 rounded-xl">
-                            {([["delivery_note", "納品書", Receipt], ["invoice", "請求書", Receipt], ["receipt", "領収書", Receipt], ["payment_summary", "支払明細", FileText]] as const).map(([type, label, Icon]) => (
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-1 bg-slate-100 rounded-xl">
+                            {([["estimate", "見積書", ClipboardList], ["delivery_note", "納品書", Receipt], ["invoice", "請求書", Receipt], ["receipt", "領収書", Receipt], ["payment_summary", "支払明細", FileText]] as const).map(([type, label, Icon]) => (
                                 <button key={type} onClick={() => setDocType(type)}
                                     className={`flex items-center justify-center gap-1 py-2.5 text-[10px] font-bold rounded-lg transition-all ${docType === type ? "bg-white shadow-sm text-slate-900" : "text-slate-500"}`}>
                                     <Icon className="w-3.5 h-3.5" />{label}
@@ -329,7 +330,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                         </div>
                     )}
 
-                    {(docType === "invoice" || docType === "delivery_note") && (
+                    {(docType === "estimate" || docType === "invoice" || docType === "delivery_note") && (
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">紐付ける取引 (任意)</label>
                             <select value={transactionId} onChange={e => setTransactionId(e.target.value)}
@@ -342,7 +343,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                         </div>
                     )}
 
-                    {(docType === "invoice" || docType === "delivery_note") && recipientName && period && (
+                    {(docType === "estimate" || docType === "invoice" || docType === "delivery_note") && recipientName && period && (
                         <div className="pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300">
                             <InvoiceEditor
                                 items={invoiceItems}
@@ -414,12 +415,12 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                     storeId={recipientType === "store" ? storeId : undefined}
                     supplierId={recipientType === "supplier" ? supplierId : undefined}
                     spotRecipientId={recipientType === "spot" ? spotRecipient?.id : undefined}
-                    period={(docType === "delivery_note" || docType === "invoice") ? period : undefined}
+                    period={(docType === "estimate" || docType === "delivery_note" || docType === "invoice") ? period : undefined}
                     month={docType === "payment_summary" ? period : undefined}
-                    customDetails={(docType === "invoice" || docType === "delivery_note") ? invoiceItems : undefined}
-                    customAdjustments={(docType === "invoice" || docType === "delivery_note") ? invoiceAdjustments : undefined}
-                    customTaxRate={(docType === "invoice" || docType === "delivery_note") ? taxRate : undefined}
-                    customTaxType={(docType === "invoice" || docType === "delivery_note") ? taxType : undefined}
+                    customDetails={(docType === "estimate" || docType === "invoice" || docType === "delivery_note") ? invoiceItems : undefined}
+                    customAdjustments={(docType === "estimate" || docType === "invoice" || docType === "delivery_note") ? invoiceAdjustments : undefined}
+                    customTaxRate={(docType === "estimate" || docType === "invoice" || docType === "delivery_note") ? taxRate : undefined}
+                    customTaxType={(docType === "estimate" || docType === "invoice" || docType === "delivery_note") ? taxType : undefined}
                     hidePrices={docType === "delivery_note" ? hidePrices : false}
                     onClose={() => setShowPreview(false)}
                 />

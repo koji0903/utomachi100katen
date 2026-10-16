@@ -207,10 +207,11 @@ export function TransactionDetailView({ id }: TransactionDetailViewProps) {
                                         <div className="flex items-start justify-between mb-2">
                                             <div className="flex items-center gap-2">
                                                 {doc.type === 'delivery_note' && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50" />}
+                                                {doc.type === 'estimate' && <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shadow-sm shadow-violet-500/50" />}
                                                 {doc.type === 'invoice' && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" />}
                                                 {doc.type === 'receipt' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />}
                                                 <span className="text-[10px] font-black text-slate-400 tracking-wider uppercase">
-                                                    {doc.type === 'delivery_note' ? '納品書' : doc.type === 'invoice' ? '請求書' : doc.type === 'receipt' ? '領収書' : '帳票'}
+                                                    {doc.type === 'estimate' ? '見積書' : doc.type === 'delivery_note' ? '納品書' : doc.type === 'invoice' ? '請求書' : doc.type === 'receipt' ? '領収書' : '帳票'}
                                                 </span>
                                             </div>
                                             <span className="text-[10px] font-mono text-slate-300 font-bold">{doc.docNumber}</span>

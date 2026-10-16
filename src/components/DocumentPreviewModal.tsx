@@ -17,11 +17,11 @@ const BRAND_LIGHT = "#f5eeee";
 const BRAND_DARK = "#8b5c57";
 
 // ─── Props ───────────────────────────────────────────────────────────────
-export type DocumentType = "delivery_note" | "payment_summary" | "invoice" | "receipt";
+export type DocumentType = "estimate" | "delivery_note" | "payment_summary" | "invoice" | "receipt";
 
 interface DocumentPreviewModalProps {
     type: DocumentType;
-    // For delivery_note & invoice: storeId + period
+    // For estimate, delivery_note & invoice: storeId + period
     storeId?: string;
     period?: string;   // YYYY-MM or YYYY-MM-DD
     // For payment_summary: supplierId + month
@@ -86,13 +86,14 @@ export function DocumentPreviewModal({
     const rounding = companySettings?.roundingMode ?? "floor";
 
     // ─ Compute document data ────────────────────────────────────────────
+    const isEstimate = currentType === "estimate";
     const isDeliveryNote = currentType === "delivery_note";
     const isInvoice = currentType === "invoice";
     const isPaymentSummary = currentType === "payment_summary";
     const isReceipt = currentType === "receipt";
     const hidePrices = propHidePrices ?? false;
 
-    // --- Line Items (Delivery Note & Invoice): aggregate sales items for store+period ---
+    // --- Line Items (Estimate, Delivery Note & Invoice): custom items or aggregate sales items ---
     type LineItem = { name: string; qty: number; unitPrice: number; subtotal: number; taxRate: "standard" | "reduced"; remarks: string };
 
     const lineItems: LineItem[] = (() => {
@@ -107,8 +108,8 @@ export function DocumentPreviewModal({
             }));
         }
 
-        if (!isDeliveryNote && !isInvoice) return [];
-        if (!storeId && !isInvoice) return []; // Require storeId for registered documents
+        if (!isEstimate && !isDeliveryNote && !isInvoice) return [];
+        if (!storeId && !isEstimate && !isInvoice) return []; // Require storeId for registered documents
 
         const filtered = (sales || []).filter(s => {
             if (!s || !s.items) return false;
@@ -196,7 +197,7 @@ export function DocumentPreviewModal({
     
     const taxType = customTaxType || existingDoc?.taxType || 'inclusive';
 
-    const taxSummary = (isDeliveryNote || isInvoice)
+    const taxSummary = (isEstimate || isDeliveryNote || isInvoice)
         ? summarizeTaxByRate(lineItems.map(i => ({
             amount: i.subtotal,
             rateType: customTaxRate ? (customTaxRate === 8 ? 'reduced' : 'standard') : i.taxRate
@@ -220,7 +221,7 @@ export function DocumentPreviewModal({
     const supplier = suppliers.find(s => s.id === supplierId);
     // Fixed: handle spot recipient name
     const recipient = propRecipientName || (
-        (isDeliveryNote || isInvoice || isReceipt)
+        (isEstimate || isDeliveryNote || isInvoice || isReceipt)
             ? (store?.useDifferentBilling ? (store.billingName || store.name) : (store?.name ?? "（客先名）"))
             : (supplier?.name ?? "（仕入先名）")
     );
@@ -237,19 +238,19 @@ export function DocumentPreviewModal({
         return '御中';
     }, [storeId, spotRecipientId, retailStores, spotRecipients]);
 
-    const recipientAddress = (isDeliveryNote || isInvoice) && store?.useDifferentBilling ? {
+    const recipientAddress = (isEstimate || isDeliveryNote || isInvoice) && store?.useDifferentBilling ? {
         zipCode: store.billingZipCode,
         address: store.billingAddress,
         tel: store.billingTel
     } : null;
 
-    const docTitle = isDeliveryNote ? "納　品　書" : isInvoice ? "請　求　書" : isPaymentSummary ? "支 払 明 細 書" : "領　収　証";
+    const docTitle = isEstimate ? "見　積　書" : isDeliveryNote ? "納　品　書" : isInvoice ? "請　求　書" : isPaymentSummary ? "支 払 明 細 書" : "領　収　証";
 
     // Fixed: use passed docNumber or fallback to temp
-    const docNumber = propDocNumber || `${isDeliveryNote ? "DN" : isInvoice ? "INV" : isPaymentSummary ? "PM" : "RC"}-${Date.now().toString().slice(-8)}`;
+    const docNumber = propDocNumber || `${isEstimate ? "EST" : isDeliveryNote ? "DN" : isInvoice ? "INV" : isPaymentSummary ? "PM" : "RC"}-${Date.now().toString().slice(-8)}`;
 
     const periodLabel = (() => {
-        if ((isDeliveryNote || isInvoice) && period) {
+        if ((isEstimate || isDeliveryNote || isInvoice) && period) {
             if (period.length === 7) return `${period.slice(0, 4)}年${parseInt(period.slice(5))}月分`;
             return period;
         }
@@ -311,7 +312,7 @@ export function DocumentPreviewModal({
             const pdfFile = new File([pdfBlob], `${docNumber}.pdf`, { type: "application/pdf" });
             
             // 2. Upload to Storage
-            const folder = isInvoice ? "invoices" : isDeliveryNote ? "delivery_notes" : isReceipt ? "receipts" : "summaries";
+            const folder = isEstimate ? "estimates" : isInvoice ? "invoices" : isDeliveryNote ? "delivery_notes" : isReceipt ? "receipts" : "summaries";
             const pdfUrl = await uploadImageWithCompression(pdfFile, folder);
             
             // 3. Update Firestore record
@@ -359,7 +360,7 @@ export function DocumentPreviewModal({
                             {isPaymentSummary ? <FileText className="w-5 h-5" style={{ color: BRAND }} /> : <Receipt className="w-5 h-5" style={{ color: BRAND }} />}
                         </div>
                         <div>
-                            <div className="font-bold text-slate-900">{isDeliveryNote ? "納品書" : isInvoice ? "請求書" : isPaymentSummary ? "支払明細書" : "領収書"} プレビュー</div>
+                            <div className="font-bold text-slate-900">{isEstimate ? "見積書" : isDeliveryNote ? "納品書" : isInvoice ? "請求書" : isPaymentSummary ? "支払明細書" : "領収書"} プレビュー</div>
                             <div className="text-xs text-slate-400">{periodLabel}{recipient && ` ／ ${recipient}`}</div>
                         </div>
                     </div>
@@ -595,8 +596,10 @@ export function DocumentPreviewModal({
 
                         {/* ── Greeting ── */}
                         <div style={{ fontSize: "11px", color: "#444", marginBottom: "12px", lineHeight: "1.7" }}>
-                            {isDeliveryNote
-                                ? "下記の通り納品いたしますので、ご確認の上ご査収くださいますようお願い申し上げます。"
+                            {isEstimate
+                                ? "下記の通りお見積り申し上げます。ご検討のほどよろしくお願い申し上げます。"
+                                : isDeliveryNote
+                                    ? "下記の通り納品いたしますので、ご確認の上ご査収くださいますようお願い申し上げます。"
                                 : isInvoice
                                     ? "下記の通りご請求申し上げます。内容をご確認の上、期日までにお支払いくださいますようお願い申し上げます。"
                                     : isReceipt
@@ -605,8 +608,8 @@ export function DocumentPreviewModal({
                             }
                         </div>
 
-                        {/* ── Summary Section (Invoice or Receipt) ── */}
-                        {(isInvoice || isReceipt) && (
+                        {/* ── Summary Section (Estimate, Invoice or Receipt) ── */}
+                        {(isEstimate || isInvoice || isReceipt) && (
                             <div style={{
                                 marginBottom: "16px", padding: "8px 0", borderBottom: "1px solid #eee"
                             }}>
@@ -614,13 +617,13 @@ export function DocumentPreviewModal({
                                     <div style={{ display: "flex", alignItems: "baseline", gap: "32px" }}>
                                         <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
                                             <span style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>
-                                                {isReceipt ? "領収金額（税込）" : "ご請求金額（税込）"}
+                                                {isReceipt ? "領収金額（税込）" : isEstimate ? "お見積金額（税込）" : "ご請求金額（税込）"}
                                             </span>
                                             <span style={{ fontSize: "24px", fontWeight: "700", color: "#1a1a1a", borderBottom: `3px double ${BRAND}` }}>
                                                 ¥{totalWithTax.toLocaleString()}-
                                             </span>
                                         </div>
-                                        {isInvoice && (
+                                        {(isEstimate || isInvoice) && (
                                             <div style={{ display: "flex", gap: "20px", fontSize: "11px", color: "#666" }}>
                                                 <span>（税抜合計: ¥{subtotal.toLocaleString()}</span>
                                                 <span>消費税等: ¥{tax.toLocaleString()}）</span>
@@ -688,14 +691,14 @@ export function DocumentPreviewModal({
                             <thead>
                                 <tr style={{ backgroundColor: BRAND }}>
                                     <th style={{ ...thStyle, width: hidePrices ? "50%" : "30%", textAlign: "left" }}>
-                                        {isDeliveryNote || isInvoice ? "商品名" : "商品名 / 入荷日"}
+                                        {isEstimate || isDeliveryNote || isInvoice ? "商品名" : "商品名 / 入荷日"}
                                     </th>
                                     <th style={{ ...thStyle, width: hidePrices ? "10%" : "8%", textAlign: "center" }}>税率</th>
                                     <th style={{ ...thStyle, width: hidePrices ? "15%" : "10%", textAlign: "right" }}>数量</th>
                                     {!hidePrices && (
                                         <>
                                             <th style={{ ...thStyle, width: "15%", textAlign: "right" }}>
-                                                {isDeliveryNote || isInvoice ? `単価${taxType === 'inclusive' ? '（税込）' : '（税抜）'}` : `仕入単価${taxType === 'inclusive' ? '（税込）' : '（税抜）'}`}
+                                                {isEstimate || isDeliveryNote || isInvoice ? `単価${taxType === 'inclusive' ? '（税込）' : '（税抜）'}` : `仕入単価${taxType === 'inclusive' ? '（税込）' : '（税抜）'}`}
                                             </th>
                                             <th style={{ ...thStyle, width: "17%", textAlign: "right" }}>
                                                 小計{taxType === 'inclusive' ? '（税込）' : '（税抜）'}
@@ -706,7 +709,7 @@ export function DocumentPreviewModal({
                                 </tr>
                             </thead>
                             <tbody>
-                                {(isDeliveryNote || isInvoice)
+                                {(isEstimate || isDeliveryNote || isInvoice)
                                     ? lineItems.length > 0
                                         ? lineItems.map((item, i) => (
                                             <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#fff" : BRAND_LIGHT }}>

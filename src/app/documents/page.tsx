@@ -25,7 +25,7 @@ const year = new Date().getFullYear().toString();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type DocStatus = "all" | "draft" | "issued" | "paid";
-type DocType = "all" | "delivery_note" | "invoice" | "receipt" | "payment_summary" | "proxy_invoice";
+type DocType = "all" | "estimate" | "delivery_note" | "invoice" | "receipt" | "payment_summary" | "proxy_invoice";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmtMoney = (n: number) => `¥${n.toLocaleString()}`;
@@ -60,6 +60,11 @@ function TypeBadge({ doc, allDocs }: { doc: IssuedDocument, allDocs: IssuedDocum
                 </span>
             )}
         </div>
+    );
+    if (type === "estimate") return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-600 border border-violet-100">
+            <FileText className="w-2.5 h-2.5" />見積書
+        </span>
     );
     if (type === "invoice") return (
         <div className="flex flex-col gap-1 items-start">
@@ -183,12 +188,13 @@ function DocumentsPageContent() {
     }, [highlightId, filtered.length]);
 
     const stats = useMemo(() => {
-        if (!isLoaded) return { total: 0, issued: 0, draft: 0, delivery: 0, invoice: 0, payment: 0, trashed: 0 };
+        if (!isLoaded) return { total: 0, issued: 0, draft: 0, estimate: 0, delivery: 0, invoice: 0, receipt: 0, payment: 0, trashed: 0 };
         const activeDocs = issuedDocuments.filter(d => !d.isTrashed);
         return {
             total: activeDocs.length,
             issued: activeDocs.filter(d => d.status === "issued").length,
             draft: activeDocs.filter(d => d.status === "draft").length,
+            estimate: activeDocs.filter(d => d.type === "estimate").length,
             delivery: activeDocs.filter(d => d.type === "delivery_note").length,
             invoice: activeDocs.filter(d => d.type === "invoice").length,
             receipt: activeDocs.filter(d => d.type === "receipt").length,
@@ -366,11 +372,12 @@ function DocumentsPageContent() {
             </div>
 
             {/* KPI row */}
-            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
                 {[
                     { label: "総件数", value: stats.total, color: "#6366f1" },
                     { label: "発行済", value: stats.issued, color: "#10b981" },
                     { label: "下書き", value: stats.draft, color: "#f59e0b" },
+                    { label: "見積書", value: stats.estimate, color: "#8b5cf6" },
                     { label: "納品書", value: stats.delivery, color: BRAND },
                     { label: "請求書", value: stats.invoice, color: "#f43f5e" },
                     { label: "領収書", value: stats.receipt, color: "#06b6d4" },
@@ -407,6 +414,7 @@ function DocumentsPageContent() {
                     <select value={filterType} onChange={e => setFilterType(e.target.value as DocType)}
                         className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 focus:outline-none">
                         <option value="all">すべての書類</option>
+                        <option value="estimate">見積書</option>
                         <option value="delivery_note">納品書</option>
                         <option value="invoice">請求書</option>
                         <option value="proxy_invoice">代行請求書</option>
@@ -658,6 +666,7 @@ function DocumentsPageContent() {
                         customDetails={previewDoc.details}
                         customAdjustments={previewDoc.adjustments}
                         customTaxRate={previewDoc.taxRate}
+                        customTaxType={previewDoc.taxType}
                         hidePrices={previewDoc.hidePrices}
                         onClose={() => setPreviewDoc(null)}
                     />
@@ -689,6 +698,7 @@ function DocumentsPageContent() {
                         customDetails={downloadingDoc.details}
                         customAdjustments={downloadingDoc.adjustments}
                         customTaxRate={downloadingDoc.taxRate}
+                        customTaxType={downloadingDoc.taxType}
                         hidePrices={downloadingDoc.hidePrices}
                         autoDownload={true}
                         onClose={() => setDownloadingDoc(null)}

@@ -371,8 +371,8 @@ export interface InvoiceAdjustment {
 // ─── 発行済み帳票レコード ───────────────────────────────────────────────
 export interface IssuedDocument extends BaseEntity {
     id: string;
-    type: 'delivery_note' | 'payment_summary' | 'invoice' | 'receipt' | 'proxy_invoice';
-    docNumber: string;          // "DN-2026-001", "INV-2026-001", "RC-2026-001" or branch variants
+    type: 'estimate' | 'delivery_note' | 'payment_summary' | 'invoice' | 'receipt' | 'proxy_invoice';
+    docNumber: string;          // "EST-2026-001", "DN-2026-001", "INV-2026-001", "RC-2026-001" or branch variants
     status: 'draft' | 'issued';
     issuedDate: string;         // YYYY-MM-DD
     period: string;             // YYYY-MM or YYYY-MM-DD
@@ -1991,8 +1991,8 @@ export function useStore() {
     // --- Issued Document Actions ---
 
     /** 帳票番号の採番: 同じ prefix の既存番号を参照して次の連番を返す */
-    const generateDocNumber = (type: 'delivery_note' | 'payment_summary' | 'invoice' | 'receipt' | 'proxy_invoice', year: string): string => {
-        const prefix = type === 'delivery_note' ? 'DN' : type === 'payment_summary' ? 'PM' : type === 'receipt' ? 'RC' : 'INV';
+    const generateDocNumber = (type: IssuedDocument['type'], year: string): string => {
+        const prefix = type === 'estimate' ? 'EST' : type === 'delivery_note' ? 'DN' : type === 'payment_summary' ? 'PM' : type === 'receipt' ? 'RC' : 'INV';
         const base = `${prefix}-${year}-`;
         const existing = issuedDocuments
             .filter(d => d.docNumber.startsWith(base) && !d.docNumber.includes('-', base.length + 2))
