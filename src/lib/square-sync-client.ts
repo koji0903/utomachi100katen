@@ -92,10 +92,14 @@ export async function syncWithSquare(storeId: string, options?: { skipInventory?
         }
 
         // 5. 在庫情報の反映 (System -> Square)
+        // 注文取り込み等により在庫が変動した可能性があるため、最新の在庫数を取得して反映する
+        const latestProductsSnap = await getDocs(query(productsRef, where("squareSyncEnabled", "==", true), where("isTrashed", "==", false)));
+        const latestStockMap = new Map(latestProductsSnap.docs.map(d => [d.id, d.data().stock || 0]));
+
         const productsWithId = productsToSync.filter(p => p.squareVariantId);
         const inventoryUpdates = productsWithId.map(p => ({
             catalogObjectId: p.squareVariantId,
-            quantity: p.stock || 0
+            quantity: latestStockMap.get(p.id) ?? (p.stock || 0)
         }));
 
         if (inventoryUpdates.length > 0) {

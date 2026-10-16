@@ -53,7 +53,11 @@ export const GET = withCronSecret(async () => {
                 
                 const data = await weatherRes.json();
                 const first = data.list?.[0];
-                const todayForecasts = data.list?.filter((item: any) => item.dt_txt.startsWith(todayStr)) || [];
+                const todayForecasts = (data.list || []).filter((item: any) => {
+                    if (!item.dt) return false;
+                    const jstDate = new Date(item.dt * 1000 + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
+                    return jstDate === todayStr;
+                });
 
                 let tempMin = first?.main?.temp_min ?? 0;
                 let tempMax = first?.main?.temp_max ?? 0;

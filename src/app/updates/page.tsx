@@ -112,11 +112,36 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.7.0 */}
+                    {/* v1.8.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">外部連携・委託在庫・データ整合性の総合改修とUX向上</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "委託販売店在庫判定の統一：店舗タイプ判定を共通関数に統合し、売上登録や日報補充における委託在庫の不整合を解消",
+                                    "Square同期の整合性強化：注文取込時のアトミック増減（increment）およびPush直前の最新在庫再取得による在庫巻き戻りを防止",
+                                    "ゴミ箱復元時の取引明細連動：取引（transactions）復元・完全削除時に紐づく取引明細（transaction_items）を自動連動処理",
+                                    "欠品予測のセット商品連動：構成品の欠品予測に組み合わせ商品の販売実績を反映し、ダッシュボードおよび自動発注の精度を向上",
+                                    "帳票エディタのUX改善：明細編集や内税・外税・税率切り替え時の二重発火と合計金額のチラつきを解消",
+                                    "天気予報バッチのJST同期：OpenWeatherMap予報のタイムスタンプ判定をJST基準に統一し、日々の最高・最低気温の取得精度を改善",
+                                    "固定費管理の二重送信防止：固定費保存処理中の多重クリック防止ロック（isSaving）およびローディング表示を導入"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.7.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.7.0 - 2026.10.16</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">システム全体の不具合分析と安定稼働環境への改善</h3>
                             <ul className="space-y-2">
                                 {[

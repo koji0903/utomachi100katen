@@ -40,7 +40,9 @@ export default function TrashPage() {
             'daily_reports': '日報',
             'issued_documents': '帳票',
             'spot_recipients': 'スポット宛先',
-            'business_challenges': '課題'
+            'business_challenges': '課題',
+            'transactions': '取引',
+            'transaction_items': '取引明細'
         };
         return labels[name] || name;
     };

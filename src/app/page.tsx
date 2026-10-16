@@ -223,7 +223,7 @@ export default function DashboardPage() {
             .filter(p => !p.isTrashed)
             .map(p => ({
                 ...p,
-                daysRemaining: calculateDaysRemaining(p, unifiedSales.filter(s => !s.isTrashed))
+                daysRemaining: calculateDaysRemaining(p, unifiedSales.filter(s => !s.isTrashed), products)
             }))
             .filter(p =>
                 p.stock <= (p.alertThreshold ?? 20) ||

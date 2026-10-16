@@ -11,7 +11,7 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.7.0";
+export const CURRENT_VERSION = "v1.8.0";
 export const RELEASE_DATE = "2026.10.16";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
@@ -22,7 +22,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "高度な在庫管理",
-        description: "ブランド別の商品管理、欠品予測、セット商品の構成・在庫連動機能。",
+        description: "ブランド別の商品管理、セット商品の構成連動欠品予測、委託店舗在庫の完全同期機能。",
         status: "completed"
     },
     {

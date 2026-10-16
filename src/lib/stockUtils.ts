@@ -5,9 +5,10 @@ import { Product, Sale } from "./store";
  * Calculates the estimated days until stockout for a product.
  * @param product The product to check
  * @param sales All sales records
+ * @param allProducts Optional full product list to consider consumption via composite/set products
  * @returns number of days remaining, or Infinity if no sales found (or stock 0)
  */
-export function calculateDaysRemaining(product: Product, sales: Sale[]): number {
+export function calculateDaysRemaining(product: Product, sales: Sale[], allProducts?: Product[]): number {
     if (product.stock <= 0) return 0;
 
     const now = new Date();
@@ -17,6 +18,9 @@ export function calculateDaysRemaining(product: Product, sales: Sale[]): number 
     const productId = product.id;
     let totalSold = 0;
 
+    // Find composite products that contain this product as a component
+    const parentComposites = allProducts?.filter(p => !p.isTrashed && p.isComposite && p.components?.some(c => c.productId === productId)) || [];
+
     // Filter sales for this product in the last 30 days
     sales.forEach(sale => {
         if (sale.isTrashed) return;
@@ -25,9 +29,22 @@ export function calculateDaysRemaining(product: Product, sales: Sale[]): number 
         if (sale.type === 'daily' && !isNaN(saleDate.getTime())) {
             const saleTime = saleDate.getTime();
             if (saleTime >= thirtyDaysAgo.getTime() - 24 * 60 * 60 * 1000 && saleTime <= now.getTime() + 24 * 60 * 60 * 1000) {
+                // Direct product sales
                 const item = sale.items?.find(i => i.productId === productId);
                 if (item) {
                     totalSold += item.quantity || 0;
+                }
+                // Indirect consumption through composite/set products
+                if (parentComposites.length > 0) {
+                    sale.items?.forEach(sItem => {
+                        const parent = parentComposites.find(cp => cp.id === sItem.productId);
+                        if (parent && parent.components) {
+                            const comp = parent.components.find(c => c.productId === productId);
+                            if (comp) {
+                                totalSold += (comp.quantity || 0) * (sItem.quantity || 0);
+                            }
+                        }
+                    });
                 }
             }
         }

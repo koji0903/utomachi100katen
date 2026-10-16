@@ -200,6 +200,11 @@ export interface RetailStore extends BaseEntity {
     linkedConsignmentStoreId?: string; // 紐付け先委託販売先 (タイプB用)
 }
 
+export const isConsignmentStore = (store?: RetailStore | null): boolean => {
+    if (!store) return false;
+    return store.type === 'A' || (store.type as string) === 'consignment';
+};
+
 
 // 日報
 export interface RestockingItem {
@@ -1350,7 +1355,7 @@ export function useStore() {
 
         // Stock adjustment logic
         const targetStore = saleData.storeId ? retailStores.find(s => s.id === saleData.storeId) : null;
-        const isConsignment = targetStore?.type === 'A';
+        const isConsignment = isConsignmentStore(targetStore);
 
         for (const item of saleData.items) {
             const product = products.find(p => p.id === item.productId);
@@ -1529,7 +1534,7 @@ export function useStore() {
 
         // 1. Reverse old stock adjustments
         const oldStore = currentSale.storeId ? retailStores.find(s => s.id === currentSale.storeId) : null;
-        const wasConsignment = oldStore?.type === 'A';
+        const wasConsignment = isConsignmentStore(oldStore);
 
         for (const item of currentSale.items) {
             const product = products.find(p => p.id === item.productId);
@@ -1557,7 +1562,7 @@ export function useStore() {
 
         // 2. Apply new stock adjustments
         const newStore = newSale.storeId ? retailStores.find(s => s.id === newSale.storeId) : null;
-        const isNowConsignment = newStore?.type === 'A';
+        const isNowConsignment = isConsignmentStore(newStore);
 
         for (const item of newSale.items) {
             const product = products.find(p => p.id === item.productId);
@@ -1598,7 +1603,7 @@ export function useStore() {
 
         // Reverse stock adjustments
         const targetStore = sale.storeId ? retailStores.find(s => s.id === sale.storeId) : null;
-        const isConsignment = targetStore?.type === 'A';
+        const isConsignment = isConsignmentStore(targetStore);
 
         for (const item of sale.items) {
             const product = products.find(p => p.id === item.productId);
@@ -1642,7 +1647,7 @@ export function useStore() {
 
         // Re-apply stock adjustments
         const targetStore = sale.storeId ? retailStores.find(s => s.id === sale.storeId) : null;
-        const isConsignment = targetStore?.type === 'A';
+        const isConsignment = isConsignmentStore(targetStore);
 
         for (const item of sale.items) {
             const product = products.find(p => p.id === item.productId);
@@ -1745,7 +1750,7 @@ export function useStore() {
 
                     // 2. Add to store stock
                     const retailStore = retailStores.find(s => s.id === reportData.storeId);
-                    if (retailStore?.type === 'A') {
+                    if (isConsignmentStore(retailStore)) {
                         await updateStoreStock(reportData.storeId, product.id, item.qty, 'restock', newRef.id, reportData.date);
                     }
                 }
@@ -1823,7 +1828,7 @@ export function useStore() {
                     
                     // Reverse Addition to store stock
                     const retailStore = retailStores.find(s => s.id === report.storeId);
-                    if (retailStore?.type === 'A') {
+                    if (isConsignmentStore(retailStore)) {
                         await updateStoreStock(report.storeId, product.id, -item.qty, 'restock', id, report.date);
                     }
                 }
@@ -1861,7 +1866,7 @@ export function useStore() {
                 if (product) {
                     await adjustProductStock(product.id, -item.qty);
                     const retailStore = retailStores.find(s => s.id === report.storeId);
-                    if (retailStore?.type === 'A') {
+                    if (isConsignmentStore(retailStore)) {
                         await updateStoreStock(report.storeId, product.id, item.qty, 'restock', id, report.date);
                     }
                 }
@@ -1904,7 +1909,7 @@ export function useStore() {
                 if (product) {
                     await adjustProductStock(product.id, item.qty);
                     const retailStore = retailStores.find(s => s.id === currentReport.storeId);
-                    if (retailStore?.type === 'A') {
+                    if (isConsignmentStore(retailStore)) {
                         await updateStoreStock(currentReport.storeId, product.id, -item.qty, 'restock', id, currentReport.date);
                     }
                 }
@@ -1930,7 +1935,7 @@ export function useStore() {
                 if (product) {
                     await adjustProductStock(product.id, -item.qty);
                     const retailStore = retailStores.find(s => s.id === newReport.storeId);
-                    if (retailStore?.type === 'A') {
+                    if (isConsignmentStore(retailStore)) {
                         await updateStoreStock(newReport.storeId, product.id, item.qty, 'restock', id, newReport.date);
                     }
                 }
@@ -2434,7 +2439,10 @@ export function useStore() {
     };
 
     const restoreTransaction = async (id: string) => {
-        await restoreFromTrash(id);
+        const trashItem = trash.find(t => t.originalId === id && t.collectionName === 'transactions') || trash.find(t => t.id === id);
+        if (trashItem) {
+            await restoreFromTrash(trashItem.id);
+        }
         mutateTransactions();
     };
 
@@ -2737,10 +2745,17 @@ export function useStore() {
                     }
                 }
             }
+        } else if (item.collectionName === 'transactions') {
+            const relatedTrashItems = trash.filter(t => t.collectionName === 'transaction_items' && (t.data as any)?.transactionId === item.originalId);
+            for (const rItem of relatedTrashItems) {
+                const rOriginalRef = doc(db, rItem.collectionName, rItem.originalId);
+                await setDoc(rOriginalRef, rItem.data);
+                await deleteDoc(doc(db, "trash", rItem.id));
+            }
         }
 
         // Remove from trash
-        mutateTrash(trash.filter(t => t.id !== id), false);
+        mutateTrash(trash.filter(t => t.id !== id && !((item.collectionName === 'transactions') && t.collectionName === 'transaction_items' && (t.data as any)?.transactionId === item.originalId)), false);
         await deleteDoc(doc(db, "trash", id));
         mutateTrash();
 
@@ -2760,7 +2775,16 @@ export function useStore() {
     };
 
     const permanentlyDeleteFromTrash = async (id: string) => {
-        mutateTrash(trash.filter(t => t.id !== id), false);
+        const item = trash.find(t => t.id === id);
+        if (item && item.collectionName === 'transactions') {
+            const relatedTrashItems = trash.filter(t => t.collectionName === 'transaction_items' && (t.data as any)?.transactionId === item.originalId);
+            for (const rItem of relatedTrashItems) {
+                await deleteDoc(doc(db, "trash", rItem.id));
+            }
+            mutateTrash(trash.filter(t => t.id !== id && !relatedTrashItems.some(r => r.id === t.id)), false);
+        } else {
+            mutateTrash(trash.filter(t => t.id !== id), false);
+        }
         await deleteDoc(doc(db, "trash", id));
         mutateTrash();
     };

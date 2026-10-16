@@ -33,20 +33,54 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
         );
     }, [products, searchQuery]);
 
-    // Calculation Logic
-    const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.subtotal, 0), [items]);
-    const taxAmount = taxType === 'inclusive' 
-        ? Math.floor(subtotal - (subtotal / (1 + taxRate / 100))) 
-        : Math.floor(subtotal * (taxRate / 100));
-    const adjustmentsTotal = useMemo(() => adjustments.reduce((sum, adj) => sum + adj.amount, 0), [adjustments]);
-    const grandTotal = taxType === 'inclusive' 
-        ? subtotal + adjustmentsTotal 
-        : subtotal + taxAmount + adjustmentsTotal;
+    // Calculation Helper
+    const computeTotals = (
+        currentItems: InvoiceItem[],
+        currentAdjustments: InvoiceAdjustment[],
+        currentTaxRate: 8 | 10,
+        currentTaxType: 'inclusive' | 'exclusive',
+        currentFinalAdj: number
+    ) => {
+        const sub = currentItems.reduce((sum, item) => sum + item.subtotal, 0);
+        const tax = currentTaxType === 'inclusive' 
+            ? Math.floor(sub - (sub / (1 + currentTaxRate / 100))) 
+            : Math.floor(sub * (currentTaxRate / 100));
+        const adjTotal = currentAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
+        const grand = currentTaxType === 'inclusive' 
+            ? sub + adjTotal 
+            : sub + tax + adjTotal;
+        return {
+            subtotal: sub,
+            taxAmount: tax,
+            adjustmentsTotal: adjTotal,
+            grandTotal: grand,
+            totalAmount: grand + currentFinalAdj
+        };
+    };
 
-    // Trigger onChange when something changes
-    useEffect(() => {
-        onChange({ items, adjustments, taxRate, taxType, totalAmount: grandTotal + finalAdjustment, finalAdjustment });
-    }, [items, adjustments, taxRate, taxType, grandTotal, finalAdjustment]);
+    // Current totals for display
+    const { subtotal, taxAmount, grandTotal } = useMemo(() => {
+        return computeTotals(items, adjustments, taxRate, taxType, finalAdjustment);
+    }, [items, adjustments, taxRate, taxType, finalAdjustment]);
+
+    // Single source of truth for sending updates to parent
+    const notifyChange = (
+        newItems: InvoiceItem[],
+        newAdjustments: InvoiceAdjustment[],
+        newTaxRate: 8 | 10 = taxRate,
+        newTaxType: 'inclusive' | 'exclusive' = taxType,
+        newFinalAdj: number = finalAdjustment
+    ) => {
+        const totals = computeTotals(newItems, newAdjustments, newTaxRate, newTaxType, newFinalAdj);
+        onChange({
+            items: newItems,
+            adjustments: newAdjustments,
+            taxRate: newTaxRate,
+            taxType: newTaxType,
+            totalAmount: totals.totalAmount,
+            finalAdjustment: newFinalAdj
+        });
+    };
 
     // Handlers
     const addItem = (product?: Product) => {
@@ -81,7 +115,7 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
             subtotal: unitPrice,
             remarks: ""
         };
-        onChange({ items: [...items, newItem], adjustments, taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
+        notifyChange([...items, newItem], adjustments);
     };
 
     const updateItem = (id: string, updates: Partial<InvoiceItem>) => {
@@ -92,11 +126,11 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
             updated.subtotal = updated.quantity * updated.unitPrice;
             return updated;
         });
-        onChange({ items: newItems, adjustments, taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
+        notifyChange(newItems, adjustments);
     };
 
     const removeItem = (id: string) => {
-        onChange({ items: items.filter(i => i.id !== id), adjustments, taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
+        notifyChange(items.filter(i => i.id !== id), adjustments);
     };
 
     const addAdjustment = () => {
@@ -105,16 +139,16 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
             label: "値引き",
             amount: 0
         };
-        onChange({ items, adjustments: [...adjustments, newAdj], taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
+        notifyChange(items, [...adjustments, newAdj]);
     };
 
     const updateAdjustment = (id: string, updates: Partial<InvoiceAdjustment>) => {
         const newAdjs = adjustments.map(adj => adj.id === id ? { ...adj, ...updates } : adj);
-        onChange({ items, adjustments: newAdjs, taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
+        notifyChange(items, newAdjs);
     };
 
     const removeAdjustment = (id: string) => {
-        onChange({ items, adjustments: adjustments.filter(a => a.id !== id), taxRate, taxType, totalAmount: grandTotal, finalAdjustment });
+        notifyChange(items, adjustments.filter(a => a.id !== id));
     };
 
     return (
@@ -128,13 +162,13 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
                 <div className="flex gap-4">
                     <div className="flex p-1 bg-slate-100 rounded-lg">
                         <button
-                            onClick={() => onChange({ items, adjustments, taxRate, taxType: 'inclusive', totalAmount: grandTotal, finalAdjustment })}
+                            onClick={() => notifyChange(items, adjustments, taxRate, 'inclusive')}
                             className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${taxType === 'inclusive' ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
                         >
                             内税
                         </button>
                         <button
-                            onClick={() => onChange({ items, adjustments, taxRate, taxType: 'exclusive', totalAmount: grandTotal, finalAdjustment })}
+                            onClick={() => notifyChange(items, adjustments, taxRate, 'exclusive')}
                             className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${taxType === 'exclusive' ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
                         >
                             外税
@@ -144,7 +178,7 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
                         {[8, 10].map(rate => (
                             <button
                                 key={rate}
-                                onClick={() => onChange({ items, adjustments, taxRate: rate as 8 | 10, taxType, totalAmount: grandTotal, finalAdjustment })}
+                                onClick={() => notifyChange(items, adjustments, rate as 8 | 10, taxType)}
                                 className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${taxRate === rate ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
                             >
                                 {rate}%

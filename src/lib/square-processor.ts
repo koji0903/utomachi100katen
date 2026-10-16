@@ -1,6 +1,6 @@
 // src/lib/square-processor.ts
 
-import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc, deleteDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { SquareOrder } from "./square";
 
@@ -241,7 +241,7 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
                 // 在庫減算
 
                 await updateDoc(doc(db, "products", productId), {
-                    stock: currentStock - qty,
+                    stock: increment(-qty),
                     updatedAt: serverTimestamp()
                 });
 

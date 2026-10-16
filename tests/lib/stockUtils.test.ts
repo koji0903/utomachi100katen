@@ -71,6 +71,48 @@ describe("calculateDaysRemaining", () => {
 
         expect(calculateDaysRemaining(dummyProduct, sales)).toBe(Infinity);
     });
+
+    it("セット商品の売上も構成品の消費として計算される", () => {
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+        // セット商品：prod_1 を 2個 含む
+        const setProduct: Product = {
+            id: "set_prod",
+            name: "ギフトセット",
+            brandId: "brand_1",
+            supplierId: "sup_1",
+            costPrice: 1000,
+            sellingPrice: 3000,
+            stock: 10,
+            taxRate: "standard",
+            isComposite: true,
+            components: [
+                { productId: "prod_1", quantity: 2 }
+            ],
+            createdAt: todayStr
+        };
+
+        // セット商品が15個売れた（＝ prod_1 は 30個 消費）
+        const sales: Sale[] = [
+            {
+                id: "sale_set",
+                storeId: "store_1",
+                period: todayStr,
+                type: "daily",
+                totalAmount: 45000,
+                totalQuantity: 15,
+                totalCommission: 0,
+                totalNetProfit: 20000,
+                items: [
+                    { productId: "set_prod", quantity: 15, priceAtSale: 3000, subtotal: 45000, commission: 0, netProfit: 20000 }
+                ]
+            }
+        ];
+
+        // dummyProduct.stock = 30. セット販売で 15 * 2 = 30個 消費 / 30日 = 1日あたり1個。在庫30個なので30日分
+        expect(calculateDaysRemaining(dummyProduct, sales, [dummyProduct, setProduct])).toBe(30);
+    });
 });
 
 describe("getStockoutStatus", () => {

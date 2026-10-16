@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { 
     Coins, Save, Calendar, Landmark, Users, 
     Zap, Wifi, Truck, Monitor, BarChart3, 
-    Activity, ChevronRight, HelpCircle, Sparkles, RotateCcw
+    Activity, ChevronRight, HelpCircle, Sparkles, RotateCcw, Loader2
 } from "lucide-react";
 import { useStore, FixedCost } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
@@ -94,6 +94,7 @@ export default function FixedCostsPage() {
 
     // Detailed Monthly Items State
     const [monthlyItems, setMonthlyItems] = useState<any[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Track initialized/loaded month to avoid resetting user edits
     const [loadedMonth, setLoadedMonth] = useState<string>("");
@@ -229,7 +230,9 @@ export default function FixedCostsPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSaving) return;
 
+        setIsSaving(true);
         try {
             await saveFixedCosts({
                 id: targetMonth,
@@ -248,6 +251,8 @@ export default function FixedCostsPage() {
         } catch (err: any) {
             console.error("Failed to save fixed costs:", err);
             showNotification("固定費の保存に失敗しました: " + err.message, "error");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -414,10 +419,11 @@ export default function FixedCostsPage() {
                             </button>
                             <button
                                 type="submit"
-                                className="px-8 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm rounded-xl transition-all shadow-md flex items-center gap-2 hover:scale-[1.02] active:scale-95"
+                                disabled={isSaving}
+                                className={`px-8 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm rounded-xl transition-all shadow-md flex items-center gap-2 hover:scale-[1.02] active:scale-95 ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                <Save className="w-4 h-4" />
-                                {targetMonth}度の固定費を保存する
+                                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                {isSaving ? "保存中..." : `${targetMonth}度の固定費を保存する`}
                             </button>
                         </div>
                     </div>

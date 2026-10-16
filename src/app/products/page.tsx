@@ -512,7 +512,7 @@ export default function ProductsPage() {
                           {product.stock}個
                         </span>
                         {(() => {
-                          const days = calculateDaysRemaining(product, sales);
+                          const days = calculateDaysRemaining(product, sales, products);
                           const status = getStockoutStatus(days);
                           return (
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${status.bg} ${status.color}`}>
@@ -629,7 +629,7 @@ export default function ProductsPage() {
                         在庫 {product.stock}個
                       </span>
                       {(() => {
-                        const days = calculateDaysRemaining(product, sales);
+                        const days = calculateDaysRemaining(product, sales, products);
                         const status = getStockoutStatus(days);
                         return (
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${status.bg} ${status.color}`}>

@@ -40,7 +40,7 @@ function PurchasesPageContent() {
             const supplierOrders: { [supplierId: string]: { productId: string, quantity: number, receivedQuantity: number, unitCost: number, totalCost: number }[] } = {};
 
             for (const product of products.filter(p => !p.isTrashed)) {
-                const days = calculateDaysRemaining(product, sales);
+                const days = calculateDaysRemaining(product, sales, products);
                 const isUnderThreshold = product.stock <= (product.alertThreshold ?? 20);
                 const isRunningOutSoon = days !== Infinity && days <= 7;
 
