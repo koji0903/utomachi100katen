@@ -112,11 +112,35 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.6.0 */}
+                    {/* v1.7.0 */}
                     <div className="relative">
-                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-rose-500 border-4 border-white shadow-sm ring-4 ring-rose-50" />
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
-                            <div className="text-xs font-black text-rose-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">システム全体の不具合分析と安定稼働環境への改善</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "データ整合性とアトミック更新：Firestoreトランザクションによる在庫・売上の競合防止、棚卸し時のアトミック増減を導入",
+                                    "外部連携（Square / Shopify / Amazon）の堅牢化：Square売上削除スコープ適正化、Shopify注文取込・在庫更新順序の改善、Server ActionsのAdmin SDK移行",
+                                    "フロントエンドUX保護：Firestoreリアルタイムリスナーによる入力中フォームの意図しない上書き（state wipeout）を防止",
+                                    "二重送信防止とクラッシュ隔離：各種登録・保存処理での多重クリック防止ロック（isSaving）導入およびErrorBoundaryによるサイドバー保護",
+                                    "メモリリークとリソース解放：OpenCV WASMの輪郭・マトリックスメモリ破棄徹底、BlobプレビューURLの確実な解放",
+                                    "テスト・セキュリティルールの拡充：在庫計算ロジックのVitestテストスイート追加、Firestore/Storage未許可操作ルールの修正"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.6.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.6.0 - 2026.03.31</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-rose-200 underline-offset-4 decoration-2">AI支出・経費管理の導入とUX改善</h3>
                             <ul className="space-y-2">
                                 {[

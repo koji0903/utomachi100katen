@@ -36,6 +36,8 @@ describe("calculateDaysRemaining", () => {
                 type: "daily",
                 totalAmount: 30000,
                 totalQuantity: 30,
+                totalCommission: 0,
+                totalNetProfit: 15000,
                 items: [
                     { productId: "prod_1", quantity: 30, priceAtSale: 1000, subtotal: 30000, commission: 0, netProfit: 15000 }
                 ]
@@ -58,6 +60,8 @@ describe("calculateDaysRemaining", () => {
                 type: "daily",
                 totalAmount: 30000,
                 totalQuantity: 30,
+                totalCommission: 0,
+                totalNetProfit: 15000,
                 isTrashed: true,
                 items: [
                     { productId: "prod_1", quantity: 30, priceAtSale: 1000, subtotal: 30000, commission: 0, netProfit: 15000 }

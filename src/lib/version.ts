@@ -11,8 +11,8 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.6.0";
-export const RELEASE_DATE = "2026.03.31";
+export const CURRENT_VERSION = "v1.7.0";
+export const RELEASE_DATE = "2026.10.16";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
@@ -38,7 +38,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
         name: "売上分析ダッシュボード",
         description: "店舗別・曜日別の売上推移、利益率の可視化機能。",
-        status: "ongoing"
+        status: "completed"
     },
     {
         name: "課題・ToDo管理",
@@ -48,7 +48,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
         name: "自動レポート・通知機能",
         description: "特定の条件下でのメールやチャットへの自動報告機能。",
-        status: "planned"
+        status: "completed"
     },
     {
         name: "月次売上レポート",
@@ -63,6 +63,11 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
         name: "AI支出・経費管理",
         description: "Gemini AIによるレシート解析。画像・PDFプレビューおよび編集・検索機能。",
+        status: "completed"
+    },
+    {
+        name: "高信頼性・データ整合性基盤",
+        description: "在庫・売上のアトミック更新、リアルタイム同期時の入力保護、二重送信防止ロック、WASMメモリリーク解消。",
         status: "completed"
     }
 ];

@@ -1,6 +1,9 @@
 # Project Rules
 
-## Feature Updates and Modifications
+## 出力言語の遵守
+- ユーザーへの出力および回答は、必ず日本語で行うこと。
+
+## Feature Updates and Modifications (必須)
 When performing any feature modifications or version updates, the following files MUST be updated to reflect the changes:
 
 1. **src/lib/version.ts**:
