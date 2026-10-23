@@ -129,12 +129,23 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const selectedStoreIdRaw = selectedStoreId.includes(':') ? selectedStoreId.split(':')[1] : selectedStoreId;
     const isSpotSelection = selectedStoreId.startsWith('spot:');
 
+    const selectableRetailStores = useMemo(() => retailStores.filter(store =>
+        !store.isTrashed || (editingSale?.recipientType !== 'spot' && editingSale?.storeId === store.id)
+    ), [retailStores, editingSale]);
+    const selectableSpotRecipients = useMemo(() => spotRecipients.filter(spot =>
+        !spot.isTrashed || (editingSale?.recipientType === 'spot' && editingSale?.storeId === spot.id)
+    ), [spotRecipients, editingSale]);
+    const selectableProducts = useMemo(() => {
+        const historicalProductIds = new Set(editingSale?.items.map(item => item.productId) || []);
+        return products.filter(product => !product.isTrashed || historicalProductIds.has(product.id));
+    }, [products, editingSale]);
+
     const selectedStore = useMemo(() =>
-        retailStores.find(s => s.id === selectedStoreIdRaw), [retailStores, selectedStoreIdRaw]
+        selectableRetailStores.find(s => s.id === selectedStoreIdRaw), [selectableRetailStores, selectedStoreIdRaw]
     );
 
     const selectedSpot = useMemo(() =>
-        spotRecipients.find(s => s.id === selectedStoreIdRaw), [spotRecipients, selectedStoreIdRaw]
+        selectableSpotRecipients.find(s => s.id === selectedStoreIdRaw), [selectableSpotRecipients, selectedStoreIdRaw]
     );
 
     // Automatically derive sales channel for new entries
@@ -191,9 +202,10 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
         const brandMap = new Map(brands.map(b => [b.id, b.name]));
 
         // Filter products based on store assignment (only for retail stores, spots can get any)
-        let filteredProducts = [...products];
+        let filteredProducts = [...selectableProducts];
         if (!isSpotSelection && selectedStore?.activeProductIds && selectedStore.activeProductIds.length > 0) {
-            filteredProducts = products.filter(p => selectedStore.activeProductIds?.includes(p.id));
+            const historicalProductIds = new Set(editingSale?.items.map(item => item.productId) || []);
+            filteredProducts = selectableProducts.filter(p => selectedStore.activeProductIds?.includes(p.id) || historicalProductIds.has(p.id));
         }
 
         const base = filteredProducts.sort((a, b) => {
@@ -219,8 +231,16 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                     bValue = brandMap.get(b.brandId) || "";
                     break;
                 case 'price':
-                    const storePriceA = a.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw)?.price ?? a.sellingPrice;
-                    const storePriceB = b.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw)?.price ?? b.sellingPrice;
+                    const storePriceA = selectedStore?.type === 'B'
+                        ? (a.storeWholesalePrices?.find(sp => sp.storeId === selectedStoreIdRaw)?.price
+                            ?? a.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw)?.price
+                            ?? a.sellingPrice)
+                        : (a.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw)?.price ?? a.sellingPrice);
+                    const storePriceB = selectedStore?.type === 'B'
+                        ? (b.storeWholesalePrices?.find(sp => sp.storeId === selectedStoreIdRaw)?.price
+                            ?? b.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw)?.price
+                            ?? b.sellingPrice)
+                        : (b.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw)?.price ?? b.sellingPrice);
                     aValue = storePriceA;
                     bValue = storePriceB;
                     break;
@@ -236,7 +256,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [products, brands, sortConfig, salesData, selectedStoreIdRaw, isSpotSelection, selectedStore]);
+    }, [selectableProducts, brands, sortConfig, salesData, selectedStoreIdRaw, isSpotSelection, selectedStore, editingSale]);
 
     const requestSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
@@ -261,7 +281,10 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
     const calculateRowDetails = (product: Product, quantity: number) => {
         const storePriceObj = product.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw);
-        const price = (storePriceObj && storePriceObj.price > 0 && !isSpotSelection) ? storePriceObj.price : product.sellingPrice;
+        const wholesalePriceObj = product.storeWholesalePrices?.find(sp => sp.storeId === selectedStoreIdRaw);
+        const price = !isSpotSelection && selectedStore?.type === 'B' && wholesalePriceObj && wholesalePriceObj.price > 0
+            ? wholesalePriceObj.price
+            : ((storePriceObj && storePriceObj.price > 0 && !isSpotSelection) ? storePriceObj.price : product.sellingPrice);
         const subtotal = price * quantity;
         
         let commissionRate = 0;
@@ -277,7 +300,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
     const totals = useMemo(() => {
         let totalQty = 0, totalAmt = 0, totalComm = 0, totalNet = 0;
-        products.forEach(product => {
+        selectableProducts.forEach(product => {
             const qty = salesData[product.id] || 0;
             if (qty > 0) {
                 const { subtotal, commission, netProfit } = calculateRowDetails(product, qty);
@@ -285,14 +308,14 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             }
         });
         return { totalQty, totalAmt, totalComm, totalNet };
-    }, [products, salesData, selectedStoreIdRaw, isSpotSelection, selectedStore]);
+    }, [selectableProducts, salesData, selectedStoreIdRaw, isSpotSelection, selectedStore]);
 
     const handleSave = async () => {
         if (!selectedStoreIdRaw) return;
         if (totals.totalQty === 0) { alert("売上個数を入力してください。"); return; }
         setIsSaving(true);
         try {
-            const saleItems = products.filter(p => (salesData[p.id] || 0) > 0).map(p => {
+            const saleItems = selectableProducts.filter(p => (salesData[p.id] || 0) > 0).map(p => {
                 const qty = salesData[p.id];
                 const details = calculateRowDetails(p, qty);
                 return { productId: p.id, quantity: qty, priceAtSale: details.price, subtotal: details.subtotal, commission: details.commission, netProfit: details.netProfit };
@@ -392,11 +415,11 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 font-medium">
                                 <option value="">宛先を選択してください</option>
                                 <optgroup label="登録店舗">
-                                    {retailStores.map(store => <option key={`store:${store.id}`} value={`store:${store.id}`}>{store.name}</option>)}
+                                    {selectableRetailStores.map(store => <option key={`store:${store.id}`} value={`store:${store.id}`}>{store.name}{store.isTrashed ? '（削除済み・履歴用）' : ''}</option>)}
                                 </optgroup>
-                                {spotRecipients.filter(s => !s.isTrashed).length > 0 && (
+                                {selectableSpotRecipients.length > 0 && (
                                     <optgroup label="スポット宛先">
-                                        {spotRecipients.filter(s => !s.isTrashed).map(spot => <option key={`spot:${spot.id}`} value={`spot:${spot.id}`}>{spot.name}</option>)}
+                                        {selectableSpotRecipients.map(spot => <option key={`spot:${spot.id}`} value={`spot:${spot.id}`}>{spot.name}{spot.isTrashed ? '（削除済み・履歴用）' : ''}</option>)}
                                     </optgroup>
                                 )}
                                 <optgroup label="新規作成">
@@ -601,7 +624,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                                 <span className="text-[10px] font-bold text-slate-500">{weatherInfo.weather}</span>
                                             </div>
                                         )}
-                                        <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200">{products.length} 商品が登録されています</div>
+                                        <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200">{sortedProducts.length} 商品が選択できます</div>
                                     </div>
                                 </div>
                             </div>
@@ -1532,10 +1555,10 @@ function SalesPageContent() {
                     <p className="text-slate-500 text-sm">売上の入力と日別実績・天気の確認</p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
                     <button
                         onClick={handleExport}
-                        className="flex items-center gap-2 bg-white text-slate-700 px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm font-medium"
+                        className="flex items-center justify-center gap-2 bg-white text-slate-700 px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm font-medium w-full sm:w-auto"
                     >
                         <Save className="w-4 h-4 text-slate-400" />
                         実績CSV出力
@@ -1545,7 +1568,7 @@ function SalesPageContent() {
 
             {/* Tab bar */}
             {!filterDate && (
-                <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl mb-6 w-fit">
+                <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl mb-6 w-full sm:w-fit overflow-x-auto">
                     {tabs.map(tab => {
                         const Icon = tab.icon;
                         return (

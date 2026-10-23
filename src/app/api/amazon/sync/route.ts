@@ -55,6 +55,7 @@ export const POST = withAuth(async (_req, { uid }) => {
 
         for (const productDoc of querySnapshot.docs) {
             const product = productDoc.data();
+            if (product.isTrashed === true) continue;
             const sku = product.amazonSku;
 
             if (sku) {
@@ -92,12 +93,12 @@ export const POST = withAuth(async (_req, { uid }) => {
         const storesRef = db.collection("retailStores");
         const storeSnap = await storesRef
             .where("name", "==", "Amazon")
-            .where("isTrashed", "==", false)
             .get();
 
         let amazonStore: { id: string, name: string } | null = null;
-        if (!storeSnap.empty) {
-            amazonStore = { id: storeSnap.docs[0].id, name: storeSnap.docs[0].data().name };
+        const activeStoreDoc = storeSnap.docs.find(candidate => candidate.data().isTrashed !== true);
+        if (activeStoreDoc) {
+            amazonStore = { id: activeStoreDoc.id, name: activeStoreDoc.data().name };
         }
 
         // 2. 注文情報（最新）の取得
@@ -125,8 +126,8 @@ export const POST = withAuth(async (_req, { uid }) => {
                             .where("amazonSku", "==", item.sku)
                             .get();
 
-                        if (!pSnap.empty) {
-                            const pDoc = pSnap.docs[0];
+                        const pDoc = pSnap.docs.find(candidate => candidate.data().isTrashed !== true);
+                        if (pDoc) {
                             const pId = pDoc.id;
                             const pData = pDoc.data();
                             const existing = productUpdates.get(pId);
@@ -162,6 +163,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                             customerName: amazonStore ? amazonStore.name : "Amazon Customer",
                             storeId: amazonStore?.id || null,
                             storeName: amazonStore?.name || null,
+                            recipientType: "store",
                             channel: "EC",
                             transactionType: "Amazon注文",
                             orderDate: orderDateStr,
@@ -217,10 +219,20 @@ export const POST = withAuth(async (_req, { uid }) => {
                             const saleRef = db.collection("sales").doc(`amazon_${order.amazonOrderId}`);
                             txn.set(saleRef, {
                                 storeId: amazonStore.id,
+                                storeName: amazonStore.name,
+                                recipientType: 'store',
                                 type: 'daily',
                                 period: orderDateStr,
                                 items: saleItems,
+                                totalQuantity: saleItems.reduce((sum, item) => sum + item.quantity, 0),
                                 totalAmount: order.totalAmount,
+                                totalCommission: 0,
+                                totalNetProfit: order.totalAmount,
+                                inventoryEffects: [...productUpdates.entries()].map(([productId, update]) => ({
+                                    scope: 'main',
+                                    productId,
+                                    quantity: -update.quantity,
+                                })),
                                 isTrashed: false,
                                 transactionId: transactionRef.id,
                                 createdAt: admin.firestore.FieldValue.serverTimestamp(),

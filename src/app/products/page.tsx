@@ -249,7 +249,7 @@ export default function ProductsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+        <div className="flex flex-wrap items-center gap-3 lg:justify-end w-full lg:w-auto">
           {/* Data Actions Group */}
           <div className="flex items-center gap-1.5 p-1 bg-slate-100/50 border border-slate-200 rounded-2xl">
             <button
@@ -342,7 +342,7 @@ export default function ProductsPage() {
           {/* Main Action */}
           <button
             onClick={handleCreate}
-            className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-slate-200 hover:shadow-blue-200 font-black text-sm active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-slate-200 hover:shadow-blue-200 font-black text-sm active:scale-[0.98] w-full sm:w-auto"
           >
             <Plus className="w-5 h-5" />
             新規登録

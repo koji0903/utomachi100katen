@@ -34,12 +34,12 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
     } else if (order.locationId) {
         // 1. 直営店（販売店舗）を Square Location ID から特定
         const storesRef = collection(db, "retailStores");
-        const storeQuery = query(storesRef, where("squareLocationId", "==", order.locationId), where("isTrashed", "==", false));
+        const storeQuery = query(storesRef, where("squareLocationId", "==", order.locationId));
         const storeSnap = await getDocs(storeQuery);
 
-        
-        if (!storeSnap.empty) {
-            retailStore = { id: storeSnap.docs[0].id, name: storeSnap.docs[0].data().name };
+        const activeStoreDoc = storeSnap.docs.find(candidate => candidate.data().isTrashed !== true);
+        if (activeStoreDoc) {
+            retailStore = { id: activeStoreDoc.id, name: activeStoreDoc.data().name };
         } else {
             console.error(`[Square Processor] No store found for Location ID: ${order.locationId} | Order: ${order.id}`);
             
@@ -56,6 +56,7 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
 
     let isUpdate = false;
     let transRef;
+    let previousInventoryEffects: Array<{ scope: 'main'; productId: string; quantity: number }> = [];
 
     const orderDate = (() => {
         const d = order.createdAt ? new Date(order.createdAt) : new Date();
@@ -87,7 +88,17 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
             if (tId) {
                 const qSalesByTrans = query(collection(db, "sales"), where("transactionId", "==", tId));
                 const snapSales = await getDocs(qSalesByTrans);
-                for (const sDoc of snapSales.docs) await deleteDoc(sDoc.ref);
+                for (const sDoc of snapSales.docs) {
+                    const saleData = sDoc.data();
+                    if (previousInventoryEffects.length === 0) {
+                        previousInventoryEffects = Array.isArray(saleData.inventoryEffects)
+                            ? saleData.inventoryEffects.filter((effect: any) => effect.scope === 'main')
+                            : (saleData.items || [])
+                                .filter((item: any) => item.productId && item.productId !== 'SQUARE_UNLINKED')
+                                .map((item: any) => ({ scope: 'main' as const, productId: item.productId, quantity: -item.quantity }));
+                    }
+                    await deleteDoc(sDoc.ref);
+                }
             }
         }
 
@@ -132,6 +143,7 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
         customerName: retailStore ? retailStore.name : "Square Customer",
         storeId: retailStore?.id || null,
         storeName: retailStore?.name || null,
+        recipientType: "store",
         channel: "店頭販売",
         transactionType: "Square注文",
         orderDate: orderDate,
@@ -197,10 +209,11 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
         if (item.catalogObjectId) {
             const pQuery = query(productsRef, where("squareVariantId", "==", item.catalogObjectId));
             const pSnap = await getDocs(pQuery);
-            if (!pSnap.empty) {
+            const activeProductDoc = pSnap.docs.find(candidate => candidate.data().isTrashed !== true);
+            if (activeProductDoc) {
 
-                productId = pSnap.docs[0].id;
-                const pData = pSnap.docs[0].data();
+                productId = activeProductDoc.id;
+                const pData = activeProductDoc.data();
                 productName = pData.name;
                 currentStock = pData.stock || 0;
             } else {
@@ -236,29 +249,6 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
         if (productId) {
             const qty = parseFloat(item.quantity);
             
-            // 在庫への影響は新規作成時かつ在庫スキップモードでない場合のみ（未連携商品は除く）
-            if (!isUpdate && !skipInventory && productId !== "SQUARE_UNLINKED") {
-                // 在庫減算
-
-                await updateDoc(doc(db, "products", productId), {
-                    stock: increment(-qty),
-                    updatedAt: serverTimestamp()
-                });
-
-                // 在庫移動記録
-                await setDoc(doc(collection(db, "stock_movements")), {
-                    productId: productId,
-                    productName: productName,
-                    type: 'out',
-                    quantity: qty,
-                    reason: 'sale',
-                    remarks: 'Square注文による自動減算',
-                    referenceId: transRef.id,
-                    date: orderDate,
-                    createdAt: serverTimestamp()
-                });
-            }
-
             saleItems.push({
                 productId,
                 quantity: qty,
@@ -281,6 +271,39 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
     if (retailStore && (saleItems.length > 0 || effectiveOrderTotal !== 0)) {
         const totalQuantity = saleItems.reduce((sum, i) => sum + i.quantity, 0);
         const saleId = `square_${order.id}`;
+        const desiredInventoryEffects = saleItems
+            .filter(item => item.productId !== 'SQUARE_UNLINKED')
+            .map(item => ({ scope: 'main' as const, productId: item.productId, quantity: -item.quantity }));
+        const recordedInventoryEffects = skipInventory ? previousInventoryEffects : desiredInventoryEffects;
+
+        if (!skipInventory) {
+            const deltas = new Map<string, number>();
+            for (const effect of previousInventoryEffects) {
+                deltas.set(effect.productId, (deltas.get(effect.productId) || 0) - effect.quantity);
+            }
+            for (const effect of desiredInventoryEffects) {
+                deltas.set(effect.productId, (deltas.get(effect.productId) || 0) + effect.quantity);
+            }
+            for (const [productId, quantity] of deltas) {
+                if (!quantity) continue;
+                const product = saleItems.find(item => item.productId === productId);
+                await updateDoc(doc(db, "products", productId), {
+                    stock: increment(quantity),
+                    updatedAt: serverTimestamp(),
+                });
+                await setDoc(doc(collection(db, "stock_movements")), {
+                    productId,
+                    productName: product?.productName || '不明な商品',
+                    type: quantity > 0 ? 'in' : 'out',
+                    quantity: Math.abs(quantity),
+                    reason: quantity > 0 ? 'return' : 'sale',
+                    remarks: isUpdate ? 'Square注文更新による在庫差分反映' : 'Square注文による自動減算',
+                    referenceId: transRef.id,
+                    date: orderDate,
+                    createdAt: serverTimestamp(),
+                });
+            }
+        }
         
         const saleData = {
             id: saleId,
@@ -294,6 +317,7 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
             totalAmount: effectiveOrderTotal,
             totalCommission: 0,
             totalNetProfit: effectiveOrderTotal,
+            inventoryEffects: recordedInventoryEffects,
             isTrashed: false,
             transactionId: transRef.id,
             remarks: "Square連携売上",

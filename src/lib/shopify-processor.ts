@@ -18,12 +18,12 @@ export async function processShopifyOrder(order: ShopifyOrder) {
     const storesRef = db.collection("retailStores");
     const storeSnap = await storesRef
         .where("name", "==", "Shopify")
-        .where("isTrashed", "==", false)
         .get();
 
     let shopifyStore: { id: string, name: string } | null = null;
-    if (!storeSnap.empty) {
-        shopifyStore = { id: storeSnap.docs[0].id, name: storeSnap.docs[0].data().name };
+    const activeStoreDoc = storeSnap.docs.find(candidate => candidate.data().isTrashed !== true);
+    if (activeStoreDoc) {
+        shopifyStore = { id: activeStoreDoc.id, name: activeStoreDoc.data().name };
     }
 
     // 2. 重複チェック（過去のランダムID分も含めて事前確認）
@@ -70,6 +70,7 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         shopifyOrdersCount: ordersCount,
         storeId: shopifyStore?.id || null,
         storeName: shopifyStore?.name || null,
+        recipientType: "store",
         channel: "EC",
         transactionType: "Shopify注文",
         orderDate: orderDate,
@@ -102,15 +103,17 @@ export async function processShopifyOrder(order: ShopifyOrder) {
             .where("shopifyVariantIds", "array-contains", item.variantId)
             .get();
 
-        // 2. 見つからなければ、後方互換性のため従来の shopifyVariantId (等価) で検索
-        if (pSnap.empty) {
+        let productDoc = pSnap.docs.find(candidate => candidate.data().isTrashed !== true);
+
+        // 2. 有効な商品が見つからなければ、後方互換性のため従来の shopifyVariantId (等価) で検索
+        if (!productDoc) {
             pSnap = await db.collection("products")
                 .where("shopifyVariantId", "==", item.variantId)
                 .get();
+            productDoc = pSnap.docs.find(candidate => candidate.data().isTrashed !== true);
         }
 
-        if (!pSnap.empty) {
-            const productDoc = pSnap.docs[0];
+        if (productDoc) {
             const pData = productDoc.data();
             const existing = productUpdatesMap.get(productDoc.id);
             if (existing) {
@@ -184,10 +187,20 @@ export async function processShopifyOrder(order: ShopifyOrder) {
             const saleRef = db.collection("sales").doc(`shopify_${order.shopifyOrderId}`);
             const saleData = {
                 storeId: shopifyStore.id,
+                storeName: shopifyStore.name,
+                recipientType: 'store',
                 type: 'daily',
                 period: orderDate,
                 items: saleItems,
+                totalQuantity: saleItems.reduce((sum, item) => sum + item.quantity, 0),
                 totalAmount: order.totalPrice,
+                totalCommission: 0,
+                totalNetProfit: order.totalPrice,
+                inventoryEffects: [...productUpdatesMap.values()].map(update => ({
+                    scope: 'main',
+                    productId: update.productId,
+                    quantity: -update.quantity,
+                })),
                 isTrashed: false,
                 transactionId: newTransactionRef.id,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),

@@ -11,7 +11,7 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.10.0";
+export const CURRENT_VERSION = "v1.11.0";
 export const RELEASE_DATE = "2026.10.23";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
@@ -72,7 +72,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "高信頼性・データ整合性基盤",
-        description: "アトミック在庫更新、ゴミ箱除外集計、PDF/画像圧縮バイパス、全画面防御ガードによる例外安全稼働環境の確立。",
+        description: "仕入・売上・日報・棚卸し・在庫変換・商品制作の伝票と在庫を一括更新し、重複実行や外部連携を含む不整合を防止する基盤。",
         status: "completed"
     }
 ];

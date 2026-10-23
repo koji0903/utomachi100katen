@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { X, Save, FileText, Plus } from "lucide-react";
 import { useStore, Transaction } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
@@ -17,9 +17,14 @@ const STATUSES = ['受注', '納品済', '請求済', '一部入金', '入金済
 
 export function TransactionModal({ isOpen, onClose, initialData }: TransactionModalProps) {
     const { addTransaction, updateTransaction, retailStores, spotRecipients, addSpotRecipient } = useStore();
+    const retailStoresRef = useRef(retailStores);
+    const spotRecipientsRef = useRef(spotRecipients);
+    retailStoresRef.current = retailStores;
+    spotRecipientsRef.current = spotRecipients;
 
     const [customerType, setCustomerType] = useState<'retail' | 'spot'>('retail');
     const [isNewSpot, setIsNewSpot] = useState(false);
+    const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
     const [formData, setFormData] = useState({
         customerName: "",
@@ -40,19 +45,24 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
         if (isOpen) {
             if (initialData) {
                 // Try to infer customerType based on existing data
-                const isRetail = retailStores.some(r => r.name === initialData.customerName);
-                const isSpot = spotRecipients.some(s => s.name === initialData.customerName);
+                const retailMatch = retailStoresRef.current.find(r => r.id === initialData.storeId)
+                    || retailStoresRef.current.find(r => r.name === initialData.customerName);
+                const spotMatch = spotRecipientsRef.current.find(s => s.id === initialData.spotRecipientId)
+                    || spotRecipientsRef.current.find(s => s.name === initialData.customerName);
                 
-                if (isRetail) {
+                if (retailMatch) {
                     setCustomerType('retail');
                     setIsNewSpot(false);
-                } else if (isSpot) {
+                    setSelectedCustomerId(retailMatch.id);
+                } else if (spotMatch) {
                     setCustomerType('spot');
                     setIsNewSpot(false);
+                    setSelectedCustomerId(spotMatch.id);
                 } else if (initialData.customerName) {
                     // It's a spot but not in the list, or just free text. Treat as spot new item.
                     setCustomerType('spot');
                     setIsNewSpot(true);
+                    setSelectedCustomerId("");
                 }
 
                 setFormData({
@@ -72,6 +82,7 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
             } else {
                 setCustomerType('retail');
                 setIsNewSpot(false);
+                setSelectedCustomerId("");
                 setFormData({
                     customerName: "",
                     transactionType: "物販",
@@ -89,6 +100,13 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
             }
         }
     }, [isOpen, initialData]);
+
+    const selectableRetailStores = useMemo(() => retailStores.filter(store =>
+        !store.isTrashed || store.id === selectedCustomerId
+    ), [retailStores, selectedCustomerId]);
+    const selectableSpotRecipients = useMemo(() => spotRecipients.filter(spot =>
+        !spot.isTrashed || spot.id === selectedCustomerId
+    ), [spotRecipients, selectedCustomerId]);
 
     // Auto-calculate total from subtotal+tax, assuming we don't have items.
     // If we have items in the future, that logic would go here.
@@ -109,15 +127,19 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
         setIsSaving(true);
         try {
             // Auto-register new spot recipient if needed
+            let customerId = selectedCustomerId;
             if (customerType === 'spot' && isNewSpot && formData.customerName.trim() !== '') {
                 // Check if it doesn't already exist to avoid duplicates
-                if (!spotRecipients.some(s => s.name === formData.customerName.trim())) {
-                    await addSpotRecipient({ name: formData.customerName.trim() });
-                }
+                const recipient = await addSpotRecipient({ name: formData.customerName.trim() });
+                customerId = recipient.id;
             }
 
             const submission = {
                 ...formData,
+                recipientType: customerType === 'retail' ? 'store' as const : 'spot' as const,
+                storeId: customerType === 'retail' ? customerId : undefined,
+                storeName: customerType === 'retail' ? formData.customerName : undefined,
+                spotRecipientId: customerType === 'spot' ? customerId : undefined,
                 paidAmount: initialData ? initialData.paidAmount : 0,
                 balanceAmount: initialData ? Math.max(0, formData.totalAmount - (initialData.paidAmount || 0)) : formData.totalAmount
             };
@@ -169,29 +191,25 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                         onClick={() => { 
                                             setCustomerType('retail'); 
                                             setIsNewSpot(false); 
-                                            setFormData(prev => ({ ...prev, channel: '卸販売' }));
-                                            if (formData.customerName && !retailStores.some(r => r.name === formData.customerName)) {
-                                                setFormData(prev => ({ ...prev, customerName: "" }));
-                                            }
+                                            setSelectedCustomerId("");
+                                            setFormData(prev => ({ ...prev, channel: '卸販売', customerName: "" }));
                                         }}
+                                        title="設定の販売先管理で登録済みの得意先を選択します"
                                         className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-md transition-all ${customerType === 'retail' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         販売店舗・事業者
-                                        <Tooltip content="設定＞販売店舗管理で登録済みの得意先を選択します。" position="bottom" />
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => { 
                                             setCustomerType('spot'); 
-                                            setFormData(prev => ({ ...prev, channel: 'スポット注文' }));
-                                            if (formData.customerName && retailStores.some(r => r.name === formData.customerName)) {
-                                                setFormData(prev => ({ ...prev, customerName: "" }));
-                                            }
+                                            setSelectedCustomerId("");
+                                            setFormData(prev => ({ ...prev, channel: 'スポット注文', customerName: "" }));
                                         }}
+                                        title="一時的な取引や個人への直接販売などの宛先を選択します"
                                         className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-md transition-all ${customerType === 'spot' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         スポット（都度）
-                                        <Tooltip content="一時的な取引や、個人への直接販売などの宛先を入力します。" position="bottom" />
                                     </button>
                                 </div>
 
@@ -200,12 +218,16 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                     {customerType === 'retail' ? (
                                         <select
                                             required
-                                            value={formData.customerName}
-                                            onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                                            value={selectedCustomerId}
+                                            onChange={(e) => {
+                                                const store = selectableRetailStores.find(item => item.id === e.target.value);
+                                                setSelectedCustomerId(e.target.value);
+                                                setFormData({ ...formData, customerName: store?.name || "" });
+                                            }}
                                             className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white"
                                         >
                                             <option value="" disabled>取引先（店舗・事業者）を選択</option>
-                                            {retailStores.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                                            {selectableRetailStores.map(r => <option key={r.id} value={r.id}>{r.name}{r.isTrashed ? '（削除済み・履歴用）' : ''}</option>)}
                                         </select>
                                     ) : (
                                         <div className="space-y-2">
@@ -214,8 +236,12 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                                     <input
                                                         required
                                                         type="text"
-                                                        value={formData.customerName}
-                                                        onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                                                        value={selectedCustomerId}
+                                                        onChange={(e) => {
+                                                            const spot = selectableSpotRecipients.find(item => item.id === e.target.value);
+                                                            setSelectedCustomerId(e.target.value);
+                                                            setFormData({ ...formData, customerName: spot?.name || "" });
+                                                        }}
                                                         className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white"
                                                         placeholder="新しい宛先名を入力"
                                                     />
@@ -236,11 +262,11 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                                         className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white"
                                                     >
                                                         <option value="" disabled>既存のスポット宛先を選択</option>
-                                                        {spotRecipients.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                                        {selectableSpotRecipients.map(s => <option key={s.id} value={s.id}>{s.name}{s.isTrashed ? '（削除済み・履歴用）' : ''}</option>)}
                                                     </select>
                                                     <button
                                                         type="button"
-                                                        onClick={() => { setIsNewSpot(true); setFormData({...formData, customerName: ""}); }}
+                                                        onClick={() => { setIsNewSpot(true); setSelectedCustomerId(""); setFormData({...formData, customerName: ""}); }}
                                                         className="flex-shrink-0 px-4 flex items-center gap-1.5 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100"
                                                     >
                                                         <Plus className="w-4 h-4" /> 新規
@@ -271,7 +297,7 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                     <select
                                         required
                                         value={formData.channel}
-                                        onChange={(e) => setFormData({ ...formData, channel: e.target.value as any })}
+                                        onChange={(e) => setFormData({ ...formData, channel: e.target.value as Transaction['channel'] })}
                                         className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white"
                                     >
                                         {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -334,7 +360,7 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                     <select
                                         required
                                         value={formData.transactionStatus}
-                                        onChange={(e) => setFormData({ ...formData, transactionStatus: e.target.value as any })}
+                                        onChange={(e) => setFormData({ ...formData, transactionStatus: e.target.value as Transaction['transactionStatus'] })}
                                         className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white"
                                     >
                                         {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}

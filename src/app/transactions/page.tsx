@@ -115,7 +115,7 @@ export default function TransactionsPage() {
                 </div>
                 <button 
                     onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl shadow-lg transition-all hover:translate-y-[-1px] active:translate-y-[1px]" 
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl shadow-lg transition-all hover:translate-y-[-1px] active:translate-y-[1px] w-full sm:w-auto"
                     style={{ backgroundColor: BRAND }}
                 >
                     <Plus className="w-4 h-4" />新規取引を追加
@@ -123,7 +123,7 @@ export default function TransactionsPage() {
             </div>
 
             {/* Dashboard Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-2 relative overflow-hidden">
                     <div className="absolute -right-4 -top-4 w-16 h-16 bg-blue-50/50 rounded-full blur-xl" />
                     <div className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest">

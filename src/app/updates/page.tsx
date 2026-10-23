@@ -110,11 +110,37 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.10.0 */}
+                    {/* v1.11.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">商品・仕入・在庫・売上・取引管理のデータ整合性強化</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "伝票と在庫を一括保存：仕入・売上・日報補充・販促・在庫変換・商品制作で、途中失敗による片側だけの更新を防止",
+                                    "差分更新と二重反映防止：部分入荷や売上編集は変更差分だけを反映し、削除・復元の重複操作では在庫を再増減しないよう改善",
+                                    "セット商品履歴の保護：売上登録時の在庫影響を保存し、後からセット構成を変更しても過去売上を正しく差し戻せるよう改善",
+                                    "棚卸しの競合防止：完了判定と在庫調整をトランザクション化し、複数端末からの同時完了でも二重計上を防止",
+                                    "販売入力のマスター整合：削除済み商品・販売先を新規選択から除外し、卸販売では販売先別の卸請求単価を優先",
+                                    "取引先IDの保持：名称変更後も取引先との紐付けが切れないよう、販売先・スポット宛先をIDで保存",
+                                    "外部連携の補正：Shopify・Amazon・Square売上の集計値と在庫影響を統一し、削除済み商品の誤連携やSquare再同期時の在庫差異を防止",
+                                    "日報補充の二重減算防止：委託販売先だけを本部在庫から店舗在庫へ振り替え、卸・直営では補充と売上の重複減算をしないよう修正"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.10.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.10.0 - 2026.10.23</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">商品・仕入先・販売先別価格設定の統合と誤操作防止</h3>
                             <ul className="space-y-2">
                                 {[

@@ -3,12 +3,21 @@
 
 import { useMemo } from "react";
 import useSWR from "swr";
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch, increment } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch, increment, runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
 import { useAuth } from "@/lib/authContext";
 import { getMockData } from "@/lib/mockData";
 import { syncProductToAmazon } from "@/app/actions/amazon";
+import {
+    diffInventoryEffects,
+    getDailyReportInventoryEffects,
+    getPurchaseInventoryEffects,
+    getSaleInventoryEffects,
+    mergeInventoryEffects,
+    normalizeSaleTotals,
+    type InventoryEffect,
+} from "@/lib/inventoryConsistency";
 
 // Helper to remove undefined properties before sending to Firestore
 const cleanObject = (obj: any) => {
@@ -297,6 +306,7 @@ export interface Sale extends BaseEntity {
     isRepeatCustomer?: boolean;
     shopifyOrdersCount?: number | null;
     transactionId?: string;
+    inventoryEffects?: InventoryEffect[]; // 登録時の在庫影響を保存し、後日の商品構成変更でも正確に差し戻す
     shippingCost?: number;
     platformFee?: number;
     packagingCost?: number;
@@ -428,6 +438,8 @@ export interface Transaction extends BaseEntity {
     shopifyOrdersCount?: number;
     storeId?: string;       // 関連する販売店舗ID
     storeName?: string;     // 関連する販売店舗名 (非正規化)
+    spotRecipientId?: string; // 関連するスポット宛先ID
+    recipientType?: 'store' | 'spot';
     channel: 'スポット注文' | '卸販売' | '委託販売' | '店頭販売' | 'EC' | 'イベント販売';
     orderDate: string;
     deliveryDate: string;
@@ -815,7 +827,10 @@ export interface MqSummary extends BaseEntity {
 const fetcher = async <T>(collectionName: string, isDemoMode: boolean): Promise<T[]> => {
     if (!collectionName) return [];
     if (isDemoMode) {
-        return getMockData(collectionName);
+        const mockData = getMockData(collectionName);
+        return collectionName === 'sales'
+            ? mockData.map(item => normalizeSaleTotals(item))
+            : mockData;
     }
     const querySnapshot = await getDocs(collection(db, collectionName));
 
@@ -833,6 +848,10 @@ const fetcher = async <T>(collectionName: string, isDemoMode: boolean): Promise<
                 }];
                 data.totalAmount = data.totalCost || 0;
             }
+        }
+
+        if (collectionName === 'sales') {
+            return normalizeSaleTotals(data) as T;
         }
 
         return data as T;
@@ -1154,109 +1173,157 @@ export function useStore() {
         mutateRetailStores();
     };
 
+    const appendInventoryEffectsToBatch = (
+        batch: ReturnType<typeof writeBatch>,
+        effects: InventoryEffect[],
+        context: { referenceId: string; date: string; source: 'purchase' | 'sale' | 'report' | 'conversion' | 'production'; remarks: string },
+    ) => {
+        const mergedEffects = mergeInventoryEffects(effects);
+        if ((mergedEffects.length * 2) + 1 > 450) {
+            throw new Error('一度に更新する商品数が多すぎます。明細を分けて登録してください。');
+        }
+
+        for (const effect of mergedEffects) {
+            if (!effect.quantity) continue;
+            const product = products.find(item => item.id === effect.productId);
+            const productName = product?.name || '不明な商品';
+            const movementType = effect.quantity > 0 ? 'in' : 'out';
+
+            if (effect.scope === 'main') {
+                batch.update(doc(db, 'products', effect.productId), {
+                    stock: increment(effect.quantity),
+                    updatedAt: serverTimestamp(),
+                });
+                batch.set(doc(collection(db, 'stock_movements')), {
+                    productId: effect.productId,
+                    productName,
+                    type: movementType,
+                    quantity: Math.abs(effect.quantity),
+                    reason: context.source === 'purchase'
+                        ? (effect.quantity > 0 ? 'purchase' : 'manual')
+                        : context.source === 'sale'
+                            ? (effect.quantity > 0 ? 'return' : 'sale')
+                            : context.source === 'conversion' || context.source === 'production'
+                                ? context.source
+                                : 'manual',
+                    referenceId: context.referenceId,
+                    date: context.date,
+                    remarks: context.remarks,
+                    createdAt: serverTimestamp(),
+                });
+                continue;
+            }
+
+            if (!effect.storeId) {
+                throw new Error(`店舗在庫の更新先が見つかりません (${effect.productId})`);
+            }
+            batch.set(doc(db, 'store_stocks', `${effect.storeId}_${effect.productId}`), {
+                storeId: effect.storeId,
+                productId: effect.productId,
+                stock: increment(effect.quantity),
+                updatedAt: serverTimestamp(),
+            }, { merge: true });
+            batch.set(doc(collection(db, 'store_stock_movements')), {
+                storeId: effect.storeId,
+                productId: effect.productId,
+                productName,
+                type: movementType,
+                quantity: Math.abs(effect.quantity),
+                reason: context.source === 'report'
+                    ? 'restock'
+                    : (effect.quantity > 0 ? 'return' : 'sale'),
+                referenceId: context.referenceId,
+                date: context.date,
+                remarks: context.remarks,
+                createdAt: serverTimestamp(),
+            });
+        }
+    };
+
+    const applyInventoryEffectsToLocalCache = (effects: InventoryEffect[]) => {
+        const mainEffects = new Map<string, number>();
+        const storeEffects = new Map<string, InventoryEffect>();
+        for (const effect of effects) {
+            if (effect.scope === 'main') {
+                mainEffects.set(effect.productId, (mainEffects.get(effect.productId) || 0) + effect.quantity);
+            } else if (effect.storeId) {
+                const key = `${effect.storeId}_${effect.productId}`;
+                const current = storeEffects.get(key);
+                storeEffects.set(key, current
+                    ? { ...current, quantity: current.quantity + effect.quantity }
+                    : effect);
+            }
+        }
+        if (mainEffects.size) {
+            mutateProducts((current = []) => current.map(product => mainEffects.has(product.id)
+                ? { ...product, stock: (product.stock || 0) + (mainEffects.get(product.id) || 0) }
+                : product), false);
+        }
+        if (storeEffects.size) {
+            mutateStoreStocks((current = []) => {
+                const next = [...current];
+                for (const [id, effect] of storeEffects) {
+                    const index = next.findIndex(item => item.id === id);
+                    if (index >= 0) {
+                        next[index] = { ...next[index], stock: (next[index].stock || 0) + effect.quantity };
+                    } else {
+                        next.unshift({
+                            id,
+                            storeId: effect.storeId!,
+                            productId: effect.productId,
+                            stock: effect.quantity,
+                        });
+                    }
+                }
+                return next;
+            }, false);
+        }
+    };
+
+    const refreshInventoryCaches = (effects: InventoryEffect[]) => {
+        applyInventoryEffectsToLocalCache(effects);
+        mutateProducts();
+        mutateStoreStocks();
+        mutateStockMovements();
+        mutateStoreStockMovements();
+    };
+
     // --- Purchase Actions (Inbound Shipments) ---
     const addPurchase = async (purchaseData: Omit<Purchase, "id" | "createdAt">) => {
         if (checkDemoMode()) return;
         const newRef = doc(collection(db, "inbound_shipments"));
-        const newPurchase: Purchase = { 
-            id: newRef.id, 
-            ...purchaseData, 
-            createdAt: new Date().toISOString() 
-        } as Purchase;
-
-        // Auto-initialize receivedQuantity if missing
-        newPurchase.items = (newPurchase.items || []).map(item => ({
+        const items = (purchaseData.items || []).map(item => ({
             ...item,
-            receivedQuantity: item.receivedQuantity ?? (newPurchase.type === 'B' ? item.quantity : 0)
+            receivedQuantity: item.receivedQuantity ?? (purchaseData.type === 'B' ? item.quantity : 0),
         }));
-
-        const isReceived = (newPurchase.status === 'received' || newPurchase.status === 'paid' || newPurchase.status === 'partially_received') && !newPurchase.isTrashed;
-
-        if (isReceived) {
-            for (const item of newPurchase.items) {
-                if (item.receivedQuantity > 0) {
-                    const product = products.find(p => p.id === item.productId);
-                    if (product) {
-                        await adjustProductStock(product.id, item.receivedQuantity);
-                        await logStockMovement({
-                            productId: product.id,
-                            productName: product.name,
-                            type: 'in',
-                            quantity: item.receivedQuantity,
-                            reason: 'purchase',
-                            remarks: `新規仕入登録による在庫反映 (ID: ${newRef.id})`,
-                            referenceId: newRef.id,
-                            date: newPurchase.arrivalDate || newPurchase.receivedDate || newPurchase.orderDate
-                        });
-                    }
-                }
-            }
-        }
-
-        mutatePurchases([...purchases, newPurchase as Purchase], false);
-        await setDoc(newRef, {
-            ...cleanObject(purchaseData),
+        const newPurchase: Purchase = {
+            id: newRef.id,
+            ...purchaseData,
+            items,
+            createdAt: new Date().toISOString(),
+        };
+        const effects = getPurchaseInventoryEffects(newPurchase);
+        const batch = writeBatch(db);
+        batch.set(newRef, {
+            ...cleanObject({ ...purchaseData, items }),
             createdAt: serverTimestamp(),
         });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: newRef.id,
+            date: newPurchase.arrivalDate || newPurchase.receivedDate || newPurchase.orderDate,
+            source: 'purchase',
+            remarks: '仕入登録による在庫反映',
+        });
+        await batch.commit();
+        mutatePurchases([...purchases, newPurchase], false);
+        refreshInventoryCaches(effects);
         mutatePurchases();
     };
 
     const updatePurchase = async (id: string, purchaseUpdate: Partial<Omit<Purchase, "id" | "createdAt">>) => {
+        if (checkDemoMode()) return;
         const currentPurchase = purchases.find(p => p.id === id);
         if (!currentPurchase) return;
-
-        const wasReceived = (currentPurchase.status === 'received' || currentPurchase.status === 'paid' || currentPurchase.status === 'partially_received') && !currentPurchase.isTrashed;
-        const isNowReceived = (purchaseUpdate.status === 'received' || purchaseUpdate.status === 'paid' || purchaseUpdate.status === 'partially_received' || (!purchaseUpdate.status && wasReceived)) && !currentPurchase.isTrashed;
-
-        // 1. If it WAS received, undo the previous stock first
-        if (wasReceived) {
-            const items = currentPurchase.items || [];
-            for (const item of items) {
-                const receivedQty = item.receivedQuantity ?? (currentPurchase.status === 'received' || currentPurchase.status === 'paid' ? item.quantity : 0);
-                if (receivedQty > 0) {
-                    const product = products.find(p => p.id === item.productId);
-                    if (product) {
-                        await adjustProductStock(product.id, -receivedQty);
-                        await logStockMovement({
-                            productId: product.id,
-                            productName: product.name,
-                            type: 'out',
-                            quantity: receivedQty,
-                            reason: 'manual', 
-                            remarks: `仕入情報の更新による在庫差し戻し (ID: ${id})`,
-                            referenceId: id,
-                            date: currentPurchase.arrivalDate || currentPurchase.receivedDate || new Date().toISOString().split('T')[0]
-                        });
-                    }
-                }
-            }
-        }
-
-        // 2. If it IS NOW received (or remains received), apply the new stock
-        if (isNowReceived) {
-            const items = purchaseUpdate.items || currentPurchase.items || [];
-            for (const item of items) {
-                const isFullStatus = (purchaseUpdate.status || currentPurchase.status) === 'received' || (purchaseUpdate.status || currentPurchase.status) === 'paid';
-                const receivedQty = item.receivedQuantity ?? (isFullStatus ? item.quantity : 0);
-                
-                if (receivedQty > 0) {
-                    const product = products.find(p => p.id === item.productId);
-                    if (product) {
-                        await adjustProductStock(product.id, receivedQty);
-                        await logStockMovement({
-                            productId: product.id,
-                            productName: product.name,
-                            type: 'in',
-                            quantity: receivedQty,
-                            reason: 'purchase',
-                            remarks: `仕入情報の更新による在庫反映 (ID: ${id})`,
-                            referenceId: id,
-                            date: purchaseUpdate.arrivalDate || purchaseUpdate.receivedDate || currentPurchase.arrivalDate || currentPurchase.receivedDate || new Date().toISOString().split('T')[0]
-                        });
-                    }
-                }
-            }
-        }
 
         // Auto-set dates based on status
         if (purchaseUpdate.status === 'received' && !purchaseUpdate.receivedDate) {
@@ -1266,165 +1333,120 @@ export function useStore() {
         if (purchaseUpdate.status === 'paid' && !purchaseUpdate.paymentDate) {
             purchaseUpdate.paymentDate = new Date().toISOString().split('T')[0];
         }
-
-        mutatePurchases(purchases.map((p) => p.id === id ? { ...p, ...purchaseUpdate } : p) as Purchase[], false);
-        const docRef = doc(db, "inbound_shipments", id);
-        await updateDoc(docRef, cleanObject(purchaseUpdate));
+        const nextPurchase = { ...currentPurchase, ...purchaseUpdate } as Purchase;
+        const effects = diffInventoryEffects(
+            getPurchaseInventoryEffects(currentPurchase),
+            getPurchaseInventoryEffects(nextPurchase),
+        );
+        const batch = writeBatch(db);
+        batch.update(doc(db, "inbound_shipments", id), cleanObject(purchaseUpdate));
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: nextPurchase.arrivalDate || nextPurchase.receivedDate || nextPurchase.orderDate,
+            source: 'purchase',
+            remarks: '仕入更新による在庫差分反映',
+        });
+        await batch.commit();
+        mutatePurchases(purchases.map((p) => p.id === id ? nextPurchase : p), false);
+        refreshInventoryCaches(effects);
         mutatePurchases();
     };
 
     const deletePurchase = async (id: string) => {
+        if (checkDemoMode()) return;
         const purchase = purchases.find(p => p.id === id);
-        if (!purchase) return;
-
-        // Correct stock if the purchase was received
-        const wasReceived = (purchase.status === 'received' || purchase.status === 'paid' || purchase.status === 'partially_received');
-        if (wasReceived && !purchase.isTrashed) {
-            const items = purchase.items || [];
-            for (const item of items) {
-                const receivedQty = item.receivedQuantity ?? (purchase.status === 'partially_received' ? 0 : item.quantity);
-                if (receivedQty > 0) {
-                    const product = products.find(p => p.id === item.productId);
-                    if (product) {
-                        await adjustProductStock(product.id, -receivedQty);
-                        await logStockMovement({
-                            productId: product.id,
-                            productName: product.name,
-                            type: 'out',
-                            quantity: receivedQty,
-                            reason: 'manual',
-                            remarks: `仕入記録の削除による在庫差し戻し (ID: ${id})`,
-                            referenceId: id,
-                            date: new Date().toISOString().split('T')[0]
-                        });
-                    }
-                }
-            }
-        }
-
-        await updateDoc(doc(db, "inbound_shipments", id), { isTrashed: true });
+        if (!purchase || purchase.isTrashed) return;
+        const nextPurchase = { ...purchase, isTrashed: true };
+        const effects = diffInventoryEffects(
+            getPurchaseInventoryEffects(purchase),
+            getPurchaseInventoryEffects(nextPurchase),
+        );
+        const batch = writeBatch(db);
+        batch.update(doc(db, "inbound_shipments", id), { isTrashed: true });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: new Date().toISOString().split('T')[0],
+            source: 'purchase',
+            remarks: '仕入削除による在庫差し戻し',
+        });
+        await batch.commit();
+        mutatePurchases(purchases.map(item => item.id === id ? nextPurchase : item), false);
+        refreshInventoryCaches(effects);
         mutatePurchases();
     };
 
     const restorePurchase = async (id: string) => {
+        if (checkDemoMode()) return;
         const purchase = purchases.find(p => p.id === id);
-        if (!purchase) return;
-
-        // Redo stock if the purchase was received
-        const wasReceived = (purchase.status === 'received' || purchase.status === 'paid' || purchase.status === 'partially_received');
-        if (wasReceived) {
-            const items = purchase.items || [];
-            for (const item of items) {
-                const receivedQty = item.receivedQuantity ?? (purchase.status === 'partially_received' ? 0 : item.quantity);
-                if (receivedQty > 0) {
-                    const product = products.find(p => p.id === item.productId);
-                    if (product) {
-                        await adjustProductStock(product.id, receivedQty);
-                        await logStockMovement({
-                            productId: product.id,
-                            productName: product.name,
-                            type: 'in',
-                            quantity: receivedQty,
-                            reason: 'purchase',
-                            remarks: `仕入記録の復元による在庫反映 (ID: ${id})`,
-                            referenceId: id,
-                            date: purchase.arrivalDate || purchase.receivedDate || new Date().toISOString().split('T')[0]
-                        });
-                    }
-                }
-            }
-        }
-
-        await updateDoc(doc(db, "inbound_shipments", id), { isTrashed: false });
+        if (!purchase || !purchase.isTrashed) return;
+        const nextPurchase = { ...purchase, isTrashed: false };
+        const effects = diffInventoryEffects(
+            getPurchaseInventoryEffects(purchase),
+            getPurchaseInventoryEffects(nextPurchase),
+        );
+        const batch = writeBatch(db);
+        batch.update(doc(db, "inbound_shipments", id), { isTrashed: false });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: purchase.arrivalDate || purchase.receivedDate || purchase.orderDate,
+            source: 'purchase',
+            remarks: '仕入復元による在庫反映',
+        });
+        await batch.commit();
+        mutatePurchases(purchases.map(item => item.id === id ? nextPurchase : item), false);
+        refreshInventoryCaches(effects);
         mutatePurchases();
     };
 
     const permanentlyDeletePurchase = async (id: string) => {
+        if (checkDemoMode()) return;
+        const purchase = purchases.find(item => item.id === id);
+        if (purchase && !purchase.isTrashed) {
+            throw new Error('仕入記録は先にゴミ箱へ移動してください。');
+        }
         await deleteDoc(doc(db, "inbound_shipments", id));
         mutatePurchases();
     };
 
     // --- Sale Actions ---
     const addSale = async (saleData: Omit<Sale, "id" | "updatedAt">) => {
+        if (checkDemoMode()) return;
         const newRef = doc(collection(db, "sales"));
-        const newSale = {
+        const normalizedSale = normalizeSaleTotals(saleData);
+        const calculatedEffects = getSaleInventoryEffects(normalizedSale, products, retailStores);
+        const newSale: Sale = {
             id: newRef.id,
-            ...saleData,
+            ...normalizedSale,
+            inventoryEffects: calculatedEffects,
             updatedAt: new Date().toISOString(),
         };
-
-        // Stock adjustment logic
-        const targetStore = saleData.storeId ? retailStores.find(s => s.id === saleData.storeId) : null;
-        const isConsignment = isConsignmentStore(targetStore);
-
-        for (const item of saleData.items) {
-            const product = products.find(p => p.id === item.productId);
-            if (!product) continue;
-
-            if (product.isComposite && product.components) {
-                // Adjust components
-                for (const comp of product.components) {
-                    const compProduct = products.find(p => p.id === comp.productId);
-                    if (compProduct) {
-                        // Overall stock deduction (only if NOT consignment)
-                        if (!isConsignment) {
-                            await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
-                            await logStockMovement({
-                                productId: compProduct.id,
-                                productName: compProduct.name,
-                                type: 'out',
-                                quantity: comp.quantity * item.quantity,
-                                reason: 'sale',
-                                referenceId: newRef.id,
-                                date: saleData.period.split('T')[0]
-                            });
-                        }
-
-                        // Store stock deduction (only if consignment)
-                        if (isConsignment) {
-                            await updateStoreStock(saleData.storeId!, compProduct.id, -(comp.quantity * item.quantity), 'sale', newRef.id, saleData.period.split('T')[0]);
-                        }
-                    }
-                }
-            } else {
-                // Adjust simple product
-                // Overall stock deduction (only if NOT consignment)
-                if (!isConsignment) {
-                    await adjustProductStock(product.id, -item.quantity);
-                    await logStockMovement({
-                        productId: product.id,
-                        productName: product.name,
-                        type: 'out',
-                        quantity: item.quantity,
-                        reason: 'sale',
-                        referenceId: newRef.id,
-                        date: saleData.period.split('T')[0]
-                    });
-                }
-
-                // Store stock deduction (only if consignment)
-                if (isConsignment) {
-                    await updateStoreStock(saleData.storeId!, product.id, -item.quantity, 'sale', newRef.id, saleData.period.split('T')[0]);
-                }
-            }
-        }
-
-        mutateSales([newSale as Sale, ...sales], false);
-        await setDoc(newRef, {
-            ...saleData,
+        const batch = writeBatch(db);
+        batch.set(newRef, {
+            ...cleanObject(normalizedSale),
+            inventoryEffects: calculatedEffects,
             updatedAt: serverTimestamp(),
         });
+        appendInventoryEffectsToBatch(batch, calculatedEffects, {
+            referenceId: newRef.id,
+            date: normalizedSale.period.split('T')[0],
+            source: 'sale',
+            remarks: '売上登録による在庫反映',
+        });
+        await batch.commit();
+        mutateSales([newSale, ...sales], false);
+        refreshInventoryCaches(calculatedEffects);
         logActivity({
             type: 'create',
             category: 'sale',
             title: `売上を記録しました`,
-            detail: `${retailStores.find(s => s.id === saleData.storeId)?.name} / ¥${saleData.totalAmount.toLocaleString()}`
+            detail: `${retailStores.find(s => s.id === normalizedSale.storeId)?.name || normalizedSale.storeName || '販売先未設定'} / ¥${normalizedSale.totalAmount.toLocaleString()}`
         });
         mutateSales();
     };
 
     // --- Stock Conversion Actions ---
     const addStockConversion = async (data: Omit<StockConversion, "id" | "createdAt">) => {
+        if (checkDemoMode()) return;
         const newRef = doc(collection(db, "stock_conversions"));
         const newConv: StockConversion = {
             id: newRef.id,
@@ -1432,38 +1454,21 @@ export function useStore() {
             createdAt: new Date().toISOString()
         };
 
-        // Adjust stocks
-        const inputProduct = products.find(p => p.id === data.inputProductId);
-        if (inputProduct) {
-            await adjustProductStock(inputProduct.id, -data.inputQty);
-            await logStockMovement({
-                productId: inputProduct.id,
-                productName: inputProduct.name,
-                type: 'out',
-                quantity: data.inputQty,
-                reason: 'conversion',
-                remarks: `在庫変換 (元): ${data.notes || ""}`,
-                referenceId: newRef.id,
-                date: data.date
-            });
-        }
-        const outputProduct = products.find(p => p.id === data.outputProductId);
-        if (outputProduct) {
-            await adjustProductStock(outputProduct.id, data.outputQty);
-            await logStockMovement({
-                productId: outputProduct.id,
-                productName: outputProduct.name,
-                type: 'in',
-                quantity: data.outputQty,
-                reason: 'conversion',
-                remarks: `在庫変換 (先): ${data.notes || ""}`,
-                referenceId: newRef.id,
-                date: data.date
-            });
-        }
-
+        const effects: InventoryEffect[] = [
+            { scope: 'main', productId: data.inputProductId, quantity: -data.inputQty },
+            { scope: 'main', productId: data.outputProductId, quantity: data.outputQty },
+        ];
+        const batch = writeBatch(db);
+        batch.set(newRef, { ...data, createdAt: serverTimestamp() });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: newRef.id,
+            date: data.date,
+            source: 'conversion',
+            remarks: `在庫変換: ${data.notes || '備考なし'}`,
+        });
+        await batch.commit();
         mutateStockConversions([newConv, ...stockConversions], false);
-        await setDoc(newRef, { ...data, createdAt: serverTimestamp() });
+        refreshInventoryCaches(effects);
         mutateStockConversions();
     };
 
@@ -1476,45 +1481,25 @@ export function useStore() {
             createdAt: new Date().toISOString()
         };
 
-        // 1. 完成品の在庫を増やす
-        const product = products.find(p => p.id === data.productId);
-        if (product) {
-            await adjustProductStock(product.id, data.quantity);
-            await logStockMovement({
-                productId: product.id,
-                productName: product.name,
-                type: 'in',
-                quantity: data.quantity,
-                reason: 'production',
-                remarks: `商品の制作 (ID: ${newRef.id})`,
-                referenceId: newRef.id,
-                date: data.date
-            });
-        }
-
-        // 2. 構成商品の在庫を減らす
-        for (const component of data.components) {
-            const compProduct = products.find(p => p.id === component.productId);
-            if (compProduct) {
-                await adjustProductStock(compProduct.id, -component.quantity);
-                await logStockMovement({
-                    productId: compProduct.id,
-                    productName: compProduct.name,
-                    type: 'out',
-                    quantity: component.quantity,
-                    reason: 'production',
-                    remarks: `商品の制作に使用 (ID: ${newRef.id})`,
-                    referenceId: newRef.id,
-                    date: data.date
-                });
-            }
-        }
-
-        mutateCompositeProductions([newProduction, ...compositeProductions], false);
-        await setDoc(newRef, {
-            ...data,
-            createdAt: serverTimestamp()
+        const effects: InventoryEffect[] = [
+            { scope: 'main', productId: data.productId, quantity: data.quantity },
+            ...data.components.map(component => ({
+                scope: 'main' as const,
+                productId: component.productId,
+                quantity: -component.quantity,
+            })),
+        ];
+        const batch = writeBatch(db);
+        batch.set(newRef, { ...data, createdAt: serverTimestamp() });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: newRef.id,
+            date: data.date,
+            source: 'production',
+            remarks: `商品制作: ${data.productName}`,
         });
+        await batch.commit();
+        mutateCompositeProductions([newProduction, ...compositeProductions], false);
+        refreshInventoryCaches(effects);
 
         logActivity({
             type: 'create',
@@ -1527,164 +1512,89 @@ export function useStore() {
     };
 
     const updateSale = async (id: string, saleData: Partial<Sale>) => {
+        if (checkDemoMode()) return;
         const currentSale = sales.find(s => s.id === id);
         if (!currentSale) return;
-
-        const newSale = { ...currentSale, ...saleData } as Sale;
-
-        // 1. Reverse old stock adjustments
-        const oldStore = currentSale.storeId ? retailStores.find(s => s.id === currentSale.storeId) : null;
-        const wasConsignment = isConsignmentStore(oldStore);
-
-        for (const item of currentSale.items) {
-            const product = products.find(p => p.id === item.productId);
-            if (!product) continue;
-
-            if (product.isComposite && product.components) {
-                for (const comp of product.components) {
-                    const compProduct = products.find(p => p.id === comp.productId);
-                    if (compProduct) {
-                        if (!wasConsignment) {
-                            await adjustProductStock(compProduct.id, (comp.quantity * item.quantity));
-                        } else {
-                            await updateStoreStock(currentSale.storeId, compProduct.id, (comp.quantity * item.quantity), 'return', id, new Date().toISOString().split('T')[0]);
-                        }
-                    }
-                }
-            } else {
-                if (!wasConsignment) {
-                    await adjustProductStock(product.id, item.quantity);
-                } else {
-                    await updateStoreStock(currentSale.storeId, product.id, item.quantity, 'return', id, new Date().toISOString().split('T')[0]);
-                }
-            }
-        }
-
-        // 2. Apply new stock adjustments
-        const newStore = newSale.storeId ? retailStores.find(s => s.id === newSale.storeId) : null;
-        const isNowConsignment = isConsignmentStore(newStore);
-
-        for (const item of newSale.items) {
-            const product = products.find(p => p.id === item.productId);
-            if (!product) continue;
-
-            if (product.isComposite && product.components) {
-                for (const comp of product.components) {
-                    const compProduct = products.find(p => p.id === comp.productId);
-                    if (compProduct) {
-                        if (!isNowConsignment) {
-                            await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
-                        } else {
-                            await updateStoreStock(newSale.storeId, compProduct.id, -(comp.quantity * item.quantity), 'sale', id, newSale.period.split('T')[0]);
-                        }
-                    }
-                }
-            } else {
-                if (!isNowConsignment) {
-                    await adjustProductStock(product.id, -item.quantity);
-                } else {
-                    await updateStoreStock(newSale.storeId, product.id, -item.quantity, 'sale', id, newSale.period.split('T')[0]);
-                }
-            }
-        }
-
-        mutateSales(sales.map((s) => s.id === id ? { ...s, ...saleData } : s) as Sale[], false);
-        const docRef = doc(db, "sales", id);
-        await updateDoc(docRef, {
+        const oldEffects = getSaleInventoryEffects(currentSale, products, retailStores);
+        const saleWithoutOldSnapshot = { ...currentSale, ...saleData, inventoryEffects: undefined } as Sale;
+        const normalizedSale = normalizeSaleTotals(saleWithoutOldSnapshot) as Sale;
+        const newEffects = getSaleInventoryEffects(normalizedSale, products, retailStores);
+        const newSale = { ...normalizedSale, inventoryEffects: newEffects };
+        const effects = diffInventoryEffects(oldEffects, newEffects);
+        const batch = writeBatch(db);
+        batch.update(doc(db, "sales", id), {
             ...cleanObject(saleData),
+            totalQuantity: newSale.totalQuantity,
+            totalAmount: newSale.totalAmount,
+            totalCommission: newSale.totalCommission,
+            totalNetProfit: newSale.totalNetProfit,
+            inventoryEffects: newEffects,
             updatedAt: serverTimestamp(),
         });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: newSale.period.split('T')[0],
+            source: 'sale',
+            remarks: '売上更新による在庫差分反映',
+        });
+        await batch.commit();
+        mutateSales(sales.map((s) => s.id === id ? newSale : s), false);
+        refreshInventoryCaches(effects);
         mutateSales();
     };
 
     const deleteSale = async (id: string) => {
+        if (checkDemoMode()) return;
         const sale = sales.find(s => s.id === id);
-        if (!sale) return;
-
-        // Reverse stock adjustments
-        const targetStore = sale.storeId ? retailStores.find(s => s.id === sale.storeId) : null;
-        const isConsignment = isConsignmentStore(targetStore);
-
-        for (const item of sale.items) {
-            const product = products.find(p => p.id === item.productId);
-            if (!product) continue;
-
-            if (product.isComposite && product.components) {
-                // Reverse components
-                for (const comp of product.components) {
-                    const compProduct = products.find(p => p.id === comp.productId);
-                    if (compProduct) {
-                        // Revert Overall stock (only if NOT consignment)
-                        if (!isConsignment) {
-                            await adjustProductStock(compProduct.id, (comp.quantity * item.quantity));
-                        }
-                        // Revert Store stock (only if consignment)
-                        if (isConsignment) {
-                            await updateStoreStock(sale.storeId, compProduct.id, (comp.quantity * item.quantity), 'return', id, new Date().toISOString().split('T')[0]);
-                        }
-                    }
-                }
-            } else {
-                // Reverse simple product
-                // Revert Overall stock (only if NOT consignment)
-                if (!isConsignment) {
-                    await adjustProductStock(product.id, item.quantity);
-                }
-                // Revert Store stock (only if consignment)
-                if (isConsignment) {
-                    await updateStoreStock(sale.storeId, product.id, item.quantity, 'return', id, new Date().toISOString().split('T')[0]);
-                }
-            }
-        }
-
-        await updateDoc(doc(db, "sales", id), { isTrashed: true });
+        if (!sale || sale.isTrashed) return;
+        const nextSale = { ...sale, isTrashed: true };
+        const effects = diffInventoryEffects(
+            getSaleInventoryEffects(sale, products, retailStores),
+            getSaleInventoryEffects(nextSale, products, retailStores),
+        );
+        const batch = writeBatch(db);
+        batch.update(doc(db, "sales", id), { isTrashed: true });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: new Date().toISOString().split('T')[0],
+            source: 'sale',
+            remarks: '売上削除による在庫差し戻し',
+        });
+        await batch.commit();
+        mutateSales(sales.map(item => item.id === id ? nextSale : item), false);
+        refreshInventoryCaches(effects);
         mutateSales();
     };
 
     const restoreSale = async (id: string) => {
+        if (checkDemoMode()) return;
         const sale = sales.find(s => s.id === id);
-        if (!sale) return;
-
-        // Re-apply stock adjustments
-        const targetStore = sale.storeId ? retailStores.find(s => s.id === sale.storeId) : null;
-        const isConsignment = isConsignmentStore(targetStore);
-
-        for (const item of sale.items) {
-            const product = products.find(p => p.id === item.productId);
-            if (!product) continue;
-
-            if (product.isComposite && product.components) {
-                for (const comp of product.components) {
-                    const compProduct = products.find(p => p.id === comp.productId);
-                    if (compProduct) {
-                        // Re-apply Overall stock (only if NOT consignment)
-                        if (!isConsignment) {
-                            await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
-                        }
-                        // Re-apply Store stock (only if consignment)
-                        if (isConsignment) {
-                            await updateStoreStock(sale.storeId, compProduct.id, -(comp.quantity * item.quantity), 'sale', id, sale.period.split('T')[0]);
-                        }
-                    }
-                }
-            } else {
-                // Re-apply simple product
-                // Re-apply Overall stock (only if NOT consignment)
-                if (!isConsignment) {
-                    await adjustProductStock(product.id, -item.quantity);
-                }
-                // Re-apply Store stock (only if consignment)
-                if (isConsignment) {
-                    await updateStoreStock(sale.storeId, product.id, -item.quantity, 'sale', id, sale.period.split('T')[0]);
-                }
-            }
-        }
-
-        await updateDoc(doc(db, "sales", id), { isTrashed: false });
+        if (!sale || !sale.isTrashed) return;
+        const nextSale = { ...sale, isTrashed: false };
+        const effects = diffInventoryEffects(
+            getSaleInventoryEffects(sale, products, retailStores),
+            getSaleInventoryEffects(nextSale, products, retailStores),
+        );
+        const batch = writeBatch(db);
+        batch.update(doc(db, "sales", id), { isTrashed: false });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: sale.period.split('T')[0],
+            source: 'sale',
+            remarks: '売上復元による在庫反映',
+        });
+        await batch.commit();
+        mutateSales(sales.map(item => item.id === id ? nextSale : item), false);
+        refreshInventoryCaches(effects);
         mutateSales();
     };
 
     const permanentlyDeleteSale = async (id: string) => {
+        if (checkDemoMode()) return;
+        const sale = sales.find(item => item.id === id);
+        if (sale && !sale.isTrashed) {
+            throw new Error('売上記録は先にゴミ箱へ移動してください。');
+        }
         await deleteDoc(doc(db, "sales", id));
         mutateSales();
     };
@@ -1724,86 +1634,56 @@ export function useStore() {
     };
 
     // --- Daily Report Actions ---
+    const getPromotionExpenseData = (report: DailyReport) => {
+        let amount = 0;
+        const memos: string[] = [];
+        for (const item of report.promotions || []) {
+            const product = products.find(candidate => candidate.id === item.productId);
+            if (!product) continue;
+            amount += (product.costPrice || 0) * item.qty;
+            memos.push(`${product.name} × ${item.qty} (${item.toWhom || '-'})`);
+        }
+        return {
+            amount,
+            memo: memos.join(', ') + (report.content ? `\n\n${report.content.slice(0, 50)}...` : ''),
+            item: `サンプル/販促提供（${report.title || report.worker}）`,
+        };
+    };
+
     const addDailyReport = async (reportData: Omit<DailyReport, "id" | "createdAt">) => {
+        if (checkDemoMode()) return;
         const newRef = doc(collection(db, "daily_reports"));
         const newReport: DailyReport = { id: newRef.id, ...reportData, createdAt: new Date().toISOString() };
+        const effects = getDailyReportInventoryEffects(newReport, retailStores);
+        const promotionExpense = getPromotionExpenseData(newReport);
+        const batch = writeBatch(db);
+        batch.set(newRef, { ...cleanObject(reportData), createdAt: serverTimestamp() });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: newRef.id,
+            date: reportData.date,
+            source: 'report',
+            remarks: '日報の補充・販促による在庫反映',
+        });
+        if (promotionExpense.amount > 0) {
+            const expenseRef = doc(collection(db, "expenses"));
+            batch.set(expenseRef, {
+                id: expenseRef.id,
+                date: reportData.date,
+                type: '支払',
+                category: '広告宣伝費',
+                paymentMethod: '小口現金',
+                ...promotionExpense,
+                referenceId: newRef.id,
+                isAnalyzed: false,
+                isConfirmed: true,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+        }
+        await batch.commit();
         mutateDailyReports([newReport, ...dailyReports], false);
-        await setDoc(newRef, { ...reportData, createdAt: serverTimestamp() });
-
-        // Restocking logic: Transfer from main inventory to store inventory
-        if (reportData.type === 'store' && reportData.storeId && reportData.restocking && reportData.restocking.length > 0) {
-            for (const item of reportData.restocking) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    // 1. Deduct from main stock
-                    await adjustProductStock(product.id, -item.qty);
-                    await logStockMovement({
-                        productId: product.id,
-                        productName: product.name,
-                        type: 'out',
-                        quantity: item.qty,
-                        reason: 'manual', // or add 'restock' to reasons
-                        remarks: `${reportData.storeName}への補充`,
-                        referenceId: newRef.id,
-                        date: reportData.date
-                    });
-
-                    // 2. Add to store stock
-                    const retailStore = retailStores.find(s => s.id === reportData.storeId);
-                    if (isConsignmentStore(retailStore)) {
-                        await updateStoreStock(reportData.storeId, product.id, item.qty, 'restock', newRef.id, reportData.date);
-                    }
-                }
-            }
-        }
-        // Promotion logic: Deduct from main inventory and add to Expenses
-        if (reportData.promotions && reportData.promotions.length > 0) {
-            let totalExpenseCost = 0;
-            const expenseMemos: string[] = [];
-
-            for (const item of reportData.promotions) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    await adjustProductStock(product.id, -item.qty);
-                    await logStockMovement({
-                        productId: product.id,
-                        productName: product.name,
-                        type: 'out',
-                        quantity: item.qty,
-                        reason: 'promotion',
-                        remarks: `サンプリング・販促 (${item.toWhom || '提供先等なし'})`,
-                        referenceId: newRef.id,
-                        date: reportData.date
-                    });
-                    
-                    const cost = (product.costPrice || 0) * item.qty;
-                    totalExpenseCost += cost;
-                    expenseMemos.push(`${product.name} × ${item.qty} (${item.toWhom || '-'})`);
-                }
-            }
-
-            if (totalExpenseCost > 0) {
-                const expenseRef = doc(collection(db, "expenses"));
-                const newExpense: Expense = {
-                    id: expenseRef.id,
-                    date: reportData.date,
-                    type: '支払',
-                    category: '広告宣伝費',
-                    paymentMethod: '小口現金',
-                    item: `サンプル/販促提供（${reportData.title || reportData.worker}）`,
-                    amount: totalExpenseCost,
-                    memo: expenseMemos.join(', ') + (reportData.content ? `\n\n${reportData.content.slice(0,50)}...` : ''),
-                    referenceId: newRef.id,
-                    isAnalyzed: false,
-                    isConfirmed: true,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                };
-                mutateExpenses([newExpense, ...expenses], false);
-                await setDoc(expenseRef, { ...cleanObject(newExpense), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-                mutateExpenses();
-            }
-        }
+        refreshInventoryCaches(effects);
+        mutateExpenses();
 
         logActivity({
             type: 'create',
@@ -1815,188 +1695,107 @@ export function useStore() {
     };
 
     const deleteDailyReport = async (id: string) => {
+        if (checkDemoMode()) return;
         const report = dailyReports.find(r => r.id === id);
-        if (!report) return;
-
-        // Reverse restocking logic
-        if (report.type === 'store' && report.storeId && report.restocking && report.restocking.length > 0) {
-            for (const item of report.restocking) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    // Reverse Deduction from main stock
-                    await adjustProductStock(product.id, item.qty);
-                    
-                    // Reverse Addition to store stock
-                    const retailStore = retailStores.find(s => s.id === report.storeId);
-                    if (isConsignmentStore(retailStore)) {
-                        await updateStoreStock(report.storeId, product.id, -item.qty, 'restock', id, report.date);
-                    }
-                }
-            }
-        }
-
-        // Reverse promotion logic
-        if (report.promotions && report.promotions.length > 0) {
-            for (const item of report.promotions) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    await adjustProductStock(product.id, item.qty);
-                }
-            }
-            // Reverse Expense
-            const relatedExpense = expenses.find(e => e.referenceId === id);
-            if (relatedExpense) {
-                await updateDoc(doc(db, "expenses", relatedExpense.id), { isTrashed: true });
-                mutateExpenses();
-            }
-        }
-
-        await updateDoc(doc(db, "daily_reports", id), { isTrashed: true });
+        if (!report || report.isTrashed) return;
+        const nextReport = { ...report, isTrashed: true };
+        const effects = diffInventoryEffects(
+            getDailyReportInventoryEffects(report, retailStores),
+            getDailyReportInventoryEffects(nextReport, retailStores),
+        );
+        const batch = writeBatch(db);
+        batch.update(doc(db, "daily_reports", id), { isTrashed: true });
+        const relatedExpense = expenses.find(e => e.referenceId === id);
+        if (relatedExpense) batch.update(doc(db, "expenses", relatedExpense.id), { isTrashed: true, updatedAt: serverTimestamp() });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: report.date,
+            source: 'report',
+            remarks: '日報削除による在庫差し戻し',
+        });
+        await batch.commit();
+        mutateDailyReports(dailyReports.map(item => item.id === id ? nextReport : item), false);
+        refreshInventoryCaches(effects);
+        mutateExpenses();
         mutateDailyReports();
     };
 
     const restoreDailyReport = async (id: string) => {
+        if (checkDemoMode()) return;
         const report = dailyReports.find(r => r.id === id);
-        if (!report) return;
-
-        // Re-apply restocking logic
-        if (report.type === 'store' && report.storeId && report.restocking && report.restocking.length > 0) {
-            for (const item of report.restocking) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    await adjustProductStock(product.id, -item.qty);
-                    const retailStore = retailStores.find(s => s.id === report.storeId);
-                    if (isConsignmentStore(retailStore)) {
-                        await updateStoreStock(report.storeId, product.id, item.qty, 'restock', id, report.date);
-                    }
-                }
-            }
-        }
-
-        // Re-apply promotion logic
-        if (report.promotions && report.promotions.length > 0) {
-            for (const item of report.promotions) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    await adjustProductStock(product.id, -item.qty);
-                }
-            }
-            // Restore Expense
-            const relatedExpense = expenses.find(e => e.referenceId === id);
-            if (relatedExpense) {
-                await updateDoc(doc(db, "expenses", relatedExpense.id), { isTrashed: false });
-                mutateExpenses();
-            }
-        }
-
-        await updateDoc(doc(db, "daily_reports", id), { isTrashed: false });
+        if (!report || !report.isTrashed) return;
+        const nextReport = { ...report, isTrashed: false };
+        const effects = diffInventoryEffects(
+            getDailyReportInventoryEffects(report, retailStores),
+            getDailyReportInventoryEffects(nextReport, retailStores),
+        );
+        const batch = writeBatch(db);
+        batch.update(doc(db, "daily_reports", id), { isTrashed: false });
+        const relatedExpense = expenses.find(e => e.referenceId === id);
+        if (relatedExpense) batch.update(doc(db, "expenses", relatedExpense.id), { isTrashed: false, updatedAt: serverTimestamp() });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: report.date,
+            source: 'report',
+            remarks: '日報復元による在庫反映',
+        });
+        await batch.commit();
+        mutateDailyReports(dailyReports.map(item => item.id === id ? nextReport : item), false);
+        refreshInventoryCaches(effects);
+        mutateExpenses();
         mutateDailyReports();
     };
 
     const permanentlyDeleteDailyReport = async (id: string) => {
+        if (checkDemoMode()) return;
+        const report = dailyReports.find(item => item.id === id);
+        if (report && !report.isTrashed) throw new Error('日報は先にゴミ箱へ移動してください。');
         await deleteDoc(doc(db, "daily_reports", id));
         mutateDailyReports();
     };
 
     const updateDailyReport = async (id: string, data: Partial<Omit<DailyReport, "id" | "createdAt">>) => {
+        if (checkDemoMode()) return;
         const currentReport = dailyReports.find(r => r.id === id);
         if (!currentReport) return;
-
-        // 1. Reverse old restocking
-        if (currentReport.type === 'store' && currentReport.storeId && currentReport.restocking && currentReport.restocking.length > 0) {
-            for (const item of currentReport.restocking) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    await adjustProductStock(product.id, item.qty);
-                    const retailStore = retailStores.find(s => s.id === currentReport.storeId);
-                    if (isConsignmentStore(retailStore)) {
-                        await updateStoreStock(currentReport.storeId, product.id, -item.qty, 'restock', id, currentReport.date);
-                    }
-                }
-            }
-        }
-
-        // 1.5 Reverse old promotions
-        if (currentReport.promotions && currentReport.promotions.length > 0) {
-            for (const item of currentReport.promotions) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    await adjustProductStock(product.id, item.qty);
-                }
-            }
-        }
-
         const newReport = { ...currentReport, ...data } as DailyReport;
-
-        // 2. Apply new restocking
-        if (newReport.type === 'store' && newReport.storeId && newReport.restocking && newReport.restocking.length > 0) {
-            for (const item of newReport.restocking) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    await adjustProductStock(product.id, -item.qty);
-                    const retailStore = retailStores.find(s => s.id === newReport.storeId);
-                    if (isConsignmentStore(retailStore)) {
-                        await updateStoreStock(newReport.storeId, product.id, item.qty, 'restock', id, newReport.date);
-                    }
-                }
-            }
-        }
-
-        // 2.5 Apply new promotions and recalculate Expense
-        let totalExpenseCost = 0;
-        const expenseMemos: string[] = [];
-
-        if (newReport.promotions && newReport.promotions.length > 0) {
-            for (const item of newReport.promotions) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    await adjustProductStock(product.id, -item.qty);
-                    const cost = (product.costPrice || 0) * item.qty;
-                    totalExpenseCost += cost;
-                    expenseMemos.push(`${product.name} × ${item.qty} (${item.toWhom || '-'})`);
-                }
-            }
-        }
-
-        // Update existing expense or create a new one if it didn't exist
+        const effects = diffInventoryEffects(
+            getDailyReportInventoryEffects(currentReport, retailStores),
+            getDailyReportInventoryEffects(newReport, retailStores),
+        );
+        const promotionExpense = getPromotionExpenseData(newReport);
         const relatedExpense = expenses.find(e => e.referenceId === id);
-        if (relatedExpense || totalExpenseCost > 0) {
-            if (!relatedExpense && totalExpenseCost > 0) {
-                const expenseRef = doc(collection(db, "expenses"));
-                const newExpense: Expense = {
-                    id: expenseRef.id,
-                    date: newReport.date,
-                    type: '支払',
-                    category: '広告宣伝費',
-                    paymentMethod: '小口現金',
-                    item: `サンプル/販促提供（${newReport.title || newReport.worker}）`,
-                    amount: totalExpenseCost,
-                    memo: expenseMemos.join(', ') + (newReport.content ? `\n\n${newReport.content.slice(0,50)}...` : ''),
-                    referenceId: id,
-                    isAnalyzed: false,
-                    isConfirmed: true,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                };
-                mutateExpenses([newExpense, ...expenses], false);
-                await setDoc(expenseRef, { ...cleanObject(newExpense), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-            } else if (relatedExpense && totalExpenseCost === 0) {
-                await updateDoc(doc(db, "expenses", relatedExpense.id), { isTrashed: true });
-            } else if (relatedExpense) {
-                const expUpdates = {
-                    amount: totalExpenseCost,
-                    memo: expenseMemos.join(', ') + (newReport.content ? `\n\n${newReport.content.slice(0,50)}...` : ''),
-                    item: `サンプル/販促提供（${newReport.title || newReport.worker}）`,
-                    date: newReport.date,
-                    updatedAt: serverTimestamp()
-                };
-                await updateDoc(doc(db, "expenses", relatedExpense.id), expUpdates);
-            }
-            mutateExpenses();
+        const batch = writeBatch(db);
+        batch.update(doc(db, "daily_reports", id), { ...cleanObject(data), updatedAt: serverTimestamp() });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: newReport.date,
+            source: 'report',
+            remarks: '日報更新による在庫差分反映',
+        });
+        if (relatedExpense && promotionExpense.amount === 0) {
+            batch.update(doc(db, "expenses", relatedExpense.id), { isTrashed: true, updatedAt: serverTimestamp() });
+        } else if (promotionExpense.amount > 0) {
+            const expenseRef = relatedExpense ? doc(db, "expenses", relatedExpense.id) : doc(collection(db, "expenses"));
+            batch.set(expenseRef, {
+                id: expenseRef.id,
+                date: newReport.date,
+                type: '支払',
+                category: '広告宣伝費',
+                paymentMethod: '小口現金',
+                ...promotionExpense,
+                referenceId: id,
+                isAnalyzed: relatedExpense?.isAnalyzed ?? false,
+                isConfirmed: relatedExpense?.isConfirmed ?? true,
+                isTrashed: false,
+                ...(relatedExpense ? {} : { createdAt: serverTimestamp() }),
+                updatedAt: serverTimestamp(),
+            }, { merge: true });
         }
-
-        mutateDailyReports(dailyReports.map(r => r.id === id ? { ...r, ...data } : r), false);
-        await updateDoc(doc(db, "daily_reports", id), { ...cleanObject(data), updatedAt: serverTimestamp() });
+        await batch.commit();
+        mutateDailyReports(dailyReports.map(r => r.id === id ? newReport : r), false);
+        refreshInventoryCaches(effects);
+        mutateExpenses();
         mutateDailyReports();
     };
 
@@ -2388,19 +2187,22 @@ export function useStore() {
     const transactions = useMemo(() => {
         return rawTransactions.map(t => {
             const payments = invoicePayments.filter(p => p.transactionId === t.id && !p.isTrashed);
-            const paidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+            const paidAmount = payments.length > 0
+                ? payments.reduce((sum, p) => sum + p.amount, 0)
+                : (t.paidAmount || 0);
             return {
                 ...t,
                 paidAmount,
-                balanceAmount: t.totalAmount - paidAmount
+                balanceAmount: Math.max(0, t.totalAmount - paidAmount)
             };
         });
     }, [rawTransactions, invoicePayments]);
 
     const addTransaction = async (data: Omit<Transaction, "id" | "createdAt" | "updatedAt">) => {
+        if (checkDemoMode()) return;
         const newRef = doc(collection(db, "transactions"));
         const payload = {
-            ...data,
+            ...cleanObject(data),
             id: newRef.id,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
@@ -2412,6 +2214,7 @@ export function useStore() {
     };
 
     const updateTransaction = async (id: string, data: Partial<Transaction>) => {
+        if (checkDemoMode()) return;
         const docRef = doc(db, "transactions", id);
         const cleaned = cleanObject(data);
         mutateTransactions(rawTransactions.map(t => t.id === id ? { ...t, ...cleaned } : t), false);
@@ -2421,32 +2224,79 @@ export function useStore() {
     };
 
     const deleteTransaction = async (id: string) => {
+        if (checkDemoMode()) return;
         const transaction = rawTransactions.find(t => t.id === id);
         if (!transaction) return;
         const relatedItems = transactionItems.filter(item => item.transactionId === id);
+        if ((relatedItems.length * 2) + 2 > 450) {
+            throw new Error('取引明細が多すぎます。明細を分けて処理してください。');
+        }
+        const batch = writeBatch(db);
+        const newTrashItems: TrashItem[] = [];
         for (const item of relatedItems) {
-            await moveToTrash(item.id, "transaction_items", item, `取引明細: ${item.productName}`);
-            await deleteDoc(doc(db, "transaction_items", item.id));
+            const trashRef = doc(collection(db, 'trash'));
+            const trashItem: TrashItem = {
+                id: trashRef.id,
+                originalId: item.id,
+                collectionName: 'transaction_items',
+                data: item,
+                label: `取引明細: ${item.productName}`,
+                deletedAt: new Date().toISOString(),
+            };
+            newTrashItems.push(trashItem);
+            batch.set(trashRef, { ...trashItem, deletedAt: serverTimestamp() });
+            batch.delete(doc(db, 'transaction_items', item.id));
         }
-        if (relatedItems.length > 0) {
-            mutateTransactionItems(transactionItems.filter(item => item.transactionId !== id), false);
-            mutateTransactionItems();
-        }
-        await moveToTrash(id, "transactions", transaction, `取引: ${transaction.customerName} (${transaction.orderDate})`);
+        const transactionTrashRef = doc(collection(db, 'trash'));
+        const transactionTrashItem: TrashItem = {
+            id: transactionTrashRef.id,
+            originalId: id,
+            collectionName: 'transactions',
+            data: transaction,
+            label: `取引: ${transaction.customerName} (${transaction.orderDate})`,
+            deletedAt: new Date().toISOString(),
+        };
+        batch.set(transactionTrashRef, { ...transactionTrashItem, deletedAt: serverTimestamp() });
+        batch.delete(doc(db, 'transactions', id));
+        await batch.commit();
+        mutateTrash([transactionTrashItem, ...newTrashItems, ...trash], false);
+        mutateTransactionItems(transactionItems.filter(item => item.transactionId !== id), false);
         mutateTransactions(rawTransactions.filter(t => t.id !== id), false);
-        await deleteDoc(doc(db, "transactions", id));
+        mutateTrash();
+        mutateTransactionItems();
         mutateTransactions();
     };
 
     const restoreTransaction = async (id: string) => {
+        if (checkDemoMode()) return;
         const trashItem = trash.find(t => t.originalId === id && t.collectionName === 'transactions') || trash.find(t => t.id === id);
         if (trashItem) {
-            await restoreFromTrash(trashItem.id);
+            const relatedTrashItems = trash.filter(t =>
+                t.collectionName === 'transaction_items' && (t.data as TransactionItem)?.transactionId === trashItem.originalId
+            );
+            if ((relatedTrashItems.length * 2) + 2 > 450) {
+                throw new Error('取引明細が多すぎます。明細を分けて処理してください。');
+            }
+            const batch = writeBatch(db);
+            batch.set(doc(db, 'transactions', trashItem.originalId), trashItem.data);
+            batch.delete(doc(db, 'trash', trashItem.id));
+            for (const related of relatedTrashItems) {
+                batch.set(doc(db, 'transaction_items', related.originalId), related.data);
+                batch.delete(doc(db, 'trash', related.id));
+            }
+            await batch.commit();
+            mutateTrash(trash.filter(item => item.id !== trashItem.id && !relatedTrashItems.some(related => related.id === item.id)), false);
+            mutateTrash();
+            mutateTransactionItems();
         }
         mutateTransactions();
     };
 
     const permanentlyDeleteTransaction = async (id: string) => {
+        if (checkDemoMode()) return;
+        if (rawTransactions.some(item => item.id === id)) {
+            throw new Error('取引は先にゴミ箱へ移動してください。');
+        }
         mutateTransactions(rawTransactions.filter(t => t.id !== id), false);
         await deleteDoc(doc(db, "transactions", id));
         mutateTransactions();
@@ -2500,9 +2350,13 @@ export function useStore() {
         // 名寄せ: 同名が既に存在する場合は lastUsedAt を更新して返す
         const existing = spotRecipients.find(r => r.name.trim() === data.name.trim());
         if (existing) {
-            const updated = { ...existing, lastUsedAt: new Date().toISOString() };
+            const updated = { ...existing, ...data, isTrashed: false, lastUsedAt: new Date().toISOString() };
             mutateSpotRecipients(spotRecipients.map(r => r.id === existing.id ? updated : r), false);
-            await updateDoc(doc(db, 'spot_recipients', existing.id), { lastUsedAt: serverTimestamp() });
+            await updateDoc(doc(db, 'spot_recipients', existing.id), {
+                ...cleanObject(data),
+                isTrashed: false,
+                lastUsedAt: serverTimestamp(),
+            });
             mutateSpotRecipients();
             return updated;
         }
@@ -2803,21 +2657,6 @@ export function useStore() {
         mutateStockMovements();
     };
 
-    const logStoreStockMovement = async (movement: Omit<StoreStockMovement, "id" | "createdAt">) => {
-        const newRef = doc(collection(db, "store_stock_movements"));
-        const newMovement = {
-            id: newRef.id,
-            ...movement,
-            createdAt: new Date().toISOString()
-        };
-        mutateStoreStockMovements([newMovement as StoreStockMovement, ...storeStockMovements], false);
-        await setDoc(newRef, {
-            ...movement,
-            createdAt: serverTimestamp()
-        });
-        mutateStoreStockMovements();
-    };
-
     const updateStoreStock = async (
         storeId: string,
         productId: string,
@@ -2828,53 +2667,75 @@ export function useStore() {
         isAbsolute: boolean = false,
         remarks?: string
     ) => {
+        if (checkDemoMode()) return;
         const docId = `${storeId}_${productId}`;
         const storeStockRef = doc(db, "store_stocks", docId);
         const currentSS = storeStocks.find(ss => ss.id === docId);
         const currentStock = currentSS?.stock || 0;
-
-        let newStock: number;
-        let diff: number;
+        const product = products.find(p => p.id === productId);
+        const movementRef = doc(collection(db, "store_stock_movements"));
+        const movementDate = date || new Date().toISOString().split('T')[0];
+        let diff = qty;
 
         if (isAbsolute) {
-            newStock = qty;
-            diff = newStock - currentStock;
+            diff = await runTransaction(db, async transaction => {
+                const latest = await transaction.get(storeStockRef);
+                const latestStock = latest.exists() ? (latest.data().stock || 0) : 0;
+                const actualDiff = qty - latestStock;
+                transaction.set(storeStockRef, {
+                    storeId,
+                    productId,
+                    stock: qty,
+                    updatedAt: serverTimestamp(),
+                }, { merge: true });
+                if (actualDiff !== 0) {
+                    transaction.set(movementRef, {
+                        storeId,
+                        productId,
+                        productName: product?.name || "不明な商品",
+                        type: actualDiff >= 0 ? 'in' : 'out',
+                        quantity: Math.abs(actualDiff),
+                        reason,
+                        referenceId,
+                        date: movementDate,
+                        ...(remarks !== undefined ? { remarks } : {}),
+                        createdAt: serverTimestamp(),
+                    });
+                }
+                return actualDiff;
+            });
         } else {
-            diff = qty;
-            newStock = currentStock + diff;
+            if (diff === 0) return;
+            const batch = writeBatch(db);
+            batch.set(storeStockRef, {
+                storeId,
+                productId,
+                stock: increment(diff),
+                updatedAt: serverTimestamp(),
+            }, { merge: true });
+            batch.set(movementRef, {
+                storeId,
+                productId,
+                productName: product?.name || "不明な商品",
+                type: diff >= 0 ? 'in' : 'out',
+                quantity: Math.abs(diff),
+                reason,
+                referenceId,
+                date: movementDate,
+                ...(remarks !== undefined ? { remarks } : {}),
+                createdAt: serverTimestamp(),
+            });
+            await batch.commit();
         }
 
-        if (diff === 0 && !isAbsolute) return; // No change needed
-
-        const product = products.find(p => p.id === productId);
-
-        // Update Store Stock
-        await setDoc(storeStockRef, {
-            storeId,
-            productId,
-            stock: isAbsolute ? newStock : increment(diff),
-            updatedAt: serverTimestamp()
-        }, { merge: true });
+        const newStock = isAbsolute ? qty : currentStock + diff;
 
         mutateStoreStocks((prev = []) => {
             const exists = prev.some(ss => ss.id === docId);
             if (exists) return prev.map(ss => ss.id === docId ? { ...ss, stock: isAbsolute ? newStock : (ss.stock || 0) + diff } : ss);
             return [{ id: docId, storeId, productId, stock: newStock } as StoreStock, ...prev];
         }, false);
-
-        // Log Store Movement
-        await logStoreStockMovement({
-            storeId,
-            productId,
-            productName: product?.name || "不明な商品",
-            type: diff >= 0 ? 'in' : 'out',
-            quantity: Math.abs(diff),
-            reason,
-            referenceId,
-            date: date || new Date().toISOString().split('T')[0],
-            ...(remarks !== undefined ? { remarks } : {})
-        });
-
+        mutateStoreStockMovements();
         mutateStoreStocks();
     };
 
@@ -2901,37 +2762,56 @@ export function useStore() {
     };
 
     const completeInventoryAudit = async (id: string, audit: InventoryAudit) => {
-        const batch = writeBatch(db);
+        if (checkDemoMode()) return;
+        const currentAudit = inventoryAudits.find(item => item.id === id);
+        if (audit.status === 'completed' || currentAudit?.status === 'completed') {
+            return;
+        }
         const now = new Date().toISOString();
         const date = now.split('T')[0];
-
         const diffByProduct = new Map<string, number>();
-
-        // 1. Update each product stock and log movement
         for (const item of audit.items) {
             if (item.diff !== 0) {
                 diffByProduct.set(item.productId, (diffByProduct.get(item.productId) || 0) + item.diff);
-                // Adjust product stock using atomic increment
-                const productRef = doc(db, "products", item.productId);
-                batch.update(productRef, {
-                    stock: increment(item.diff),
-                    updatedAt: serverTimestamp()
-                });
-
-                // Log movement
-                const moveRef = doc(collection(db, "stock_movements"));
-                batch.set(moveRef, {
-                    productId: item.productId,
-                    productName: item.productName,
-                    type: 'adjustment',
-                    quantity: item.diff,
-                    reason: 'audit',
-                    referenceId: id,
-                    date: date,
-                    createdAt: serverTimestamp()
-                });
             }
         }
+        if ((diffByProduct.size * 2) + 1 > 450) {
+            throw new Error('棚卸し対象の商品数が多すぎます。棚卸しを分けて実施してください。');
+        }
+        const auditRef = doc(db, "inventory_audits", id);
+        const movementRefs = new Map(
+            [...diffByProduct.keys()].map(productId => [productId, doc(collection(db, "stock_movements"))]),
+        );
+        const wasApplied = await runTransaction(db, async transaction => {
+            const latestAudit = await transaction.get(auditRef);
+            if (!latestAudit.exists()) throw new Error('棚卸し記録が見つかりません。');
+            if (latestAudit.data().status === 'completed') return false;
+
+            for (const [productId, diff] of diffByProduct) {
+                const product = products.find(item => item.id === productId);
+                transaction.update(doc(db, "products", productId), {
+                    stock: increment(diff),
+                    updatedAt: serverTimestamp(),
+                });
+                transaction.set(movementRefs.get(productId)!, {
+                    productId,
+                    productName: product?.name || '不明な商品',
+                    type: 'adjustment',
+                    quantity: diff,
+                    reason: 'audit',
+                    referenceId: id,
+                    date,
+                    createdAt: serverTimestamp(),
+                });
+            }
+            transaction.update(auditRef, {
+                status: 'completed',
+                completedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+            return true;
+        });
+        if (!wasApplied) return;
 
         if (diffByProduct.size > 0) {
             mutateProducts(
@@ -2939,16 +2819,6 @@ export function useStore() {
                 false
             );
         }
-
-        // 2. Mark audit as completed
-        const auditRef = doc(db, "inventory_audits", id);
-        batch.update(auditRef, {
-            status: 'completed',
-            completedAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        });
-
-        await batch.commit();
 
         mutateProducts();
         mutateStockMovements();

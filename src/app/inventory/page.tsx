@@ -113,7 +113,7 @@ export default function InventoryPage() {
     };
 
     const handleSquareSync = async () => {
-        const squareStores = retailStores.filter(s => s.type === 'C' && s.squareLocationId);
+        const squareStores = retailStores.filter(s => !s.isTrashed && s.type === 'C' && s.squareLocationId);
         if (squareStores.length === 0) {
             showNotification("Square連携設定が有効な直営店が見つかりません。", "error");
             return;
@@ -201,15 +201,15 @@ export default function InventoryPage() {
                         在庫状況の確認、履歴の追跡、および棚卸しを行います。
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3 w-full md:w-auto">
                     <Link
                         href="/inventory/audits"
-                        className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm"
+                        className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 sm:px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm whitespace-nowrap"
                     >
                         <ClipboardList className="w-5 h-5" />
                         棚卸し履歴
                     </Link>
-                    {retailStores.some(s => s.type === 'C' && s.squareLocationId) && (
+                    {retailStores.some(s => !s.isTrashed && s.type === 'C' && s.squareLocationId) && (
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={handleSquareSync}
@@ -246,7 +246,7 @@ export default function InventoryPage() {
                             }
                         }}
                         disabled={isSyncing}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-[#FF9900] text-white font-bold rounded-xl hover:bg-[#e68a00] disabled:bg-[#ffcc80] transition-all shadow-lg shadow-orange-900/10 active:scale-95"
+                        className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 sm:px-5 py-2.5 bg-[#FF9900] text-white font-bold rounded-xl hover:bg-[#e68a00] disabled:bg-[#ffcc80] transition-all shadow-lg shadow-orange-900/10 active:scale-95 whitespace-nowrap"
                     >
                         <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
                         {isSyncing ? 'Amazon同期中' : 'Amazon同期'}
@@ -254,7 +254,7 @@ export default function InventoryPage() {
 
                     <Link
                         href="/inventory/audits/new"
-                        className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a8a] text-white font-bold rounded-xl hover:bg-blue-800 transition-all shadow-lg shadow-blue-900/10"
+                        className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 sm:px-5 py-2.5 bg-[#1e3a8a] text-white font-bold rounded-xl hover:bg-blue-800 transition-all shadow-lg shadow-blue-900/10 whitespace-nowrap"
                     >
                         <Plus className="w-5 h-5" />
                         新規棚卸し
