@@ -7,7 +7,7 @@ import { SupplierModal } from "@/components/SupplierModal";
 import { showNotification } from "@/lib/notifications";
 
 export default function SuppliersPage() {
-    const { isLoaded, suppliers, deleteSupplier, restoreSupplier, permanentlyDeleteSupplier } = useStore();
+    const { isLoaded, suppliers, products, deleteSupplier, restoreSupplier, permanentlyDeleteSupplier } = useStore();
     const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -29,8 +29,8 @@ export default function SuppliersPage() {
         if (!sortConfig) return filteredSuppliers;
 
         return [...filteredSuppliers].sort((a, b) => {
-            let aValue: any;
-            let bValue: any;
+            let aValue: string;
+            let bValue: string;
 
             switch (sortConfig.key) {
                 case 'name':
@@ -209,7 +209,7 @@ export default function SuppliersPage() {
                                     <td className="p-5 text-center">
                                         <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold border border-slate-200">
                                             <Box className="w-3 h-3 text-slate-400" />
-                                            {supplier.suppliedProducts?.length || 0}
+                                            {products.filter(product => !product.isTrashed && product.supplierId === supplier.id).length}
                                             <span className="font-normal text-slate-500">点</span>
                                         </div>
                                     </td>

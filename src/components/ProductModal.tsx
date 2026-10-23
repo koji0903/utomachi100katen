@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle, Plus, HelpCircle, Copy, Check, Instagram, Camera, Share2, Layers, RefreshCw, MessageSquare } from "lucide-react";
+import { X, Save, Box, Image as ImageIcon, UploadCloud, Sparkles, Store, Tag, AlertTriangle, Copy, Check, Instagram, Camera, Layers, RefreshCw, MessageSquare } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
 import { uploadImageWithCompression, ensureProcessableImage } from "@/lib/imageUpload";
@@ -9,6 +9,7 @@ import { showNotification } from "@/lib/notifications";
 import { AIPromptDisplay } from "./AIPromptDisplay";
 import { generateCopyPrompt, generateStoryPrompt } from "@/lib/aiPromptUtils";
 import { apiFetch, DemoModeError } from "@/lib/apiClient";
+import { fillMissingStorePrices, recalculateStorePrices } from "@/lib/productPricing";
 
 interface ProductModalProps {
     isOpen: boolean;
@@ -17,7 +18,7 @@ interface ProductModalProps {
 }
 
 export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps) {
-    const { products, brands, suppliers, retailStores, addProduct, updateProduct, stockMovements } = useStore();
+    const { products, brands, suppliers, retailStores, addProduct, updateProduct } = useStore();
 
     const [activeTab, setActiveTab] = useState<'basic' | 'ec' | 'marketing' | 'history'>('basic');
     const [isMqExpanded, setIsMqExpanded] = useState(false);
@@ -25,7 +26,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
     const [imagePrompt, setImagePrompt] = useState("");
     const [isGeneratingMarketing, setIsGeneratingMarketing] = useState(false);
 
-    const defaultFormData = {
+    const defaultFormData = useMemo(() => ({
         name: "",
         variantName: "",
         brandId: "",
@@ -69,7 +70,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         productCategory: "加工品",
         isMqTarget: true,
         producerId: "",
-    };
+    }), []);
 
     const [formData, setFormData] = useState(defaultFormData);
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -93,8 +94,6 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                 setFormData(prev => ({
                     ...prev,
                     brandId: prev.brandId || (brands.length > 0 ? brands[0].id : ""),
-                    supplierId: prev.supplierId || (suppliers.length > 0 ? suppliers[0].id : ""),
-                    producerId: prev.producerId || (suppliers.length > 0 ? suppliers[0].id : ""),
                 }));
             }
             return;
@@ -146,7 +145,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                 standardWorkMinutes: initialData.standardWorkMinutes || 0,
                 productCategory: initialData.productCategory || "加工品",
                 isMqTarget: initialData.isMqTarget ?? true,
-                producerId: initialData.producerId || initialData.supplierId || "",
+                producerId: initialData.supplierId || "",
             });
 
             setImagePreview(initialData.imageUrl || null);
@@ -154,7 +153,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
             setFormData({
                 ...defaultFormData,
                 brandId: brands.length > 0 ? brands[0].id : "",
-                supplierId: suppliers.length > 0 ? suppliers[0].id : "",
+                supplierId: "",
                 storePrices: [],
                 storeWholesalePrices: [],
                 janCode: "",
@@ -173,7 +172,7 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
                 standardWorkMinutes: 0,
                 productCategory: "加工品",
                 isMqTarget: true,
-                producerId: suppliers.length > 0 ? suppliers[0].id : "",
+                producerId: "",
             });
             setImagePreview(null);
         }
@@ -181,54 +180,10 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         setActiveTab('basic');
         setInstaCopy("");
         setImagePrompt("");
-    }, [isOpen, initialData, brands, suppliers]);
+    }, [isOpen, initialData, brands, defaultFormData]);
 
     const handleSellingPriceChange = (newPrice: number) => {
-        setFormData(prev => {
-            let changed = false;
-            const newStorePrices = [...prev.storePrices];
-            retailStores.forEach(store => {
-                // Retail Price
-                const pricingRule = store.pricingRule || 0;
-                const calculatedRetailPrice = Math.round(newPrice * (1 + pricingRule / 100));
-
-                const idxRetail = newStorePrices.findIndex(sp => sp.storeId === store.id);
-                if (idxRetail >= 0) {
-                    if (newStorePrices[idxRetail].price !== calculatedRetailPrice) {
-                        newStorePrices[idxRetail] = { ...newStorePrices[idxRetail], price: calculatedRetailPrice };
-                        changed = true;
-                    }
-                } else {
-                    newStorePrices.push({ storeId: store.id, price: calculatedRetailPrice });
-                    changed = true;
-                }
-            });
-
-            const newStoreWholesalePrices = [...prev.storeWholesalePrices];
-            retailStores.forEach(store => {
-                // Wholesale Price
-                const wholesaleRate = store.wholesaleRate ?? 60;
-                const calculatedWholesalePrice = Math.round(newPrice * (wholesaleRate / 100));
-
-                const idxWholesale = newStoreWholesalePrices.findIndex(sp => sp.storeId === store.id);
-                if (idxWholesale >= 0) {
-                    if (newStoreWholesalePrices[idxWholesale].price !== calculatedWholesalePrice) {
-                        newStoreWholesalePrices[idxWholesale] = { ...newStoreWholesalePrices[idxWholesale], price: calculatedWholesalePrice };
-                        changed = true;
-                    }
-                } else {
-                    newStoreWholesalePrices.push({ storeId: store.id, price: calculatedWholesalePrice });
-                    changed = true;
-                }
-            });
-
-            return {
-                ...prev,
-                sellingPrice: newPrice,
-                storePrices: changed ? newStorePrices : prev.storePrices,
-                storeWholesalePrices: changed ? newStoreWholesalePrices : prev.storeWholesalePrices
-            };
-        });
+        setFormData(prev => ({ ...prev, sellingPrice: newPrice }));
     };
 
     // Ensure all active retail stores have an entry in storePrices/storeWholesalePrices without overwriting manual overrides
@@ -236,34 +191,15 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         if (!isOpen || !formData.sellingPrice) return;
 
         setFormData(prev => {
-            let changed = false;
-            const newStorePrices = [...prev.storePrices];
-            const newStoreWholesalePrices = [...prev.storeWholesalePrices];
-
-            retailStores.forEach(store => {
-                // Retail
-                const idxRetail = newStorePrices.findIndex(sp => sp.storeId === store.id);
-                if (idxRetail < 0) {
-                    const pricingRule = store.pricingRule || 0;
-                    const calculatedPrice = Math.round(prev.sellingPrice * (1 + pricingRule / 100));
-                    newStorePrices.push({ storeId: store.id, price: calculatedPrice });
-                    changed = true;
-                }
-
-                // Wholesale
-                const idxWholesale = newStoreWholesalePrices.findIndex(sp => sp.storeId === store.id);
-                if (idxWholesale < 0) {
-                    const wholesaleRate = store.wholesaleRate ?? 60;
-                    const calculatedWholesalePrice = Math.round(prev.sellingPrice * (wholesaleRate / 100));
-                    newStoreWholesalePrices.push({ storeId: store.id, price: calculatedWholesalePrice });
-                    changed = true;
-                }
-            });
-
-            if (changed) {
-                return { ...prev, storePrices: newStorePrices, storeWholesalePrices: newStoreWholesalePrices };
-            }
-            return prev;
+            const result = fillMissingStorePrices(
+                prev.sellingPrice,
+                retailStores,
+                prev.storePrices,
+                prev.storeWholesalePrices,
+            );
+            return result.changed
+                ? { ...prev, storePrices: result.storePrices, storeWholesalePrices: result.storeWholesalePrices }
+                : prev;
         });
     }, [formData.sellingPrice, retailStores, isOpen]);
 
@@ -276,6 +212,9 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
             return a.name.localeCompare(b.name);
         });
     }, [products, brands]);
+
+    const activeSuppliers = useMemo(() => suppliers.filter(supplier => !supplier.isTrashed), [suppliers]);
+    const activeRetailStores = useMemo(() => retailStores.filter(store => !store.isTrashed), [retailStores]);
 
     if (!isOpen) return null;
 
@@ -363,6 +302,11 @@ JANコード: ${formData.janCode || "なし"}
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (isUploading) return;
+        if (!activeSuppliers.some(supplier => supplier.id === formData.supplierId)) {
+            setActiveTab('basic');
+            showNotification("仕入先・生産者を選択してください。", "error");
+            return;
+        }
         setIsUploading(true);
         let currentImageUrl = formData.imageUrl;
 
@@ -380,6 +324,7 @@ JANコード: ${formData.janCode || "なし"}
                 imageUrl: currentImageUrl,
                 shopifyVariantIds: idsArray,
                 shopifyVariantId: idsArray[0] || "",
+                producerId: formData.supplierId,
             };
 
             if (initialData && initialData.id) {
@@ -391,9 +336,10 @@ JANコード: ${formData.janCode || "なし"}
             }
 
             onClose();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Failed to save product:", error);
-            showNotification("保存に失敗しました。\n詳細: " + (error.message || "不明なエラー"), "error");
+            const message = error instanceof Error ? error.message : "不明なエラー";
+            showNotification("保存に失敗しました。\n詳細: " + message, "error");
         } finally {
             setIsUploading(false);
         }
@@ -496,9 +442,21 @@ JANコード: ${formData.janCode || "なし"}
         });
     };
 
+    const handleRecalculateStorePrices = () => {
+        if (formData.sellingPrice <= 0) {
+            showNotification("先に標準販売価格を入力してください。", "error");
+            return;
+        }
+        if (!window.confirm("販売先マスターの価格ルールを使って、すべての販売先別価格を再計算しますか？\n手入力した販売先別価格も置き換わります。")) return;
+
+        const recalculated = recalculateStorePrices(formData.sellingPrice, activeRetailStores);
+        setFormData(prev => ({ ...prev, ...recalculated }));
+        showNotification("販売先別価格を再計算しました。保存すると反映されます。", "info");
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
                 <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-white">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-blue-50 text-[#1e3a8a] rounded-lg">
@@ -525,7 +483,7 @@ JANコード: ${formData.janCode || "なし"}
                                 onClick={() => setActiveTab(tab)}
                                 className={`px-6 py-4 text-sm font-bold transition-all relative ${activeTab === tab ? "text-[#1e3a8a]" : "text-slate-400 hover:text-slate-600"}`}
                             >
-                                {tab === 'basic' && "基本情報"}
+                                {tab === 'basic' && "基本・価格"}
                                 {tab === 'ec' && "詳細・EC連携"}
                                 {tab === 'marketing' && (
                                     <span className="flex items-center gap-1.5">
@@ -619,6 +577,38 @@ JANコード: ${formData.janCode || "なし"}
                                             </select>
                                         </div>
 
+                                        <div className="space-y-2 md:col-span-2 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <label className="text-sm font-bold text-slate-800">
+                                                    仕入先・生産者 <span className="text-red-500">*</span>
+                                                </label>
+                                                <a href="/suppliers" target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-700 hover:underline">
+                                                    仕入先マスターを開く
+                                                </a>
+                                            </div>
+                                            <select
+                                                required
+                                                value={formData.supplierId}
+                                                onChange={(e) => setFormData(prev => ({
+                                                    ...prev,
+                                                    supplierId: e.target.value,
+                                                    producerId: e.target.value,
+                                                }))}
+                                                className="w-full px-4 py-2.5 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white cursor-pointer"
+                                            >
+                                                <option value="">仕入先・生産者を選択してください</option>
+                                                {activeSuppliers.map((supplier) => (
+                                                    <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-xs leading-relaxed text-slate-500">
+                                                この商品を仕入れる相手です。新規登録時に自動選択されないため、必ず内容を確認して選択してください。
+                                            </p>
+                                            {activeSuppliers.length === 0 && (
+                                                <p className="text-xs font-bold text-amber-700">先に仕入先マスターで業者を登録してください。</p>
+                                            )}
+                                        </div>
+
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-slate-700 block text-xs uppercase tracking-wider">JANコード (13桁)</label>
                                             <input
@@ -631,7 +621,7 @@ JANコード: ${formData.janCode || "なし"}
                                         </div>
 
                                         <div className="space-y-2">
-                                            <label className="text-sm font-semibold text-slate-700 block">原価（税込）(円) <span className="text-red-500">*</span></label>
+                                            <label className="text-sm font-semibold text-slate-700 block">仕入原価（税込） <span className="text-red-500">*</span></label>
                                             <NumberInput
                                                 required
                                                 min={0}
@@ -641,7 +631,7 @@ JANコード: ${formData.janCode || "なし"}
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-sm font-semibold text-slate-700 block">販売価格（税込）(円) <span className="text-red-500">*</span></label>
+                                            <label className="text-sm font-semibold text-slate-700 block">標準販売価格（税込） <span className="text-red-500">*</span></label>
                                             <NumberInput
                                                 required
                                                 min={0}
@@ -649,6 +639,9 @@ JANコード: ${formData.janCode || "なし"}
                                                 onChange={(val) => handleSellingPriceChange(val ?? 0)}
                                                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white text-right"
                                             />
+                                            <p className="text-[11px] leading-relaxed text-slate-400">
+                                                変更しても、手入力済みの販売先別価格は上書きしません。
+                                            </p>
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-slate-700 block text-xs uppercase tracking-wider">税区分</label>
@@ -731,17 +724,11 @@ JANコード: ${formData.janCode || "なし"}
                                                     </div>
 
                                                     <div className="space-y-2">
-                                                        <label className="text-xs font-bold text-slate-700 block">生産者・サプライヤー</label>
-                                                        <select
-                                                            value={formData.producerId}
-                                                            onChange={(e) => setFormData({ ...formData, producerId: e.target.value })}
-                                                            className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:bg-white"
-                                                        >
-                                                            <option value="">サプライヤーを選択</option>
-                                                            {suppliers.map(s => (
-                                                                <option key={s.id} value={s.id}>{s.name}</option>
-                                                            ))}
-                                                        </select>
+                                                        <label className="text-xs font-bold text-slate-700 block">分析上の仕入先・生産者</label>
+                                                        <div className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-700">
+                                                            {activeSuppliers.find(supplier => supplier.id === formData.supplierId)?.name || "基本情報で選択してください"}
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500">基本情報の「仕入先・生産者」と共通です。</p>
                                                     </div>
                                                 </div>
 
@@ -852,55 +839,81 @@ JANコード: ${formData.janCode || "なし"}
                                         )}
                                     </div>
 
-                                    {/* Store Prices */}
-                                    <div className="space-y-3 pt-2">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <Store className="w-3.5 h-3.5 text-blue-500" />
-                                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">
-                                                店舗の販売価格（税込）
-                                            </h3>
+                                    {/* Store-specific pricing */}
+                                    <div className="space-y-4 pt-4 border-t border-slate-100">
+                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <Store className="w-4 h-4 text-blue-600" />
+                                                    <h3 className="text-sm font-black text-slate-800">販売先別の価格設定（税込）</h3>
+                                                </div>
+                                                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                                    「販売価格」は売上入力、「卸請求単価」は見積書・請求書に使用します。販売先区分に応じて主に使う項目を強調しています。
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleRecalculateStorePrices}
+                                                className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors"
+                                            >
+                                                <RefreshCw className="w-3.5 h-3.5" />
+                                                店舗ルールから再計算
+                                            </button>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {retailStores.map(store => {
-                                                const storePrice = formData.storePrices.find(sp => sp.storeId === store.id)?.price || 0;
-                                                return (
-                                                    <div key={store.id} className="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                                                        <span className="text-[10px] font-bold text-slate-500 flex-1 truncate">{store.name}</span>
-                                                        <NumberInput
-                                                            value={storePrice}
-                                                            onChange={(val) => handleStorePriceChange(store.id, val ?? 0)}
-                                                            className="w-20 px-2 py-1.5 text-xs text-right border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/10"
-                                                            placeholder="販売価格"
-                                                        />
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
 
-                                    {/* Store Wholesale Prices */}
-                                    <div className="space-y-3 pt-4">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <Tag className="w-3.5 h-3.5 text-purple-500" />
-                                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">
-                                                店舗の卸価格（税込）
-                                            </h3>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {retailStores.map(store => {
-                                                const storeWholesalePrice = formData.storeWholesalePrices.find(sp => sp.storeId === store.id)?.price || 0;
-                                                return (
-                                                    <div key={store.id} className="flex items-center gap-2 p-2.5 bg-purple-50/30 rounded-xl border border-purple-100/50">
-                                                        <span className="text-[10px] font-bold text-purple-600/70 flex-1 truncate">{store.name}</span>
-                                                        <NumberInput
-                                                            value={storeWholesalePrice}
-                                                            onChange={(val) => handleStoreWholesalePriceChange(store.id, val ?? 0)}
-                                                            className="w-20 px-2 py-1.5 text-xs text-right border border-purple-200 rounded-md focus:ring-2 focus:ring-purple-500/10"
-                                                            placeholder="卸価格"
-                                                        />
-                                                    </div>
-                                                );
-                                            })}
+                                        {activeRetailStores.length === 0 ? (
+                                            <div className="rounded-xl border border-dashed border-slate-200 p-5 text-center text-sm text-slate-500">
+                                                販売先が登録されていません。販売店舗・事業者管理で登録してください。
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_140px_140px] gap-3 px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                                    <span>販売先</span>
+                                                    <span className="text-right">販売価格</span>
+                                                    <span className="text-right">卸請求単価</span>
+                                                </div>
+                                                {activeRetailStores.map(store => {
+                                                    const storePrice = formData.storePrices.find(sp => sp.storeId === store.id)?.price || 0;
+                                                    const wholesalePrice = formData.storeWholesalePrices.find(sp => sp.storeId === store.id)?.price || 0;
+                                                    const isWholesale = store.type === 'B';
+                                                    const typeLabel = store.type === 'B' ? '卸販売' : store.type === 'C' ? '直営' : '委託販売';
+                                                    return (
+                                                        <div key={store.id} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_140px_140px] gap-3 items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                            <div className="min-w-0">
+                                                                <div className="font-bold text-sm text-slate-700 truncate">{store.name}</div>
+                                                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isWholesale ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{typeLabel}</span>
+                                                                    <span className="text-[10px] text-slate-400">
+                                                                        {isWholesale ? `卸売率 ${store.wholesaleRate ?? 60}%` : `価格補正 ${store.pricingRule ?? 0}%`}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <label className={`space-y-1 ${isWholesale ? 'opacity-70' : ''}`}>
+                                                                <span className="sm:hidden text-[10px] font-bold text-slate-500">販売価格</span>
+                                                                <NumberInput
+                                                                    value={storePrice}
+                                                                    onChange={(val) => handleStorePriceChange(store.id, val ?? 0)}
+                                                                    className={`w-full px-3 py-2 text-sm text-right border rounded-lg focus:ring-2 ${isWholesale ? 'border-slate-200 bg-white' : 'border-blue-200 bg-blue-50/40 focus:ring-blue-500/10'}`}
+                                                                    placeholder="販売価格"
+                                                                />
+                                                            </label>
+                                                            <label className={`space-y-1 ${isWholesale ? '' : 'opacity-70'}`}>
+                                                                <span className="sm:hidden text-[10px] font-bold text-slate-500">卸請求単価</span>
+                                                                <NumberInput
+                                                                    value={wholesalePrice}
+                                                                    onChange={(val) => handleStoreWholesalePriceChange(store.id, val ?? 0)}
+                                                                    className={`w-full px-3 py-2 text-sm text-right border rounded-lg focus:ring-2 ${isWholesale ? 'border-purple-200 bg-purple-50/50 focus:ring-purple-500/10' : 'border-slate-200 bg-white'}`}
+                                                                    placeholder="卸請求単価"
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                        <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+                                            <Tag className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                                            標準販売価格を変更しても既存の販売先別価格は保持されます。すべて更新するときだけ「店舗ルールから再計算」を使用してください。
                                         </div>
                                     </div>
 

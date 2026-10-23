@@ -38,6 +38,7 @@ function PurchasesPageContent() {
         try {
             // Group needed products by supplierId
             const supplierOrders: { [supplierId: string]: { productId: string, quantity: number, receivedQuantity: number, unitCost: number, totalCost: number }[] } = {};
+            let skippedUnassignedCount = 0;
 
             for (const product of products.filter(p => !p.isTrashed)) {
                 const days = calculateDaysRemaining(product, sales, products);
@@ -49,16 +50,20 @@ function PurchasesPageContent() {
                     const hasActivePO = purchases.filter(p => !p.isTrashed).some(p => p.status !== 'received' && p.status !== 'paid' && (p.items || []).some(i => i.productId === product.id));
                     if (hasActivePO) continue;
 
+                    const supplier = suppliers.find(item => !item.isTrashed && item.id === product.supplierId);
+                    if (!supplier) {
+                        skippedUnassignedCount++;
+                        continue;
+                    }
+
                     const threshold = product.alertThreshold ?? 20;
                     const quantity = Math.max(threshold * 2, 10); // Simple restock rule
 
                     if (!supplierOrders[product.supplierId]) {
                         supplierOrders[product.supplierId] = [];
                     }
-                    // Fetch accurate unit cost from the supplier's provided products if available
-                    const supplier = suppliers.find(s => s.id === product.supplierId);
-                    const suppliedProd = supplier?.suppliedProducts?.find(sp => sp.productId === product.id);
-                    const costPrice = suppliedProd ? suppliedProd.purchasePrice : (product.costPrice || 0);
+                    // 商品マスターの仕入原価を唯一の参照元にする
+                    const costPrice = product.costPrice || 0;
 
                     supplierOrders[product.supplierId].push({
                         productId: product.id,
@@ -86,7 +91,12 @@ function PurchasesPageContent() {
                         expectedArrivalDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default 7 days
                     });
                 }
-                showNotification(`${supplierIds.length}件の仕入先に対する発注オーダーを自動作成しました。`);
+                const skippedMessage = skippedUnassignedCount > 0
+                    ? `（仕入先未設定・無効の商品 ${skippedUnassignedCount}件は除外）`
+                    : "";
+                showNotification(`${supplierIds.length}件の仕入先に対する発注オーダーを自動作成しました。${skippedMessage}`);
+            } else if (skippedUnassignedCount > 0) {
+                showNotification(`仕入先未設定・無効の商品 ${skippedUnassignedCount}件を除外しました。商品管理で仕入先を設定してください。`, "error");
             } else {
                 showNotification("現在、補充が必要な商品はありません。");
             }

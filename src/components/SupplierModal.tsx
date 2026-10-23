@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Save, Users, Building2, Wheat, Loader2, CheckCircle, AlertCircle, Plus, Trash2, RefreshCw } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { X, Save, Users, Building2, Wheat, Loader2, CheckCircle, AlertCircle, Box } from "lucide-react";
 import { useStore, Supplier } from "@/lib/store";
 import { useZipCode } from "@/lib/useZipCode";
-import { NumberInput } from "@/components/NumberInput";
 import { showNotification } from "@/lib/notifications";
+import { NumberInput } from "@/components/NumberInput";
 
 interface SupplierModalProps {
     isOpen: boolean;
@@ -32,7 +32,6 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
         accountHolder: "",
         closingDay: "",
         paymentDay: "",
-        suppliedProducts: [] as { productId: string, purchasePrice: number }[],
         memo: "",
     };
 
@@ -56,7 +55,6 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
                     accountHolder: initialData.bankInfo?.accountHolder || "",
                     closingDay: initialData.paymentTerms?.closingDay?.toString() || "",
                     paymentDay: initialData.paymentTerms?.paymentDay?.toString() || "",
-                    suppliedProducts: initialData.suppliedProducts || [],
                     memo: initialData.memo || "",
                 });
             } else {
@@ -67,6 +65,13 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
     }, [isOpen, initialData]);
 
     const [isSaving, setIsSaving] = useState(false);
+
+    const assignedProducts = useMemo(() => {
+        if (!initialData) return [];
+        return products
+            .filter(product => !product.isTrashed && product.supplierId === initialData.id)
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [initialData, products]);
 
     if (!isOpen) return null;
 
@@ -104,7 +109,6 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
                     closingDay: formData.closingDay ? parseInt(formData.closingDay) : undefined,
                     paymentDay: formData.paymentDay ? parseInt(formData.paymentDay) : undefined,
                 } : undefined,
-                suppliedProducts: formData.suppliedProducts.filter(p => p.productId !== ""),
                 memo: formData.memo || undefined,
             };
             if (initialData) {
@@ -269,122 +273,54 @@ export function SupplierModal({ isOpen, onClose, initialData }: SupplierModalPro
                             </div>
                         </div>
 
-                        {/* Supplied Products */}
+                        {/* Products are assigned from the product master to avoid duplicate settings. */}
                         <div>
-                            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
-                                <h3 className="text-sm font-bold text-slate-800">取扱商品と仕入価格</h3>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (!initialData) {
-                                                alert("登録済みの仕入先でのみ利用可能です。");
-                                                return;
-                                            }
-                                            // Find products assigned to this supplier in the store
-                                            const assignedProducts = products.filter(p => p.supplierId === initialData.id && !p.isTrashed);
-                                            
-                                            // Create new items for assigned products that aren't already in the list
-                                            const existingProductIds = new Set(formData.suppliedProducts.map(sp => sp.productId));
-                                            const newItems = assignedProducts
-                                                .filter(p => !existingProductIds.has(p.id))
-                                                .map(p => ({ productId: p.id, purchasePrice: p.costPrice || 0 }));
-                                            
-                                            if (newItems.length === 0) {
-                                                showNotification("新しく追加できる所属商品はありません。");
-                                                return;
-                                            }
-
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                suppliedProducts: [...prev.suppliedProducts, ...newItems]
-                                            }));
-                                            showNotification(`${newItems.length}件の商品を読み込みました。`);
-                                        }}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                                        title="商品マスタからこの仕入先の商品を読み込みます"
-                                    >
-                                        <RefreshCw className="w-3.5 h-3.5" /> 所属商品を読込
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData(prev => ({
-                                            ...prev,
-                                            suppliedProducts: [...prev.suppliedProducts, { productId: "", purchasePrice: 0 }]
-                                        }))}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
-                                    >
-                                        <Plus className="w-3.5 h-3.5" /> 商品を追加
-                                    </button>
-                                </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100">
+                                <h3 className="text-sm font-bold text-slate-800">取扱商品（商品管理から自動連動）</h3>
+                                <a
+                                    href="/products"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800"
+                                >
+                                    商品管理で設定 →
+                                </a>
                             </div>
-                            
-                            {formData.suppliedProducts.length === 0 ? (
-                                <p className="text-sm text-slate-500 text-center py-4 bg-slate-50 rounded-lg border border-slate-100 border-dashed">
-                                    まだ取扱商品が登録されていません。<br/>上のボタンから追加してください。
+                            <p className="mb-3 text-xs leading-relaxed text-slate-500">
+                                商品の仕入先と仕入原価は商品管理で一元管理します。ここでは、この仕入先に割り当て済みの商品を確認できます。
+                            </p>
+
+                            {!initialData ? (
+                                <p className="text-sm text-slate-500 text-center py-4 bg-slate-50 rounded-lg border border-slate-200 border-dashed">
+                                    仕入先を登録後、商品管理で商品に割り当ててください。
+                                </p>
+                            ) : assignedProducts.length === 0 ? (
+                                <p className="text-sm text-slate-500 text-center py-4 bg-slate-50 rounded-lg border border-slate-200 border-dashed">
+                                    この仕入先に割り当てられた商品はありません。
                                 </p>
                             ) : (
-                                <div className="space-y-3">
-                                    {formData.suppliedProducts.map((item, index) => (
-                                        <div key={index} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                                            <div className="flex-1 space-y-3">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">対象商品 *</label>
-                                                    <select
-                                                        required
-                                                        value={item.productId}
-                                                        onChange={(e) => {
-                                                            const newArray = [...formData.suppliedProducts];
-                                                            newArray[index].productId = e.target.value;
-                                                            // Auto-fill cost price if product is selected
-                                                            const product = products.find(p => p.id === e.target.value);
-                                                            if (product && newArray[index].purchasePrice === 0) {
-                                                                newArray[index].purchasePrice = product.costPrice || 0;
-                                                            }
-                                                            setFormData({ ...formData, suppliedProducts: newArray });
-                                                        }}
-                                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm bg-white"
-                                                    >
-                                                        <option value="" disabled>商品を選択</option>
-                                                        {products.filter(p => !p.isTrashed).map(p => {
-                                                            const brand = brands.find(b => b.id === p.brandId);
-                                                            return (
-                                                                <option key={p.id} value={p.id}>
-                                                                    {brand ? `[${brand.name}] ` : ""}{p.name}{p.variantName ? ` (${p.variantName})` : ""}
-                                                                </option>
-                                                            );
-                                                        })}
-                                                    </select>
+                                <div className="space-y-2">
+                                    {assignedProducts.map(product => {
+                                        const brand = brands.find(item => item.id === product.brandId);
+                                        return (
+                                            <div key={product.id} className="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                                <div className="flex min-w-0 items-center gap-2">
+                                                    <Box className="w-4 h-4 shrink-0 text-slate-400" />
+                                                    <div className="min-w-0">
+                                                        <div className="truncate text-sm font-semibold text-slate-800">
+                                                            {brand ? `[${brand.name}] ` : ""}{product.name}
+                                                            {product.variantName ? ` (${product.variantName})` : ""}
+                                                        </div>
+                                                        <div className="text-[11px] text-slate-400">商品管理の登録内容</div>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">仕入単価 *</label>
-                                                    <NumberInput
-                                                        required
-                                                        min={0}
-                                                        value={item.purchasePrice}
-                                                        onChange={(val) => {
-                                                            const newArray = [...formData.suppliedProducts];
-                                                            newArray[index].purchasePrice = val ?? 0;
-                                                            setFormData({ ...formData, suppliedProducts: newArray });
-                                                        }}
-                                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm bg-white text-right"
-                                                        placeholder="¥0"
-                                                    />
+                                                <div className="shrink-0 text-right">
+                                                    <div className="text-[10px] font-bold text-slate-400">仕入原価</div>
+                                                    <div className="text-sm font-black tabular-nums text-slate-700">¥{(product.costPrice || 0).toLocaleString()}</div>
                                                 </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const newArray = formData.suppliedProducts.filter((_, i) => i !== index);
-                                                    setFormData({ ...formData, suppliedProducts: newArray });
-                                                }}
-                                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-5 shadow-sm bg-white border border-red-100"
-                                                title="削除"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>

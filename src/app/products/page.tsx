@@ -2,11 +2,11 @@
 
 import { useState, useMemo } from "react";
 import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw, RefreshCw, User, Layers } from "lucide-react";
-import { useStore, Product, Brand, Supplier } from "@/lib/store";
+import { useStore, Product } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
 import { showNotification } from "@/lib/notifications";
-import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
+import { apiFetch, checkIsDemoMode } from "@/lib/apiClient";
 import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
 import { convertToCSV, parseCSV, downloadCSV } from "@/lib/csvUtils";
 import { useRef } from "react";
@@ -47,8 +47,8 @@ export default function ProductsPage() {
     if (!sortConfig) return filteredProducts;
 
     return [...filteredProducts].sort((a, b) => {
-      let aValue: any;
-      let bValue: any;
+      let aValue: string | number;
+      let bValue: string | number;
 
       switch (sortConfig.key) {
         case 'name':
@@ -123,7 +123,7 @@ export default function ProductsPage() {
       id: "", // Clear ID to trigger addProduct instead of updateProduct
       variantName: "", // Clear variant name so user can input new one
       stock: 0, // Reset stock for new variant
-    } as any);
+    });
     setIsModalOpen(true);
   };
 
@@ -162,13 +162,28 @@ export default function ProductsPage() {
         const rows = parseCSV(text);
         let updatedCount = 0;
         let addedCount = 0;
+        let skippedCount = 0;
 
         for (const row of rows) {
-          const productData = {
-            name: row["商品名"],
+          const supplierId = row["仕入先ID"]?.trim();
+          const supplierName = row["仕入先名"]?.trim();
+          const activeSupplier = suppliers.find(supplier =>
+            !supplier.isTrashed && (
+              supplier.id === supplierId ||
+              (!supplierId && supplier.name === supplierName)
+            )
+          );
+
+          if (!row["商品名"]?.trim() || !activeSupplier) {
+            skippedCount++;
+            continue;
+          }
+
+          const productData: Omit<Product, "id" | "createdAt"> = {
+            name: row["商品名"].trim(),
             variantName: row["バリエーション"],
             brandId: row["ブランドID"],
-            supplierId: row["仕入先ID"],
+            supplierId: activeSupplier.id,
             costPrice: Number(row["仕入価格"]),
             sellingPrice: Number(row["販売価格"]),
             stock: Number(row["在庫数"]),
@@ -178,14 +193,17 @@ export default function ProductsPage() {
           };
 
           if (row["ID"] && products.find(p => p.id === row["ID"])) {
-            await updateProduct(row["ID"], productData as any);
+            await updateProduct(row["ID"], productData);
             updatedCount++;
           } else {
-            await addProduct(productData as any);
+            await addProduct(productData);
             addedCount++;
           }
         }
-        showNotification(`インポート完了: 更新 ${updatedCount}件, 新規 ${addedCount}件`);
+        const skippedMessage = skippedCount > 0
+          ? `, スキップ ${skippedCount}件（商品名または有効な仕入先が未設定）`
+          : "";
+        showNotification(`インポート完了: 更新 ${updatedCount}件, 新規 ${addedCount}件${skippedMessage}`, skippedCount > 0 ? "error" : undefined);
       } catch (err) {
         console.error("CSV Import error:", err);
         showNotification("CSVの読み込みに失敗しました。形式を確認してください。");
@@ -281,7 +299,7 @@ export default function ProductsPage() {
                   } else {
                     throw new Error(data.error);
                   }
-                } catch (err: any) {
+                } catch {
                   if (checkIsDemoMode()) {
                     showNotification("デモ中はAmazon同期をご利用いただけません。", "error");
                   } else {
@@ -295,11 +313,11 @@ export default function ProductsPage() {
               Amazon同期
             </button>
             <Link
-              href="/products/suppliers"
+              href="/suppliers"
               className="flex items-center gap-2 bg-transparent text-slate-500 hover:bg-white hover:text-slate-700 px-4 py-2 rounded-xl border border-transparent hover:border-slate-200 transition-all shadow-sm font-bold text-xs"
             >
               <User className="w-3.5 h-3.5" />
-              仕入先
+              仕入先マスター
             </Link>
           </div>
 
@@ -338,28 +356,27 @@ export default function ProductsPage() {
           <HelpCircle className="w-6 h-6" />
         </div>
         <div className="text-sm">
-          <h3 className="font-black text-blue-900 mb-2 uppercase tracking-wider flex items-center gap-2">
-            Operation Guide
-            <span className="text-blue-400 font-medium normal-case tracking-normal">/ 操作ガイド</span>
+          <h3 className="font-black text-blue-900 mb-2 tracking-wider flex items-center gap-2">
+            商品登録・価格設定の手順
           </h3>
           <div className="flex flex-wrap gap-x-8 gap-y-3 text-blue-800/70 font-medium">
             <div className="flex items-center gap-2.5">
               <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center">
-                <Edit2 className="w-3.5 h-3.5 text-blue-700" />
+                <User className="w-3.5 h-3.5 text-blue-700" />
               </div>
-              <span><span className="font-bold text-blue-900 underline decoration-blue-200 underline-offset-4">編集</span>: 既存情報の修正（誤字脱字など）</span>
+              <span><span className="font-bold text-blue-900">1. 仕入先マスター</span>: 業者・生産者を登録</span>
             </div>
             <div className="flex items-center gap-2.5">
               <div className="w-6 h-6 rounded-lg bg-violet-100 flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5 text-violet-700" />
+                <Box className="w-3.5 h-3.5 text-violet-700" />
               </div>
-              <span><span className="font-bold text-violet-900 underline decoration-violet-200 underline-offset-4">ブランディング</span>: AIによるPR文生成・情報管理</span>
+              <span><span className="font-bold text-violet-900">2. 商品登録</span>: 仕入先・原価・標準販売価格を設定</span>
             </div>
             <div className="flex items-center gap-2.5">
               <div className="w-6 h-6 rounded-lg bg-purple-100 flex items-center justify-center">
-                <Box className="w-3.5 h-3.5 text-purple-700" />
+                <Store className="w-3.5 h-3.5 text-purple-700" />
               </div>
-              <span><span className="font-bold text-purple-900 underline decoration-purple-200 underline-offset-4">バリエーション</span>: 容量違い・容器違いの追加</span>
+              <span><span className="font-bold text-purple-900">3. 販売先別価格</span>: 商品の「編集」内で確認・調整</span>
             </div>
           </div>
         </div>
@@ -489,7 +506,16 @@ export default function ProductsPage() {
                         {brand ? brand.name : "不明"}
                       </span>
                     </td>
-                    <td className="p-5 text-slate-600">{supplier ? supplier.name : "不明"}</td>
+                    <td className="p-5 text-slate-600">
+                      {supplier ? supplier.name : (
+                        <button
+                          onClick={() => handleEdit(product)}
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold hover:bg-amber-100"
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" /> 未設定・編集する
+                        </button>
+                      )}
+                    </td>
                     <td className="p-5 text-right flex flex-col items-end gap-1">
                       <div className="font-semibold text-slate-900">
                         ¥{product.sellingPrice.toLocaleString()}
@@ -617,7 +643,7 @@ export default function ProductsPage() {
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
                       {brand?.name || "不明"}
                     </span>
-                    <span className="text-xs text-slate-500">{supplier?.name || "不明"}</span>
+                    <span className={`text-xs ${supplier ? 'text-slate-500' : 'font-bold text-amber-700'}`}>{supplier?.name || "仕入先未設定"}</span>
                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${product.taxRate === 'reduced' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
                       {product.taxRate === 'reduced' ? '8%' : '10%'}
                     </span>

@@ -11,8 +11,8 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.9.0";
-export const RELEASE_DATE = "2026.10.16";
+export const CURRENT_VERSION = "v1.10.0";
+export const RELEASE_DATE = "2026.10.23";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
@@ -27,7 +27,12 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "発注・仕入れ管理",
-        description: "仕入先管理、発注書作成、欠品予測からの自動発注生成機能。",
+        description: "仕入先マスター、商品ごとの仕入先・生産者設定、発注書作成、欠品予測からの自動発注生成機能。",
+        status: "completed"
+    },
+    {
+        name: "商品・販売先別価格管理",
+        description: "商品登録時の明示的な仕入先選択、標準価格、販売先別の販売価格・卸請求単価を一画面で安全に設定する機能。",
         status: "completed"
     },
     {

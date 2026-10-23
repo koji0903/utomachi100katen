@@ -2,11 +2,9 @@
 
 import {
     Sparkles,
-    CheckCircle2,
     Clock,
     Calendar,
     ArrowLeft,
-    Box,
     CheckCircle,
     Layout
 } from "lucide-react";
@@ -112,11 +110,36 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.9.0 */}
+                    {/* v1.10.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">商品・仕入先・販売先別価格設定の統合と誤操作防止</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "新規商品登録の仕入先固定を解消：先頭業者の自動選択を廃止し、商品画面で仕入先・生産者を必ず確認して選べるよう改善",
+                                    "設定ルートの統合：商品別仕入先の重複ページを商品管理へ集約し、仕入先マスター→商品登録→販売先別価格の手順を明示",
+                                    "仕入原価の参照元を統一：仕入先側の重複価格編集を廃止し、発注・自動発注も商品マスターの仕入先・仕入原価を使用",
+                                    "仕入登録の誤操作防止：新規仕入でも先頭業者を自動選択せず、担当者が仕入先を明示的に確認して選択",
+                                    "販売先別価格を一画面化：販売価格と卸請求単価を販売先ごとに並べ、委託販売・卸販売・直営の区分と使用目的を表示",
+                                    "手動価格の保護：標準販売価格を変更しても既存の販売先別価格を自動上書きせず、明示的な再計算操作に限定",
+                                    "価格計算のテスト追加：未設定価格の補完、明示的な全再計算、削除済み販売先の除外を自動検証"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.9.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.9.0 - 2026.10.16</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">データ集計精度向上・ファイル圧縮最適化・全画面防御ガードの実装</h3>
                             <ul className="space-y-2">
                                 {[

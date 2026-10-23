@@ -39,10 +39,6 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
         }
         const currentKey = initialData?.id || 'new';
         if (initializedKeyRef.current === currentKey) {
-            // Only fill default supplierId if still empty when suppliers load
-            if (!initialData && suppliers.length > 0) {
-                setFormData(prev => prev.supplierId ? prev : { ...prev, supplierId: suppliers[0].id });
-            }
             return;
         }
         initializedKeyRef.current = currentKey;
@@ -77,7 +73,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
             setFormData({
                 type: 'A',
                 status: 'ordered_pending',
-                supplierId: suppliers.length > 0 ? suppliers[0].id : "",
+                supplierId: "",
                 items: [],
                 totalAmount: 0,
                 orderDate: new Date().toISOString().split("T")[0],
@@ -90,24 +86,21 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
         }
     }, [isOpen, initialData, suppliers]);
 
-    const activeSupplier = useMemo(() => {
-        return suppliers.find(s => s.id === formData.supplierId);
-    }, [suppliers, formData.supplierId]);
+    const selectableSuppliers = useMemo(() => suppliers.filter(supplier =>
+        !supplier.isTrashed || supplier.id === initialData?.supplierId
+    ), [initialData?.supplierId, suppliers]);
 
-    // Provided products by this supplier
+    // 商品マスターの仕入先・仕入原価を唯一の参照元にする
     const availableProducts = useMemo(() => {
-        if (!activeSupplier || !activeSupplier.suppliedProducts) return [];
-        return activeSupplier.suppliedProducts.map(sp => {
-            const prod = products.find(p => p.id === sp.productId);
-            // Ignore products that don't exist anymore
-            if (!prod) return null;
-            return {
-                id: sp.productId,
-                name: prod.name,
-                purchasePrice: sp.purchasePrice
-            };
-        }).filter(Boolean) as {id: string, name: string, purchasePrice: number}[];
-    }, [activeSupplier, products]);
+        if (!formData.supplierId) return [];
+        return products
+            .filter(product => !product.isTrashed && product.supplierId === formData.supplierId)
+            .map(product => ({
+                id: product.id,
+                name: product.variantName ? `${product.name} (${product.variantName})` : product.name,
+                purchasePrice: product.costPrice || 0,
+            }));
+    }, [formData.supplierId, products]);
 
     // Auto-calculate total amounts
     useEffect(() => {
@@ -179,6 +172,10 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (isSaving) return;
+        if (!selectableSuppliers.some(supplier => supplier.id === formData.supplierId)) {
+            showNotification("仕入先を選択してください。", "error");
+            return;
+        }
         setIsSaving(true);
         try {
             // Remove items with no productId
@@ -230,18 +227,18 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                         <button
                             type="button"
                             onClick={() => handleTypeChange('A')}
+                            title="発注書を作成し、後日入荷するフローです。在庫は入荷時に反映されます。"
                             className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium rounded-md transition-all ${formData.type === 'A' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             パターンA (発注管理)
-                            <Tooltip content="発注書を作成し、後日入荷するフローです。在庫は入荷時に反映されます。" position="bottom" />
                         </button>
                         <button
                             type="button"
                             onClick={() => handleTypeChange('B')}
+                            title="当日仕入れた商品を即座に在庫へ反映するフローです。"
                             className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-sm font-medium rounded-md transition-all ${formData.type === 'B' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             パターンB (即時仕入)
-                            <Tooltip content="当日仕入れた商品を即座に在庫へ反映するフローです。" position="bottom" />
                         </button>
                     </div>
 
@@ -262,7 +259,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                     className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white"
                                 >
                                     <option value="" disabled>仕入先を選択</option>
-                                    {suppliers.map(s => (
+                                    {selectableSuppliers.map(s => (
                                         <option key={s.id} value={s.id}>{s.name}</option>
                                     ))}
                                 </select>
@@ -278,7 +275,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                         onChange={(e) => {
                                             const newStatus = e.target.value as Purchase['status'];
                                             const today = new Date().toISOString().split('T')[0];
-                                            const update: any = { status: newStatus };
+                                            const update: Partial<typeof formData> = { status: newStatus };
                                             
                                             if (newStatus === 'received' || newStatus === 'paid') {
                                                 update.receivedDate = today;
@@ -381,7 +378,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
 
                                 {availableProducts.length === 0 ? (
                                     <p className="text-sm text-slate-500 bg-slate-50 p-4 rounded-lg text-center border border-slate-100 border-dashed">
-                                        この仕入先には取扱商品が設定されていません。<br/>仕入先管理から商品を追加してください。
+                                        この仕入先の商品が設定されていません。<br/>商品管理で商品の「仕入先・生産者」を設定してください。
                                     </p>
                                 ) : formData.items.length === 0 ? (
                                     <p className="text-sm text-slate-500 bg-slate-50 p-4 rounded-lg text-center border border-slate-100 border-dashed">
