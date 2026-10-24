@@ -110,11 +110,34 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.11.0 */}
+                    {/* v1.11.1 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">Node.js 脆弱性対応とランタイム・依存関係セキュリティの強化</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "Node.js 脆弱性対応（CVE-2026-111497等）：BrotliデコーダーのRCE脆弱性やTLS検証バイパス等の重要セキュリティ勧告に対応した安全なバージョン（v26.12.1 / v22.23.4+）への適合",
+                                    "実行エンジンの保護制約：package.json に engines フィールド（node >=22.23.4）を定義し、脆弱なEOLバージョン（Node 20以下）での誤実行を防止",
+                                    "CI/CDパイプラインの更新：GitHub Actions ワークフロー（test.yml）の Node.js バージョンを安全な LTS（v22）へ引き上げ",
+                                    "バージョン統一ファイルの配備：.nvmrc および .node-version を新規配置し、複数環境間での安全なNode.jsバージョン指定を徹底",
+                                    "依存パッケージの脆弱性自動修復：npm audit fix を適用し、Zod・Serialize-JavaScript等の依存パッケージの既知脆弱性を解消"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.11.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.11.0 - 2026.10.23</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">商品・仕入・在庫・売上・取引管理のデータ整合性強化</h3>
                             <ul className="space-y-2">
                                 {[

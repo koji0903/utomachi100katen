@@ -11,8 +11,8 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.11.0";
-export const RELEASE_DATE = "2026.10.23";
+export const CURRENT_VERSION = "v1.11.1";
+export const RELEASE_DATE = "2026.10.24";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
@@ -73,6 +73,11 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
         name: "高信頼性・データ整合性基盤",
         description: "仕入・売上・日報・棚卸し・在庫変換・商品制作の伝票と在庫を一括更新し、重複実行や外部連携を含む不整合を防止する基盤。",
+        status: "completed"
+    },
+    {
+        name: "セキュリティ・脆弱性対策",
+        description: "Node.js 脆弱性（CVE-2026-111497等）対応、安全な実行エンジン（engines >=22.23.4 / v26.12.1）固定、およびnpm脆弱性自動修復の適用。",
         status: "completed"
     }
 ];
