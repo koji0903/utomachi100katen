@@ -110,11 +110,33 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.11.1 */}
+                    {/* v1.12.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">入力済み売上の編集機能を改善</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "実績ログの各売上に、分かりやすい「編集」ボタンを追加",
+                                    "入力済み売上の販売店舗・スポット宛先、対象日・対象月、商品ごとの売上個数、販路・送料・手数料・資材費を変更可能",
+                                    "店舗や個数を変更した際は、変更前の在庫を差し戻して変更後の在庫だけを差分反映",
+                                    "編集中であることと変更可能項目を画面上部に表示し、新規入力との取り違えを防止"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.11.1 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.11.1 - 2026.10.24</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">Node.js 脆弱性対応とランタイム・依存関係セキュリティの強化</h3>
                             <ul className="space-y-2">
                                 {[

@@ -49,6 +49,26 @@ describe("inventoryConsistency", () => {
         ]);
     });
 
+    it("売上編集で店舗と個数を同時変更した場合は旧店舗へ戻し、新しい在庫だけを減らす", () => {
+        const products = [{ id: "p1" }];
+        const stores = [{ id: "consignment", type: "A" }, { id: "direct", type: "C" }];
+        const previous = getSaleInventoryEffects(
+            { storeId: "consignment", items: [{ productId: "p1", quantity: 2 }] },
+            products,
+            stores,
+        );
+        const next = getSaleInventoryEffects(
+            { storeId: "direct", items: [{ productId: "p1", quantity: 5 }] },
+            products,
+            stores,
+        );
+
+        expect(diffInventoryEffects(previous, next)).toEqual([
+            { scope: "store", storeId: "consignment", productId: "p1", quantity: 2 },
+            { scope: "main", storeId: undefined, productId: "p1", quantity: -5 },
+        ]);
+    });
+
     it("セット商品は構成品ごとの在庫差分に展開する", () => {
         const effects = getSaleInventoryEffects(
             { storeId: "direct", items: [{ productId: "set", quantity: 3 }] },

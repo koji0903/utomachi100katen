@@ -11,13 +11,13 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.11.1";
-export const RELEASE_DATE = "2026.10.24";
+export const CURRENT_VERSION = "v1.12.0";
+export const RELEASE_DATE = "2026.10.26";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
         name: "基本的な売上・日次記録",
-        description: "日次売上の入力、天気情報の自動取得、業務日報の作成機能。",
+        description: "日次・月次売上の入力、入力済み売上の店舗・日付・商品個数・費用編集、天気情報の自動取得、業務日報の作成機能。",
         status: "completed"
     },
     {

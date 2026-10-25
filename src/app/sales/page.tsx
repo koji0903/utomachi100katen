@@ -8,14 +8,13 @@ import {
     Save,
     Store as StoreIcon,
     TrendingUp,
-    CheckCircle2,
     BarChart3,
     CloudSun, Cloud, CloudRain, CloudSnow,
-    Thermometer, Wind, Package, ChevronLeft,
+    Package, ChevronLeft,
     Sparkles, Edit2, Trash2, RotateCcw,
     ArrowUpDown, ChevronUp, ChevronDown, Target, RefreshCw, FileText
 } from "lucide-react";
-import { useStore, Product, RetailStore, Sale } from "@/lib/store";
+import { useStore, Product, Sale } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
 import { SalesAnalysisTab } from "@/components/SalesAnalysisTab";
 import { NumberInput } from "@/components/NumberInput";
@@ -47,7 +46,6 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const [targetMonth, setTargetMonth] = useState<string>(new Date().toISOString().slice(0, 7));
     const [salesData, setSalesData] = useState<Record<string, number>>({});
     const [isSaving, setIsSaving] = useState(false);
-    const [saveSuccess, setSaveSuccess] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const [isSyncingSquare, setIsSyncingSquare] = useState(false);
 
@@ -123,7 +121,6 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             setPlatformFee(0);
             setPackagingCost(0);
         }
-        setSaveSuccess(false);
     }, [editingSale]);
 
     const selectedStoreIdRaw = selectedStoreId.includes(':') ? selectedStoreId.split(':')[1] : selectedStoreId;
@@ -323,6 +320,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
             const saleData = {
                 storeId: selectedStoreIdRaw,
+                storeName: isSpotSelection ? selectedSpot?.name : selectedStore?.name,
                 recipientType: isSpotSelection ? 'spot' as const : 'store' as const,
                 type: inputMode,
                 period: inputMode === 'daily' ? targetDate : targetMonth,
@@ -348,14 +346,14 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
 
             if (editingSale) {
                 await updateSale(editingSale.id, saleData);
+                showNotification("売上データを更新しました。在庫は変更差分のみ調整されています。", "success");
                 onClearEdit();
             } else {
                 await addSale(saleData);
+                showNotification("売上データを保存しました。", "success");
             }
 
-            setSaveSuccess(true);
             if (!editingSale) setSalesData({});
-            setTimeout(() => setSaveSuccess(false), 3000);
         } catch (error) {
             console.error("Save error:", error);
             alert("保存に失敗しました。");
@@ -397,12 +395,40 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="space-y-4">
+            {editingSale && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 sm:px-5 sm:py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                            <div className="mt-0.5 rounded-xl bg-amber-100 p-2 text-amber-700">
+                                <Edit2 className="h-4 w-4" />
+                            </div>
+                            <div>
+                                <p className="font-black text-amber-900">入力済み売上を編集中</p>
+                                <p className="mt-1 text-xs font-medium leading-relaxed text-amber-800">
+                                    販売店舗・対象日・各商品の売上個数・販路や費用を変更できます。保存時は在庫を変更差分だけ自動調整します。
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onClearEdit}
+                            className="shrink-0 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-100"
+                        >
+                            編集をキャンセル
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Sidebar */}
             <div className="lg:col-span-1 space-y-6">
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">販売店舗・事業者</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            販売店舗・事業者{editingSale ? "（変更可）" : ""}
+                        </label>
                         {!isCreatingSpot && (
                             <select value={selectedStoreId} onChange={e => {
                                 if (e.target.value === "new_spot") {
@@ -562,7 +588,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                             <div className="h-px bg-blue-500/50 my-2" />
                             <div className="flex justify-between items-baseline">
                                 <span className="text-blue-200 text-sm">
-                                    {isSpotSelection ? "店舗手数料 (0%)" : `店舗手数料 (${selectedStore?.commissionRate ?? 15}%)`}
+                                    店舗手数料 ({isSpotSelection || selectedStore?.type !== 'A' ? 0 : (selectedStore.commissionRate ?? 15)}%)
                                 </span>
                                 <span className="text-lg font-semibold text-blue-100">-¥{totals.totalComm.toLocaleString()}</span>
                             </div>
@@ -653,7 +679,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                                 onClick={() => requestSort('quantity')}
                                             >
                                                 <div className="flex items-center justify-center gap-2">
-                                                    売上個数 {getSortIcon('quantity')}
+                                                    売上個数{editingSale ? "（変更可）" : ""} {getSortIcon('quantity')}
                                                 </div>
                                             </th>
                                             <th className="px-6 py-4 text-right">小計</th>
@@ -699,6 +725,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                     )}
                 </div>
             </div>
+        </div>
         </div>
     );
 }
@@ -1093,6 +1120,13 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                 </div>
             </div>
 
+            {!showTrash && !isTransposed && filteredSales.length > 0 && (
+                <div className="flex items-start gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-medium leading-relaxed text-blue-800">
+                    <Edit2 className="mt-0.5 h-4 w-4 shrink-0" />
+                    店舗や売上個数を変更する場合は、対象行の右端にある「編集」を押してください。編集後の保存時に、在庫も変更差分だけ自動調整されます。
+                </div>
+            )}
+
             {/* Summary Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
@@ -1223,7 +1257,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                 入金額 {getSortIcon('totalNetProfit')}
                                             </div>
                                         </th>
-                                        <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-20">操作</th>
+                                        <th className="px-4 py-3 text-center text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap w-24">操作</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1326,7 +1360,16 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                             <FileText className="w-4 h-4" />
                                                         </Link>
                                                     ) : (
-                                                        <button onClick={() => onEdit(sale)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onEdit(sale)}
+                                                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-black text-blue-700 transition-colors hover:bg-blue-100"
+                                                            title="店舗・日付・売上個数などを編集"
+                                                            aria-label={`${sale.period}の売上を編集`}
+                                                        >
+                                                            <Edit2 className="w-3.5 h-3.5" />
+                                                            編集
+                                                        </button>
                                                     )}
                                                 </td>
                                             </tr>
@@ -1588,10 +1631,13 @@ function SalesPageContent() {
             )}
 
             {/* Tab content */}
-            {activeTab === 'input' && !filterDate && (
+            {activeTab === 'input' && (!filterDate || editingSale) && (
                 <SalesInputTab
                     editingSale={editingSale}
-                    onClearEdit={() => setEditingSale(null)}
+                    onClearEdit={() => {
+                        setEditingSale(null);
+                        if (filterDate) setActiveTab('log');
+                    }}
                 />
             )}
             {activeTab === 'log' && (
@@ -1600,6 +1646,7 @@ function SalesPageContent() {
                     onEdit={(sale) => {
                         setEditingSale(sale);
                         setActiveTab('input');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                 />
             )}

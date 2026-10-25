@@ -1519,7 +1519,11 @@ export function useStore() {
         const saleWithoutOldSnapshot = { ...currentSale, ...saleData, inventoryEffects: undefined } as Sale;
         const normalizedSale = normalizeSaleTotals(saleWithoutOldSnapshot) as Sale;
         const newEffects = getSaleInventoryEffects(normalizedSale, products, retailStores);
-        const newSale = { ...normalizedSale, inventoryEffects: newEffects };
+        const newSale = {
+            ...normalizedSale,
+            inventoryEffects: newEffects,
+            updatedAt: new Date().toISOString(),
+        };
         const effects = diffInventoryEffects(oldEffects, newEffects);
         const batch = writeBatch(db);
         batch.update(doc(db, "sales", id), {
