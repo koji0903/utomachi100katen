@@ -77,7 +77,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "セキュリティ・脆弱性対策",
-        description: "Node.js 24 LTSへの実行環境統一、Firebase Admin・Nodemailer・React等の更新、依存関係監査と継続的な脆弱性対策。",
+        description: "Node.js 24 LTSへの実行環境統一、GitHub Actions実行基盤・Firebase Admin・Nodemailer・React等の更新、依存関係監査と継続的な脆弱性対策。",
         status: "completed"
     }
 ];

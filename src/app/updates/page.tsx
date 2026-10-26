@@ -118,7 +118,7 @@ export default function UpdatesPage() {
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">実行環境と主要依存パッケージの安全性更新</h3>
                             <ul className="space-y-2">
                                 {[
-                                    "Node.js実行環境を24.22.1 LTSへ統一し、ローカル・CI・本番のバージョン差異を解消",
+                                    "Node.js実行環境を24.22.1 LTSへ統一し、GitHub ActionsもNode.js 24対応版へ更新してローカル・CI・本番の差異を解消",
                                     "Firebase Adminを14.5.0へ更新し、旧依存に含まれていた認証・通信・データ処理ライブラリの脆弱性へ対応",
                                     "Nodemailerを10.2.1へ更新し、メールアドレス解析・外部参照・DoS関連の既知問題へ対応",
                                     "React・React DOMを19.3.1、Firebase Web SDKを12.19.0へ更新",
