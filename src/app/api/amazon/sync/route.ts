@@ -1,7 +1,7 @@
 // src/app/api/amazon/sync/route.ts
 
 import { NextResponse } from "next/server";
-import { adminDb, admin } from "@/lib/firebase-admin";
+import { adminDb, FieldValue } from "@/lib/firebase-admin";
 import { getAmazonProduct, getAmazonOrders } from "@/lib/amazon";
 import { withAuth, internalError, logError } from "@/lib/apiAuth";
 
@@ -64,10 +64,10 @@ export const POST = withAuth(async (_req, { uid }) => {
 
                     if (amazonData) {
                         await productDoc.ref.update({
-                            lastAmazonSyncAt: admin.firestore.FieldValue.serverTimestamp(),
+                            lastAmazonSyncAt: FieldValue.serverTimestamp(),
                             amazonReferenceStock: amazonData.inventoryLevel,
                             amazonReferencePrice: amazonData.price,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                            updatedAt: FieldValue.serverTimestamp()
                         });
 
                         syncResults.push({
@@ -175,8 +175,8 @@ export const POST = withAuth(async (_req, { uid }) => {
                             balanceAmount: order.totalAmount,
                             remarks: `Amazon Order ID: ${order.amazonOrderId}`,
                             amazonOrderId: order.amazonOrderId,
-                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            createdAt: FieldValue.serverTimestamp(),
+                            updatedAt: FieldValue.serverTimestamp(),
                         };
 
                         txn.set(transactionRef, transactionData);
@@ -190,16 +190,16 @@ export const POST = withAuth(async (_req, { uid }) => {
                                 unitPrice: item.price,
                                 amount: item.quantity * item.price,
                                 taxRate: 10,
-                                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                createdAt: FieldValue.serverTimestamp(),
+                                updatedAt: FieldValue.serverTimestamp(),
                             });
                         }
 
                         for (const [pId, update] of productUpdates.entries()) {
                             const pRef = db.collection("products").doc(pId);
                             txn.update(pRef, {
-                                stock: admin.firestore.FieldValue.increment(-update.quantity),
-                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                stock: FieldValue.increment(-update.quantity),
+                                updatedAt: FieldValue.serverTimestamp()
                             });
 
                             const movementRef = db.collection("stock_movements").doc();
@@ -211,7 +211,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                                 reason: 'amazon_sync',
                                 referenceId: transactionRef.id,
                                 date: orderDateStr,
-                                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                                createdAt: FieldValue.serverTimestamp()
                             });
                         }
 
@@ -235,8 +235,8 @@ export const POST = withAuth(async (_req, { uid }) => {
                                 })),
                                 isTrashed: false,
                                 transactionId: transactionRef.id,
-                                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                createdAt: FieldValue.serverTimestamp(),
+                                updatedAt: FieldValue.serverTimestamp(),
                             });
                         }
 
@@ -255,7 +255,7 @@ export const POST = withAuth(async (_req, { uid }) => {
 
         await db.collection("sync_logs").add({
             type: 'Amazon',
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: FieldValue.serverTimestamp(),
             status: 'success',
             productCount: syncResults.length,
             orderCount: newOrdersCount,

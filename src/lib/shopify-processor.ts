@@ -1,6 +1,6 @@
 // src/lib/shopify-processor.ts
 
-import { adminDb, admin } from "@/lib/firebase-admin";
+import { adminDb, FieldValue } from "@/lib/firebase-admin";
 import { ShopifyOrder } from "./shopify";
 
 /**
@@ -82,8 +82,8 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         balanceAmount: order.financialStatus === "paid" ? 0 : order.totalPrice,
         remarks: `Shopify Order ID: ${order.shopifyOrderId}`,
         shopifyOrderId: order.shopifyOrderId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
     };
 
     // 3. 必要な商品情報をトランザクションの前に取得し、同一商品の数量を集約する
@@ -156,16 +156,16 @@ export async function processShopifyOrder(order: ShopifyOrder) {
                 unitPrice: item.price,
                 amount: item.quantity * item.price,
                 taxRate: 10,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                createdAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
             });
         }
 
         for (const update of productUpdatesMap.values()) {
             // アトミックな在庫減算
             txn.update(update.docRef, {
-                stock: admin.firestore.FieldValue.increment(-update.quantity),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                stock: FieldValue.increment(-update.quantity),
+                updatedAt: FieldValue.serverTimestamp()
             });
 
             // 在庫移動記録
@@ -179,7 +179,7 @@ export async function processShopifyOrder(order: ShopifyOrder) {
                 remarks: 'Shopify注文による自動減算',
                 referenceId: newTransactionRef.id,
                 date: orderDate,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                createdAt: FieldValue.serverTimestamp()
             });
         }
 
@@ -203,8 +203,8 @@ export async function processShopifyOrder(order: ShopifyOrder) {
                 })),
                 isTrashed: false,
                 transactionId: newTransactionRef.id,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                createdAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
             };
             txn.set(saleRef, saleData);
         }

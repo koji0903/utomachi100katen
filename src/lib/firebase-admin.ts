@@ -1,4 +1,14 @@
-import * as admin from "firebase-admin";
+import {
+    applicationDefault,
+    cert,
+    getApps,
+    initializeApp,
+    type AppOptions,
+    type ServiceAccount,
+} from "firebase-admin/app";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+import { getStorage } from "firebase-admin/storage";
 
 /**
  * サーバー配下（API Route等）でFirestoreにアクセスするためのAdmin SDK初期化
@@ -39,7 +49,7 @@ export const getStorageBucket = () => {
  * Admin SDKを確実に初期化するためのユーティリティ。
  */
 export const ensureAdminInitialized = () => {
-    if (admin.apps.length > 0) return true;
+    if (getApps().length > 0) return true;
 
     const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
     const pId = getProjectId();
@@ -50,9 +60,9 @@ export const ensureAdminInitialized = () => {
     // 1. Explicit Service Account Key
     if (key) {
         try {
-            const serviceAccount = JSON.parse(key);
-            admin.initializeApp({
-                credential: admin.credential.cert(serviceAccount),
+            const serviceAccount = JSON.parse(key) as ServiceAccount & { project_id?: string };
+            initializeApp({
+                credential: cert(serviceAccount),
                 projectId: serviceAccount.project_id || pId,
                 storageBucket: sBucket,
             });
@@ -65,7 +75,7 @@ export const ensureAdminInitialized = () => {
     
     // 2. Emulator Mode
     if (isEmulator) {
-        admin.initializeApp({
+        initializeApp({
             projectId: pId,
             storageBucket: sBucket || "demo-emulator.appspot.com",
         });
@@ -75,12 +85,12 @@ export const ensureAdminInitialized = () => {
 
     // 3. Application Default Credentials (Vercel Integration etc.)
     try {
-        const options: admin.AppOptions = {
-            credential: admin.credential.applicationDefault(),
+        const options: AppOptions = {
+            credential: applicationDefault(),
             projectId: pId,
             storageBucket: sBucket,
         };
-        admin.initializeApp(options);
+        initializeApp(options);
         console.log("[firebase-admin] Initialized with ADC");
         return true;
     } catch (err: unknown) {
@@ -93,21 +103,21 @@ export const ensureAdminInitialized = () => {
 
 export const getAdminDb = () => {
     if (!ensureAdminInitialized()) return null;
-    return admin.firestore();
+    return getFirestore();
 };
 
 export const getAdminAuth = () => {
     if (!ensureAdminInitialized()) return null;
-    return admin.auth();
+    return getAuth();
 };
 
 export const getAdminStorage = () => {
     if (!ensureAdminInitialized()) return null;
-    return admin.storage();
+    return getStorage();
 };
 
 // 以前の adminDb / adminAuth 定数も getter に置き換える
 export const adminDb = getAdminDb();
 export const adminAuth = getAdminAuth();
 
-export { admin };
+export { FieldValue };

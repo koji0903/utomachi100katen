@@ -11,7 +11,7 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.12.0";
+export const CURRENT_VERSION = "v1.13.0";
 export const RELEASE_DATE = "2026.10.26";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
@@ -77,7 +77,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "セキュリティ・脆弱性対策",
-        description: "Node.js 脆弱性（CVE-2026-111497等）対応、安全な実行エンジン（engines >=22.23.4 / v26.12.1）固定、およびnpm脆弱性自動修復の適用。",
+        description: "Node.js 24 LTSへの実行環境統一、Firebase Admin・Nodemailer・React等の更新、依存関係監査と継続的な脆弱性対策。",
         status: "completed"
     }
 ];

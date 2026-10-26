@@ -110,11 +110,35 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.12.0 */}
+                    {/* v1.13.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">実行環境と主要依存パッケージの安全性更新</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "Node.js実行環境を24.22.1 LTSへ統一し、ローカル・CI・本番のバージョン差異を解消",
+                                    "Firebase Adminを14.5.0へ更新し、旧依存に含まれていた認証・通信・データ処理ライブラリの脆弱性へ対応",
+                                    "Nodemailerを10.2.1へ更新し、メールアドレス解析・外部参照・DoS関連の既知問題へ対応",
+                                    "React・React DOMを19.3.1、Firebase Web SDKを12.19.0へ更新",
+                                    "Next.js 16.4.3に合わせてESLint設定を統一し、Tailwind CSS・SWR・Recharts等を互換範囲内で更新",
+                                    "PWA依存は監査上安全な版へ固定し、サービスワーカー生成と本番ビルドを再検証"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.12.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.12.0 - 2026.10.26</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">入力済み売上の編集機能を改善</h3>
                             <ul className="space-y-2">
                                 {[

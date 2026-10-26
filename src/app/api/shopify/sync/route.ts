@@ -1,7 +1,7 @@
 // src/app/api/shopify/sync/route.ts
 
 import { NextResponse } from "next/server";
-import { adminDb, admin } from "@/lib/firebase-admin";
+import { adminDb, FieldValue } from "@/lib/firebase-admin";
 import { getShopifyProduct, getShopifyOrders, updateShopifyInventory } from "@/lib/shopify";
 import { processShopifyOrder } from "@/lib/shopify-processor";
 import { withAuth, internalError, logError } from "@/lib/apiAuth";
@@ -58,7 +58,7 @@ export const POST = withAuth(async (_req, { uid }) => {
 
                 if (syncedIds.length > 0) {
                     await productDoc.ref.update({
-                        lastShopifySyncAt: admin.firestore.FieldValue.serverTimestamp(),
+                        lastShopifySyncAt: FieldValue.serverTimestamp(),
                     });
 
                     syncResults.push({
@@ -73,7 +73,7 @@ export const POST = withAuth(async (_req, { uid }) => {
 
         const logData = {
             type: 'Shopify',
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: FieldValue.serverTimestamp(),
             status: 'success',
             productCount: syncResults.length,
             orderCount: newOrdersCount,

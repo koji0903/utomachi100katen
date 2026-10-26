@@ -1,6 +1,6 @@
 "use server";
 
-import { getAdminDb, admin } from "@/lib/firebase-admin";
+import { FieldValue, getAdminDb } from "@/lib/firebase-admin";
 import { updateAmazonListing } from "@/lib/amazon";
 
 /**
@@ -41,7 +41,7 @@ export async function syncProductToAmazon(productId: string) {
 
         if (success) {
             await productRef.update({
-                lastAmazonSyncAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastAmazonSyncAt: FieldValue.serverTimestamp(),
             });
             return { success: true, message: "Amazonとの同期に成功しました。" };
         } else {

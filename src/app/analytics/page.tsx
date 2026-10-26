@@ -757,9 +757,8 @@ export default function AnalyticsPage() {
                                 <YAxis tickFormatter={v => `¥${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: "#94a3b8" }} />
                                 <Tooltip content={customTooltip} cursor={{ fill: "#f8fafc" }} />
                                 <Legend
-                                    wrapperStyle={{ fontSize: 11, paddingTop: 10 }}
+                                    wrapperStyle={{ fontSize: 11, paddingTop: 10, cursor: "pointer" }}
                                     onClick={handleLegendClick}
-                                    cursor="pointer"
                                 />
                                 <Bar dataKey="revenue" name="売上高" fill="#3b82f6" hide={hiddenSeries.has("revenue")} radius={[4, 4, 0, 0]} barSize={12} />
                                 <Bar dataKey="grossProfit" name="粗利益" fill="#0d9488" hide={hiddenSeries.has("grossProfit")} radius={[4, 4, 0, 0]} barSize={12} />

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { admin, getAdminStorage, getStorageBucket } from "@/lib/firebase-admin";
+import { getAdminStorage, getStorageBucket } from "@/lib/firebase-admin";
 import { withAuth, internalError, logError } from "@/lib/apiAuth";
 
 const ALLOWED_FOLDERS = new Set<string>([
