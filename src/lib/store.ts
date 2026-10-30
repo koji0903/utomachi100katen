@@ -403,6 +403,7 @@ export interface IssuedDocument extends BaseEntity {
     adjustments?: InvoiceAdjustment[];
     finalAdjustment?: number;
     hidePrices?: boolean;
+    showTransferFeeNote?: boolean; // 請求書に振込手数料の注意書きを表示するか（未設定の既存帳票は表示）
     memo?: string;
     paymentMethod?: '銀行振込' | '現金' | 'QR決済' | 'その他'; // Used for receipts
     transactionId?: string;
@@ -1902,6 +1903,7 @@ export function useStore() {
             details: original.details,
             adjustments: original.adjustments,
             finalAdjustment: original.finalAdjustment,
+            showTransferFeeNote: original.showTransferFeeNote,
             memo: original.memo,
         }));
     };
@@ -1930,6 +1932,7 @@ export function useStore() {
             details: original.details,
             adjustments: original.adjustments,
             finalAdjustment: original.finalAdjustment,
+            showTransferFeeNote: true,
             memo: original.memo,
             transactionId: original.transactionId, // Carry over transaction link
             sourceDocId: id, // Link to source delivery note
@@ -2019,6 +2022,7 @@ export function useStore() {
             details: aggregatedItems,
             adjustments: aggregatedAdjustments,
             finalAdjustment: aggregatedFinalAdjustment,
+            showTransferFeeNote: true,
             memo: originals.map(d => d.docNumber).join(', ') + " の合算請求書",
             sourceDocIds: ids,
             fulfillmentStatus: 'pending',

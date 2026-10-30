@@ -44,6 +44,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
     const [isSaving, setIsSaving] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [hidePrices, setHidePrices] = useState(editingDoc?.hidePrices ?? false);
+    const [showTransferFeeNote, setShowTransferFeeNote] = useState(editingDoc?.showTransferFeeNote ?? true);
     const [transactionId, setTransactionId] = useState(editingDoc?.transactionId ?? initialTransactionId ?? "");
     const [linkedConsignmentStoreId, setLinkedConsignmentStoreId] = useState(editingDoc?.linkedConsignmentStoreId ?? "");
     const [skipInventoryAdjustment, setSkipInventoryAdjustment] = useState(editingDoc?.skipInventoryAdjustment ?? !!editingDoc?.linkedConsignmentStoreId);
@@ -179,6 +180,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                 adjustments: isSalesDocument ? invoiceAdjustments : undefined,
                 finalAdjustment: isSalesDocument ? finalAdjustment : undefined,
                 hidePrices: docType === "delivery_note" ? hidePrices : undefined,
+                showTransferFeeNote: docType === "invoice" ? showTransferFeeNote : undefined,
                 paymentMethod: docType === "receipt" ? paymentMethod : undefined,
                 memo: editingDoc?.memo ?? "",
                 transactionId: (isSalesDocument && transactionId) ? transactionId : undefined,
@@ -348,6 +350,26 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                         </div>
                     )}
 
+                    {docType === "invoice" && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                            <label htmlFor="showTransferFeeNote" className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    id="showTransferFeeNote"
+                                    checked={showTransferFeeNote}
+                                    onChange={e => setShowTransferFeeNote(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                />
+                                <span>
+                                    <span className="block text-sm font-bold text-slate-800">振込手数料の注意書きを記載する</span>
+                                    <span className="block mt-1 text-xs leading-relaxed text-slate-600">
+                                        「お振込み手数料は御社ご負担でお願いします。」を請求書に表示します。
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+                    )}
+
                     {(docType === "estimate" || docType === "invoice" || docType === "delivery_note") && (
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">紐付ける取引 (任意)</label>
@@ -440,6 +462,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                     customTaxRate={(docType === "estimate" || docType === "invoice" || docType === "delivery_note") ? taxRate : undefined}
                     customTaxType={(docType === "estimate" || docType === "invoice" || docType === "delivery_note") ? taxType : undefined}
                     hidePrices={docType === "delivery_note" ? hidePrices : false}
+                    showTransferFeeNote={docType === "invoice" ? showTransferFeeNote : undefined}
                     onClose={() => setShowPreview(false)}
                 />
             )}
@@ -458,6 +481,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                     customTaxRate={issuingDoc.taxRate}
                     customTaxType={issuingDoc.taxType}
                     hidePrices={issuingDoc.hidePrices}
+                    showTransferFeeNote={issuingDoc.showTransferFeeNote}
                     autoIssue
                     onIssued={onClose}
                     onClose={() => setIssuingDoc(null)}

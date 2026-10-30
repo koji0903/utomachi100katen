@@ -668,6 +668,7 @@ function DocumentsPageContent() {
                         customTaxRate={previewDoc.taxRate}
                         customTaxType={previewDoc.taxType}
                         hidePrices={previewDoc.hidePrices}
+                        showTransferFeeNote={previewDoc.showTransferFeeNote}
                         onClose={() => setPreviewDoc(null)}
                     />
                 )
@@ -700,6 +701,7 @@ function DocumentsPageContent() {
                         customTaxRate={downloadingDoc.taxRate}
                         customTaxType={downloadingDoc.taxType}
                         hidePrices={downloadingDoc.hidePrices}
+                        showTransferFeeNote={downloadingDoc.showTransferFeeNote}
                         autoDownload={true}
                         onClose={() => setDownloadingDoc(null)}
                     />

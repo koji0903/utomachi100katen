@@ -35,6 +35,7 @@ interface DocumentPreviewModalProps {
     customTaxRate?: IssuedDocument['taxRate'];
     customTaxType?: IssuedDocument['taxType'];
     hidePrices?: boolean;
+    showTransferFeeNote?: boolean;
     autoDownload?: boolean; // New prop
     autoIssue?: boolean;
     onIssued?: () => void;
@@ -68,6 +69,7 @@ export function DocumentPreviewModal({
     customTaxRate,
     customTaxType,
     hidePrices: propHidePrices,
+    showTransferFeeNote: propShowTransferFeeNote,
     autoDownload = false,
     autoIssue = false,
     onIssued,
@@ -203,6 +205,8 @@ export function DocumentPreviewModal({
     // ─ Tax summary ──────────────────────────────────────────────────────
     // For receipts, we try to find the actual document to get the correct total
     const existingDoc = issuedDocuments.find(d => d.docNumber === currentDocNumber && !d.isTrashed);
+    // 過去の請求書には設定がないため、従来どおり注意書きを表示する。
+    const showTransferFeeNote = propShowTransferFeeNote ?? existingDoc?.showTransferFeeNote ?? true;
     
     const taxType = customTaxType || existingDoc?.taxType || 'inclusive';
 
@@ -855,9 +859,11 @@ export function DocumentPreviewModal({
                                         </div>
                                     )}
                                 </div>
-                                <div style={{ marginTop: "12px", fontSize: "11px", color: "#444" }}>
-                                    ※お振込み手数料は御社ご負担でお願いします。
-                                </div>
+                                {(!isInvoice || showTransferFeeNote) && (
+                                    <div style={{ marginTop: "12px", fontSize: "11px", color: "#444" }}>
+                                        ※お振込み手数料は御社ご負担でお願いします。
+                                    </div>
+                                )}
                             </div>
                         )}
 

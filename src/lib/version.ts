@@ -11,8 +11,8 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.13.0";
-export const RELEASE_DATE = "2026.10.26";
+export const CURRENT_VERSION = "v1.14.0";
+export const RELEASE_DATE = "2026.10.30";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
@@ -37,7 +37,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "帳票アーカイブ",
-        description: "納品書、請求書等のPDF発行および過去データの蓄積機能。",
+        description: "見積書、納品書、請求書等のPDF発行、請求書注意書きの表示選択、および過去データの蓄積機能。",
         status: "completed"
     },
     {
