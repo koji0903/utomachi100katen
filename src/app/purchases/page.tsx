@@ -9,6 +9,7 @@ import { PurchaseModal } from "@/components/PurchaseModal";
 import { calculateDaysRemaining } from "@/lib/stockUtils";
 import { showNotification } from "@/lib/notifications";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { PURCHASE_STATUS_ORDER } from "@/lib/inventoryConsistency";
 
 function PurchasesPageContent() {
     const { isLoaded, purchases, products, suppliers, sales, addPurchase, updatePurchase, deletePurchase, restorePurchase, permanentlyDeletePurchase } = useStore();
@@ -140,18 +141,17 @@ function PurchasesPageContent() {
     };
 
     const handleToggleStatus = (purchase: Purchase) => {
-        const statusOrder: Purchase['status'][] = ['ordered_pending', 'ordered', 'partially_received', 'waiting', 'received', 'paid'];
-        const currentIndex = statusOrder.indexOf(purchase.status);
+        const currentIndex = PURCHASE_STATUS_ORDER.indexOf(purchase.status);
 
         let nextStatus: Purchase['status'];
-        if (currentIndex < statusOrder.length - 1) {
-            nextStatus = statusOrder[currentIndex + 1];
+        if (currentIndex < PURCHASE_STATUS_ORDER.length - 1) {
+            nextStatus = PURCHASE_STATUS_ORDER[currentIndex + 1];
         } else {
             if (!window.confirm("支払済の発注記録を発注済に戻しますか？入荷日・支払日もリセットされます。")) {
                 return;
             }
             // Loop back to the beginning
-            nextStatus = statusOrder[0];
+            nextStatus = PURCHASE_STATUS_ORDER[0];
         }
 
         const update: Partial<Purchase> = { status: nextStatus };

@@ -5,6 +5,36 @@ export type InventoryEffect = {
     storeId?: string;
 };
 
+export const PURCHASE_STATUS_ORDER = [
+    'ordered_pending',
+    'ordered',
+    'waiting',
+    'partially_received',
+    'received',
+    'paid',
+] as const;
+
+type QuantityBearingPurchaseItem = {
+    quantity: number;
+    receivedQuantity: number;
+};
+
+export function mergePurchaseItemUpdate<T extends QuantityBearingPurchaseItem>(
+    item: T,
+    updates: Partial<T>,
+    isFullyReceived: boolean,
+): T {
+    const next = { ...item, ...updates } as T;
+
+    if (isFullyReceived) {
+        next.receivedQuantity = next.quantity;
+    } else if (next.receivedQuantity > next.quantity) {
+        next.receivedQuantity = next.quantity;
+    }
+
+    return next;
+}
+
 type PurchaseLike = {
     status: string;
     isTrashed?: boolean;

@@ -11,8 +11,8 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.14.0";
-export const RELEASE_DATE = "2026.10.30";
+export const CURRENT_VERSION = "v1.14.1";
+export const RELEASE_DATE = "2026.11.02";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
@@ -72,7 +72,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "高信頼性・データ整合性基盤",
-        description: "仕入・売上・日報・棚卸し・在庫変換・商品制作の伝票と在庫を一括更新し、重複実行や外部連携を含む不整合を防止する基盤。",
+        description: "仕入・売上・日報・棚卸し・在庫変換・商品制作の伝票と在庫を一括更新し、即時仕入の数量同期や仕入ステータス遷移を含む不整合を防止する基盤。",
         status: "completed"
     },
     {

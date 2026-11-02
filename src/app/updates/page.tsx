@@ -110,11 +110,33 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.14.0 */}
+                    {/* v1.14.1 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">仕入数量と在庫反映の整合性を改善</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "即時仕入・仕入済み・支払済みでは、発注数の変更に入荷数を自動同期して在庫への反映漏れを防止",
+                                    "部分入荷では、発注数を減らした場合に入荷数が発注数を超えないよう自動補正",
+                                    "ステータス順を「発注済み → 仕入待ち → 部分入荷 → 仕入済み」へ統一し、部分入荷分が誤って差し戻される経路を解消",
+                                    "仕入数量同期とステータス遷移の回帰テストを追加"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.14.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.14.0 - 2026.10.30</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">請求書の振込手数料注意書きを選択可能に</h3>
                             <ul className="space-y-2">
                                 {[

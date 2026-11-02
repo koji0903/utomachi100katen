@@ -6,6 +6,7 @@ import { useStore, Purchase, PurchaseItem } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { showNotification } from "@/lib/notifications";
+import { mergePurchaseItemUpdate } from "@/lib/inventoryConsistency";
 
 interface PurchaseModalProps {
     isOpen: boolean;
@@ -150,7 +151,8 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
     const updateItem = (index: number, updates: Partial<PurchaseItem>) => {
         setFormData(prev => {
             const newItems = [...prev.items];
-            const item = { ...newItems[index], ...updates };
+            const isFullyReceived = prev.type === 'B' || prev.status === 'received' || prev.status === 'paid';
+            const item = mergePurchaseItemUpdate(newItems[index], updates, isFullyReceived);
             // If product changes, update unitCost automatically
             if (updates.productId) {
                 const sp = availableProducts.find(p => p.id === updates.productId);
@@ -423,9 +425,10 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                                                             <NumberInput
                                                                 min={0}
                                                                 max={item.quantity}
+                                                                disabled={formData.type === 'B' || formData.status === 'received' || formData.status === 'paid'}
                                                                 value={item.receivedQuantity}
                                                                 onChange={(val) => updateItem(index, { receivedQuantity: val ?? 0 })}
-                                                                className={`w-full px-2 py-2 border rounded-lg text-sm text-right font-bold transition-colors ${item.receivedQuantity === item.quantity ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : item.receivedQuantity > 0 ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-300'}`}
+                                                                className={`w-full px-2 py-2 border rounded-lg text-sm text-right font-bold transition-colors disabled:cursor-not-allowed ${item.receivedQuantity === item.quantity ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : item.receivedQuantity > 0 ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-300'}`}
                                                             />
                                                         </div>
                                                         <div className="space-y-1">

@@ -1,13 +1,49 @@
 import { describe, expect, it } from "vitest";
 import {
+    PURCHASE_STATUS_ORDER,
     diffInventoryEffects,
     getDailyReportInventoryEffects,
     getPurchaseInventoryEffects,
     getSaleInventoryEffects,
+    mergePurchaseItemUpdate,
     normalizeSaleTotals,
 } from "@/lib/inventoryConsistency";
 
 describe("inventoryConsistency", () => {
+    it("即時仕入で発注数を変更した場合は入荷数も同じ数量へ同期する", () => {
+        const item = mergePurchaseItemUpdate(
+            { productId: "p1", quantity: 1, receivedQuantity: 1, unitCost: 100, totalCost: 100 },
+            { quantity: 10 },
+            true,
+        );
+
+        expect(item).toMatchObject({ quantity: 10, receivedQuantity: 10 });
+        expect(getPurchaseInventoryEffects({ status: "received", items: [item] })).toEqual([
+            { scope: "main", productId: "p1", quantity: 10 },
+        ]);
+    });
+
+    it("部分入荷で発注数を減らした場合は入荷数が発注数を超えないよう補正する", () => {
+        expect(mergePurchaseItemUpdate(
+            { productId: "p1", quantity: 10, receivedQuantity: 7, unitCost: 100, totalCost: 1000 },
+            { quantity: 5 },
+            false,
+        )).toMatchObject({ quantity: 5, receivedQuantity: 5 });
+    });
+
+    it("仕入ステータスは仕入待ちの後に部分入荷、仕入済みへ進む", () => {
+        expect(PURCHASE_STATUS_ORDER).toEqual([
+            "ordered_pending",
+            "ordered",
+            "waiting",
+            "partially_received",
+            "received",
+            "paid",
+        ]);
+        const partialIndex = PURCHASE_STATUS_ORDER.indexOf("partially_received");
+        expect(PURCHASE_STATUS_ORDER[partialIndex + 1]).toBe("received");
+    });
+
     it("部分入荷の更新は前回との差分だけを返す", () => {
         const previous = getPurchaseInventoryEffects({
             status: "partially_received",
