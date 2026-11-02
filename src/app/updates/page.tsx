@@ -110,11 +110,38 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.14.1 */}
+                    {/* v1.15.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">帳票・在庫・入金管理の業務整合性を強化</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "納品書の下書き保存では在庫を動かさず、発行完了時だけ出庫するよう業務ルールを明確化",
+                                    "納品書の発行・編集・削除・復元と在庫・移動履歴を一括保存し、通信失敗による片側だけの更新を防止",
+                                    "セット商品の構成変更後も正確に差し戻せるよう、納品書ごとの在庫影響を保存",
+                                    "納品書の複製下書きによる二重出庫を解消し、在庫スキップ・取引紐付け等の設定も複製",
+                                    "在庫自動出庫導入前の旧納品書を編集しても、過去分が突然在庫へ加算・減算されない互換処理を追加",
+                                    "請求残高を超える入金を画面と保存処理の両方で防止",
+                                    "請求書を削除・復元した際、関連する入金記録も一括で削除・復元して孤立データを防止",
+                                    "合算請求書の選択対象を納品書だけに限定し、誤操作を防止",
+                                    "マイナス在庫を商品名・数量付きで目立つよう表示し、棚卸しへ直接移動できる導線を追加"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.14.1 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.14.1 - 2026.11.02</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">仕入数量と在庫反映の整合性を改善</h3>
                             <ul className="space-y-2">
                                 {[

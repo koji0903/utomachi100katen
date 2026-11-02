@@ -3,6 +3,8 @@ import {
     PURCHASE_STATUS_ORDER,
     diffInventoryEffects,
     getDailyReportInventoryEffects,
+    getDeliveryNoteInventoryEffects,
+    getPersistedDeliveryNoteInventoryEffects,
     getPurchaseInventoryEffects,
     getSaleInventoryEffects,
     mergePurchaseItemUpdate,
@@ -10,6 +12,79 @@ import {
 } from "@/lib/inventoryConsistency";
 
 describe("inventoryConsistency", () => {
+    it("納品書は下書きでは在庫を動かさず、発行時だけ出庫する", () => {
+        const base = {
+            type: "delivery_note",
+            details: [{ productId: "p1", quantity: 3 }],
+        };
+
+        expect(getDeliveryNoteInventoryEffects({ ...base, status: "draft" }, [{ id: "p1" }], [])).toEqual([]);
+        expect(getDeliveryNoteInventoryEffects({ ...base, status: "issued" }, [{ id: "p1" }], [])).toEqual([
+            { scope: "main", productId: "p1", quantity: -3 },
+        ]);
+    });
+
+    it("納品書の複製下書きは在庫を二重に減らさない", () => {
+        const issued = getDeliveryNoteInventoryEffects({
+            type: "delivery_note",
+            status: "issued",
+            details: [{ productId: "p1", quantity: 2 }],
+        }, [{ id: "p1" }], []);
+        const duplicateDraft = getDeliveryNoteInventoryEffects({
+            type: "delivery_note",
+            status: "draft",
+            details: [{ productId: "p1", quantity: 2 }],
+        }, [{ id: "p1" }], []);
+
+        expect(diffInventoryEffects(issued, issued)).toEqual([]);
+        expect(duplicateDraft).toEqual([]);
+    });
+
+    it("納品書の削除・復元は保存済みの在庫影響を正確に差し戻す", () => {
+        const active = {
+            type: "delivery_note",
+            status: "issued",
+            inventoryEffects: [{ scope: "main" as const, productId: "component", quantity: -6 }],
+            details: [{ productId: "set", quantity: 2 }],
+        };
+        const activeEffects = getDeliveryNoteInventoryEffects(active, [], []);
+        const trashedEffects = getDeliveryNoteInventoryEffects({ ...active, isTrashed: true }, [], []);
+
+        expect(diffInventoryEffects(activeEffects, trashedEffects)).toEqual([
+            { scope: "main", productId: "component", quantity: 6 },
+        ]);
+        expect(diffInventoryEffects(trashedEffects, activeEffects)).toEqual(activeEffects);
+    });
+
+    it("委託先連携または明示的なスキップ指定がある納品書は在庫を減らさない", () => {
+        const doc = {
+            type: "delivery_note",
+            status: "issued",
+            storeId: "wholesale",
+            details: [{ productId: "p1", quantity: 3 }],
+        };
+        const products = [{ id: "p1" }];
+
+        expect(getDeliveryNoteInventoryEffects(doc, products, [
+            { id: "wholesale", linkedConsignmentStoreId: "consignment" },
+        ])).toEqual([]);
+        expect(getDeliveryNoteInventoryEffects({ ...doc, skipInventoryAdjustment: true }, products, [])).toEqual([]);
+    });
+
+    it("在庫履歴のない旧納品書は編集時に遡って在庫へ反映しない", () => {
+        const legacy = {
+            type: "delivery_note",
+            status: "issued",
+            details: [{ productId: "p1", quantity: 20 }],
+        };
+        const products = [{ id: "p1" }];
+
+        expect(getPersistedDeliveryNoteInventoryEffects(legacy, products, [], false)).toEqual([]);
+        expect(getPersistedDeliveryNoteInventoryEffects(legacy, products, [], true)).toEqual([
+            { scope: "main", productId: "p1", quantity: -20 },
+        ]);
+    });
+
     it("即時仕入で発注数を変更した場合は入荷数も同じ数量へ同期する", () => {
         const item = mergePurchaseItemUpdate(
             { productId: "p1", quantity: 1, receivedQuantity: 1, unitCost: 100, totalCost: 100 },

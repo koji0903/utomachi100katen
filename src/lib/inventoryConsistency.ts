@@ -63,6 +63,17 @@ type SaleLike = {
     inventoryEffects?: InventoryEffect[];
 };
 
+type DeliveryNoteLike = {
+    type: string;
+    status: string;
+    storeId?: string;
+    linkedConsignmentStoreId?: string;
+    skipInventoryAdjustment?: boolean;
+    isTrashed?: boolean;
+    details?: Array<{ productId?: string; quantity: number }>;
+    inventoryEffects?: InventoryEffect[];
+};
+
 type SaleTotalsLike = {
     items?: Array<{
         quantity?: number;
@@ -151,6 +162,58 @@ export function getSaleInventoryEffects(
     }
 
     return mergeInventoryEffects(effects);
+}
+
+export function getDeliveryNoteInventoryEffects(
+    document: DeliveryNoteLike | null | undefined,
+    products: ProductLike[],
+    stores: Array<StoreLike & { linkedConsignmentStoreId?: string }>,
+): InventoryEffect[] {
+    if (!document || document.isTrashed || document.type !== 'delivery_note' || document.status !== 'issued') return [];
+    // 保存済みスナップショットを優先し、後日のセット商品構成変更による差し戻し誤差を防ぐ。
+    if (document.inventoryEffects) return mergeInventoryEffects(document.inventoryEffects);
+
+    const recipientStore = document.storeId
+        ? stores.find(store => store.id === document.storeId)
+        : undefined;
+    const isLinkedConsignment = Boolean(
+        document.linkedConsignmentStoreId || recipientStore?.linkedConsignmentStoreId,
+    );
+    const shouldSkip = document.skipInventoryAdjustment ?? isLinkedConsignment;
+    if (shouldSkip) return [];
+
+    const effects: InventoryEffect[] = [];
+    for (const item of document.details || []) {
+        if (!item.productId || !Number.isFinite(item.quantity) || item.quantity <= 0) continue;
+        const product = products.find(candidate => candidate.id === item.productId);
+        if (!product) continue;
+
+        if (product.isComposite && product.components?.length) {
+            for (const component of product.components) {
+                effects.push({
+                    scope: 'main',
+                    productId: component.productId,
+                    quantity: -(component.quantity * item.quantity),
+                });
+            }
+        } else {
+            effects.push({ scope: 'main', productId: product.id, quantity: -item.quantity });
+        }
+    }
+
+    return mergeInventoryEffects(effects);
+}
+
+export function getPersistedDeliveryNoteInventoryEffects(
+    document: DeliveryNoteLike,
+    products: ProductLike[],
+    stores: Array<StoreLike & { linkedConsignmentStoreId?: string }>,
+    hasInventoryHistory: boolean,
+): InventoryEffect[] {
+    if (document.inventoryEffects !== undefined || hasInventoryHistory) {
+        return getDeliveryNoteInventoryEffects(document, products, stores);
+    }
+    return [];
 }
 
 export function diffInventoryEffects(

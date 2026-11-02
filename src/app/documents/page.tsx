@@ -220,8 +220,9 @@ function DocumentsPageContent() {
         });
         
         const currentMonth = new Date().toISOString().slice(0, 7);
+        const activeInvoiceIds = new Set(activeInvoices.map(invoice => invoice.id));
         const thisMonthPayments = invoicePayments
-            .filter(p => !p.isTrashed && (p.date || '').startsWith(currentMonth))
+            .filter(p => !p.isTrashed && activeInvoiceIds.has(p.invoiceId) && (p.date || '').startsWith(currentMonth))
             .reduce((sum, p) => sum + p.amount, 0);
             
         return { unpaidCount, arBalance, thisMonthPayments };
@@ -234,8 +235,14 @@ function DocumentsPageContent() {
     };
 
     const handleDelete = async (id: string) => {
-        await deleteIssuedDocument(id);
-        setDeletingId(null);
+        try {
+            await deleteIssuedDocument(id);
+        } catch (error) {
+            console.error('Failed to delete document:', error);
+            alert(error instanceof Error ? error.message : '帳票の削除に失敗しました。');
+        } finally {
+            setDeletingId(null);
+        }
     };
 
     const handleConvertToInvoice = async (id: string) => {
@@ -262,10 +269,11 @@ function DocumentsPageContent() {
     };
 
     const toggleSelectAll = () => {
-        if (selectedIds.length === filtered.length) {
+        const eligibleIds = filtered.filter(doc => doc.type === 'delivery_note').map(doc => doc.id);
+        if (eligibleIds.length > 0 && eligibleIds.every(id => selectedIds.includes(id))) {
             setSelectedIds([]);
         } else {
-            setSelectedIds(filtered.map(d => d.id));
+            setSelectedIds(eligibleIds);
         }
     };
 
@@ -454,7 +462,7 @@ function DocumentsPageContent() {
                                     <th className="px-4 py-3 text-center w-10">
                                         <input
                                             type="checkbox"
-                                            checked={selectedIds.length === filtered.length && filtered.length > 0}
+                                            checked={filtered.some(doc => doc.type === 'delivery_note') && filtered.filter(doc => doc.type === 'delivery_note').every(doc => selectedIds.includes(doc.id))}
                                             onChange={toggleSelectAll}
                                             className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
                                         />
@@ -487,7 +495,9 @@ function DocumentsPageContent() {
                                                 type="checkbox"
                                                 checked={selectedIds.includes(doc.id)}
                                                 onChange={() => toggleSelect(doc.id)}
-                                                className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                                                disabled={doc.type !== 'delivery_note'}
+                                                title={doc.type === 'delivery_note' ? '合算請求書の対象に選択' : '合算請求書は納品書のみ選択できます'}
+                                                className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 disabled:opacity-20 disabled:cursor-not-allowed"
                                             />
                                         </td>
                                         <td className="px-4 py-3">

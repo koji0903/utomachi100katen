@@ -336,6 +336,10 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                     </div>
 
                     {docType === "delivery_note" && (
+                        <div className="space-y-3">
+                        <div className="px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 leading-relaxed">
+                            <b>在庫反映：</b>下書き保存では在庫は変わりません。「発行して保存」が完了した時点で出庫します。
+                        </div>
                         <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
                             <input
                                 type="checkbox"
@@ -347,6 +351,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                             <label htmlFor="hidePrices" className="text-sm font-bold text-slate-700 cursor-pointer">
                                 納品書に価格を表示しない
                             </label>
+                        </div>
                         </div>
                     )}
 

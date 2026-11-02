@@ -11,7 +11,7 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.14.1";
+export const CURRENT_VERSION = "v1.15.0";
 export const RELEASE_DATE = "2026.11.02";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
@@ -37,7 +37,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "帳票アーカイブ",
-        description: "見積書、納品書、請求書等のPDF発行、請求書注意書きの表示選択、および過去データの蓄積機能。",
+        description: "見積書、納品書、請求書等のPDF発行、請求書注意書きの表示選択、納品書発行と在庫の一括更新、および過去データの蓄積機能。",
         status: "completed"
     },
     {
@@ -72,7 +72,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "高信頼性・データ整合性基盤",
-        description: "仕入・売上・日報・棚卸し・在庫変換・商品制作の伝票と在庫を一括更新し、即時仕入の数量同期や仕入ステータス遷移を含む不整合を防止する基盤。",
+        description: "仕入・売上・日報・納品書・棚卸し・在庫変換・商品制作の伝票と在庫を一括更新し、下書き・複製時の二重出庫や過入金を含む不整合を防止する基盤。",
         status: "completed"
     },
     {

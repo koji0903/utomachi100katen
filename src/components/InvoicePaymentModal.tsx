@@ -28,6 +28,10 @@ export function InvoicePaymentModal({ invoice, initialAmount, onClose }: Invoice
             alert("入金日と0円より大きい入金額を入力してください。");
             return;
         }
+        if (amount > initialAmount) {
+            alert(`入金額は現在の残高（¥${initialAmount.toLocaleString()}）以下で入力してください。`);
+            return;
+        }
 
         setIsSaving(true);
         try {
@@ -115,9 +119,10 @@ export function InvoicePaymentModal({ invoice, initialAmount, onClose }: Invoice
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-right focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-300"
                             placeholder="0"
                             min={1}
+                            max={initialAmount}
                         />
                         {amount > initialAmount && (
-                            <p className="mt-1 text-[10px] text-amber-600 font-medium">※入金額が現在の残高を上回っています。</p>
+                            <p className="mt-1 text-[10px] text-red-600 font-bold">入金額は現在の残高以下にしてください。</p>
                         )}
                     </div>
 
@@ -174,7 +179,7 @@ export function InvoicePaymentModal({ invoice, initialAmount, onClose }: Invoice
                     </button>
                     <button
                         onClick={handleSave}
-                        disabled={isSaving || amount <= 0}
+                        disabled={isSaving || amount <= 0 || amount > initialAmount}
                         className="flex items-center gap-1.5 px-6 py-2 text-sm font-bold text-white rounded-xl transition-colors disabled:opacity-50"
                         style={{ backgroundColor: BRAND }}
                     >

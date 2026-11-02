@@ -11,6 +11,8 @@ import { getMockData } from "@/lib/mockData";
 import { syncProductToAmazon } from "@/app/actions/amazon";
 import {
     diffInventoryEffects,
+    getDeliveryNoteInventoryEffects,
+    getPersistedDeliveryNoteInventoryEffects,
     getDailyReportInventoryEffects,
     getPurchaseInventoryEffects,
     getSaleInventoryEffects,
@@ -30,6 +32,7 @@ const cleanObject = (obj: any) => {
     return newObj;
 };
 import { applyRounding, type RoundingMode } from "@/lib/taxUtils";
+import { getInvoicePaymentError } from "@/lib/accountingConsistency";
 import type { PrintArchive, PrintArchiveHistory } from "./types/printArchive";
 import type { Expense, ExpenseCategory, PaymentMethod } from "./types/expense";
 
@@ -414,6 +417,7 @@ export interface IssuedDocument extends BaseEntity {
     linkedConsignmentStoreId?: string; // 紐付け先委託販売先
     skipInventoryAdjustment?: boolean; // 在庫減算をスキップするか
     attributeSalesToLinkedStore?: boolean; // 売上を紐付け先に計上するか
+    inventoryEffects?: InventoryEffect[]; // 発行済み納品書の在庫影響スナップショット
     createdAt?: string | any;
 }
 
@@ -425,6 +429,7 @@ export interface InvoicePayment extends BaseEntity {
     transactionId?: string;
     method: '銀行振込' | '現金' | 'QR決済' | 'その他';
     notes?: string;
+    trashedWithInvoice?: boolean; // 請求書削除に連動して一時的にゴミ箱へ移動したか
     createdAt?: string | any;
 }
 
@@ -865,14 +870,8 @@ const swrConfig = {
     dedupingInterval: 60000, // 1 minute deduplication
 };
 
-let globalHasLoadedOnce = false;
-
 export function useStore() {
     const { isAuthLoading, user, isDemoMode } = useAuth() as any; // Temporary fix for type mismatch if any
-
-    if (!user && !isDemoMode) {
-        globalHasLoadedOnce = false;
-    }
 
     const checkDemoMode = () => {
         if (isDemoMode) {
@@ -891,9 +890,9 @@ export function useStore() {
     const { data: sales = [], mutate: mutateSales, isLoading: loadingSales } = useSWR<Sale[]>(["sales", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Sale>(col, demo), swrConfig);
     const { data: paymentRecords = [], mutate: mutatePaymentRecords, isLoading: loadingPayments } = useSWR<PaymentRecord[]>(["payment_records", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<PaymentRecord>(col, demo), swrConfig);
     const { data: dailyReports = [], mutate: mutateDailyReports, isLoading: loadingReports } = useSWR<DailyReport[]>(["daily_reports", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<DailyReport>(col, demo), swrConfig);
-    const { data: issuedDocuments = [], mutate: mutateIssuedDocuments } = useSWR<IssuedDocument[]>(["issued_documents", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<IssuedDocument>(col, demo), swrConfig);
+    const { data: issuedDocuments = [], mutate: mutateIssuedDocuments, isLoading: loadingIssuedDocuments } = useSWR<IssuedDocument[]>(["issued_documents", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<IssuedDocument>(col, demo), swrConfig);
     const { data: dailyWeather = [], mutate: mutateDailyWeather } = useSWR<DailyWeather[]>(["daily_weather", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<DailyWeather>(col, demo), swrConfig);
-    const { data: invoicePayments = [], mutate: mutateInvoicePayments } = useSWR<InvoicePayment[]>(["invoice_payments", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<InvoicePayment>(col, demo), swrConfig);
+    const { data: invoicePayments = [], mutate: mutateInvoicePayments, isLoading: loadingInvoicePayments } = useSWR<InvoicePayment[]>(["invoice_payments", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<InvoicePayment>(col, demo), swrConfig);
     const { data: rawTransactions = [], mutate: mutateTransactions } = useSWR<Transaction[]>(["transactions", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Transaction>(col, demo), swrConfig);
     const { data: transactionItems = [], mutate: mutateTransactionItems } = useSWR<TransactionItem[]>(["transaction_items", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<TransactionItem>(col, demo), swrConfig);
     const { data: spotRecipients = [], mutate: mutateSpotRecipients } = useSWR<SpotRecipient[]>(["spot_recipients", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<SpotRecipient>(col, demo), swrConfig);
@@ -901,7 +900,7 @@ export function useStore() {
     const { data: stockConversions = [], mutate: mutateStockConversions } = useSWR<StockConversion[]>(["stock_conversions", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StockConversion>(col, demo), swrConfig);
     const { data: activities = [], mutate: mutateActivities } = useSWR<Activity[]>(["activities", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<Activity>(col, demo), swrConfig);
     const { data: trash = [], mutate: mutateTrash } = useSWR<TrashItem[]>(["trash", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<TrashItem>(col, demo), swrConfig);
-    const { data: stockMovements = [], mutate: mutateStockMovements } = useSWR<StockMovement[]>(["stock_movements", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StockMovement>(col, demo), swrConfig);
+    const { data: stockMovements = [], mutate: mutateStockMovements, isLoading: loadingStockMovements } = useSWR<StockMovement[]>(["stock_movements", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StockMovement>(col, demo), swrConfig);
     const { data: compositeProductions = [], mutate: mutateCompositeProductions } = useSWR<CompositeProduction[]>(["composite_productions", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<CompositeProduction>(col, demo), swrConfig);
     const { data: inventoryAudits = [], mutate: mutateInventoryAudits } = useSWR<InventoryAudit[]>(["inventory_audits", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<InventoryAudit>(col, demo), swrConfig);
     const { data: storeStocks = [], mutate: mutateStoreStocks } = useSWR<StoreStock[]>(["store_stocks", isDemoMode], ([col, demo]: [string, boolean]) => fetcher<StoreStock>(col, demo), swrConfig);
@@ -939,13 +938,9 @@ export function useStore() {
         { ...swrConfig, revalidateOnFocus: false }
     );
 
-    const isLoadedComputed = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingPrintArchives && !loadingWorkLogs && !loadingFixedCosts && !loadingMqSummaries && !loadingCompanySettings;
+    const isLoadedComputed = !loadingBrands && !loadingSuppliers && !loadingProducts && !loadingRetailStores && !loadingPurchases && !loadingSales && !loadingPayments && !loadingReports && !loadingIssuedDocuments && !loadingInvoicePayments && !loadingStockMovements && !loadingPrintArchives && !loadingWorkLogs && !loadingFixedCosts && !loadingMqSummaries && !loadingCompanySettings;
 
-    if (isLoadedComputed && (user || isDemoMode)) {
-        globalHasLoadedOnce = true;
-    }
-
-    const isLoaded = globalHasLoadedOnce || isLoadedComputed;
+    const isLoaded = !isAuthLoading && Boolean(user || isDemoMode) && isLoadedComputed;
 
     const updateReportConfig = async (data: Partial<AutoReportConfig>) => {
         if (checkDemoMode()) return;
@@ -1177,7 +1172,7 @@ export function useStore() {
     const appendInventoryEffectsToBatch = (
         batch: ReturnType<typeof writeBatch>,
         effects: InventoryEffect[],
-        context: { referenceId: string; date: string; source: 'purchase' | 'sale' | 'report' | 'conversion' | 'production'; remarks: string },
+        context: { referenceId: string; date: string; source: 'purchase' | 'sale' | 'report' | 'conversion' | 'production' | 'document'; remarks: string },
     ) => {
         const mergedEffects = mergeInventoryEffects(effects);
         if ((mergedEffects.length * 2) + 1 > 450) {
@@ -1202,7 +1197,7 @@ export function useStore() {
                     quantity: Math.abs(effect.quantity),
                     reason: context.source === 'purchase'
                         ? (effect.quantity > 0 ? 'purchase' : 'manual')
-                        : context.source === 'sale'
+                        : context.source === 'sale' || context.source === 'document'
                             ? (effect.quantity > 0 ? 'return' : 'sale')
                             : context.source === 'conversion' || context.source === 'production'
                                 ? context.source
@@ -1287,6 +1282,18 @@ export function useStore() {
         mutateStoreStocks();
         mutateStockMovements();
         mutateStoreStockMovements();
+    };
+
+    const getPersistedDeliveryNoteEffects = (document: IssuedDocument): InventoryEffect[] => {
+        // 旧帳票は在庫自動出庫の導入前から存在する。移動履歴がある帳票だけを
+        // 「在庫反映済み」とみなし、古い帳票の編集で突然在庫が増減するのを防ぐ。
+        const hasInventoryHistory = stockMovements.some(movement => movement.referenceId === document.id);
+        return getPersistedDeliveryNoteInventoryEffects(
+            document,
+            products,
+            retailStores,
+            hasInventoryHistory,
+        );
     };
 
     // --- Purchase Actions (Inbound Shipments) ---
@@ -1819,56 +1826,20 @@ export function useStore() {
 
     const saveIssuedDocument = async (data: Omit<IssuedDocument, 'id' | 'createdAt'>): Promise<IssuedDocument> => {
         const newRef = doc(collection(db, 'issued_documents'));
-        const newDoc: IssuedDocument = { id: newRef.id, ...data, createdAt: new Date().toISOString() };
-
-        // --- Stock Deduction for Delivery Note ---
-        // 紐付け先の委託販売先がある場合、在庫減算は委託先の日報で行われるためここではスキップする
-        const recipientStore = data.storeId ? retailStores.find(s => s.id === data.storeId) : null;
-        const isLinkedConsignment = !!data.linkedConsignmentStoreId || !!recipientStore?.linkedConsignmentStoreId;
-        const shouldSkipInventory = data.skipInventoryAdjustment !== undefined ? data.skipInventoryAdjustment : isLinkedConsignment;
-
-        if (data.type === 'delivery_note' && data.details && !shouldSkipInventory) {
-            for (const item of data.details) {
-                if (item.productId) {
-                    const product = products.find(p => p.id === item.productId);
-                    if (product) {
-                        if (product.isComposite && product.components) {
-                            for (const comp of product.components) {
-                                const compProduct = products.find(p => p.id === comp.productId);
-                                if (compProduct) {
-                                    await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
-                                    await logStockMovement({
-                                        productId: compProduct.id,
-                                        productName: compProduct.name,
-                                        type: 'out',
-                                        quantity: comp.quantity * item.quantity,
-                                        reason: 'sale',
-                                        remarks: `納品書発行 (${data.docNumber}) による出庫`,
-                                        referenceId: newRef.id,
-                                        date: data.issuedDate
-                                    });
-                                }
-                            }
-                        } else {
-                            await adjustProductStock(product.id, -item.quantity);
-                            await logStockMovement({
-                                productId: product.id,
-                                productName: product.name,
-                                type: 'out',
-                                quantity: item.quantity,
-                                reason: 'sale',
-                                remarks: `納品書発行 (${data.docNumber}) による出庫`,
-                                referenceId: newRef.id,
-                                date: data.issuedDate
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
+        const calculatedEffects = getDeliveryNoteInventoryEffects(data, products, retailStores);
+        const persistedData = { ...data, inventoryEffects: calculatedEffects };
+        const newDoc: IssuedDocument = { id: newRef.id, ...persistedData, createdAt: new Date().toISOString() };
+        const batch = writeBatch(db);
+        batch.set(newRef, { ...cleanObject(persistedData), createdAt: serverTimestamp() });
+        appendInventoryEffectsToBatch(batch, calculatedEffects, {
+            referenceId: newRef.id,
+            date: data.issuedDate,
+            source: 'document',
+            remarks: `納品書発行 (${data.docNumber}) による出庫`,
+        });
+        await batch.commit();
         mutateIssuedDocuments([newDoc, ...issuedDocuments], false);
-        await setDoc(newRef, { ...cleanObject(data), createdAt: serverTimestamp() });
+        refreshInventoryCaches(calculatedEffects);
         mutateIssuedDocuments();
         return newDoc;
     };
@@ -1903,8 +1874,13 @@ export function useStore() {
             details: original.details,
             adjustments: original.adjustments,
             finalAdjustment: original.finalAdjustment,
+            hidePrices: original.hidePrices,
             showTransferFeeNote: original.showTransferFeeNote,
             memo: original.memo,
+            transactionId: original.transactionId,
+            linkedConsignmentStoreId: original.linkedConsignmentStoreId,
+            skipInventoryAdjustment: original.skipInventoryAdjustment,
+            attributeSalesToLinkedStore: original.attributeSalesToLinkedStore,
         }));
     };
 
@@ -2031,134 +2007,143 @@ export function useStore() {
 
     const updateIssuedDocument = async (id: string, data: Partial<Omit<IssuedDocument, 'id' | 'createdAt'>>) => {
         const oldDoc = issuedDocuments.find(d => d.id === id);
-        if (oldDoc) {
-            // 1. Reverse old stock if it was a delivery note
-            const oldRecipientStore = oldDoc.storeId ? retailStores.find(s => s.id === oldDoc.storeId) : null;
-            const isOldLinked = !!oldDoc.linkedConsignmentStoreId || !!oldRecipientStore?.linkedConsignmentStoreId;
-            const shouldOldSkip = oldDoc.skipInventoryAdjustment !== undefined ? oldDoc.skipInventoryAdjustment : isOldLinked;
-
-            if (oldDoc.type === 'delivery_note' && oldDoc.details && !oldDoc.isTrashed && !shouldOldSkip) {
-                for (const item of oldDoc.details) {
-                    if (item.productId) {
-                        const product = products.find(p => p.id === item.productId);
-                        if (product) {
-                            if (product.isComposite && product.components) {
-                                for (const comp of product.components) {
-                                    const compProduct = products.find(p => p.id === comp.productId);
-                                    if (compProduct) {
-                                        await adjustProductStock(compProduct.id, (comp.quantity * item.quantity));
-                                    }
-                                }
-                            } else {
-                                await adjustProductStock(product.id, item.quantity);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 2. Apply new stock if the updated doc is a delivery note
-            const newDoc = { ...oldDoc, ...data } as IssuedDocument;
-            const newRecipientStore = newDoc.storeId ? retailStores.find(s => s.id === newDoc.storeId) : null;
-            const isNewLinked = !!newDoc.linkedConsignmentStoreId || !!newRecipientStore?.linkedConsignmentStoreId;
-            const shouldNewSkip = newDoc.skipInventoryAdjustment !== undefined ? newDoc.skipInventoryAdjustment : isNewLinked;
-
-            if (newDoc.type === 'delivery_note' && newDoc.details && !newDoc.isTrashed && !shouldNewSkip) {
-                for (const item of newDoc.details) {
-                    if (item.productId) {
-                        const product = products.find(p => p.id === item.productId);
-                        if (product) {
-                            if (product.isComposite && product.components) {
-                                for (const comp of product.components) {
-                                    const compProduct = products.find(p => p.id === comp.productId);
-                                    if (compProduct) {
-                                        await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
-                                    }
-                                }
-                            } else {
-                                await adjustProductStock(product.id, -item.quantity);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        mutateIssuedDocuments(issuedDocuments.map(d => d.id === id ? { ...d, ...data } : d), false);
-        await updateDoc(doc(db, 'issued_documents', id), cleanObject(data));
+        if (!oldDoc) throw new Error('更新対象の帳票が見つかりません。');
+        const oldEffects = getPersistedDeliveryNoteEffects(oldDoc);
+        const nextWithoutSnapshot = { ...oldDoc, ...data, inventoryEffects: undefined } as IssuedDocument;
+        const wasLegacyUntrackedIssuedNote = oldDoc.type === 'delivery_note'
+            && oldDoc.status === 'issued'
+            && oldDoc.inventoryEffects === undefined
+            && !stockMovements.some(movement => movement.referenceId === oldDoc.id);
+        const remainsIssuedDeliveryNote = nextWithoutSnapshot.type === 'delivery_note'
+            && nextWithoutSnapshot.status === 'issued'
+            && !nextWithoutSnapshot.isTrashed;
+        const newEffects = wasLegacyUntrackedIssuedNote && remainsIssuedDeliveryNote
+            ? []
+            : getDeliveryNoteInventoryEffects(nextWithoutSnapshot, products, retailStores);
+        const nextDoc = { ...nextWithoutSnapshot, inventoryEffects: newEffects };
+        const effects = diffInventoryEffects(oldEffects, newEffects);
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'issued_documents', id), cleanObject({ ...data, inventoryEffects: newEffects }));
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: nextDoc.issuedDate,
+            source: 'document',
+            remarks: `納品書更新 (${nextDoc.docNumber}) による在庫差分反映`,
+        });
+        await batch.commit();
+        mutateIssuedDocuments(issuedDocuments.map(d => d.id === id ? nextDoc : d), false);
+        refreshInventoryCaches(effects);
         mutateIssuedDocuments();
     };
     
     const deleteIssuedDocument = async (id: string) => {
         const oldDoc = issuedDocuments.find(d => d.id === id);
         if (!oldDoc) return;
-        const recipientStore = oldDoc.storeId ? retailStores.find(s => s.id === oldDoc.storeId) : null;
-        const isLinkedConsignment = !!oldDoc.linkedConsignmentStoreId || !!recipientStore?.linkedConsignmentStoreId;
-        const shouldSkipOld = oldDoc.skipInventoryAdjustment !== undefined ? oldDoc.skipInventoryAdjustment : isLinkedConsignment;
-
-        if (oldDoc && oldDoc.type === 'delivery_note' && oldDoc.details && !oldDoc.isTrashed && !shouldSkipOld) {
-            // Restore stock
-            for (const item of oldDoc.details) {
-                if (item.productId) {
-                    const product = products.find(p => p.id === item.productId);
-                    if (product) {
-                        if (product.isComposite && product.components) {
-                            for (const comp of product.components) {
-                                const compProduct = products.find(p => p.id === comp.productId);
-                                if (compProduct) {
-                                    await adjustProductStock(compProduct.id, (comp.quantity * item.quantity));
-                                }
-                            }
-                        } else {
-                            await adjustProductStock(product.id, item.quantity);
-                        }
-                    }
-                }
-            }
+        if (oldDoc.isTrashed) return;
+        const nextDoc = { ...oldDoc, isTrashed: true };
+        const oldEffects = getPersistedDeliveryNoteEffects(oldDoc);
+        const effects = diffInventoryEffects(
+            oldEffects,
+            getDeliveryNoteInventoryEffects(nextDoc, products, retailStores),
+        );
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'issued_documents', id), { isTrashed: true, inventoryEffects: oldEffects });
+        const linkedPayments = oldDoc.type === 'invoice'
+            ? invoicePayments.filter(payment => payment.invoiceId === id && !payment.isTrashed)
+            : [];
+        if ((effects.length * 2) + linkedPayments.length + 1 > 450) {
+            throw new Error('関連する入金記録が多すぎるため、一度に削除できません。');
         }
-        await updateDoc(doc(db, 'issued_documents', id), { isTrashed: true });
+        for (const payment of linkedPayments) {
+            batch.update(doc(db, 'invoice_payments', payment.id), {
+                isTrashed: true,
+                trashedWithInvoice: true,
+            });
+        }
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: new Date().toISOString().split('T')[0],
+            source: 'document',
+            remarks: `納品書削除 (${oldDoc.docNumber}) による在庫差し戻し`,
+        });
+        await batch.commit();
+        mutateIssuedDocuments(issuedDocuments.map(item => item.id === id ? nextDoc : item), false);
+        if (linkedPayments.length) {
+            mutateInvoicePayments(invoicePayments.map(payment => linkedPayments.some(linked => linked.id === payment.id)
+                ? { ...payment, isTrashed: true, trashedWithInvoice: true }
+                : payment), false);
+        }
+        refreshInventoryCaches(effects);
         mutateIssuedDocuments();
+        if (linkedPayments.length) mutateInvoicePayments();
     };
 
 
     const restoreIssuedDocument = async (id: string) => {
         const docToRestore = issuedDocuments.find(d => d.id === id);
-        const recipientStore = docToRestore?.storeId ? retailStores.find(s => s.id === docToRestore.storeId) : null;
-        const isLinkedConsignment = !!docToRestore?.linkedConsignmentStoreId || !!recipientStore?.linkedConsignmentStoreId;
-        const shouldSkipRestore = docToRestore?.skipInventoryAdjustment !== undefined ? docToRestore.skipInventoryAdjustment : isLinkedConsignment;
-
-        if (docToRestore && docToRestore.type === 'delivery_note' && docToRestore.details && docToRestore.isTrashed && !shouldSkipRestore) {
-            // Re-deduct stock
-            for (const item of docToRestore.details) {
-                if (item.productId) {
-                    const product = products.find(p => p.id === item.productId);
-                    if (product) {
-                        if (product.isComposite && product.components) {
-                            for (const comp of product.components) {
-                                const compProduct = products.find(p => p.id === comp.productId);
-                                if (compProduct) {
-                                    await adjustProductStock(compProduct.id, -(comp.quantity * item.quantity));
-                                }
-                            }
-                        } else {
-                            await adjustProductStock(product.id, -item.quantity);
-                        }
-                    }
-                }
-            }
+        if (!docToRestore || !docToRestore.isTrashed) return;
+        const persistedEffects = docToRestore.inventoryEffects !== undefined
+            ? docToRestore.inventoryEffects
+            : (stockMovements.some(movement => movement.referenceId === docToRestore.id)
+                ? getDeliveryNoteInventoryEffects({ ...docToRestore, isTrashed: false }, products, retailStores)
+                : []);
+        const nextDoc = { ...docToRestore, isTrashed: false, inventoryEffects: persistedEffects };
+        const effects = diffInventoryEffects(
+            getDeliveryNoteInventoryEffects(docToRestore, products, retailStores),
+            getDeliveryNoteInventoryEffects(nextDoc, products, retailStores),
+        );
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'issued_documents', id), { isTrashed: false, inventoryEffects: persistedEffects });
+        const linkedPayments = docToRestore.type === 'invoice'
+            ? invoicePayments.filter(payment => payment.invoiceId === id && payment.isTrashed && payment.trashedWithInvoice)
+            : [];
+        if ((effects.length * 2) + linkedPayments.length + 1 > 450) {
+            throw new Error('関連する入金記録が多すぎるため、一度に復元できません。');
         }
-        await updateDoc(doc(db, 'issued_documents', id), { isTrashed: false });
+        for (const payment of linkedPayments) {
+            batch.update(doc(db, 'invoice_payments', payment.id), {
+                isTrashed: false,
+                trashedWithInvoice: false,
+            });
+        }
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: nextDoc.issuedDate,
+            source: 'document',
+            remarks: `納品書復元 (${nextDoc.docNumber}) による在庫再反映`,
+        });
+        await batch.commit();
+        mutateIssuedDocuments(issuedDocuments.map(item => item.id === id ? nextDoc : item), false);
+        if (linkedPayments.length) {
+            mutateInvoicePayments(invoicePayments.map(payment => linkedPayments.some(linked => linked.id === payment.id)
+                ? { ...payment, isTrashed: false, trashedWithInvoice: false }
+                : payment), false);
+        }
+        refreshInventoryCaches(effects);
         mutateIssuedDocuments();
+        if (linkedPayments.length) mutateInvoicePayments();
     };
 
 
     const permanentlyDeleteIssuedDocument = async (id: string) => {
+        const target = issuedDocuments.find(item => item.id === id);
+        if (target && !target.isTrashed) {
+            throw new Error('帳票は先にゴミ箱へ移動してください。');
+        }
         await deleteDoc(doc(db, 'issued_documents', id));
         mutateIssuedDocuments();
     };
 
     // --- Invoice Payment Actions ---
     const addInvoicePayment = async (data: Omit<InvoicePayment, 'id' | 'createdAt'>): Promise<InvoicePayment> => {
+        const invoice = issuedDocuments.find(item => item.id === data.invoiceId && !item.isTrashed && item.type === 'invoice');
+        if (!invoice) throw new Error('入金対象の請求書が見つかりません。');
+        const paymentError = getInvoicePaymentError(
+            invoice.totalAmount,
+            invoicePayments.filter(item => item.invoiceId === data.invoiceId),
+            data.amount,
+        );
+        if (paymentError) throw new Error(paymentError);
         const newRef = doc(collection(db, 'invoice_payments'));
         const newPayment: InvoicePayment = { id: newRef.id, ...data, createdAt: new Date().toISOString() };
         mutateInvoicePayments([newPayment, ...invoicePayments], false);
@@ -2168,6 +2153,18 @@ export function useStore() {
     };
 
     const updateInvoicePayment = async (id: string, data: Partial<Omit<InvoicePayment, 'id' | 'createdAt'>>) => {
+        const current = invoicePayments.find(item => item.id === id);
+        if (!current) throw new Error('更新対象の入金記録が見つかりません。');
+        const next = { ...current, ...data };
+        const invoice = issuedDocuments.find(item => item.id === next.invoiceId && !item.isTrashed && item.type === 'invoice');
+        if (!invoice) throw new Error('入金対象の請求書が見つかりません。');
+        const paymentError = getInvoicePaymentError(
+            invoice.totalAmount,
+            invoicePayments.filter(item => item.invoiceId === next.invoiceId),
+            next.amount,
+            id,
+        );
+        if (paymentError) throw new Error(paymentError);
         mutateInvoicePayments(invoicePayments.map(p => p.id === id ? { ...p, ...data } : p), false);
         await updateDoc(doc(db, 'invoice_payments', id), cleanObject(data));
         mutateInvoicePayments();
@@ -2193,8 +2190,13 @@ export function useStore() {
 
     // 計算済みの transactions を導出
     const transactions = useMemo(() => {
+        const activeInvoiceIds = new Set(issuedDocuments
+            .filter(document => document.type === 'invoice' && !document.isTrashed)
+            .map(document => document.id));
         return rawTransactions.map(t => {
-            const payments = invoicePayments.filter(p => p.transactionId === t.id && !p.isTrashed);
+            const payments = invoicePayments.filter(p =>
+                p.transactionId === t.id && !p.isTrashed && activeInvoiceIds.has(p.invoiceId),
+            );
             const paidAmount = payments.length > 0
                 ? payments.reduce((sum, p) => sum + p.amount, 0)
                 : (t.paidAmount || 0);
@@ -2204,7 +2206,7 @@ export function useStore() {
                 balanceAmount: Math.max(0, t.totalAmount - paidAmount)
             };
         });
-    }, [rawTransactions, invoicePayments]);
+    }, [rawTransactions, invoicePayments, issuedDocuments]);
 
     const addTransaction = async (data: Omit<Transaction, "id" | "createdAt" | "updatedAt">) => {
         if (checkDemoMode()) return;

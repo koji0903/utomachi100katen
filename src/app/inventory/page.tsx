@@ -41,6 +41,7 @@ export default function InventoryPage() {
 
     // Get low stock products
     const lowStockProducts = products.filter(p => !p.isTrashed && (p.stock || 0) <= (p.alertThreshold || 5));
+    const negativeStockProducts = products.filter(p => !p.isTrashed && (p.stock || 0) < 0);
 
     // Get recent stock movements
     const recentMovements = [...stockMovements]
@@ -311,6 +312,28 @@ export default function InventoryPage() {
                     </div>
                 </div>
             </div>
+
+            {negativeStockProducts.length > 0 && (
+                <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+                        <div>
+                            <h2 className="font-black text-red-800">マイナス在庫が {negativeStockProducts.length} 品目あります</h2>
+                            <p className="mt-1 text-sm text-red-700 leading-relaxed">
+                                {negativeStockProducts.slice(0, 5).map(product => `${product.name}（${product.stock}）`).join('、')}
+                                {negativeStockProducts.length > 5 ? `、ほか${negativeStockProducts.length - 5}品目` : ''}
+                            </p>
+                            <p className="mt-1 text-xs font-bold text-red-600">実数を確認し、棚卸しで正しい在庫数へ調整してください。</p>
+                        </div>
+                    </div>
+                    <Link
+                        href="/inventory/audits/new"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white text-sm font-black rounded-xl hover:bg-red-700 transition-colors shrink-0"
+                    >
+                        <ClipboardList className="w-4 h-4" />棚卸しを開始
+                    </Link>
+                </div>
+            )}
 
             {/* View Switcher */}
             <div className="flex p-1 bg-slate-100 rounded-2xl w-fit">
