@@ -9,7 +9,8 @@ import {
 import {
     TrendingUp, Store, Package, Calendar, Award,
     AlertCircle, Sparkles, ChevronRight, BarChart3,
-    ArrowUpRight, ArrowDownRight, Layers, ShoppingBag
+    ArrowUpRight, ArrowDownRight, Layers, ShoppingBag,
+    Truck, AlertTriangle, CheckCircle2, Clock, ArrowRight
 } from "lucide-react";
 import Link from "next/link";
 import { useStore, type Product, type RetailStore, type SpotRecipient, type Sale } from "@/lib/store";
@@ -19,6 +20,7 @@ import {
     aggregateStoreDailySales,
     aggregateMonthlyStoreSales,
     aggregateProductDailySales,
+    calculatePurchasingIntelligence,
 } from "@/lib/salesCockpitUtils";
 
 // グラフ用カラーパレット
@@ -34,10 +36,10 @@ const PALETTE = [
 ];
 
 export function ExecutiveSalesCockpit() {
-    const { unifiedSales, products, retailStores, spotRecipients } = useStore();
+    const { unifiedSales, products, retailStores, spotRecipients, purchases, suppliers } = useStore();
 
-    // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別)
-    const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product'>('store');
+    // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別) | 'purchasing' (発注・仕入判断)
+    const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product' | 'purchasing'>('store');
     
     // 店舗別ビュー用フィルタ
     const [selectedStoreId, setSelectedStoreId] = useState<string>("ALL");
@@ -112,7 +114,14 @@ export function ExecutiveSalesCockpit() {
     }, [targetProduct, unifiedSales, products]);
 
     // ─────────────────────────────────────────────────────────────
-    // 5. コンサルタント視点での定例会サマリー示唆（ハイライト）
+    // 5. 発注・仕入の意思決定情報（購買インテリジェンス）
+    // ─────────────────────────────────────────────────────────────
+    const purchasingIntelligence = useMemo(() => {
+        return calculatePurchasingIntelligence(products, unifiedSales, purchases, suppliers);
+    }, [products, unifiedSales, purchases, suppliers]);
+
+    // ─────────────────────────────────────────────────────────────
+    // 6. コンサルタント視点での定例会サマリー示唆（ハイライト）
     // ─────────────────────────────────────────────────────────────
     const consultantInsights = useMemo(() => {
         const bullets: string[] = [];
@@ -133,19 +142,21 @@ export function ExecutiveSalesCockpit() {
             bullets.push(`店舗別では「${executiveKpis.topStore.name}」が直近30日で ¥${executiveKpis.topStore.amount.toLocaleString()} を売り上げ、全社の最大シェアを牽引しています。`);
         }
 
-        // 3. 売れ筋＆在庫リスク
-        if (executiveKpis.topProduct) {
-            const p = productMap.get(executiveKpis.topProduct.id);
-            const daysRemaining = p ? calculateDaysRemaining(p, unifiedSales.filter(s => !s.isTrashed), products) : Infinity;
-            if (daysRemaining !== Infinity && daysRemaining <= 10) {
-                bullets.push(`主力売れ筋「${executiveKpis.topProduct.name}」は直近30日で ${executiveKpis.topProduct.qty}個 出荷。在庫残が推計 ${daysRemaining}日分 と逼迫しており、次回定例会前の補充手配を推奨します。`);
-            } else {
-                bullets.push(`商品別では「${executiveKpis.topProduct.name}」が直近30日で ${executiveKpis.topProduct.qty}個（¥${executiveKpis.topProduct.amount.toLocaleString()}）を出荷し、トップの支持を得ています。`);
-            }
+        // 3. 発注・仕入れの緊急判断材料
+        if (purchasingIntelligence.urgentCount > 0) {
+            bullets.push(`【発注判断】現在 ${purchasingIntelligence.urgentCount} 品目が至急発注推奨（欠品または7日以内欠品）です。想定仕入予算は約 ¥${purchasingIntelligence.totalRecommendedCost.toLocaleString()} で、早期の仕入確定が必要です。`);
+        } else if (purchasingIntelligence.attentionCount > 0) {
+            bullets.push(`【発注判断】向こう14日以内に欠品懸念のある商品が ${purchasingIntelligence.attentionCount} 品目あります。定例会にて仕入先へのロット発注の要否をご確認ください。`);
+        }
+
+        // 4. 滞留在庫への警鐘
+        if (purchasingIntelligence.stagnantItems.length > 0) {
+            const topStagnant = purchasingIntelligence.stagnantItems[0];
+            bullets.push(`【仕入抑制】「${topStagnant.productName}」など ${purchasingIntelligence.stagnantItems.length} 品目が直近30日販売停滞（在庫総額約 ¥${purchasingIntelligence.stagnantItems.reduce((sum, i) => sum + i.stockValue, 0).toLocaleString()}）。追加仕入は見合わせ、セールやセット商品化での消化を推奨します。`);
         }
 
         return bullets;
-    }, [executiveKpis, productMap, unifiedSales, products]);
+    }, [executiveKpis, purchasingIntelligence]);
 
     return (
         <section className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-6 sm:p-10 space-y-8 animate-in fade-in duration-500">
@@ -169,10 +180,10 @@ export function ExecutiveSalesCockpit() {
                 </div>
 
                 {/* Tab Switches */}
-                <div className="inline-flex p-1.5 bg-slate-100 rounded-2xl self-start md:self-center">
+                <div className="inline-flex p-1.5 bg-slate-100 rounded-2xl self-start md:self-center flex-wrap gap-1">
                     <button
                         onClick={() => setActiveTab('store')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
                             activeTab === 'store'
                                 ? 'bg-white text-blue-900 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-900'
@@ -183,7 +194,7 @@ export function ExecutiveSalesCockpit() {
                     </button>
                     <button
                         onClick={() => setActiveTab('monthly')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
                             activeTab === 'monthly'
                                 ? 'bg-white text-blue-900 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-900'
@@ -194,7 +205,7 @@ export function ExecutiveSalesCockpit() {
                     </button>
                     <button
                         onClick={() => setActiveTab('product')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
                             activeTab === 'product'
                                 ? 'bg-white text-blue-900 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-900'
@@ -202,6 +213,20 @@ export function ExecutiveSalesCockpit() {
                     >
                         <Package className="w-4 h-4" />
                         商品別推移
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('purchasing')}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
+                            activeTab === 'purchasing'
+                                ? 'bg-white text-blue-900 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                        <Truck className="w-4 h-4" />
+                        <span>発注・仕入判断</span>
+                        {purchasingIntelligence.urgentCount > 0 && (
+                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                        )}
                     </button>
                 </div>
             </div>
@@ -786,6 +811,264 @@ export function ExecutiveSalesCockpit() {
                             </div>
                         </>
                     )}
+                </div>
+            )}
+
+            {/* ─────────────────────────────────────────────────────────────
+                TAB 4: 発注・仕入判断ビュー（購買意思決定支援コックピット）
+            ───────────────────────────────────────────────────────────── */}
+            {activeTab === 'purchasing' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    {/* 購買判断サマリー（3つの判断軸） */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="p-5 rounded-2xl bg-rose-50/70 border border-rose-200">
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-rose-700 mb-1">
+                                <span className="flex items-center gap-1.5">
+                                    <AlertTriangle className="w-4 h-4 text-rose-600" />
+                                    至急発注推奨品目
+                                </span>
+                                <span className="bg-rose-200/80 text-rose-800 px-2 py-0.5 rounded-full font-black text-[9px]">
+                                    欠品または7日以内
+                                </span>
+                            </div>
+                            <div className="text-2xl font-black text-rose-900 tracking-tight">
+                                {purchasingIntelligence.urgentCount} <span className="text-xs font-bold text-rose-700">品目</span>
+                            </div>
+                            <div className="text-[11px] text-rose-800 font-bold mt-1">
+                                想定仕入予算: <span className="font-black text-rose-950">¥{purchasingIntelligence.totalRecommendedCost.toLocaleString()}</span>
+                            </div>
+                            <p className="text-[10px] text-rose-600/90 mt-2 font-medium">
+                                次回定例会を待たず、今週中に仕入発注が必要な商品群です
+                            </p>
+                        </div>
+
+                        <div className="p-5 rounded-2xl bg-blue-50/70 border border-blue-200">
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-blue-700 mb-1">
+                                <span className="flex items-center gap-1.5">
+                                    <Clock className="w-4 h-4 text-blue-600" />
+                                    入荷待ち（発注残）
+                                </span>
+                                <span className="bg-blue-200/80 text-blue-800 px-2 py-0.5 rounded-full font-black text-[9px]">
+                                    二重発注防止
+                                </span>
+                            </div>
+                            <div className="text-2xl font-black text-blue-900 tracking-tight">
+                                {purchasingIntelligence.totalPendingOrderCount} <span className="text-xs font-bold text-blue-700">伝票</span>
+                            </div>
+                            <div className="text-[11px] text-blue-800 font-bold mt-1">
+                                入荷待ち予定額: <span className="font-black text-blue-950">¥{purchasingIntelligence.totalPendingOrderAmount.toLocaleString()}</span>
+                            </div>
+                            <p className="text-[10px] text-blue-600/90 mt-2 font-medium">
+                                すでに発注済みで納品を待っている仕入データです
+                            </p>
+                        </div>
+
+                        <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200">
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-700 mb-1">
+                                <span className="flex items-center gap-1.5">
+                                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                                    滞留・過剰在庫警告
+                                </span>
+                                <span className="bg-amber-200/80 text-amber-800 px-2 py-0.5 rounded-full font-black text-[9px]">
+                                    仕入ストップ推奨
+                                </span>
+                            </div>
+                            <div className="text-2xl font-black text-amber-900 tracking-tight">
+                                {purchasingIntelligence.stagnantItems.length} <span className="text-xs font-bold text-amber-700">品目</span>
+                            </div>
+                            <div className="text-[11px] text-amber-800 font-bold mt-1">
+                                滞留在庫資産額: <span className="font-black text-amber-950">¥{purchasingIntelligence.stagnantItems.reduce((sum, i) => sum + i.stockValue, 0).toLocaleString()}</span>
+                            </div>
+                            <p className="text-[10px] text-amber-700/90 mt-2 font-medium">
+                                直近30日販売停滞。追加仕入を見合わせ、消化策が必要です
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Section 1: 緊急発注推奨リスト（購買判断テーブル） */}
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                        <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <Truck className="w-4 h-4 text-blue-600" />
+                                    発注推奨リスト（在庫消化ペースに基づく仕入判断）
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                    直近の販売実績・日販速度から目標30日分カバー在庫を割り出し、発注残を考慮して適正発注数を算出しています
+                                </p>
+                            </div>
+                            <Link
+                                href="/purchases"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1e3a8a] text-white rounded-xl text-xs font-bold hover:bg-blue-800 transition-colors self-start sm:self-auto shrink-0 shadow-sm"
+                            >
+                                <span>仕入管理で発注を作成</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                                <thead>
+                                    <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                        <th className="py-3 px-4">商品名</th>
+                                        <th className="py-3 px-4">仕入先 / 生産者</th>
+                                        <th className="py-3 px-4 text-right">現在庫</th>
+                                        <th className="py-3 px-4 text-right">直近30日日販</th>
+                                        <th className="py-3 px-4 text-center">推定在庫残</th>
+                                        <th className="py-3 px-4 text-right">発注残 (入荷待)</th>
+                                        <th className="py-3 px-4 text-right">推奨発注数</th>
+                                        <th className="py-3 px-4 text-right">想定仕入額</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-medium">
+                                    {purchasingIntelligence.recommendations.map((item, idx) => {
+                                        const status = getStockoutStatus(item.daysRemaining);
+                                        return (
+                                            <tr key={item.productId} className="hover:bg-slate-50/60 transition-colors">
+                                                <td className="py-3 px-4 font-bold text-slate-800">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                                                            item.isUrgent ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600"
+                                                        }`}>
+                                                            {idx + 1}
+                                                        </span>
+                                                        <span className="truncate max-w-[180px] sm:max-w-xs" title={item.productName}>
+                                                            {item.productName} {item.variantName ? `(${item.variantName})` : ""}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-4 text-slate-600 truncate max-w-[140px]">
+                                                    {item.supplierName}
+                                                </td>
+                                                <td className="py-3 px-4 text-right">
+                                                    <span className={`font-black ${item.currentStock <= 0 ? "text-rose-600" : item.currentStock <= 5 ? "text-amber-600" : "text-slate-900"}`}>
+                                                        {item.currentStock} 個
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-bold text-slate-700">
+                                                    {item.dailyVelocity.toFixed(1)} 個/日
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${status.bg} ${status.color}`}>
+                                                        {item.daysRemaining === Infinity ? "余裕あり" : `${item.daysRemaining}日分`}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-right">
+                                                    {item.pendingOrderQty > 0 ? (
+                                                        <span className="text-blue-600 font-black">+{item.pendingOrderQty} 個</span>
+                                                    ) : (
+                                                        <span className="text-slate-400 font-bold">0</span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-black text-slate-900">
+                                                    <span className="px-2 py-0.5 bg-blue-50 text-blue-800 rounded-md">
+                                                        {item.recommendedOrderQty.toLocaleString()} 個
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-black text-blue-600">
+                                                    ¥{item.estimatedCost.toLocaleString()}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {purchasingIntelligence.recommendations.length === 0 && (
+                                        <tr>
+                                            <td colSpan={8} className="py-12 text-center text-slate-400 font-bold">
+                                                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                                                現在、早急な発注が必要な在庫不足・欠品リスク品目はありません。
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Section 2: 仕入先別・発注ロットまとめ & 過剰在庫アラート（2カラム） */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* 仕入先別発注まとめ */}
+                        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                            <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                                <h4 className="text-xs font-black text-slate-800 flex items-center gap-2">
+                                    <Store className="w-4 h-4 text-blue-600" />
+                                    仕入先別・発注集約サマリー（ロット・予算検討用）
+                                </h4>
+                                <span className="text-[11px] text-slate-500 font-bold">
+                                    {purchasingIntelligence.supplierSummaries.length} 社
+                                </span>
+                            </div>
+                            <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                                {purchasingIntelligence.supplierSummaries.map((sup, idx) => (
+                                    <div key={sup.supplierId} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                                        <div>
+                                            <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-[10px] font-black">
+                                                    {idx + 1}
+                                                </span>
+                                                <span>{sup.supplierName}</span>
+                                            </div>
+                                            <div className="text-[11px] text-slate-400 font-medium mt-1">
+                                                要発注: <span className="font-bold text-slate-700">{sup.itemCount} 品目</span> / 総数量: <span className="font-bold text-slate-700">{sup.totalQuantity.toLocaleString()} 個</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-base font-black text-blue-600">
+                                                ¥{sup.totalCost.toLocaleString()}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                                想定仕入総額
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {purchasingIntelligence.supplierSummaries.length === 0 && (
+                                    <div className="p-8 text-center text-slate-400 text-xs font-bold">
+                                        発注推奨対象の仕入先はありません
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 過剰・滞留在庫アラート */}
+                        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                            <div className="p-4 bg-amber-50/50 border-b border-slate-100 flex items-center justify-between">
+                                <h4 className="text-xs font-black text-amber-900 flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                                    仕入抑制・過剰在庫アラート（販売停滞品）
+                                </h4>
+                                <span className="text-[11px] text-amber-800 font-bold">
+                                    {purchasingIntelligence.stagnantItems.length} 品目
+                                </span>
+                            </div>
+                            <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                                {purchasingIntelligence.stagnantItems.map((item, idx) => (
+                                    <div key={item.productId} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                                        <div>
+                                            <div className="font-bold text-slate-800 text-sm truncate max-w-xs" title={item.productName}>
+                                                {item.productName} {item.variantName ? `(${item.variantName})` : ""}
+                                            </div>
+                                            <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                                30日販売数: <span className="font-bold text-slate-700">{item.soldQty30} 個</span> / 現在庫: <span className="font-bold text-amber-600">{item.currentStock} 個</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm font-black text-slate-800">
+                                                ¥{item.stockValue.toLocaleString()}
+                                            </div>
+                                            <div className="text-[9px] text-amber-700 font-bold bg-amber-100 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                                                仕入見合わせ推奨
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {purchasingIntelligence.stagnantItems.length === 0 && (
+                                    <div className="p-8 text-center text-slate-400 text-xs font-bold">
+                                        過剰在庫や販売停滞品はありません。良好な回転率を維持しています。
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </section>

@@ -110,11 +110,36 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.16.0 */}
+                    {/* v1.17.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">発注・仕入の意思決定支援コックピットを新設</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "発注・仕入判断タブの新設：コックピット内に購買意思決定ビューを追加し、欠品リスク・発注残・推奨仕入予算を一画面で確認可能に",
+                                    "在庫消化ペース連動の緊急発注推奨リスト：直近30日の日販速度と発注残（入荷待ち数量）を考慮し、適正な推奨発注数と想定仕入金額を自動算出",
+                                    "二重発注防止のための入荷待ち（発注残）表示：発注済み・仕入待ちの伝票件数および入荷待ち予定総額を集計し、誤った過剰発注を未然に防止",
+                                    "仕入先別・発注ロット集約サマリー：仕入先ごとに発注推奨品目数・総数量・想定仕入金額を集計し、ロット条件の検討と経営陣の予算承認を迅速化",
+                                    "過剰・滞留在庫（販売停滞品）アラート：直近30日間販売ゼロの在庫品を特定し、仕入ストップ推奨と在庫資産額を表示してキャッシュフロー悪化を防止",
+                                    "仕入管理画面（/purchases）への直通導線：発注が必要な商品を即座に仕入伝票として作成できるようスムーズな業務連携を確保",
+                                    "経営陣・現場向けコンサルタント示唆の拡充：直近の緊急発注推奨額や過剰在庫の消化アドバイスを自動ハイライト"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.16.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.16.0 - 2026.11.05</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">定例会向け 売上状況エグゼクティブ・コックピットを新設</h3>
                             <ul className="space-y-2">
                                 {[

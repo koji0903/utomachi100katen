@@ -11,7 +11,7 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.16.0";
+export const CURRENT_VERSION = "v1.17.0";
 export const RELEASE_DATE = "2026.11.05";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
@@ -27,7 +27,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "発注・仕入れ管理",
-        description: "仕入先マスター、商品ごとの仕入先・生産者設定、発注書作成、欠品予測からの自動発注生成機能。",
+        description: "仕入先マスター、商品ごとの仕入先・生産者設定、発注書作成、欠品予測からの自動発注生成、およびコックピットでの発注判断・過剰在庫警告機能。",
         status: "completed"
     },
     {

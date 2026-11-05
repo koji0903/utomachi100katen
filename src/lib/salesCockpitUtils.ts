@@ -4,7 +4,8 @@
  * 経営陣（月次推移・店舗ポートフォリオ）と現場（日次・商品別個数推移）がひと目で把握できるKPI・推移データを算出
  */
 
-import type { Product, RetailStore, SpotRecipient, Sale } from "./store";
+import type { Product, RetailStore, SpotRecipient, Sale, Supplier, Purchase } from "./store";
+import { calculateDaysRemaining } from "./stockUtils";
 
 // YYYY-MM-DD
 export function formatDateYmd(d: Date): string {
@@ -413,5 +414,223 @@ export function aggregateProductDailySales(
         totalQty,
         totalAmount,
         dailyVelocity,
+    };
+}
+
+export interface ReorderRecommendation {
+    productId: string;
+    productName: string;
+    variantName?: string;
+    product: Product;
+    supplierId: string;
+    supplierName: string;
+    currentStock: number;
+    dailyVelocity: number;
+    daysRemaining: number;
+    pendingOrderQty: number; // 発注済み未入荷数量
+    isUrgent: boolean; // 7日以内欠品または在庫0
+    isAttention: boolean; // 14日以内欠品またはしきい値以下
+    recommendedOrderQty: number; // 推奨発注数
+    unitCost: number;
+    estimatedCost: number;
+}
+
+export interface StagnantStockItem {
+    productId: string;
+    productName: string;
+    variantName?: string;
+    product: Product;
+    supplierName: string;
+    currentStock: number;
+    daysRemaining: number;
+    soldQty30: number;
+    unitCost: number;
+    stockValue: number; // 在庫金額
+}
+
+export interface SupplierOrderSummary {
+    supplierId: string;
+    supplierName: string;
+    itemCount: number;
+    totalQuantity: number;
+    totalCost: number;
+    items: ReorderRecommendation[];
+}
+
+export interface PurchasingIntelligence {
+    urgentCount: number;
+    attentionCount: number;
+    totalRecommendedCost: number;
+    totalPendingOrderCount: number;
+    totalPendingOrderAmount: number;
+    recommendations: ReorderRecommendation[];
+    supplierSummaries: SupplierOrderSummary[];
+    stagnantItems: StagnantStockItem[];
+}
+
+/**
+ * 5. 発注・仕入の意思決定情報（推奨発注、発注残、仕入先サマリー、滞留在庫）の算出
+ */
+export function calculatePurchasingIntelligence(
+    products: Product[],
+    sales: Sale[],
+    purchases: Purchase[],
+    suppliers: Supplier[],
+    baseDate: Date = new Date()
+): PurchasingIntelligence {
+    const validProducts = products.filter(p => !p.isTrashed);
+    const validSales = sales.filter(s => !s.isTrashed);
+    const validPurchases = purchases.filter(p => !p.isTrashed);
+
+    const supplierMap = new Map<string, Supplier>();
+    suppliers.filter(s => !s.isTrashed).forEach(s => supplierMap.set(s.id, s));
+
+    // 発注残（入荷待ち数量）の集計: status が 'received' または 'paid' 以外の仕入伝票
+    const pendingOrderQtyMap = new Map<string, number>();
+    let totalPendingOrderCount = 0;
+    let totalPendingOrderAmount = 0;
+
+    validPurchases.forEach(p => {
+        const isPending = p.status !== 'received' && p.status !== 'paid';
+        if (isPending) {
+            totalPendingOrderCount++;
+            totalPendingOrderAmount += (p.totalAmount || 0);
+
+            p.items?.forEach(item => {
+                const pendingQty = Math.max(0, (item.quantity || 0) - (item.receivedQuantity || 0));
+                const cur = pendingOrderQtyMap.get(item.productId) || 0;
+                pendingOrderQtyMap.set(item.productId, cur + pendingQty);
+            });
+        }
+    });
+
+    // 過去30日間の商品別販売数量の集計
+    const last30Days = getPastDaysList(30, baseDate);
+    const last30Sales = validSales.filter(s => s.period && last30Days.includes(s.period));
+    const soldQty30Map = new Map<string, number>();
+    last30Sales.forEach(s => {
+        s.items?.forEach(i => {
+            const cur = soldQty30Map.get(i.productId) || 0;
+            soldQty30Map.set(i.productId, cur + (i.quantity || 0));
+        });
+    });
+
+    const recommendations: ReorderRecommendation[] = [];
+    const stagnantItems: StagnantStockItem[] = [];
+
+    validProducts.forEach(product => {
+        const soldQty30 = soldQty30Map.get(product.id) || 0;
+        const dailyVelocity = soldQty30 / 30;
+        const daysRemaining = calculateDaysRemaining(product, validSales, validProducts);
+        const pendingOrderQty = pendingOrderQtyMap.get(product.id) || 0;
+        const threshold = product.alertThreshold ?? 20;
+
+        const isUnderThreshold = product.stock <= threshold;
+        const isRunningOutSoon = daysRemaining !== Infinity && daysRemaining <= 14;
+        const isZeroStock = product.stock <= 0;
+
+        const supplier = supplierMap.get(product.supplierId) || null;
+        const supplierName = supplier?.name || "仕入先未設定";
+        const unitCost = product.costPrice || 0;
+
+        // 要発注判定（在庫しきい値以下、または14日以内欠品、または在庫0）
+        if (isZeroStock || isUnderThreshold || isRunningOutSoon) {
+            // 推奨発注数: 30日分カバー在庫、またはしきい値の2倍
+            const targetStock = dailyVelocity > 0
+                ? Math.max(Math.ceil(dailyVelocity * 30), threshold * 2)
+                : Math.max(threshold * 2, 10);
+
+            // 有効在庫 = 現在庫 + 入荷待ち
+            const effectiveStock = product.stock + pendingOrderQty;
+            const shortage = Math.max(0, targetStock - effectiveStock);
+
+            // 不足がある場合、または在庫0で発注残もない場合
+            if (shortage > 0 || (isZeroStock && pendingOrderQty === 0)) {
+                const recommendedOrderQty = shortage > 0 ? shortage : Math.max(threshold * 2, 10);
+                const isUrgent = isZeroStock || (daysRemaining !== Infinity && daysRemaining <= 7);
+
+                recommendations.push({
+                    productId: product.id,
+                    productName: product.name,
+                    variantName: product.variantName,
+                    product,
+                    supplierId: product.supplierId || "unassigned",
+                    supplierName,
+                    currentStock: product.stock,
+                    dailyVelocity,
+                    daysRemaining,
+                    pendingOrderQty,
+                    isUrgent,
+                    isAttention: !isUrgent,
+                    recommendedOrderQty,
+                    unitCost,
+                    estimatedCost: unitCost * recommendedOrderQty,
+                });
+            }
+        }
+
+        // 滞留・過剰在庫判定（直近30日販売ゼロで在庫あり、または残日数90日超で在庫多数）
+        const isStagnant = (soldQty30 === 0 && product.stock > 0) || (daysRemaining > 90 && product.stock > threshold * 3);
+        if (isStagnant && product.stock > 0) {
+            stagnantItems.push({
+                productId: product.id,
+                productName: product.name,
+                variantName: product.variantName,
+                product,
+                supplierName,
+                currentStock: product.stock,
+                daysRemaining,
+                soldQty30,
+                unitCost,
+                stockValue: product.stock * unitCost,
+            });
+        }
+    });
+
+    // 推奨発注リストのソート: 緊急度（残日数の少ない順）
+    recommendations.sort((a, b) => {
+        const aDays = a.daysRemaining === Infinity ? 999 : a.daysRemaining;
+        const bDays = b.daysRemaining === Infinity ? 999 : b.daysRemaining;
+        return aDays - bDays || b.estimatedCost - a.estimatedCost;
+    });
+
+    // 滞留在庫リストのソート: 在庫金額の大きい順
+    stagnantItems.sort((a, b) => b.stockValue - a.stockValue);
+
+    // 仕入先別サマリーの構築
+    const supplierSummaryMap = new Map<string, SupplierOrderSummary>();
+    recommendations.forEach(rec => {
+        const sId = rec.supplierId;
+        const cur = supplierSummaryMap.get(sId) || {
+            supplierId: sId,
+            supplierName: rec.supplierName,
+            itemCount: 0,
+            totalQuantity: 0,
+            totalCost: 0,
+            items: [],
+        };
+        cur.itemCount++;
+        cur.totalQuantity += rec.recommendedOrderQty;
+        cur.totalCost += rec.estimatedCost;
+        cur.items.push(rec);
+        supplierSummaryMap.set(sId, cur);
+    });
+
+    const supplierSummaries = Array.from(supplierSummaryMap.values())
+        .sort((a, b) => b.totalCost - a.totalCost);
+
+    const urgentCount = recommendations.filter(r => r.isUrgent).length;
+    const attentionCount = recommendations.filter(r => r.isAttention).length;
+    const totalRecommendedCost = recommendations.reduce((sum, r) => sum + r.estimatedCost, 0);
+
+    return {
+        urgentCount,
+        attentionCount,
+        totalRecommendedCost,
+        totalPendingOrderCount,
+        totalPendingOrderAmount,
+        recommendations,
+        supplierSummaries,
+        stagnantItems,
     };
 }

@@ -7,8 +7,9 @@ import {
     aggregateStoreDailySales,
     aggregateMonthlyStoreSales,
     aggregateProductDailySales,
+    calculatePurchasingIntelligence,
 } from "@/lib/salesCockpitUtils";
-import type { Sale, Product, RetailStore, SpotRecipient } from "@/lib/store";
+import type { Sale, Product, RetailStore, SpotRecipient, Supplier, Purchase } from "@/lib/store";
 
 describe("salesCockpitUtils", () => {
     const baseDate = new Date("2026-11-05T12:00:00Z");
@@ -17,6 +18,7 @@ describe("salesCockpitUtils", () => {
         {
             id: "prod-1",
             name: "ウトマチ特製ドレッシング",
+            supplierId: "sup-2",
             sellingPrice: 800,
             costPrice: 400,
             stock: 25,
@@ -26,10 +28,21 @@ describe("salesCockpitUtils", () => {
         {
             id: "prod-2",
             name: "宇土産 完熟トマトジュース",
+            supplierId: "sup-1",
             sellingPrice: 1200,
             costPrice: 600,
             stock: 5,
             alertThreshold: 15,
+            isTrashed: false,
+        } as Product,
+        {
+            id: "prod-3",
+            name: "季節限定ジャム（在庫滞留中）",
+            supplierId: "sup-1",
+            sellingPrice: 900,
+            costPrice: 500,
+            stock: 40,
+            alertThreshold: 10,
             isTrashed: false,
         } as Product,
     ];
@@ -55,6 +68,19 @@ describe("salesCockpitUtils", () => {
             name: "宇土秋祭り 特設ブース",
             isTrashed: false,
         } as SpotRecipient,
+    ];
+
+    const mockSuppliers: Supplier[] = [
+        {
+            id: "sup-1",
+            name: "宇土アグリファーム",
+            isTrashed: false,
+        } as Supplier,
+        {
+            id: "sup-2",
+            name: "肥後調味料醸造",
+            isTrashed: false,
+        } as Supplier,
     ];
 
     const mockSales: Sale[] = [
@@ -216,5 +242,62 @@ describe("salesCockpitUtils", () => {
         expect(prod1Result.storeBreakdown.length).toBe(1);
         expect(prod1Result.storeBreakdown[0].storeId).toBe("store-1");
         expect(prod1Result.storeBreakdown[0].qty).toBe(12);
+    });
+
+    it("calculatePurchasingIntelligence が緊急発注推奨、発注残、仕入先まとめ、滞留在庫を正確に算出する", () => {
+        // 仕入データ（入荷待ち1件、仕入完了1件）
+        const mockPurchases: Purchase[] = [
+            {
+                id: "po-1",
+                type: "A",
+                status: "ordered", // 入荷待ち
+                supplierId: "sup-1",
+                totalAmount: 6000,
+                orderDate: "2026-11-04",
+                items: [
+                    { productId: "prod-2", quantity: 10, receivedQuantity: 0, unitCost: 600, totalCost: 6000 }
+                ],
+                isTrashed: false,
+            } as Purchase,
+            {
+                id: "po-2",
+                type: "A",
+                status: "received", // 納品済み（発注残ではない）
+                supplierId: "sup-2",
+                totalAmount: 4000,
+                orderDate: "2026-10-20",
+                items: [
+                    { productId: "prod-1", quantity: 10, receivedQuantity: 10, unitCost: 400, totalCost: 4000 }
+                ],
+                isTrashed: false,
+            } as Purchase,
+        ];
+
+        const intel = calculatePurchasingIntelligence(
+            mockProducts,
+            mockSales,
+            mockPurchases,
+            mockSuppliers,
+            baseDate
+        );
+
+        // prod-2 は現在庫5個、しきい値15個で在庫不足。発注残が10個ある。
+        // 目標在庫 = max(30, 15*2) = 30個。
+        // 不足 = 30 - (5 + 10) = 15個推奨。
+        const prod2Rec = intel.recommendations.find(r => r.productId === "prod-2");
+        expect(prod2Rec).toBeDefined();
+        expect(prod2Rec?.pendingOrderQty).toBe(10);
+        expect(prod2Rec?.supplierName).toBe("宇土アグリファーム");
+        expect(prod2Rec?.recommendedOrderQty).toBeGreaterThan(0);
+
+        // 入荷待ち集計
+        expect(intel.totalPendingOrderCount).toBe(1);
+        expect(intel.totalPendingOrderAmount).toBe(6000);
+
+        // 滞留在庫: prod-3 は直近30日販売ゼロで現在庫40個
+        const stagnant = intel.stagnantItems.find(i => i.productId === "prod-3");
+        expect(stagnant).toBeDefined();
+        expect(stagnant?.soldQty30).toBe(0);
+        expect(stagnant?.stockValue).toBe(40 * 500); // 20,000円
     });
 });
