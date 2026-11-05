@@ -12,7 +12,7 @@ import {
     CloudSun, Cloud, CloudRain, CloudSnow,
     Package, ChevronLeft,
     Sparkles, Edit2, Trash2, RotateCcw,
-    ArrowUpDown, ChevronUp, ChevronDown, Target, RefreshCw, FileText
+    ArrowUpDown, ChevronUp, ChevronDown, Target, RefreshCw, FileText, AlertCircle
 } from "lucide-react";
 import { useStore, Product, Sale } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
@@ -653,6 +653,12 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                         <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200">{sortedProducts.length} 商品が選択できます</div>
                                     </div>
                                 </div>
+                                <div className="mt-2 text-[11px] text-slate-500 font-medium flex items-center gap-1.5 bg-white/80 p-2 rounded-lg border border-slate-200/60">
+                                    <AlertCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    <span>
+                                        納品書・請求書を発行した取引は自動的に売上統合されます。二重計上を防ぐため、帳票発行済みの取引はここでの再入力は不要です（店頭POS・レシート等の日次売上のみ入力してください）。
+                                    </span>
+                                </div>
                             </div>
                             <div className="overflow-x-auto flex-1">
                                 <table className="w-full text-left border-collapse">
@@ -683,7 +689,7 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                                 </div>
                                             </th>
                                             <th className="px-6 py-4 text-right">小計</th>
-                                            <th className="px-6 py-4 text-right">入金額 (純利)</th>
+                                            <th className="px-6 py-4 text-right">差引手取額 (委託後)</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1553,7 +1559,7 @@ function SalesPageContent() {
                     数量: item.quantity,
                     小計: item.subtotal,
                     店舗手数料: item.commission,
-                    純利益: item.netProfit
+                    差引手取額: item.netProfit
                 });
             });
         });

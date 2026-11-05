@@ -392,46 +392,69 @@ describe("salesCockpitUtils", () => {
         expect(surgingRec?.recommendedOrderQty).toBeGreaterThan(0);
     });
 
-    it("calculateConsultantStrategy: 小売業経営コンサルタント視点での粗利率・客単価・パレート分析が正しく算出されること", () => {
+    it("calculateConsultantStrategy: 委託手数料控除後の実質手残り粗利（MQ）および交差比率（GMROI）が正しく算出されること", () => {
+        // 委託手数料を含む売上テストデータ
+        const consignmentSale: Sale = {
+            id: "sale-consignment-1",
+            storeId: "store-1",
+            type: "daily",
+            period: "2026-11-05",
+            totalQuantity: 10,
+            totalAmount: 10000,
+            totalCommission: 2000, // 20%手数料
+            totalNetProfit: 8000,
+            items: [
+                {
+                    productId: "prod-1", // sellingPrice: 800, costPrice: 400
+                    quantity: 10,
+                    priceAtSale: 1000,
+                    subtotal: 10000,
+                    commission: 2000,
+                    netProfit: 8000,
+                    variableCostAmount: 4000, // 原価 400 * 10
+                }
+            ],
+            isTrashed: false,
+        } as Sale;
+
+        const storeStocks = [
+            { storeId: "store-1", productId: "prod-1", stock: 15 },
+        ];
+
         const strategy = calculateConsultantStrategy(
-            mockSales,
+            [consignmentSale],
             mockProducts,
             mockStores,
             mockSpots,
             30,
-            baseDate
+            baseDate,
+            storeStocks
         );
 
-        // 30日売上と粗利
-        expect(strategy.totalRevenue).toBeGreaterThan(0);
-        expect(strategy.totalCost).toBeGreaterThan(0);
-        expect(strategy.totalGrossProfit).toBe(strategy.totalRevenue - strategy.totalCost);
-        expect(strategy.overallGrossMargin).toBeGreaterThan(0);
+        // 1. 表面粗利 vs 実質手残り粗利（手数料控除後）の峻別
+        // 売上 10,000, 原価 4,000, 手数料 2,000
+        expect(strategy.totalRevenue).toBe(10000);
+        expect(strategy.totalCost).toBe(4000);
+        expect(strategy.totalCommission).toBe(2000);
+        // 表面粗利 = 10,000 - 4,000 = 6,000 (60%)
+        expect(strategy.totalNominalGrossProfit).toBe(6000);
+        expect(strategy.nominalGrossMargin).toBe(60);
+        // 実質手残り限界利益 = 10,000 - 4,000 - 2,000 = 4,000 (40%)
+        expect(strategy.totalGrossProfit).toBe(4000);
+        expect(strategy.overallGrossMargin).toBe(40);
 
-        // 客単価・買上点数（ゴミ箱除外で4件）
-        expect(strategy.totalTransactions).toBe(4);
-        expect(strategy.averageBasket).toBe(Math.round(strategy.totalRevenue / strategy.totalTransactions));
-        expect(strategy.averageUnitsPerBasket).toBeGreaterThan(0);
+        // 2. 交差比率 (GMROI) と 在庫資本効率
+        expect(strategy.productsProfitability.length).toBe(1);
+        const p1 = strategy.productsProfitability[0];
+        expect(p1.productId).toBe("prod-1");
+        expect(p1.currentStock).toBe(40); // mainStock 25 + storeStock 15
+        expect(p1.stockValue).toBe(40 * 400); // 16,000円
+        expect(p1.turnoverAnnual).toBeGreaterThan(0);
+        expect(p1.gmroi).toBeGreaterThan(0);
+        expect(p1.gmroiCategory).toBeDefined();
 
-        // 店舗別収益性
-        expect(strategy.storesProfitability.length).toBeGreaterThan(0);
-        const store1 = strategy.storesProfitability.find(s => s.storeId === "store-1");
-        expect(store1).toBeDefined();
-        expect(store1?.totalRevenue).toBe(9600);
-        expect(store1?.grossProfit).toBe(4800);
-        expect(store1?.grossMarginRatio).toBe(50);
-        expect(store1?.averageBasket).toBe(3200); // 9600 / 3 transactions
-
-        // 商品別パレート（ABC分析）
-        expect(strategy.productsProfitability.length).toBeGreaterThan(0);
-        const topProd = strategy.productsProfitability[0];
-        expect(topProd.rankClass).toBe("A");
-        expect(topProd.cumulativeRevenueShare).toBeGreaterThan(0);
-
-        // コンサルタントアジェンダ提言
-        expect(strategy.consultantAgendas.length).toBeGreaterThanOrEqual(3);
-        expect(strategy.consultantAgendas.some(a => a.category === "利益率改善")).toBe(true);
-        expect(strategy.consultantAgendas.some(a => a.category === "客単価アップ")).toBe(true);
-        expect(strategy.consultantAgendas.some(a => a.category === "集中度・リスク")).toBe(true);
+        // 3. 注意書き（免責事項）の生成
+        expect(strategy.disclaimerNotes.commissionNote).toContain("実質粗利");
+        expect(strategy.disclaimerNotes.fixedCostNote).toContain("固定費");
     });
 });

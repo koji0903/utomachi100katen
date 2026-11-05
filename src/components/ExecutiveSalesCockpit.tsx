@@ -12,7 +12,7 @@ import {
     ArrowUpRight, ArrowDownRight, Layers, ShoppingBag,
     Truck, AlertTriangle, CheckCircle2, Clock, ArrowRight,
     Compass, Target, PieChart, Users, DollarSign, Percent,
-    ShieldAlert
+    ShieldAlert, Activity
 } from "lucide-react";
 import Link from "next/link";
 import { useStore, type Product, type RetailStore, type SpotRecipient, type Sale } from "@/lib/store";
@@ -40,7 +40,7 @@ const PALETTE = [
 ];
 
 export function ExecutiveSalesCockpit() {
-    const { unifiedSales, products, retailStores, spotRecipients, purchases, suppliers, storeStocks } = useStore();
+    const { unifiedSales, products, retailStores, spotRecipients, purchases, suppliers, storeStocks, fixedCosts = [] } = useStore();
 
     // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別) | 'purchasing' (発注・仕入判断) | 'consultant' (コンサルタント戦略分析)
     const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product' | 'purchasing' | 'consultant'>('store');
@@ -70,6 +70,24 @@ export function ExecutiveSalesCockpit() {
         products.forEach(p => map.set(p.id, p));
         return map;
     }, [products]);
+
+    // ─────────────────────────────────────────────────────────────
+    // 月次固定費の概算シミュレーション値（最新月または当月）
+    // ─────────────────────────────────────────────────────────────
+    const currentMonthFixedCost = useMemo(() => {
+        const d = new Date();
+        const currentMonthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const currentRecord = fixedCosts.find(fc => fc.targetMonth === currentMonthKey);
+        if (currentRecord && currentRecord.totalFixedCost > 0) {
+            return currentRecord.totalFixedCost;
+        }
+        // 当月未登録の場合は直近の登録月レコード、または最新レコード
+        if (fixedCosts.length > 0) {
+            const sorted = [...fixedCosts].sort((a, b) => (b.targetMonth || "").localeCompare(a.targetMonth || ""));
+            return sorted[0]?.totalFixedCost || 0;
+        }
+        return 0;
+    }, [fixedCosts]);
 
     // ─────────────────────────────────────────────────────────────
     // 1. エグゼクティブ・サマリー KPI
@@ -151,7 +169,7 @@ export function ExecutiveSalesCockpit() {
     }, [purchasingIntelligence.recommendations, reorderTrendFilter]);
 
     // ─────────────────────────────────────────────────────────────
-    // 6. 小売業経営コンサルタント戦略分析（粗利率・客単価・パレート）
+    // 6. 小売業経営コンサルタント戦略分析（粗利率・客単価・GMROI・パレート）
     // ─────────────────────────────────────────────────────────────
     const consultantStrategy = useMemo(() => {
         return calculateConsultantStrategy(
@@ -159,9 +177,11 @@ export function ExecutiveSalesCockpit() {
             products,
             retailStores,
             spotRecipients,
-            consultantPeriodDays
+            consultantPeriodDays,
+            new Date(),
+            storeStocks
         );
-    }, [unifiedSales, products, retailStores, spotRecipients, consultantPeriodDays]);
+    }, [unifiedSales, products, retailStores, spotRecipients, consultantPeriodDays, storeStocks]);
 
     // ─────────────────────────────────────────────────────────────
     // 7. コンサルタント視点での定例会サマリー示唆（ハイライト）
@@ -1288,13 +1308,22 @@ export function ExecutiveSalesCockpit() {
                                             <div className="text-[11px] text-slate-400 font-medium mt-0.5">
                                                 30日販売数: <span className="font-bold text-slate-700">{item.soldQty30} 個</span> / 全社総在庫: <span className="font-bold text-amber-600">{item.currentStock} 個</span> <span className="text-[10px] text-slate-400 font-normal">(本社:{item.mainStock ?? 0} / 店頭計:{item.storeStockTotal ?? 0})</span>
                                             </div>
+                                            <div className="text-[10px] text-slate-500 font-medium mt-0.5 flex items-center gap-2">
+                                                <span>資金回収予測: <strong className="font-bold text-slate-700">{item.monthsToDeplete >= 99 ? "消化不能 (0個販売)" : `${item.monthsToDeplete}ヶ月`}</strong></span>
+                                                {!item.hasCostPrice && (
+                                                    <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-bold">原価未設定</span>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-sm font-black text-slate-800">
+                                            <div className="text-sm font-black text-rose-600">
                                                 ¥{item.stockValue.toLocaleString()}
                                             </div>
+                                            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                                寝ている投下資金 (原価)
+                                            </div>
                                             <div className="text-[9px] text-amber-700 font-bold bg-amber-100 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                                                仕入見合わせ推奨
+                                                仕入原則凍結・早期現金化
                                             </div>
                                         </div>
                                     </div>
@@ -1328,7 +1357,7 @@ export function ExecutiveSalesCockpit() {
                                 小売業経営コンサルタント 戦略コックピット
                             </h3>
                             <p className="text-slate-500 text-xs mt-0.5">
-                                売上高だけでなく、粗利高（MQ）・粗利率・客単価・買上点数・パレート集中度から、定例会で打つべき具体アクションを提示します。
+                                売上高だけでなく、実質粗利高（手数料控除後 MQ）・損益分岐点（固定費回収）・交差比率（GMROI）・客単価から、定例会で打つべき具体アクションを提示します。
                             </p>
                         </div>
 
@@ -1355,23 +1384,36 @@ export function ExecutiveSalesCockpit() {
                         </div>
                     </div>
 
+                    {/* 経営判断のための重要注意書き（免責・計算基準バッジ） */}
+                    <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/70 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+                        <div className="text-xs text-amber-900 leading-relaxed font-medium">
+                            <span className="font-black">【定例会・経営数値に関する注意書き】</span>
+                            <span className="ml-1">{consultantStrategy.disclaimerNotes.commissionNote}</span>
+                            <span className="ml-2 text-amber-800">{consultantStrategy.disclaimerNotes.fixedCostNote}</span>
+                        </div>
+                    </div>
+
                     {/* 4大コンサルタント・コア指標 */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                        {/* 1. 限界利益（MQ）＆ 粗利率 */}
+                        {/* 1. 実質手残り限界利益（MQ）＆ 粗利率 */}
                         <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-indigo-300 transition-colors">
                             <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
-                                <span>限界利益額 (粗利高 MQ)</span>
+                                <span>実質手残り粗利 (限界利益 MQ)</span>
                                 <DollarSign className="w-3.5 h-3.5 text-indigo-600" />
                             </div>
                             <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                                 ¥{consultantStrategy.totalGrossProfit.toLocaleString()}
                             </div>
+                            <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                表面粗利: ¥{consultantStrategy.totalNominalGrossProfit.toLocaleString()} (手数料: -¥{consultantStrategy.totalCommission.toLocaleString()})
+                            </div>
                             <div className="mt-2 flex items-center justify-between text-xs font-bold pt-2 border-t border-slate-100">
-                                <span className="text-slate-500">全社平均粗利率</span>
+                                <span className="text-slate-500">実質粗利率 (手残り率)</span>
                                 <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-                                    consultantStrategy.overallGrossMargin >= 40
+                                    consultantStrategy.overallGrossMargin >= 35
                                         ? 'bg-emerald-50 text-emerald-700'
-                                        : consultantStrategy.overallGrossMargin >= 30
+                                        : consultantStrategy.overallGrossMargin >= 25
                                         ? 'bg-blue-50 text-blue-700'
                                         : 'bg-rose-50 text-rose-700'
                                 }`}>
@@ -1380,7 +1422,69 @@ export function ExecutiveSalesCockpit() {
                             </div>
                         </div>
 
-                        {/* 2. 平均客単価（Basket Size） */}
+                        {/* 2. 月次固定費回収進捗 ＆ 損益分岐点 */}
+                        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-emerald-300 transition-colors">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
+                                <span>月次固定費回収進捗 (概算)</span>
+                                <Activity className="w-3.5 h-3.5 text-emerald-600" />
+                            </div>
+                            {currentMonthFixedCost > 0 ? (
+                                <>
+                                    <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-baseline gap-1.5">
+                                        {Math.round((consultantStrategy.totalGrossProfit / currentMonthFixedCost) * 100)}%
+                                        <span className="text-xs text-slate-400 font-bold">回収</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                        月次概算固定費: ¥{currentMonthFixedCost.toLocaleString()}
+                                    </div>
+                                    <div className="mt-2 flex items-center justify-between text-xs font-bold pt-2 border-t border-slate-100">
+                                        <span className="text-slate-500">損益分岐点売上高</span>
+                                        <span className="text-slate-800 font-black">
+                                            {consultantStrategy.overallGrossMargin > 0
+                                                ? `¥${Math.round(currentMonthFixedCost / (consultantStrategy.overallGrossMargin / 100)).toLocaleString()}`
+                                                : "算出中"}
+                                        </span>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-lg font-black text-slate-400 tracking-tight">
+                                        固定費未登録
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-medium mt-1">
+                                        「月次固定費管理」で登録すると損益分岐点が自動表示されます
+                                    </div>
+                                    <div className="mt-2 text-xs font-bold pt-2 border-t border-slate-100">
+                                        <Link href="/fixed-costs" className="text-blue-600 hover:underline flex items-center gap-1">
+                                            固定費を登録する <ArrowRight className="w-3 h-3" />
+                                        </Link>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* 3. 全社交差比率（GMROI）＆ 在庫資本効率 */}
+                        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-amber-300 transition-colors">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
+                                <span>交差比率 (GMROI・資金効率)</span>
+                                <Target className="w-3.5 h-3.5 text-amber-500" />
+                            </div>
+                            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                {consultantStrategy.companyGmroi}%
+                                <span className="text-xs text-slate-400 font-bold ml-1.5">投下資本回収率</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                ドル箱商品: <strong className="text-emerald-700 font-bold">{consultantStrategy.gmroiSummary.starCount}品目</strong> / 滞留: <strong className="text-rose-600 font-bold">{consultantStrategy.gmroiSummary.drainCount}品目</strong>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-xs font-bold pt-2 border-t border-slate-100">
+                                <span className="text-slate-500">滞留中の寝ている資金</span>
+                                <span className="text-rose-600 font-black">
+                                    ¥{consultantStrategy.gmroiSummary.totalTiedUpCapitalInDrain.toLocaleString()}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* 4. 平均客単価（Basket Size） ＆ 買上点数 */}
                         <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-blue-300 transition-colors">
                             <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
                                 <span>平均客単価 (Basket)</span>
@@ -1389,55 +1493,12 @@ export function ExecutiveSalesCockpit() {
                             <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                                 ¥{consultantStrategy.averageBasket.toLocaleString()}
                             </div>
+                            <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                伝票数: {consultantStrategy.totalTransactions}件 / 販売個数: {consultantStrategy.totalUnits.toLocaleString()}個
+                            </div>
                             <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 font-medium pt-2 border-t border-slate-100">
                                 <span>買上点数: <strong className="text-slate-800 font-black">{consultantStrategy.averageUnitsPerBasket}点</strong></span>
                                 <span>単価: <strong className="text-slate-800 font-black">¥{consultantStrategy.averageUnitPrice.toLocaleString()}</strong></span>
-                            </div>
-                        </div>
-
-                        {/* 3. 売れ筋集中度（パレート分析） */}
-                        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-amber-300 transition-colors">
-                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
-                                <span>売れ筋集中度 (上位20%)</span>
-                                <Target className="w-3.5 h-3.5 text-amber-500" />
-                            </div>
-                            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                                {consultantStrategy.paretoRatio.top20RevenueShare}%
-                                <span className="text-xs text-slate-400 font-bold ml-1.5">売上シェア</span>
-                            </div>
-                            <div className="mt-2 flex items-center justify-between text-xs font-bold pt-2 border-t border-slate-100">
-                                <span className="text-slate-500">上位 {consultantStrategy.paretoRatio.top20PercentProductCount} 品目</span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                    consultantStrategy.paretoRatio.dependenceLevel === 'high'
-                                        ? 'bg-rose-50 text-rose-700'
-                                        : consultantStrategy.paretoRatio.dependenceLevel === 'moderate'
-                                        ? 'bg-blue-50 text-blue-700'
-                                        : 'bg-emerald-50 text-emerald-700'
-                                }`}>
-                                    {consultantStrategy.paretoRatio.dependenceLevel === 'high'
-                                        ? '集中リスク警戒'
-                                        : consultantStrategy.paretoRatio.dependenceLevel === 'moderate'
-                                        ? '標準的バランス'
-                                        : '分散ロングテール'}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* 4. 総取引伝票数 & 出荷数 */}
-                        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-purple-300 transition-colors">
-                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
-                                <span>取引伝票数 / 販売総数</span>
-                                <BarChart3 className="w-3.5 h-3.5 text-purple-600" />
-                            </div>
-                            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                                {consultantStrategy.totalTransactions}
-                                <span className="text-xs text-slate-400 font-bold ml-1">件</span>
-                            </div>
-                            <div className="mt-2 flex items-center justify-between text-xs font-bold pt-2 border-t border-slate-100">
-                                <span className="text-slate-500">総出荷個数</span>
-                                <span className="text-purple-700 font-black">
-                                    {consultantStrategy.totalUnits.toLocaleString()} 個
-                                </span>
                             </div>
                         </div>
                     </div>
@@ -1693,11 +1754,11 @@ export function ExecutiveSalesCockpit() {
                                         <th className="py-3 px-3">商品名</th>
                                         <th className="py-3 px-3 text-right">販売数</th>
                                         <th className="py-3 px-3 text-right">売上高</th>
-                                        <th className="py-3 px-3 text-right">粗利額 (MQ)</th>
-                                        <th className="py-3 px-3 text-right">粗利率</th>
-                                        <th className="py-3 px-3 text-right">構成比</th>
-                                        <th className="py-3 px-3 text-right">累積比率</th>
-                                        <th className="py-3 px-3 text-center">経営戦略特性</th>
+                                        <th className="py-3 px-3 text-right">実質粗利 (MQ)</th>
+                                        <th className="py-3 px-3 text-right">手残り粗利率</th>
+                                        <th className="py-3 px-3 text-right">年換算回転率</th>
+                                        <th className="py-3 px-3 text-right">交差比率 (GMROI)</th>
+                                        <th className="py-3 px-3 text-center">経営戦略・資本効率</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -1718,6 +1779,12 @@ export function ExecutiveSalesCockpit() {
                                                 <div className="font-bold text-slate-900 truncate max-w-xs" title={p.productName}>
                                                     {p.productName}
                                                 </div>
+                                                <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                                    <span>在庫: {p.currentStock}個 (¥{p.stockValue.toLocaleString()})</span>
+                                                    {!p.hasCostPrice && (
+                                                        <span className="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">原価未設定(概算)</span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="py-3 px-3 text-right font-bold text-slate-700">
                                                 {p.quantity.toLocaleString()} 個
@@ -1730,35 +1797,48 @@ export function ExecutiveSalesCockpit() {
                                             </td>
                                             <td className="py-3 px-3 text-right">
                                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                                    p.grossMarginRatio >= 40
+                                                    p.grossMarginRatio >= 35
                                                         ? 'bg-emerald-50 text-emerald-700'
-                                                        : p.grossMarginRatio >= 30
+                                                        : p.grossMarginRatio >= 25
                                                         ? 'bg-blue-50 text-blue-700'
                                                         : 'bg-rose-50 text-rose-700'
                                                 }`}>
                                                     {p.grossMarginRatio.toFixed(1)}%
                                                 </span>
                                             </td>
-                                            <td className="py-3 px-3 text-right font-bold text-slate-600">
-                                                {p.revenueShare.toFixed(1)}%
+                                            <td className="py-3 px-3 text-right font-medium text-slate-600">
+                                                {p.turnoverAnnual} 回/年
                                             </td>
-                                            <td className="py-3 px-3 text-right font-medium text-slate-400">
-                                                {p.cumulativeRevenueShare.toFixed(1)}%
+                                            <td className="py-3 px-3 text-right font-black">
+                                                <span className={`px-2 py-0.5 rounded-md text-[11px] ${
+                                                    p.gmroi >= 200
+                                                        ? 'bg-emerald-100 text-emerald-800 font-black'
+                                                        : p.gmroi >= 100
+                                                        ? 'bg-blue-50 text-blue-700 font-bold'
+                                                        : 'bg-rose-50 text-rose-700 font-bold'
+                                                }`}>
+                                                    {p.gmroi}%
+                                                </span>
                                             </td>
                                             <td className="py-3 px-3 text-center">
-                                                {p.isHighMarginAce && (
+                                                {p.gmroiCategory === 'star' && (
                                                     <span className="px-2.5 py-1 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
-                                                        <Sparkles className="w-2.5 h-2.5" /> 高粗利エース
+                                                        <Sparkles className="w-2.5 h-2.5" /> 超ドル箱・エース
                                                     </span>
                                                 )}
-                                                {p.isLowMarginAlert && (
+                                                {p.gmroiCategory === 'potential' && (
+                                                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center gap-1">
+                                                        高粗利ポテンシャル
+                                                    </span>
+                                                )}
+                                                {p.gmroiCategory === 'traffic' && (
+                                                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black bg-purple-100 text-purple-800 border border-purple-200 inline-flex items-center gap-1">
+                                                        薄利多売・集客
+                                                    </span>
+                                                )}
+                                                {p.gmroiCategory === 'drain' && (
                                                     <span className="px-2.5 py-1 rounded-full text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
-                                                        <ShieldAlert className="w-2.5 h-2.5" /> 薄利・原価改善要
-                                                    </span>
-                                                )}
-                                                {!p.isHighMarginAce && !p.isLowMarginAlert && (
-                                                    <span className="text-[10px] text-slate-400 font-medium">
-                                                        標準構成
+                                                        <ShieldAlert className="w-2.5 h-2.5" /> 滞留資金圧迫
                                                     </span>
                                                 )}
                                             </td>

@@ -233,8 +233,42 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
+      {/* 業務導線クイックハブ（関連画面への直接タブ） */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide border-b border-slate-200/80">
+        <Link
+          href="/products"
+          className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-2 whitespace-nowrap"
+        >
+          <Box className="w-3.5 h-3.5" /> 商品マスタ
+        </Link>
+        <Link
+          href="/products/conversion"
+          className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+        >
+          <Layers className="w-3.5 h-3.5 text-slate-500" /> 原材料・単位変換
+        </Link>
+        <Link
+          href="/products/composite-production"
+          className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-slate-500" /> 複合生産・セット商品
+        </Link>
+        <Link
+          href="/inventory"
+          className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+        >
+          <Store className="w-3.5 h-3.5 text-slate-500" /> 在庫管理・棚卸
+        </Link>
+        <Link
+          href="/purchases"
+          className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+        >
+          <History className="w-3.5 h-3.5 text-slate-500" /> 仕入管理
+        </Link>
+      </div>
+
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-4">
         <div className="relative group">
           <div className="absolute -left-4 top-0 w-1 h-12 bg-blue-600 rounded-full opacity-0 group-hover:opacity-100 transition-all" />
           <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">

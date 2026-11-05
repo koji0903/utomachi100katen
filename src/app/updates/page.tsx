@@ -110,11 +110,37 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.22.0 */}
+                    {/* v1.23.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">利益計算の厳密化・交差比率（GMROI）導入＆業務冗長性の構造的改善</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "利益計算の厳密化（名目表面粗利と実質手残り粗利の分離）：売上原価だけでなく委託販売手数料やECモール手数料を直接変動費として控除した「実質手残り限界利益（MQ）」を厳密に計算。名目粗利と実際の手残り額を併記し、委託手数料控除後の手残り粗利率を正確に可視化",
+                                    "原価未設定商品の誤判定（偽のエース選定）を根絶：原価（costPrice）が未登録・0円の商品が「粗利率100%のエース商品」として誤認定されるバグを是正。原価未設定商品は『原価未設定（概算）』バッジを表示し、経営判断のミスリードを完全に防止",
+                                    "未確定固定費の免責注記・損益分岐点（BEP）回収進捗の実装：コックピット上部に『固定費は月次固定費管理に基づく概算シミュレーション値であり未確定データを含む』旨の免責注記バッジを明記。当月固定費に対する限界利益の回収進捗率（%）と損益分岐点売上高を自動算出",
+                                    "小売業コンサルタント指標「交差比率（GMROI）」マトリクスの導入：売上至上主義の罠（薄利多売・在庫抱え込み）を回避するため、粗利率×商品回転率による交差比率を導入。商品群を『超ドル箱スター（GMROI 200%超）』『高粗利ポテンシャル』『薄利多売集客』『滞留資金圧迫』の4象限で診断",
+                                    "過剰在庫・滞留投下資本アラートの強化：滞留品リストに『寝ている投下資金（原価ベース資産額）』および現在の消化ペースに基づく『資金回収予測月数』を表示。売上規模だけでなく投下資本の回転・キャッシュフローを重視した経営判断を支援",
+                                    "月次固定費（/fixed-costs）と経費管理（/expenses）の二重計上防止：経費管理画面で固定費連動レコードに『固定費連動』バッジを表示。画面上部に固定費管理へのクイック連携案内を配置し、通常経費での家賃や給与の重複手入力を抑止",
+                                    "売上入力（/sales）における帳票売上（納品書・請求書）との二重登録ガード：納品書・請求書を発行済みの取引が売上に自動集計される仕組みを画面上で明確に案内し、店頭POS・日次締めレシート売上との二重入力を防止",
+                                    "商品管理（/products）クイックハブの設置：商品管理画面上部に原材料変換・複合生産・在庫管理・仕入管理へ直接1クリックで行き来できるクイックタブナビゲーションを新設し、メニューを行き来する冗長な動線を解消"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.22.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.22.0 - 2026.11.05</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">ページの勝手な自動リロード問題を完全終息・根絶</h3>
                             <ul className="space-y-2">
                                 {[

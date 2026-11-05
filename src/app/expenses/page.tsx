@@ -217,6 +217,29 @@ function ExpensePageContent() {
                 </div>
             </div>
 
+            {/* 二重計上防止・固定費連携案内カード */}
+            <div className="bg-blue-50/60 border border-blue-200/80 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                        <Wallet className="w-4 h-4" />
+                    </div>
+                    <div>
+                        <div className="text-xs font-black text-slate-800">
+                            固定費（家賃・人件費・定期光熱費等）の二重計上防止について
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                            月次固定費は「月次固定費管理」から自動反映されます。領収書手入力は交通費・消耗品・飲食費等の「変動・臨時経費」のみ登録してください。
+                        </div>
+                    </div>
+                </div>
+                <Link
+                    href="/fixed-costs"
+                    className="px-4 py-2 bg-white text-blue-700 hover:bg-blue-50 border border-blue-200 rounded-xl text-xs font-black shrink-0 transition-all flex items-center gap-1.5 shadow-sm"
+                >
+                    月次固定費管理を開く <ArrowUpRight className="w-3.5 h-3.5" />
+                </Link>
+            </div>
+
             {/* Filters */}
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm mb-8">
                 <div className="flex flex-col lg:flex-row gap-8">
@@ -290,9 +313,16 @@ function ExpensePageContent() {
                                     </td>
                                     <td className="px-8 py-6">
                                         <div className="flex flex-col">
-                                            <span className="text-[13px] font-bold text-slate-900 group-hover:text-rose-600 transition-colors">
-                                                {expense.item}
-                                            </span>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="text-[13px] font-bold text-slate-900 group-hover:text-rose-600 transition-colors">
+                                                    {expense.item}
+                                                </span>
+                                                {expense.id?.startsWith("fixed_") && (
+                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-blue-50 text-blue-700 border border-blue-200">
+                                                        固定費連動
+                                                    </span>
+                                                )}
+                                            </div>
                                             <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
                                                 {expense.vendor || "N/A"}
                                             </span>

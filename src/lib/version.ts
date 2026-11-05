@@ -11,10 +11,25 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.22.0";
+export const CURRENT_VERSION = "v1.23.0";
 export const RELEASE_DATE = "2026.11.05";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "利益計算厳密化・委託手数料控除＆固定費免責注記の実装",
+        description: "売上原価だけでなく委託販売・ECモール手数料を直接変動費として控除した「実質手残り限界利益（MQ）」と名目表面粗利を厳密に分離。原価未設定品の粗利率100%誤判定（偽のエース選定）を根絶し、固定費シミュレーションに基づく損益分岐点売上高と未確定概算に関する免責注意書きを明記。",
+        status: "completed"
+    },
+    {
+        name: "小売業コンサルタント指標「交差比率（GMROI）」＆滞留投下資本アラート",
+        description: "売上至上主義（薄利多売・在庫抱え込み）を回避するため、粗利率×商品回転率による「交差比率（GMROI）」4象限分析（超ドル箱スター・高粗利ポテンシャル・薄利集客・滞留資金圧迫）を導入。過剰在庫に寝ている投下資金（原価ベース資産額）と資金回収予測月数を可視化。",
+        status: "completed"
+    },
+    {
+        name: "業務フロー冗長性解消・重複入力防止と商品管理クイックハブ",
+        description: "月次固定費と通常経費の二重計上を防ぐ「固定費連動バッジ」と注意案内を設置。売上入力画面での納品書・請求書（帳票売上）との重複登録ガードを整備。商品管理画面上部に原材料変換・複合生産・在庫管理・仕入管理を直接行き来できるクイックタブハブを配置。",
+        status: "completed"
+    },
     {
         name: "自動リロード問題の完全終息・根絶改修",
         description: "旧Workboxサービスワーカーの残存によるChunkLoadErrorリロードを完全自己破壊スクリプトで即時消滅。SWRの60秒経過後バックグラウンド一斉再フェッチ・メインスレッドフリーズによるHMRタイムアウト切断リロードを抑止し、isLoaded反転による画面アンマウント・リセットを完全解消。",

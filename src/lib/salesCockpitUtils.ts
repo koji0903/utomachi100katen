@@ -512,7 +512,10 @@ export interface StagnantStockItem {
     daysRemaining: number;
     soldQty30: number;
     unitCost: number;
-    stockValue: number; // 在庫金額
+    stockValue: number; // 原価ベースの滞留資産額
+    monthsToDeplete: number; // 消化・資金回収予測月数 (在庫 ÷ 月販)
+    tiedUpCapitalRisk: 'critical' | 'high' | 'moderate'; // 資金寝かせリスク度
+    hasCostPrice: boolean;
 }
 
 export interface SupplierOrderSummary {
@@ -707,6 +710,18 @@ export function calculatePurchasingIntelligence(
         // 2. 販売はあるが在庫消化に90日以上かかる過剰在庫
         const isStagnant = (soldQty30 === 0 && totalStock > 0) || (daysRemaining > 90 && totalStock > threshold * 3);
         if (isStagnant && totalStock > 0) {
+            const stockValue = totalStock * unitCost;
+            const monthsToDeplete = soldQty30 > 0
+                ? Math.round((totalStock / soldQty30) * 10) / 10
+                : 99; // 実質無期限
+            
+            let tiedUpCapitalRisk: 'critical' | 'high' | 'moderate' = 'moderate';
+            if (stockValue >= 50000 || monthsToDeplete >= 12) {
+                tiedUpCapitalRisk = 'critical'; // 半年〜1年以上資金固定化リスク
+            } else if (stockValue >= 20000 || monthsToDeplete >= 6) {
+                tiedUpCapitalRisk = 'high';
+            }
+
             stagnantItems.push({
                 productId: product.id,
                 productName: product.name,
@@ -719,7 +734,10 @@ export function calculatePurchasingIntelligence(
                 daysRemaining,
                 soldQty30,
                 unitCost,
-                stockValue: totalStock * unitCost,
+                stockValue,
+                monthsToDeplete,
+                tiedUpCapitalRisk,
+                hasCostPrice: unitCost > 0,
             });
         }
     });
@@ -783,8 +801,11 @@ export interface ConsultantStoreProfitability {
     channelType: string;
     totalRevenue: number;
     totalCost: number;
-    grossProfit: number;
-    grossMarginRatio: number; // %
+    totalCommission: number; // 委託・販売手数料
+    nominalGrossProfit: number; // 表面粗利 (売上 - 原価)
+    nominalGrossMarginRatio: number; // 表面粗利率 %
+    grossProfit: number; // 実質粗利・手残り限界利益 (売上 - 原価 - 手数料)
+    grossMarginRatio: number; // 実質粗利率 %
     transactionCount: number;
     totalUnits: number;
     averageBasket: number; // 客単価 (売上 / 伝票数)
@@ -792,19 +813,32 @@ export interface ConsultantStoreProfitability {
     averageUnitPrice: number; // 平均商品単価 (売上 / 個数)
 }
 
+export type GmroiCategory = 'star' | 'potential' | 'traffic' | 'drain';
+
 export interface ConsultantProductProfitability {
     productId: string;
     productName: string;
     quantity: number;
     revenue: number;
     cost: number;
-    grossProfit: number;
-    grossMarginRatio: number; // %
+    commission: number; // 委託手数料
+    nominalGrossProfit: number; // 表面粗利
+    nominalGrossMarginRatio: number; // 表面粗利率 %
+    grossProfit: number; // 実質粗利 (売上 - 原価 - 手数料)
+    grossMarginRatio: number; // 実質粗利率 %
     revenueShare: number; // %
     cumulativeRevenueShare: number; // %
     rankClass: 'A' | 'B' | 'C';
+    // 在庫・回転・GMROI (交差比率)
+    currentStock: number;
+    stockValue: number; // 原価ベースの在庫金額 (現在在庫 × 原価)
+    turnoverAnnual: number; // 年間換算回転率
+    gmroi: number; // 交差比率 (実質粗利率% × 回転率)
+    gmroiCategory: GmroiCategory;
     isHighMarginAce: boolean;
     isLowMarginAlert: boolean;
+    isStagnantDrainAlert: boolean; // 資金圧迫・滞留アラート
+    hasCostPrice: boolean;
 }
 
 export interface ConsultantChannelBreakdown {
@@ -813,8 +847,10 @@ export interface ConsultantChannelBreakdown {
     revenue: number;
     share: number; // %
     cost: number;
-    grossProfit: number;
-    grossMarginRatio: number; // %
+    commission: number; // 委託手数料
+    nominalGrossProfit: number; // 表面粗利
+    grossProfit: number; // 実質粗利
+    grossMarginRatio: number; // 実質粗利率 %
     transactionCount: number;
 }
 
@@ -822,13 +858,20 @@ export interface ConsultantStrategyIntelligence {
     periodDays: 7 | 30 | 90;
     totalRevenue: number;
     totalCost: number;
-    totalGrossProfit: number;
-    overallGrossMargin: number; // %
+    totalCommission: number; // 委託・販売手数料
+    totalNominalGrossProfit: number; // 表面粗利
+    nominalGrossMargin: number; // 表面粗利率 %
+    totalGrossProfit: number; // 実質粗利 (手残り限界利益 MQ)
+    overallGrossMargin: number; // 実質粗利率 %
+    averageUnitGrossProfit: number; // 1個あたり平均手残り粗利
     totalTransactions: number;
     totalUnits: number;
     averageBasket: number;
     averageUnitsPerBasket: number;
     averageUnitPrice: number;
+    // 在庫効率・GMROI
+    totalStockValue: number; // 全社総在庫原価額
+    companyGmroi: number; // 全社交差比率
     channelBreakdown: ConsultantChannelBreakdown[];
     storesProfitability: ConsultantStoreProfitability[];
     productsProfitability: ConsultantProductProfitability[];
@@ -837,8 +880,20 @@ export interface ConsultantStrategyIntelligence {
         top20RevenueShare: number; // %
         dependenceLevel: 'high' | 'moderate' | 'balanced';
     };
+    gmroiSummary: {
+        starCount: number;
+        potentialCount: number;
+        trafficCount: number;
+        drainCount: number;
+        totalTiedUpCapitalInDrain: number; // 滞留商品に寝ている投下原価総額
+    };
+    // 注意書き
+    disclaimerNotes: {
+        commissionNote: string;
+        fixedCostNote: string;
+    };
     consultantAgendas: {
-        category: '利益率改善' | '客単価アップ' | '集中度・リスク' | 'チャネル戦略';
+        category: '利益率改善' | '客単価アップ' | '集中度・リスク' | 'チャネル戦略' | '交差比率・資金効率';
         title: string;
         diagnostic: string;
         actionProposal: string;
@@ -848,6 +903,7 @@ export interface ConsultantStrategyIntelligence {
 
 /**
  * 定例会向け 経営コンサルタント戦略分析データの算出
+ * 委託販売手数料を控除した真の手残り限界利益（MQ）と交差比率（GMROI）を算出
  */
 export function calculateConsultantStrategy(
     sales: Sale[],
@@ -855,7 +911,8 @@ export function calculateConsultantStrategy(
     retailStores: RetailStore[],
     spotRecipients: SpotRecipient[],
     periodDays: 7 | 30 | 90 = 30,
-    baseDate: Date = new Date()
+    baseDate: Date = new Date(),
+    storeStocks: { storeId: string; productId: string; stock: number }[] = []
 ): ConsultantStrategyIntelligence {
     const days = getPastDaysList(periodDays, baseDate);
     const validSales = sales.filter(s => !s.isTrashed && s.period && days.includes(s.period));
@@ -881,6 +938,7 @@ export function calculateConsultantStrategy(
 
     let totalRevenue = 0;
     let totalCost = 0;
+    let totalCommission = 0;
     let totalUnits = 0;
     const totalTransactions = validSales.length;
 
@@ -888,6 +946,7 @@ export function calculateConsultantStrategy(
     const storeAggMap = new Map<string, {
         revenue: number;
         cost: number;
+        commission: number;
         units: number;
         transactions: number;
     }>();
@@ -897,6 +956,7 @@ export function calculateConsultantStrategy(
         quantity: number;
         revenue: number;
         cost: number;
+        commission: number;
     }>();
 
     // チャネル別集計
@@ -904,6 +964,7 @@ export function calculateConsultantStrategy(
         label: string;
         revenue: number;
         cost: number;
+        commission: number;
         transactions: number;
     }>();
 
@@ -920,59 +981,88 @@ export function calculateConsultantStrategy(
 
         let saleCost = 0;
         let saleRevenue = sale.totalAmount || 0;
+        let saleCommission = sale.totalCommission || 0;
         let saleUnits = 0;
 
+        // アイテムごとの手数料と原価の計算
+        let itemCommissionSum = 0;
         sale.items?.forEach(item => {
             const p = prodMap.get(item.productId);
-            const unitCost = p?.costPrice ?? 0;
+            const unitCost = p?.costPrice !== undefined && p.costPrice > 0 ? p.costPrice : 0;
             const itemCost = item.variableCostAmount !== undefined && item.variableCostAmount > 0
                 ? item.variableCostAmount
                 : (item.quantity * unitCost);
             const itemRev = item.subtotal || (item.quantity * item.priceAtSale) || 0;
             const itemQty = item.quantity || 0;
+            const itemComm = item.commission || 0;
 
             saleCost += itemCost;
             saleUnits += itemQty;
+            itemCommissionSum += itemComm;
 
             // 商品集計
-            const curP = prodAggMap.get(item.productId) || { quantity: 0, revenue: 0, cost: 0 };
+            const curP = prodAggMap.get(item.productId) || { quantity: 0, revenue: 0, cost: 0, commission: 0 };
             prodAggMap.set(item.productId, {
                 quantity: curP.quantity + itemQty,
                 revenue: curP.revenue + itemRev,
                 cost: curP.cost + itemCost,
+                commission: curP.commission + itemComm,
             });
         });
 
-        // 売上データに totalQuantity があれば尊重
+        // もし伝票全体の totalCommission が設定されておりアイテム別手数料の合計より大きければ按分
+        if (saleCommission > itemCommissionSum && itemCommissionSum === 0 && (sale.items?.length || 0) > 0) {
+            // アイテムの売上割合で手数料を商品集計に配分
+            sale.items?.forEach(item => {
+                const itemRev = item.subtotal || (item.quantity * item.priceAtSale) || 0;
+                const ratio = saleRevenue > 0 ? itemRev / saleRevenue : (1 / (sale.items?.length || 1));
+                const allocatedComm = Math.round(saleCommission * ratio);
+                const curP = prodAggMap.get(item.productId);
+                if (curP) {
+                    curP.commission += allocatedComm;
+                }
+            });
+        } else if (itemCommissionSum > 0 && saleCommission === 0) {
+            saleCommission = itemCommissionSum;
+        }
+
         if (sale.totalQuantity && sale.totalQuantity > 0) {
             saleUnits = sale.totalQuantity;
         }
 
         totalRevenue += saleRevenue;
         totalCost += saleCost;
+        totalCommission += saleCommission;
         totalUnits += saleUnits;
 
         // 店舗集計
-        const curStore = storeAggMap.get(sale.storeId) || { revenue: 0, cost: 0, units: 0, transactions: 0 };
+        const curStore = storeAggMap.get(sale.storeId) || { revenue: 0, cost: 0, commission: 0, units: 0, transactions: 0 };
         storeAggMap.set(sale.storeId, {
             revenue: curStore.revenue + saleRevenue,
             cost: curStore.cost + saleCost,
+            commission: curStore.commission + saleCommission,
             units: curStore.units + saleUnits,
             transactions: curStore.transactions + 1,
         });
 
         // チャネル集計
-        const curChan = channelAggMap.get(channelKey) || { label: channelKey, revenue: 0, cost: 0, transactions: 0 };
+        const curChan = channelAggMap.get(channelKey) || { label: channelKey, revenue: 0, cost: 0, commission: 0, transactions: 0 };
         channelAggMap.set(channelKey, {
             label: channelKey,
             revenue: curChan.revenue + saleRevenue,
             cost: curChan.cost + saleCost,
+            commission: curChan.commission + saleCommission,
             transactions: curChan.transactions + 1,
         });
     });
 
-    const totalGrossProfit = totalRevenue - totalCost;
+    // 表面粗利と実質手残り限界利益の算出
+    const totalNominalGrossProfit = totalRevenue - totalCost;
+    const nominalGrossMargin = totalRevenue > 0 ? (totalNominalGrossProfit / totalRevenue) * 100 : 0;
+    const totalGrossProfit = totalRevenue - totalCost - totalCommission;
     const overallGrossMargin = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+    const averageUnitGrossProfit = totalUnits > 0 ? Math.round(totalGrossProfit / totalUnits) : 0;
+
     const averageBasket = totalTransactions > 0 ? Math.round(totalRevenue / totalTransactions) : 0;
     const averageUnitsPerBasket = totalTransactions > 0 ? Math.round((totalUnits / totalTransactions) * 10) / 10 : 0;
     const averageUnitPrice = totalUnits > 0 ? Math.round(totalRevenue / totalUnits) : 0;
@@ -980,7 +1070,9 @@ export function calculateConsultantStrategy(
     // 店舗別収益性配列
     const storesProfitability: ConsultantStoreProfitability[] = Array.from(storeAggMap.entries()).map(([storeId, data]) => {
         const storeInfo = storeMap.get(storeId) || { name: "店舗", channelType: "店頭店舗" };
-        const grossProfit = data.revenue - data.cost;
+        const nominalGrossProfit = data.revenue - data.cost;
+        const nominalGrossMarginRatio = data.revenue > 0 ? (nominalGrossProfit / data.revenue) * 100 : 0;
+        const grossProfit = data.revenue - data.cost - data.commission;
         const grossMarginRatio = data.revenue > 0 ? (grossProfit / data.revenue) * 100 : 0;
         const avgBasket = data.transactions > 0 ? Math.round(data.revenue / data.transactions) : 0;
         const avgUnits = data.transactions > 0 ? Math.round((data.units / data.transactions) * 10) / 10 : 0;
@@ -992,6 +1084,9 @@ export function calculateConsultantStrategy(
             channelType: storeInfo.channelType,
             totalRevenue: data.revenue,
             totalCost: data.cost,
+            totalCommission: data.commission,
+            nominalGrossProfit,
+            nominalGrossMarginRatio,
             grossProfit,
             grossMarginRatio,
             transactionCount: data.transactions,
@@ -1004,7 +1099,8 @@ export function calculateConsultantStrategy(
 
     // チャネル別配列
     const channelBreakdown: ConsultantChannelBreakdown[] = Array.from(channelAggMap.entries()).map(([channelKey, data]) => {
-        const profit = data.revenue - data.cost;
+        const nominalGrossProfit = data.revenue - data.cost;
+        const profit = data.revenue - data.cost - data.commission;
         const margin = data.revenue > 0 ? (profit / data.revenue) * 100 : 0;
         const share = totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0;
         return {
@@ -1013,31 +1109,84 @@ export function calculateConsultantStrategy(
             revenue: data.revenue,
             share,
             cost: data.cost,
+            commission: data.commission,
+            nominalGrossProfit,
             grossProfit: profit,
             grossMarginRatio: margin,
             transactionCount: data.transactions,
         };
     }).sort((a, b) => b.revenue - a.revenue);
 
-    // 商品別パレート（ABC）分析
+    // 商品別パレート（ABC）分析 ＆ GMROI（交差比率）計算
+    let totalStockValue = 0;
     const rawProductsProfit = Array.from(prodAggMap.entries()).map(([productId, data]) => {
         const p = prodMap.get(productId);
-        const profit = data.revenue - data.cost;
-        const margin = data.revenue > 0 ? (profit / data.revenue) * 100 : 0;
+        const unitCost = p?.costPrice !== undefined && p.costPrice > 0 ? p.costPrice : 0;
+        
+        // 全社総在庫の集計（本社倉庫＋店頭配架）
+        const mainStock = p?.stock ?? 0;
+        const storeStockTotal = storeStocks
+            .filter(ss => ss.productId === productId)
+            .reduce((sum, ss) => sum + (ss.stock || 0), 0);
+        const currentStock = Math.max(0, mainStock + storeStockTotal);
+        const stockValue = currentStock * unitCost;
+        totalStockValue += stockValue;
+
+        const nominalProfit = data.revenue - data.cost;
+        const nominalMargin = data.revenue > 0 ? (nominalProfit / data.revenue) * 100 : 0;
+        const netProfit = data.revenue - data.cost - data.commission;
+        const netMargin = data.revenue > 0 ? (netProfit / data.revenue) * 100 : 0;
         const revShare = totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0;
+
+        // 年間換算回転率 (販売数 × 365 / 期間日数 ÷ 在庫数)
+        const turnoverAnnual = currentStock > 0
+            ? Math.round(((data.quantity * (365 / periodDays)) / currentStock) * 10) / 10
+            : (data.quantity > 0 ? 99 : 0);
+
+        // 交差比率 GMROI = 粗利率(%) × 商品回転率(回)
+        // または (年間実質粗利額 ÷ 在庫原価) * 100
+        const annualNetProfit = netProfit * (365 / periodDays);
+        const gmroi = stockValue > 0
+            ? Math.round((annualNetProfit / stockValue) * 100)
+            : Math.round(netMargin * turnoverAnnual);
+
+        // GMROI 4象限カテゴリ判定
+        let gmroiCategory: GmroiCategory = 'drain';
+        if (gmroi >= 200) {
+            gmroiCategory = 'star'; // 高粗利・高回転エース
+        } else if (netMargin >= 35 && turnoverAnnual >= 3) {
+            gmroiCategory = 'potential'; // 高粗利ポテンシャル品
+        } else if (turnoverAnnual >= 8) {
+            gmroiCategory = 'traffic'; // 薄利多売・集客品
+        } else {
+            gmroiCategory = 'drain'; // 資金圧迫・滞留品
+        }
+
+        const isStagnantDrainAlert = gmroiCategory === 'drain' && stockValue >= 30000;
+
         return {
             productId,
             productName: p ? (p.variantName ? `${p.name} (${p.variantName})` : p.name) : "未特定商品",
             quantity: data.quantity,
             revenue: data.revenue,
             cost: data.cost,
-            grossProfit: profit,
-            grossMarginRatio: margin,
+            commission: data.commission,
+            nominalGrossProfit: nominalProfit,
+            nominalGrossMarginRatio: nominalMargin,
+            grossProfit: netProfit,
+            grossMarginRatio: netMargin,
             revenueShare: revShare,
             cumulativeRevenueShare: 0,
             rankClass: 'C' as 'A' | 'B' | 'C',
+            currentStock,
+            stockValue,
+            turnoverAnnual,
+            gmroi,
+            gmroiCategory,
             isHighMarginAce: false,
             isLowMarginAlert: false,
+            isStagnantDrainAlert,
+            hasCostPrice: unitCost > 0,
         };
     }).sort((a, b) => b.revenue - a.revenue);
 
@@ -1053,8 +1202,14 @@ export function calculateConsultantStrategy(
             rank = 'C';
         }
 
-        const isHighMarginAce = (rank === 'A' || rank === 'B') && prod.grossMarginRatio >= overallGrossMargin && prod.revenue > 0;
-        const isLowMarginAlert = prod.quantity >= 5 && prod.grossMarginRatio < 25;
+        // 原価未設定（hasCostPrice === false）のものはエース認定から除外
+        const isHighMarginAce = (rank === 'A' || rank === 'B') &&
+            prod.hasCostPrice &&
+            prod.grossMarginRatio >= overallGrossMargin &&
+            prod.revenue > 0 &&
+            prod.gmroiCategory !== 'drain';
+
+        const isLowMarginAlert = prod.quantity >= 5 && prod.grossMarginRatio < 20;
 
         return {
             ...prod,
@@ -1078,46 +1233,80 @@ export function calculateConsultantStrategy(
         dependenceLevel = 'balanced';
     }
 
+    // 全社交差比率（全社実質粗利の年換算 ÷ 全社在庫資産額）
+    const annualCompanyProfit = totalGrossProfit * (365 / periodDays);
+    const companyGmroi = totalStockValue > 0
+        ? Math.round((annualCompanyProfit / totalStockValue) * 100)
+        : 0;
+
+    // GMROIサマリー集計
+    const starCount = productsProfitability.filter(p => p.gmroiCategory === 'star').length;
+    const potentialCount = productsProfitability.filter(p => p.gmroiCategory === 'potential').length;
+    const trafficCount = productsProfitability.filter(p => p.gmroiCategory === 'traffic').length;
+    const drainItems = productsProfitability.filter(p => p.gmroiCategory === 'drain');
+    const drainCount = drainItems.length;
+    const totalTiedUpCapitalInDrain = drainItems.reduce((sum, p) => sum + p.stockValue, 0);
+
     // ─────────────────────────────────────────────────────────────
-    // 定例会アジェンダ・具体的提言の自動生成
+    // 定例会アジェンダ・具体的提言の自動生成（利益・資本効率・GMROI重視）
     // ─────────────────────────────────────────────────────────────
     const consultantAgendas: ConsultantStrategyIntelligence['consultantAgendas'] = [];
 
-    // 1. 粗利率・利益構造診断
+    // 1. 粗利率・利益構造診断（手数料控除後の手残り）
     const lowMarginItems = productsProfitability.filter(p => p.isLowMarginAlert);
     const highMarginAces = productsProfitability.filter(p => p.isHighMarginAce);
-    if (overallGrossMargin < 35 && totalRevenue > 0) {
+    if (overallGrossMargin < 30 && totalRevenue > 0) {
         consultantAgendas.push({
             category: '利益率改善',
-            title: `全社粗利率の底上げ検討（現在 ${overallGrossMargin.toFixed(1)}%）`,
-            diagnostic: `全社粗利率が35%を下回っており、販促値引きや原価高騰による利益圧迫が懸念されます。${lowMarginItems.length > 0 ? `特に「${lowMarginItems[0].productName}」（粗利率 ${lowMarginItems[0].grossMarginRatio.toFixed(1)}%）の薄利傾向が目立ちます。` : ""}`,
-            actionProposal: '定例会にて、低粗利商品の販売価格見直し、仕入ロット増による原価低減、または高粗利商品とのセット販売化を決定してください。',
+            title: `実質手残り粗利率の改善要請（現在 ${overallGrossMargin.toFixed(1)}% / 委託手数料控除後）`,
+            diagnostic: `名目表面粗利率は${nominalGrossMargin.toFixed(1)}%ですが、委託販売手数料（計 ¥${totalCommission.toLocaleString()}）の控除後の実質手残りは${overallGrossMargin.toFixed(1)}%に留まります。${lowMarginItems.length > 0 ? `特に「${lowMarginItems[0].productName}」（手残り粗利率 ${lowMarginItems[0].grossMarginRatio.toFixed(1)}%）の利益率圧迫が顕著です。` : ""}`,
+            actionProposal: '定例会にて、低粗利商品の店頭販売価格の見直し、委託手数料率の交渉、または高粗利商材との抱き合わせセット化を決定してください。',
             urgency: 'high',
         });
     } else {
         consultantAgendas.push({
             category: '利益率改善',
-            title: `高粗利エース商品のフェイス拡大（全社粗利率 ${overallGrossMargin.toFixed(1)}% 良好）`,
-            diagnostic: `粗利額 ¥${totalGrossProfit.toLocaleString()}（粗利率 ${overallGrossMargin.toFixed(1)}%）と健全な水準を維持しています。${highMarginAces.length > 0 ? `「${highMarginAces[0].productName}」などの高粗利エースが利益の柱となっています。` : ""}`,
-            actionProposal: '主力店舗のゴールデンゾーン（目線の高さ）への高粗利商品の陳列拡大と、POP販促の強化を指示してください。',
+            title: `高粗利エース商品のフェイス拡大（実質手残り粗利率 ${overallGrossMargin.toFixed(1)}% 健全）`,
+            diagnostic: `手数料控除後の手残り実質粗利は ¥${totalGrossProfit.toLocaleString()}（粗利率 ${overallGrossMargin.toFixed(1)}%）と堅調です。${highMarginAces.length > 0 ? `「${highMarginAces[0].productName}」などの高粗利エースが収益基盤となっています。` : ""}`,
+            actionProposal: '主力店舗のゴールデンゾーン（目線の高さ）への高粗利商品の陳列拡大と、現場スタッフへの推奨トーク共有を指示してください。',
             urgency: 'low',
         });
     }
 
-    // 2. 客単価・買上点数の分解診断
+    // 2. 交差比率（GMROI）と投下資本効率
+    if (totalTiedUpCapitalInDrain > 50000) {
+        const worstDrain = [...drainItems].sort((a, b) => b.stockValue - a.stockValue)[0];
+        consultantAgendas.push({
+            category: '交差比率・資金効率',
+            title: `滞留在庫による資金寝かせリスク（滞留資産総額 ¥${totalTiedUpCapitalInDrain.toLocaleString()}）`,
+            diagnostic: `交差比率（GMROI）が低く回転が停滞している商品が${drainCount}品目あり、約¥${totalTiedUpCapitalInDrain.toLocaleString()}の仕入資金が在庫として寝ています。特に「${worstDrain?.productName || "一部商品"}」（在庫金額 ¥${worstDrain?.stockValue.toLocaleString()}）の資金化が急務です。`,
+            actionProposal: '定例会で対象商品の新規追加仕入を原則凍結し、店頭でのセット割販売や催事スポットへの集中配架による早期キャッシュ化を現場に指示してください。',
+            urgency: 'high',
+        });
+    } else if (starCount > 0) {
+        consultantAgendas.push({
+            category: '交差比率・資金効率',
+            title: `超ドル箱商品（スター品目）の在庫厚め配備（${starCount}品目がGMROI 200%超）`,
+            diagnostic: `高粗利×高回転を両立するドル箱商品群が全社利益を強力に牽引しています。全社交差比率は${companyGmroi}%と高水準です。`,
+            actionProposal: 'ドル箱商品の機会損失（欠品）は最大の利益毀損となります。安全在庫水準を通常＋1週間分確保し、定期自動発注フローを確立してください。',
+            urgency: 'medium',
+        });
+    }
+
+    // 3. 客単価・買上点数の分解診断
     const lowestBasketStore = [...storesProfitability].filter(s => s.transactionCount >= 3).sort((a, b) => a.averageBasket - b.averageBasket)[0];
     const highestBasketStore = [...storesProfitability].filter(s => s.transactionCount >= 3).sort((a, b) => b.averageBasket - a.averageBasket)[0];
     consultantAgendas.push({
         category: '客単価アップ',
         title: `客単価構造の分解（全社平均: ¥${averageBasket.toLocaleString()} / 買上点数: ${averageUnitsPerBasket}点）`,
-        diagnostic: `売上＝客数×客単価。最高客単価店舗は「${highestBasketStore?.storeName || "主力店"}」（¥${highestBasketStore?.averageBasket.toLocaleString()}）に対し、最低客単価店舗は「${lowestBasketStore?.storeName || "一部店舗"}」（¥${lowestBasketStore?.averageBasket.toLocaleString() || 0}）と格差が存在します。`,
+        diagnostic: `最高客単価店舗は「${highestBasketStore?.storeName || "主力店"}」（¥${highestBasketStore?.averageBasket.toLocaleString()}）に対し、最低客単価店舗は「${lowestBasketStore?.storeName || "一部店舗"}」（¥${lowestBasketStore?.averageBasket.toLocaleString() || 0}）と格差が存在します。`,
         actionProposal: lowestBasketStore
             ? `客単価が低い「${lowestBasketStore.storeName}」では、レジ横のついで買いPOP設置や複数個まとめ買い割引（2個購入で¥50引等）を現場と合意してください。`
             : '全店舗でレジ横のクロスセル商材の展開と、スタッフによるおすすめ推奨トークの徹底を定例会で指示してください。',
         urgency: lowestBasketStore && lowestBasketStore.averageBasket < averageBasket * 0.7 ? 'high' : 'medium',
     });
 
-    // 3. パレート集中リスクと商品開発
+    // 4. パレート集中リスクと商品開発
     if (dependenceLevel === 'high') {
         const top1Prod = productsProfitability[0];
         consultantAgendas.push({
@@ -1137,17 +1326,17 @@ export function calculateConsultantStrategy(
         });
     }
 
-    // 4. チャネル戦略
+    // 5. チャネル戦略
     if (channelBreakdown.length > 1) {
         const topChannel = channelBreakdown[0];
         const subChannel = channelBreakdown[1];
         consultantAgendas.push({
             category: 'チャネル戦略',
-            title: `チャネルミックスの最適化（主軸: ${topChannel.label} ${topChannel.share.toFixed(1)}%）`,
-            diagnostic: `最大チャネル「${topChannel.label}」（粗利率 ${topChannel.grossMarginRatio.toFixed(1)}%）に次ぎ、「${subChannel.label}」（シェア ${subChannel.share.toFixed(1)}%、粗利率 ${subChannel.grossMarginRatio.toFixed(1)}%）が展開中。`,
+            title: `チャネルミックスの最適化（主軸: ${topChannel.label} シェア${topChannel.share.toFixed(1)}%）`,
+            diagnostic: `最大チャネル「${topChannel.label}」（手残り粗利率 ${topChannel.grossMarginRatio.toFixed(1)}%）に次ぎ、「${subChannel.label}」（シェア ${subChannel.share.toFixed(1)}%、手残り粗利率 ${subChannel.grossMarginRatio.toFixed(1)}%）が展開中。`,
             actionProposal: topChannel.grossMarginRatio > subChannel.grossMarginRatio
-                ? `より粗利率の高い「${topChannel.label}」への供給優先度を高めつつ、「${subChannel.label}」の販売手数料・物流コストの改善を検討してください。`
-                : `利益率の高い「${subChannel.label}」の販売構成比をさらに拡大するため、専用商品や在庫枠の拡充を検討してください。`,
+                ? `より手残り粗利率の高い「${topChannel.label}」への供給優先度を高めつつ、「${subChannel.label}」の販売手数料・物流コストの改善を検討してください。`
+                : `手残り利益率の高い「${subChannel.label}」の販売構成比をさらに拡大するため、専用商品や在庫枠の拡充を検討してください。`,
             urgency: 'medium',
         });
     }
@@ -1156,13 +1345,19 @@ export function calculateConsultantStrategy(
         periodDays,
         totalRevenue,
         totalCost,
+        totalCommission,
+        totalNominalGrossProfit,
+        nominalGrossMargin,
         totalGrossProfit,
         overallGrossMargin,
+        averageUnitGrossProfit,
         totalTransactions,
         totalUnits,
         averageBasket,
         averageUnitsPerBasket,
         averageUnitPrice,
+        totalStockValue,
+        companyGmroi,
         channelBreakdown,
         storesProfitability,
         productsProfitability,
@@ -1170,6 +1365,17 @@ export function calculateConsultantStrategy(
             top20PercentProductCount: top20PercentCount,
             top20RevenueShare,
             dependenceLevel,
+        },
+        gmroiSummary: {
+            starCount,
+            potentialCount,
+            trafficCount,
+            drainCount,
+            totalTiedUpCapitalInDrain,
+        },
+        disclaimerNotes: {
+            commissionNote: "実質粗利（手残り限界利益 MQ）は、各委託店舗・ECチャネルの手数料控除後の実際の手取り粗利額を反映しています。",
+            fixedCostNote: "地代家賃・人件費等の固定費は「月次固定費管理」に基づく概算シミュレーション値です。未確定の固定費項目や期末調整額は含まれないため、最終確定の営業利益・純利益は月次決算書をご確認ください。",
         },
         consultantAgendas,
     };
