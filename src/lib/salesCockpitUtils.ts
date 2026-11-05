@@ -146,13 +146,28 @@ export function calculateExecutiveKpis(
     };
 }
 
+export type CockpitPeriodDays = 7 | 30 | 90 | 360;
+
+/**
+ * 移動平均を計算する共通ヘルパー関数
+ * データ点数がウィンドウサイズ未満の開始区間も利用可能なデータ点数で平滑化
+ */
+export function calculateMovingAverage(values: number[], windowSize: number): number[] {
+    return values.map((_, idx) => {
+        const start = Math.max(0, idx - windowSize + 1);
+        const windowValues = values.slice(start, idx + 1);
+        const sum = windowValues.reduce((acc, val) => acc + val, 0);
+        return windowValues.length > 0 ? sum / windowValues.length : 0;
+    });
+}
+
 /**
  * 2. 店舗別・日次売上および主力商品個数推移の集計
  */
 export function aggregateStoreDailySales(
     sales: Sale[],
     storeId: string, // "ALL" または特定 storeId
-    daysCount: 7 | 30,
+    daysCount: CockpitPeriodDays,
     products: Product[],
     baseDate: Date = new Date(),
     storeStocks: { storeId: string; productId: string; stock: number }[] = []
@@ -207,9 +222,17 @@ export function aggregateStoreDailySales(
 
     const top5Items = sortedItems.slice(0, 5);
 
-    const chartData = days.map(dStr => {
+    const rawAmounts = days.map(dStr => {
         const daySales = targetSales.filter(s => s.period === dStr);
-        const totalAmount = daySales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+        return daySales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+    });
+
+    const ma7 = calculateMovingAverage(rawAmounts, 7).map(v => Math.round(v));
+    const ma30 = calculateMovingAverage(rawAmounts, 30).map(v => Math.round(v));
+
+    const chartData = days.map((dStr, idx) => {
+        const daySales = targetSales.filter(s => s.period === dStr);
+        const totalAmount = rawAmounts[idx];
         const totalQty = daySales.reduce((sum, s) => sum + (s.totalQuantity || 0), 0);
 
         const parts = dStr.split("-");
@@ -220,6 +243,8 @@ export function aggregateStoreDailySales(
             label,
             売上額: totalAmount,
             総販売個数: totalQty,
+            "7日移動平均": ma7[idx],
+            "30日移動平均": ma30[idx],
         };
 
         top5Items.forEach(item => {
@@ -353,7 +378,7 @@ export function aggregateMonthlyStoreSales(
 export function aggregateProductDailySales(
     sales: Sale[],
     productId: string,
-    daysCount: 7 | 30,
+    daysCount: CockpitPeriodDays,
     retailStores: RetailStore[],
     spotRecipients: SpotRecipient[],
     baseDate: Date = new Date()
@@ -370,15 +395,30 @@ export function aggregateProductDailySales(
     retailStores.forEach(s => storeMap.set(s.id, s.name));
     spotRecipients.forEach(s => storeMap.set(s.id, s.name));
 
-    const chartData = days.map(dStr => {
+    const rawQtys = days.map(dStr => {
         const daySales = relevantSales.filter(s => s.period === dStr);
         let dayQty = 0;
+        daySales.forEach(s => {
+            s.items?.forEach(item => {
+                if (item.productId === productId) {
+                    dayQty += (item.quantity || 0);
+                }
+            });
+        });
+        return dayQty;
+    });
+
+    const ma7 = calculateMovingAverage(rawQtys, 7).map(v => Number(v.toFixed(1)));
+    const ma30 = calculateMovingAverage(rawQtys, 30).map(v => Number(v.toFixed(1)));
+
+    const chartData = days.map((dStr, idx) => {
+        const daySales = relevantSales.filter(s => s.period === dStr);
+        const dayQty = rawQtys[idx];
         let dayAmount = 0;
 
         daySales.forEach(s => {
             s.items?.forEach(item => {
                 if (item.productId === productId) {
-                    dayQty += (item.quantity || 0);
                     dayAmount += (item.subtotal || (item.quantity * item.priceAtSale) || 0);
                 }
             });
@@ -392,6 +432,8 @@ export function aggregateProductDailySales(
             label,
             販売個数: dayQty,
             販売金額: dayAmount,
+            "7日移動平均": ma7[idx],
+            "30日移動平均": ma30[idx],
         };
     });
 
@@ -777,7 +819,7 @@ export interface ConsultantChannelBreakdown {
 }
 
 export interface ConsultantStrategyIntelligence {
-    periodDays: 7 | 30;
+    periodDays: 7 | 30 | 90;
     totalRevenue: number;
     totalCost: number;
     totalGrossProfit: number;
@@ -812,7 +854,7 @@ export function calculateConsultantStrategy(
     products: Product[],
     retailStores: RetailStore[],
     spotRecipients: SpotRecipient[],
-    periodDays: 7 | 30 = 30,
+    periodDays: 7 | 30 | 90 = 30,
     baseDate: Date = new Date()
 ): ConsultantStrategyIntelligence {
     const days = getPastDaysList(periodDays, baseDate);

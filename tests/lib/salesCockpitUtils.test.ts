@@ -199,12 +199,25 @@ describe("salesCockpitUtils", () => {
         expect(kpis.topStore?.amount).toBe(9600);
     });
 
-    it("aggregateStoreDailySales が特定店舗および全店舗の日次売上・商品個数を算出する", () => {
-        // 全店舗合計
-        const allResult = aggregateStoreDailySales(mockSales, "ALL", 7, mockProducts, baseDate);
-        expect(allResult.chartData.length).toBe(7);
-        expect(allResult.totalPeriodAmount).toBe(4800);
-        expect(allResult.totalPeriodQty).toBe(5);
+    it("aggregateStoreDailySales が特定店舗および全店舗の日次売上・商品個数・移動平均線を算出する (7日・90日・360日)", () => {
+        // 全店舗合計 (7日)
+        const allResult7 = aggregateStoreDailySales(mockSales, "ALL", 7, mockProducts, baseDate);
+        expect(allResult7.chartData.length).toBe(7);
+        expect(allResult7.totalPeriodAmount).toBe(4800);
+        expect(allResult7.totalPeriodQty).toBe(5);
+        expect(allResult7.chartData[6]["7日移動平均"]).toBeDefined();
+
+        // 90日間の集計
+        const allResult90 = aggregateStoreDailySales(mockSales, "ALL", 90, mockProducts, baseDate);
+        expect(allResult90.chartData.length).toBe(90);
+        expect(allResult90.chartData[89]["7日移動平均"]).toBeDefined();
+        expect(allResult90.chartData[89]["30日移動平均"]).toBeDefined();
+
+        // 360日間の通年集計
+        const allResult360 = aggregateStoreDailySales(mockSales, "ALL", 360, mockProducts, baseDate);
+        expect(allResult360.chartData.length).toBe(360);
+        expect(allResult360.chartData[359]["7日移動平均"]).toBeDefined();
+        expect(allResult360.chartData[359]["30日移動平均"]).toBeDefined();
 
         // 特定店舗: store-1 (11/05に3個, 2400円)
         const store1Result = aggregateStoreDailySales(mockSales, "store-1", 7, mockProducts, baseDate);
@@ -233,11 +246,21 @@ describe("salesCockpitUtils", () => {
         expect(store1Perf?.prevAmt).toBe(7200);
     });
 
-    it("aggregateProductDailySales が特定商品の販売推移と店舗別内訳を算出する", () => {
+    it("aggregateProductDailySales が特定商品の販売推移・移動平均線と店舗別内訳を算出する (30日・90日・360日)", () => {
         const prod1Result = aggregateProductDailySales(mockSales, "prod-1", 30, mockStores, mockSpots, baseDate);
         expect(prod1Result.chartData.length).toBe(30);
         expect(prod1Result.totalQty).toBe(12);
         expect(prod1Result.totalAmount).toBe(9600);
+        expect(prod1Result.chartData[29]["7日移動平均"]).toBeDefined();
+
+        // 90日・360日
+        const prod1Result90 = aggregateProductDailySales(mockSales, "prod-1", 90, mockStores, mockSpots, baseDate);
+        expect(prod1Result90.chartData.length).toBe(90);
+        expect(prod1Result90.chartData[89]["7日移動平均"]).toBeDefined();
+        expect(prod1Result90.chartData[89]["30日移動平均"]).toBeDefined();
+
+        const prod1Result360 = aggregateProductDailySales(mockSales, "prod-1", 360, mockStores, mockSpots, baseDate);
+        expect(prod1Result360.chartData.length).toBe(360);
 
         // 店舗別内訳 (store-1 のみで販売)
         expect(prod1Result.storeBreakdown.length).toBe(1);

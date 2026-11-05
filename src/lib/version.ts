@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.20.0";
+export const CURRENT_VERSION = "v1.21.0";
 export const RELEASE_DATE = "2026.11.05";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "エグゼクティブ・コックピットの90日・360日期間拡張と移動平均線トレンド可視化",
+        description: "売上状況コックピット（店舗別・商品別）に四半期（90日間）および通年（360日間）の期間幅選択を追加。日次売上・販売個数のブレを平滑化する「7日移動平均線」および「30日移動平均線」を同時描画し、曜日ノイズに惑わされない本質的な売上トレンドを瞬時に把握可能に。",
+        status: "completed"
+    },
     {
         name: "直近売上推移連動の発注判断・非販売品除外 ＆ 自動リロード根本根絶",
         description: "発注推奨リストにおいて直近7日・30日の販売推移（急伸・安定・鈍化）を反映した適正発注数を算出。直近販売実績のない非稼働・休止品を自動除外し誤発注を根絶。PWAラッパー完全撤廃と安全なアンインストーラーによりページの予期しない自動リロードを徹底解消。",

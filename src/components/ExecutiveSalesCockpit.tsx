@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-    BarChart, Bar, LineChart, Line, AreaChart, Area,
+    BarChart, Bar, LineChart, Line, AreaChart, Area, ComposedChart,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend,
     ResponsiveContainer
 } from "recharts";
@@ -24,6 +24,7 @@ import {
     aggregateProductDailySales,
     calculatePurchasingIntelligence,
     calculateConsultantStrategy,
+    type CockpitPeriodDays,
 } from "@/lib/salesCockpitUtils";
 
 // グラフ用カラーパレット
@@ -44,16 +45,16 @@ export function ExecutiveSalesCockpit() {
     // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別) | 'purchasing' (発注・仕入判断) | 'consultant' (コンサルタント戦略分析)
     const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product' | 'purchasing' | 'consultant'>('store');
     
-    // 店舗別ビュー用フィルタ
+    // 店舗別ビュー用フィルタ (7日 / 30日 / 90日 / 360日)
     const [selectedStoreId, setSelectedStoreId] = useState<string>("ALL");
-    const [storePeriodDays, setStorePeriodDays] = useState<7 | 30>(7);
+    const [storePeriodDays, setStorePeriodDays] = useState<CockpitPeriodDays>(7);
 
-    // 商品別ビュー用フィルタ
+    // 商品別ビュー用フィルタ (7日 / 30日 / 90日 / 360日)
     const [selectedProductId, setSelectedProductId] = useState<string>("");
-    const [productPeriodDays, setProductPeriodDays] = useState<7 | 30>(7);
+    const [productPeriodDays, setProductPeriodDays] = useState<CockpitPeriodDays>(7);
 
-    // コンサルタント分析ビュー用フィルタ
-    const [consultantPeriodDays, setConsultantPeriodDays] = useState<7 | 30>(30);
+    // コンサルタント分析ビュー用フィルタ (7日 / 30日 / 90日)
+    const [consultantPeriodDays, setConsultantPeriodDays] = useState<7 | 30 | 90>(30);
 
     // 発注推奨リスト用フィルタ: 'all' | 'surging' | 'urgent'
     const [reorderTrendFilter, setReorderTrendFilter] = useState<'all' | 'surging' | 'urgent'>('all');
@@ -416,58 +417,87 @@ export function ExecutiveSalesCockpit() {
                         </div>
 
                         {/* Period Switch */}
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
                             <span className="text-xs font-bold text-slate-400">期間:</span>
-                            <div className="inline-flex p-1 bg-white border border-slate-200 rounded-xl">
-                                <button
-                                    type="button"
-                                    onClick={() => setStorePeriodDays(7)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                                        storePeriodDays === 7 ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                                    }`}
-                                >
-                                    直近7日間
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setStorePeriodDays(30)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                                        storePeriodDays === 30 ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                                    }`}
-                                >
-                                    直近30日間
-                                </button>
+                            <div className="inline-flex p-1 bg-white border border-slate-200 rounded-xl flex-wrap gap-0.5">
+                                {[
+                                    { days: 7, label: "直近7日" },
+                                    { days: 30, label: "直近30日" },
+                                    { days: 90, label: "直近90日" },
+                                    { days: 360, label: "通年360日" },
+                                ].map(p => (
+                                    <button
+                                        key={p.days}
+                                        type="button"
+                                        onClick={() => setStorePeriodDays(p.days as CockpitPeriodDays)}
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                                            storePeriodDays === p.days ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        {p.label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     </div>
 
-                    {/* Chart 1: 日別売上金額の推移 */}
+                    {/* Chart 1: 日別売上金額の推移 ＆ 移動平均線 */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div>
                                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                                     <BarChart3 className="w-4 h-4 text-blue-600" />
-                                    日別売上金額の推移（{storePeriodDays === 7 ? "直近7日間" : "直近30日間"}）
+                                    日別売上金額の推移 ＆ 移動平均線（{storePeriodDays === 7 ? "直近7日間" : storePeriodDays === 30 ? "直近30日間" : storePeriodDays === 90 ? "直近90日間" : "通年360日間"}）
                                 </h3>
                                 <p className="text-[11px] text-slate-400 font-medium mt-0.5">
                                     期間売上合計: <span className="font-black text-slate-800">¥{storeViewData.totalPeriodAmount.toLocaleString()}</span> / 販売総数: <span className="font-black text-slate-800">{storeViewData.totalPeriodQty.toLocaleString()}個</span>
                                 </p>
                             </div>
+                            <div className="text-[10px] text-slate-400 font-bold flex items-center gap-3">
+                                <span className="flex items-center gap-1.5">
+                                    <span className="w-2.5 h-2.5 rounded-sm bg-blue-200 inline-block" />
+                                    日次売上額
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                    <span className="w-3 h-0.5 bg-blue-600 inline-block" />
+                                    7日移動平均
+                                </span>
+                                {storePeriodDays >= 90 && (
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-3 h-0.5 border-t-2 border-dashed border-amber-500 inline-block" />
+                                        30日移動平均
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         <div className="h-64 sm:h-72 w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={storeViewData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                <ComposedChart data={storeViewData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => `¥${(v / 1000).toLocaleString()}k`} />
+                                    <XAxis
+                                        dataKey="label"
+                                        tick={{ fontSize: 10, fill: '#64748b' }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                        interval={storePeriodDays === 360 ? 29 : storePeriodDays === 90 ? 12 : storePeriodDays === 30 ? 4 : 0}
+                                    />
+                                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => `¥${(v / 1000).toLocaleString()}k`} />
                                     <Tooltip
-                                        formatter={(val: any) => [`¥${Number(val).toLocaleString()}`, "売上金額"]}
+                                        formatter={(val: any, name: any) => [
+                                            `¥${Number(val).toLocaleString()}`,
+                                            name === "売上額" ? "日次売上額" : name
+                                        ]}
                                         labelFormatter={(l: any) => `日付: ${l}`}
                                         contentStyle={{ backgroundColor: "#ffffff", borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
                                     />
-                                    <Bar dataKey="売上額" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={40} />
-                                </BarChart>
+                                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                                    <Bar dataKey="売上額" name="日次売上額" fill="#bfdbfe" radius={[4, 4, 0, 0]} maxBarSize={storePeriodDays >= 90 ? 8 : 40} />
+                                    <Line type="monotone" dataKey="7日移動平均" name="7日移動平均" stroke="#2563eb" strokeWidth={2.5} dot={storePeriodDays <= 30 ? { r: 2 } : false} activeDot={{ r: 4 }} />
+                                    {storePeriodDays >= 90 && (
+                                        <Line type="monotone" dataKey="30日移動平均" name="30日移動平均" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={false} activeDot={{ r: 4 }} />
+                                    )}
+                                </ComposedChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
@@ -491,8 +521,14 @@ export function ExecutiveSalesCockpit() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={storeViewData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                        <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                                        <XAxis
+                                            dataKey="label"
+                                            tick={{ fontSize: 10, fill: '#64748b' }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                            interval={storePeriodDays === 360 ? 29 : storePeriodDays === 90 ? 12 : storePeriodDays === 30 ? 4 : 0}
+                                        />
+                                        <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} allowDecimals={false} />
                                         <Tooltip
                                             formatter={(val: any, name: any) => [`${val} 個`, name]}
                                             contentStyle={{ backgroundColor: "#ffffff", borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
@@ -505,8 +541,8 @@ export function ExecutiveSalesCockpit() {
                                                 dataKey={item.productName}
                                                 stroke={PALETTE[idx % PALETTE.length]}
                                                 strokeWidth={2.5}
-                                                dot={{ r: 3 }}
-                                                activeDot={{ r: 5 }}
+                                                dot={storePeriodDays <= 30 ? { r: 2.5 } : false}
+                                                activeDot={{ r: 4 }}
                                             />
                                         ))}
                                     </LineChart>
@@ -524,7 +560,7 @@ export function ExecutiveSalesCockpit() {
                         <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                             <h4 className="text-xs font-black text-slate-800 flex items-center gap-2">
                                 <Package className="w-4 h-4 text-blue-600" />
-                                対象店舗での商品別売上実績（{storePeriodDays === 7 ? "直近7日間" : "直近30日間"}）
+                                対象店舗での商品別売上実績（{storePeriodDays === 7 ? "直近7日間" : storePeriodDays === 30 ? "直近30日間" : storePeriodDays === 90 ? "直近90日間" : "通年360日間"}）
                             </h4>
                             <span className="text-[11px] text-slate-500 font-bold">{storeViewData.sortedItems.length} 品目</span>
                         </div>
@@ -717,27 +753,26 @@ export function ExecutiveSalesCockpit() {
                         </div>
 
                         {/* Period Switch */}
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
                             <span className="text-xs font-bold text-slate-400">期間:</span>
-                            <div className="inline-flex p-1 bg-white border border-slate-200 rounded-xl">
-                                <button
-                                    type="button"
-                                    onClick={() => setProductPeriodDays(7)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                                        productPeriodDays === 7 ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                                    }`}
-                                >
-                                    直近7日間
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setProductPeriodDays(30)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                                        productPeriodDays === 30 ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                                    }`}
-                                >
-                                    直近30日間
-                                </button>
+                            <div className="inline-flex p-1 bg-white border border-slate-200 rounded-xl flex-wrap gap-0.5">
+                                {[
+                                    { days: 7, label: "直近7日" },
+                                    { days: 30, label: "直近30日" },
+                                    { days: 90, label: "直近90日" },
+                                    { days: 360, label: "通年360日" },
+                                ].map(p => (
+                                    <button
+                                        key={p.days}
+                                        type="button"
+                                        onClick={() => setProductPeriodDays(p.days as CockpitPeriodDays)}
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                                            productPeriodDays === p.days ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        {p.label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     </div>
@@ -811,31 +846,63 @@ export function ExecutiveSalesCockpit() {
                                 </div>
                             )}
 
-                            {/* Chart: 日次販売個数・金額推移 */}
+                            {/* Chart: 日次販売個数推移 ＆ 移動平均線 */}
                             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
-                                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                                    <TrendingUp className="w-4 h-4 text-blue-600" />
-                                    「{targetProduct.name}」の日別販売個数・売上推移
-                                </h3>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                        <TrendingUp className="w-4 h-4 text-blue-600" />
+                                        「{targetProduct.name}」の日別販売個数 ＆ 移動平均線（{productPeriodDays === 7 ? "直近7日間" : productPeriodDays === 30 ? "直近30日間" : productPeriodDays === 90 ? "直近90日間" : "通年360日間"}）
+                                    </h3>
+                                    <div className="text-[10px] text-slate-400 font-bold flex items-center gap-3">
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-sm bg-blue-200 inline-block" />
+                                            日次個数
+                                        </span>
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="w-3 h-0.5 bg-blue-700 inline-block" />
+                                            7日移動平均
+                                        </span>
+                                        {productPeriodDays >= 90 && (
+                                            <span className="flex items-center gap-1.5">
+                                                <span className="w-3 h-0.5 border-t-2 border-dashed border-amber-500 inline-block" />
+                                                30日移動平均
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
 
                                 <div className="h-64 sm:h-72 w-full">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={productViewData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                        <ComposedChart data={productViewData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                             <defs>
                                                 <linearGradient id="qtyGradient" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
-                                                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25}/>
+                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                            <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                                            <XAxis
+                                                dataKey="label"
+                                                tick={{ fontSize: 10, fill: '#64748b' }}
+                                                axisLine={false}
+                                                tickLine={false}
+                                                interval={productPeriodDays === 360 ? 29 : productPeriodDays === 90 ? 12 : productPeriodDays === 30 ? 4 : 0}
+                                            />
+                                            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} allowDecimals={false} />
                                             <Tooltip
-                                                formatter={(val: any, name: any) => [name === "販売個数" ? `${val} 個` : `¥${Number(val).toLocaleString()}`, name]}
+                                                formatter={(val: any, name: any) => [
+                                                    name === "販売金額" ? `¥${Number(val).toLocaleString()}` : `${val} 個`,
+                                                    name
+                                                ]}
                                                 contentStyle={{ backgroundColor: "#ffffff", borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
                                             />
-                                            <Area type="monotone" dataKey="販売個数" stroke="#2563eb" strokeWidth={2.5} fillOpacity={1} fill="url(#qtyGradient)" />
-                                        </AreaChart>
+                                            <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                                            <Area type="monotone" dataKey="販売個数" name="日次販売個数" stroke="#60a5fa" strokeWidth={1.5} fillOpacity={1} fill="url(#qtyGradient)" />
+                                            <Line type="monotone" dataKey="7日移動平均" name="7日移動平均" stroke="#1d4ed8" strokeWidth={2.5} dot={productPeriodDays <= 30 ? { r: 2 } : false} activeDot={{ r: 4 }} />
+                                            {productPeriodDays >= 90 && (
+                                                <Line type="monotone" dataKey="30日移動平均" name="30日移動平均" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={false} activeDot={{ r: 4 }} />
+                                            )}
+                                        </ComposedChart>
                                     </ResponsiveContainer>
                                 </div>
                             </div>
@@ -1265,30 +1332,26 @@ export function ExecutiveSalesCockpit() {
                             </p>
                         </div>
 
-                        {/* 期間切替 (7日 vs 30日) */}
-                        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-indigo-200/60 shadow-sm self-start sm:self-center">
-                            <button
-                                type="button"
-                                onClick={() => setConsultantPeriodDays(7)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                                    consultantPeriodDays === 7
-                                        ? 'bg-indigo-600 text-white shadow-sm'
-                                        : 'text-slate-600 hover:text-slate-900'
-                                }`}
-                            >
-                                直近7日間
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setConsultantPeriodDays(30)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                                    consultantPeriodDays === 30
-                                        ? 'bg-indigo-600 text-white shadow-sm'
-                                        : 'text-slate-600 hover:text-slate-900'
-                                }`}
-                            >
-                                直近30日間
-                            </button>
+                        {/* 期間切替 (7日 vs 30日 vs 90日) */}
+                        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-indigo-200/60 shadow-sm self-start sm:self-center flex-wrap">
+                            {[
+                                { days: 7, label: "直近7日" },
+                                { days: 30, label: "直近30日" },
+                                { days: 90, label: "直近90日" },
+                            ].map(p => (
+                                <button
+                                    key={p.days}
+                                    type="button"
+                                    onClick={() => setConsultantPeriodDays(p.days as 7 | 30 | 90)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                        consultantPeriodDays === p.days
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
 

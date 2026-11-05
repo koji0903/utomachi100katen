@@ -110,11 +110,34 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.20.0 */}
+                    {/* v1.21.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">エグゼクティブ・コックピットの90日・360日期間拡張と移動平均線トレンド可視化</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "四半期（90日）および通年（360日）期間選択の追加：店舗別動向・商品別推移の両ビューにおいて、従来の7日・30日に加え、四半期業績や年次繁閑サイクル・季節トレンドを俯瞰できる「直近90日」「通年360日」の幅選択を新設",
+                                    "日別売上推移への移動平均線（7日・30日MA）の重畳表示：日々の曜日要因（土日祝の山と平日の谷）による売上ノイズを平滑化する「7日移動平均線」および長期用の「30日移動平均線」を同時描画し、基調トレンドの上昇・下降を一目で把握可能に",
+                                    "商品別販売個数グラフへの移動平均線導入：特定商品の販売個数面グラフの上に7日・30日移動平均線を重ねて表示し、日販ペースの勢いと持続性を視覚的に明瞭化",
+                                    "長期間表示におけるX軸ラベル表示の自動最適化：360日（月単位間引き）や90日（約2週間間引き）など、データ点数が多い期間でもグラフが重ならず美しく表示されるよう軸インターバルを動的調整",
+                                    "コンサルタント戦略分析ビューの90日間分析対応：粗利率・限界利益MQ・客単価・チャネル別ポートフォリオの期間選択に「直近90日」を追加し、中期的視野での経営戦略討議を強力に支援"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.20.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.20.0 - 2026.11.05</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">直近売上推移連動の発注判断・非販売品除外 ＆ 自動リロード根本根絶</h3>
                             <ul className="space-y-2">
                                 {[
