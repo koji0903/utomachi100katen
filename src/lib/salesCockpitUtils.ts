@@ -4,7 +4,7 @@
  * 経営陣（月次推移・店舗ポートフォリオ）と現場（日次・商品別個数推移）がひと目で把握できるKPI・推移データを算出
  */
 
-import type { Product, RetailStore, SpotRecipient, Sale, Supplier, Purchase } from "./store";
+import type { Product, RetailStore, SpotRecipient, Sale, Supplier, Purchase, Brand } from "./store";
 import { calculateDaysRemaining } from "./stockUtils";
 
 // YYYY-MM-DD
@@ -46,6 +46,7 @@ export interface ExecutiveKpiSummary {
     dailyAvg30: number;
     topProduct: { id: string; name: string; qty: number; amount: number } | null;
     topStore: { id: string; name: string; amount: number } | null;
+    topBrand: { id: string; name: string; amount: number } | null;
 }
 
 /**
@@ -56,7 +57,8 @@ export function calculateExecutiveKpis(
     products: Product[],
     retailStores: RetailStore[],
     spotRecipients: SpotRecipient[],
-    baseDate: Date = new Date()
+    baseDate: Date = new Date(),
+    brands: Brand[] = []
 ): ExecutiveKpiSummary {
     const validSales = sales.filter(s => !s.isTrashed && s.period);
 
@@ -135,6 +137,32 @@ export function calculateExecutiveKpis(
         }
     }
 
+    // 直近30日のブランド別売上集計
+    const brandMap = new Map<string, string>();
+    brands.forEach(b => brandMap.set(b.id, b.name));
+
+    const brandRevMap = new Map<string, number>();
+    last30Sales.forEach(s => {
+        s.items?.forEach(item => {
+            const prod = prodMap.get(item.productId);
+            const bId = prod?.brandId || "unassigned";
+            const amt = item.subtotal || (item.quantity * item.priceAtSale) || 0;
+            brandRevMap.set(bId, (brandRevMap.get(bId) || 0) + amt);
+        });
+    });
+
+    let topBrand: { id: string; name: string; amount: number } | null = null;
+    for (const [bId, amt] of Array.from(brandRevMap.entries())) {
+        if (!topBrand || amt > topBrand.amount) {
+            const bName = bId === "unassigned" ? "ブランド未設定" : (brandMap.get(bId) || "ブランド");
+            topBrand = {
+                id: bId,
+                name: bName,
+                amount: amt,
+            };
+        }
+    }
+
     return {
         rev7,
         prevRev7,
@@ -143,6 +171,7 @@ export function calculateExecutiveKpis(
         dailyAvg30,
         topProduct,
         topStore,
+        topBrand,
     };
 }
 
@@ -469,6 +498,394 @@ export function aggregateProductDailySales(
         totalQty,
         totalAmount,
         dailyVelocity,
+    };
+}
+
+export interface BrandSalesItem {
+    brandId: string;
+    brandName: string;
+    imageUrl?: string;
+    concept?: string;
+    story?: string;
+    revenue: number;
+    quantity: number;
+    cost: number;
+    grossProfit: number;
+    grossMargin: number; // %
+    productCount: number;
+    totalStock: number;
+    mainStock: number;
+    storeStockTotal: number;
+    sharePercent: number; // 全体売上に占める割合%
+}
+
+export interface BrandProductBreakdown {
+    productId: string;
+    productName: string;
+    variantName?: string;
+    quantity: number;
+    revenue: number;
+    cost: number;
+    grossProfit: number;
+    grossMargin: number;
+    stock: number;
+    mainStock: number;
+    storeStockTotal: number;
+    daysLeft: number;
+    shareInBrand: number;
+}
+
+export interface BrandStoreBreakdown {
+    storeId: string;
+    storeName: string;
+    quantity: number;
+    revenue: number;
+    sharePercent: number;
+}
+
+export interface BrandCockpitData {
+    periodDays: CockpitPeriodDays;
+    totalRevenue: number;
+    totalQuantity: number;
+    totalCost: number;
+    totalGrossProfit: number;
+    overallGrossMargin: number;
+    brandsSummary: BrandSalesItem[];
+    chartData: Record<string, any>[];
+    selectedBrand: BrandSalesItem | null;
+    selectedBrandProducts: BrandProductBreakdown[];
+    selectedBrandStores: BrandStoreBreakdown[];
+    topBrandsForChart: { id: string; name: string; color: string }[];
+}
+
+const BRAND_PALETTE = [
+    "#2563eb", // blue
+    "#10b981", // emerald
+    "#f59e0b", // amber
+    "#8b5cf6", // purple
+    "#ec4899", // pink
+    "#06b6d4", // cyan
+    "#f97316", // orange
+    "#64748b", // slate
+];
+
+/**
+ * 5. ブランド別動向・売上分析およびブランド内商品・配架内訳の集計
+ */
+export function aggregateBrandCockpitData(
+    sales: Sale[],
+    products: Product[],
+    brands: Brand[],
+    retailStores: RetailStore[],
+    spotRecipients: SpotRecipient[],
+    selectedBrandId: string, // "ALL" または特定の brandId
+    daysCount: CockpitPeriodDays,
+    baseDate: Date = new Date(),
+    storeStocks: { storeId: string; productId: string; stock: number }[] = []
+): BrandCockpitData {
+    const days = getPastDaysList(daysCount, baseDate);
+    const validSales = sales.filter(s => !s.isTrashed && s.period && days.includes(s.period));
+    const activeProducts = products.filter(p => !p.isTrashed);
+    const activeBrands = brands.filter(b => !b.isTrashed);
+
+    const brandMap = new Map<string, Brand>();
+    activeBrands.forEach(b => brandMap.set(b.id, b));
+
+    const prodMap = new Map<string, Product>();
+    products.forEach(p => prodMap.set(p.id, p));
+
+    const storeMap = new Map<string, string>();
+    retailStores.forEach(s => storeMap.set(s.id, s.name));
+    spotRecipients.forEach(s => storeMap.set(s.id, s.name));
+
+    // 各商品の全社総在庫・本社・店頭在庫
+    const prodStockMap = new Map<string, { totalStock: number; mainStock: number; storeStockTotal: number }>();
+    activeProducts.forEach(p => {
+        const relevantSS = storeStocks.filter(ss => ss.productId === p.id);
+        const storeStockTotal = relevantSS.reduce((sum, ss) => sum + (ss.stock || 0), 0);
+        const mainStock = p.stock || 0;
+        prodStockMap.set(p.id, {
+            totalStock: mainStock + storeStockTotal,
+            mainStock,
+            storeStockTotal,
+        });
+    });
+
+    // 1. ブランド別集計マップ
+    const brandAggMap = new Map<string, {
+        revenue: number;
+        quantity: number;
+        cost: number;
+        grossProfit: number;
+        productIds: Set<string>;
+    }>();
+
+    let totalRevenue = 0;
+    let totalQuantity = 0;
+    let totalCost = 0;
+    let totalGrossProfit = 0;
+
+    validSales.forEach(s => {
+        s.items?.forEach(item => {
+            const prod = prodMap.get(item.productId);
+            const bId = prod?.brandId || "unassigned";
+            const qty = item.quantity || 0;
+            const rev = item.subtotal || (qty * item.priceAtSale) || 0;
+            const unitCost = prod?.costPrice !== undefined && prod.costPrice > 0 ? prod.costPrice : 0;
+            const cost = item.variableCostAmount !== undefined && item.variableCostAmount > 0
+                ? item.variableCostAmount
+                : (qty * unitCost);
+            const gp = rev - cost;
+
+            totalRevenue += rev;
+            totalQuantity += qty;
+            totalCost += cost;
+            totalGrossProfit += gp;
+
+            const cur = brandAggMap.get(bId) || {
+                revenue: 0,
+                quantity: 0,
+                cost: 0,
+                grossProfit: 0,
+                productIds: new Set<string>(),
+            };
+            cur.revenue += rev;
+            cur.quantity += qty;
+            cur.cost += cost;
+            cur.grossProfit += gp;
+            if (item.productId) cur.productIds.add(item.productId);
+            brandAggMap.set(bId, cur);
+        });
+    });
+
+    const overallGrossMargin = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+
+    // ブランド一覧（売上実績のあるブランド + 登録済みブランド）
+    const allKnownBrandIds = new Set<string>();
+    activeBrands.forEach(b => allKnownBrandIds.add(b.id));
+    Array.from(brandAggMap.keys()).forEach(bId => allKnownBrandIds.add(bId));
+
+    const brandsSummary: BrandSalesItem[] = Array.from(allKnownBrandIds).map(bId => {
+        const brandObj = brandMap.get(bId);
+        const brandName = bId === "unassigned" ? "ブランド未設定" : (brandObj?.name || "未登録ブランド");
+        const agg = brandAggMap.get(bId) || { revenue: 0, quantity: 0, cost: 0, grossProfit: 0, productIds: new Set() };
+
+        // このブランドに属する有効商品
+        const brandProds = activeProducts.filter(p => (p.brandId || "unassigned") === bId);
+        const productCount = brandProds.length;
+
+        // このブランドの総在庫
+        let brandMainStock = 0;
+        let brandStoreStockTotal = 0;
+        brandProds.forEach(p => {
+            const sm = prodStockMap.get(p.id);
+            if (sm) {
+                brandMainStock += sm.mainStock;
+                brandStoreStockTotal += sm.storeStockTotal;
+            }
+        });
+        const totalStock = brandMainStock + brandStoreStockTotal;
+        const grossMargin = agg.revenue > 0 ? (agg.grossProfit / agg.revenue) * 100 : 0;
+        const sharePercent = totalRevenue > 0 ? (agg.revenue / totalRevenue) * 100 : 0;
+
+        return {
+            brandId: bId,
+            brandName,
+            imageUrl: brandObj?.imageUrl,
+            concept: brandObj?.concept,
+            story: brandObj?.story,
+            revenue: agg.revenue,
+            quantity: agg.quantity,
+            cost: agg.cost,
+            grossProfit: agg.grossProfit,
+            grossMargin,
+            productCount,
+            totalStock,
+            mainStock: brandMainStock,
+            storeStockTotal: brandStoreStockTotal,
+            sharePercent,
+        };
+    }).sort((a, b) => {
+        if (b.revenue !== a.revenue) return b.revenue - a.revenue;
+        return b.productCount - a.productCount;
+    });
+
+    // 2. チャート表示用の上位ブランド (TOP 4)
+    const top4Brands = brandsSummary.filter(b => b.revenue > 0).slice(0, 4);
+    const topBrandsForChart = top4Brands.map((b, idx) => ({
+        id: b.brandId,
+        name: b.brandName,
+        color: BRAND_PALETTE[idx % BRAND_PALETTE.length],
+    }));
+
+    // 3. 時系列チャートデータ作成
+    const rawDailyAmounts: number[] = [];
+
+    days.forEach(dStr => {
+        const daySales = validSales.filter(s => s.period === dStr);
+        let dayAmt = 0;
+        daySales.forEach(s => {
+            s.items?.forEach(item => {
+                const prod = prodMap.get(item.productId);
+                const bId = prod?.brandId || "unassigned";
+                if (selectedBrandId === "ALL" || bId === selectedBrandId) {
+                    dayAmt += (item.subtotal || (item.quantity * item.priceAtSale) || 0);
+                }
+            });
+        });
+        rawDailyAmounts.push(dayAmt);
+    });
+
+    const ma7 = calculateMovingAverage(rawDailyAmounts, 7).map(v => Math.round(v));
+    const ma30 = calculateMovingAverage(rawDailyAmounts, 30).map(v => Math.round(v));
+
+    const chartData = days.map((dStr, idx) => {
+        const daySales = validSales.filter(s => s.period === dStr);
+        const parts = dStr.split("-");
+        const label = `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+
+        let dayQty = 0;
+        const brandDayMap = new Map<string, number>();
+
+        daySales.forEach(s => {
+            s.items?.forEach(item => {
+                const prod = prodMap.get(item.productId);
+                const bId = prod?.brandId || "unassigned";
+                const qty = item.quantity || 0;
+                const amt = item.subtotal || (qty * item.priceAtSale) || 0;
+
+                if (selectedBrandId === "ALL" || bId === selectedBrandId) {
+                    dayQty += qty;
+                }
+                brandDayMap.set(bId, (brandDayMap.get(bId) || 0) + amt);
+            });
+        });
+
+        const row: Record<string, any> = {
+            date: dStr,
+            label,
+            売上額: rawDailyAmounts[idx],
+            総販売個数: dayQty,
+            "7日移動平均": ma7[idx],
+            "30日移動平均": ma30[idx],
+        };
+
+        if (selectedBrandId === "ALL") {
+            let topSum = 0;
+            topBrandsForChart.forEach(tb => {
+                const amt = brandDayMap.get(tb.id) || 0;
+                row[tb.name] = amt;
+                topSum += amt;
+            });
+            row["その他ブランド"] = Math.max(0, rawDailyAmounts[idx] - topSum);
+        }
+
+        return row;
+    });
+
+    // 4. 選択されたブランド（または売上1位ブランド）の詳細商品・店舗展開
+    const effectiveBrandId = selectedBrandId !== "ALL"
+        ? selectedBrandId
+        : (brandsSummary[0]?.brandId || "");
+
+    const selectedBrand = brandsSummary.find(b => b.brandId === effectiveBrandId) || null;
+
+    const targetBrandProds = activeProducts.filter(p => (p.brandId || "unassigned") === effectiveBrandId);
+    const prodSaleAgg = new Map<string, { qty: number; revenue: number; cost: number; grossProfit: number }>();
+
+    validSales.forEach(s => {
+        s.items?.forEach(item => {
+            const prod = prodMap.get(item.productId);
+            const bId = prod?.brandId || "unassigned";
+            if (bId === effectiveBrandId) {
+                const qty = item.quantity || 0;
+                const rev = item.subtotal || (qty * item.priceAtSale) || 0;
+                const unitCost = prod?.costPrice !== undefined && prod.costPrice > 0 ? prod.costPrice : 0;
+                const cost = item.variableCostAmount !== undefined && item.variableCostAmount > 0
+                    ? item.variableCostAmount
+                    : (qty * unitCost);
+                const gp = rev - cost;
+
+                const cur = prodSaleAgg.get(item.productId) || { qty: 0, revenue: 0, cost: 0, grossProfit: 0 };
+                cur.qty += qty;
+                cur.revenue += rev;
+                cur.cost += cost;
+                cur.grossProfit += gp;
+                prodSaleAgg.set(item.productId, cur);
+            }
+        });
+    });
+
+    const targetBrandTotalRev = selectedBrand?.revenue || 1;
+
+    const selectedBrandProducts: BrandProductBreakdown[] = targetBrandProds.map(p => {
+        const agg = prodSaleAgg.get(p.id) || { qty: 0, revenue: 0, cost: 0, grossProfit: 0 };
+        const sm = prodStockMap.get(p.id) || { totalStock: 0, mainStock: 0, storeStockTotal: 0 };
+        const daysLeft = calculateDaysRemaining(p, sales.filter(s => !s.isTrashed), products, sm.totalStock);
+        const grossMargin = agg.revenue > 0 ? (agg.grossProfit / agg.revenue) * 100 : 0;
+        const shareInBrand = targetBrandTotalRev > 0 ? (agg.revenue / targetBrandTotalRev) * 100 : 0;
+
+        return {
+            productId: p.id,
+            productName: p.variantName ? `${p.name} (${p.variantName})` : p.name,
+            variantName: p.variantName,
+            quantity: agg.qty,
+            revenue: agg.revenue,
+            cost: agg.cost,
+            grossProfit: agg.grossProfit,
+            grossMargin,
+            stock: sm.totalStock,
+            mainStock: sm.mainStock,
+            storeStockTotal: sm.storeStockTotal,
+            daysLeft,
+            shareInBrand,
+        };
+    }).sort((a, b) => {
+        if (b.revenue !== a.revenue) return b.revenue - a.revenue;
+        return b.stock - a.stock;
+    });
+
+    // 選択ブランドの店舗別売上
+    const storeSaleAgg = new Map<string, { qty: number; revenue: number }>();
+    validSales.forEach(s => {
+        const sId = s.storeId || "unknown";
+        s.items?.forEach(item => {
+            const prod = prodMap.get(item.productId);
+            const bId = prod?.brandId || "unassigned";
+            if (bId === effectiveBrandId) {
+                const qty = item.quantity || 0;
+                const rev = item.subtotal || (qty * item.priceAtSale) || 0;
+                const cur = storeSaleAgg.get(sId) || { qty: 0, revenue: 0 };
+                cur.qty += qty;
+                cur.revenue += rev;
+                storeSaleAgg.set(sId, cur);
+            }
+        });
+    });
+
+    const selectedBrandStores: BrandStoreBreakdown[] = Array.from(storeSaleAgg.entries())
+        .map(([sId, val]) => ({
+            storeId: sId,
+            storeName: storeMap.get(sId) || "店舗",
+            quantity: val.qty,
+            revenue: val.revenue,
+            sharePercent: targetBrandTotalRev > 0 ? (val.revenue / targetBrandTotalRev) * 100 : 0,
+        }))
+        .sort((a, b) => b.revenue - a.revenue);
+
+    return {
+        periodDays: daysCount,
+        totalRevenue,
+        totalQuantity,
+        totalCost,
+        totalGrossProfit,
+        overallGrossMargin,
+        brandsSummary,
+        chartData,
+        selectedBrand,
+        selectedBrandProducts,
+        selectedBrandStores,
+        topBrandsForChart,
     };
 }
 

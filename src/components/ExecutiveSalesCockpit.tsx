@@ -12,16 +12,17 @@ import {
     ArrowUpRight, ArrowDownRight, Layers, ShoppingBag,
     Truck, AlertTriangle, CheckCircle2, Clock, ArrowRight,
     Compass, Target, PieChart, Users, DollarSign, Percent,
-    ShieldAlert, Activity
+    ShieldAlert, Activity, Tag
 } from "lucide-react";
 import Link from "next/link";
-import { useStore, type Product, type RetailStore, type SpotRecipient, type Sale } from "@/lib/store";
+import { useStore, type Product, type RetailStore, type SpotRecipient, type Sale, type Brand } from "@/lib/store";
 import { calculateDaysRemaining, getStockoutStatus, getProductStockBreakdown } from "@/lib/stockUtils";
 import {
     calculateExecutiveKpis,
     aggregateStoreDailySales,
     aggregateMonthlyStoreSales,
     aggregateProductDailySales,
+    aggregateBrandCockpitData,
     calculatePurchasingIntelligence,
     calculateConsultantStrategy,
     type CockpitPeriodDays,
@@ -40,10 +41,10 @@ const PALETTE = [
 ];
 
 export function ExecutiveSalesCockpit() {
-    const { unifiedSales, products, retailStores, spotRecipients, purchases, suppliers, storeStocks, fixedCosts = [] } = useStore();
+    const { unifiedSales, products, brands = [], retailStores, spotRecipients, purchases, suppliers, storeStocks, fixedCosts = [] } = useStore();
 
-    // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別) | 'purchasing' (発注・仕入判断) | 'consultant' (コンサルタント戦略分析)
-    const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product' | 'purchasing' | 'consultant'>('store');
+    // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別) | 'brand' (ブランド別) | 'purchasing' (発注・仕入判断) | 'consultant' (コンサルタント戦略分析)
+    const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product' | 'brand' | 'purchasing' | 'consultant'>('store');
     
     // 店舗別ビュー用フィルタ (7日 / 30日 / 90日 / 360日)
     const [selectedStoreId, setSelectedStoreId] = useState<string>("ALL");
@@ -53,14 +54,19 @@ export function ExecutiveSalesCockpit() {
     const [selectedProductId, setSelectedProductId] = useState<string>("");
     const [productPeriodDays, setProductPeriodDays] = useState<CockpitPeriodDays>(7);
 
+    // ブランド別ビュー用フィルタ (7日 / 30日 / 90日 / 360日)
+    const [selectedBrandId, setSelectedBrandId] = useState<string>("ALL");
+    const [brandPeriodDays, setBrandPeriodDays] = useState<CockpitPeriodDays>(30);
+
     // コンサルタント分析ビュー用フィルタ (7日 / 30日 / 90日)
     const [consultantPeriodDays, setConsultantPeriodDays] = useState<7 | 30 | 90>(30);
 
     // 発注推奨リスト用フィルタ: 'all' | 'surging' | 'urgent'
     const [reorderTrendFilter, setReorderTrendFilter] = useState<'all' | 'surging' | 'urgent'>('all');
 
-    // 有効な商品・店舗
+    // 有効な商品・ブランド・店舗
     const activeProducts = useMemo(() => products.filter(p => !p.isTrashed), [products]);
+    const activeBrands = useMemo(() => brands.filter(b => !b.isTrashed), [brands]);
     const activeStores = useMemo(() => retailStores.filter(s => !s.isTrashed), [retailStores]);
     const activeSpots = useMemo(() => spotRecipients.filter(s => !s.isTrashed), [spotRecipients]);
 
@@ -93,8 +99,8 @@ export function ExecutiveSalesCockpit() {
     // 1. エグゼクティブ・サマリー KPI
     // ─────────────────────────────────────────────────────────────
     const executiveKpis = useMemo(() => {
-        return calculateExecutiveKpis(unifiedSales, products, retailStores, spotRecipients);
-    }, [unifiedSales, products, retailStores, spotRecipients]);
+        return calculateExecutiveKpis(unifiedSales, products, retailStores, spotRecipients, new Date(), brands);
+    }, [unifiedSales, products, retailStores, spotRecipients, brands]);
 
     // ─────────────────────────────────────────────────────────────
     // 2. 店舗別ビュー（日別売上 ＆ 主力商品個数推移）
@@ -109,6 +115,23 @@ export function ExecutiveSalesCockpit() {
     const monthlyViewData = useMemo(() => {
         return aggregateMonthlyStoreSales(unifiedSales, retailStores, spotRecipients, 6);
     }, [unifiedSales, retailStores, spotRecipients]);
+
+    // ─────────────────────────────────────────────────────────────
+    // 4. ブランド別ビュー（全ブランド比較＆個別ブランド商品・配架分析）
+    // ─────────────────────────────────────────────────────────────
+    const brandCockpitData = useMemo(() => {
+        return aggregateBrandCockpitData(
+            unifiedSales,
+            products,
+            brands,
+            retailStores,
+            spotRecipients,
+            selectedBrandId,
+            brandPeriodDays,
+            new Date(),
+            storeStocks
+        );
+    }, [unifiedSales, products, brands, retailStores, spotRecipients, selectedBrandId, brandPeriodDays, storeStocks]);
 
     // ─────────────────────────────────────────────────────────────
     // 4. 商品別ビュー（特定商品の直近7日・30日 販売個数・店舗別推移）
@@ -210,7 +233,12 @@ export function ExecutiveSalesCockpit() {
             bullets.push(`店舗別では「${executiveKpis.topStore.name}」が直近30日で ¥${executiveKpis.topStore.amount.toLocaleString()} を売り上げ、全社の最大シェアを牽引しています。`);
         }
 
-        // 4. 発注・仕入れの緊急判断材料
+        // 4. ブランド動向（主力ブランド）
+        if (executiveKpis.topBrand) {
+            bullets.push(`【ブランド動向】「${executiveKpis.topBrand.name}」が直近30日で売上 ¥${executiveKpis.topBrand.amount.toLocaleString()}（ブランド別首位）を牽引しています。「ブランド別動向」タブで各ブランドの構成比・粗利・配架状況を分析できます。`);
+        }
+
+        // 5. 発注・仕入れの緊急判断材料
         if (purchasingIntelligence.urgentCount > 0) {
             bullets.push(`【発注判断】現在 ${purchasingIntelligence.urgentCount} 品目が至急発注推奨（欠品または7日以内欠品）です。想定仕入予算は約 ¥${purchasingIntelligence.totalRecommendedCost.toLocaleString()} で、早期の仕入確定が必要です。`);
         } else if (purchasingIntelligence.attentionCount > 0) {
@@ -287,6 +315,18 @@ export function ExecutiveSalesCockpit() {
                     </button>
                     <button
                         type="button"
+                        onClick={() => setActiveTab('brand')}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
+                            activeTab === 'brand'
+                                ? 'bg-white text-blue-900 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                        <Tag className="w-4 h-4 text-violet-600" />
+                        ブランド別動向
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => setActiveTab('purchasing')}
                         className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
                             activeTab === 'purchasing'
@@ -318,14 +358,14 @@ export function ExecutiveSalesCockpit() {
                 </div>
             </div>
 
-            {/* 4大エグゼクティブKPIカード */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-colors">
+            {/* 5大エグゼクティブKPIカード */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-colors">
                     <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
-                        <span>直近7日間 売上高</span>
+                        <span>直近7日 売上高</span>
                         <Calendar className="w-3.5 h-3.5 text-blue-600" />
                     </div>
-                    <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
                         ¥{executiveKpis.rev7.toLocaleString()}
                     </div>
                     <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold">
@@ -345,42 +385,55 @@ export function ExecutiveSalesCockpit() {
                     </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-emerald-200 transition-colors">
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-emerald-200 transition-colors">
                     <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
-                        <span>直近30日間 売上高</span>
+                        <span>直近30日 売上高</span>
                         <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
                     </div>
-                    <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
                         ¥{executiveKpis.rev30.toLocaleString()}
                     </div>
                     <div className="mt-1 text-[10px] text-slate-500 font-bold">
-                        日販平均: <span className="text-slate-900 font-black">¥{executiveKpis.dailyAvg30.toLocaleString()}</span>
+                        日販: <span className="text-slate-900 font-black">¥{executiveKpis.dailyAvg30.toLocaleString()}</span>
                     </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-amber-200 transition-colors">
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-violet-200 transition-colors cursor-pointer group" onClick={() => setActiveTab('brand')}>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
+                        <span>30日 首位ブランド</span>
+                        <Tag className="w-3.5 h-3.5 text-violet-600" />
+                    </div>
+                    <div className="text-xs sm:text-sm font-black text-slate-900 truncate group-hover:text-violet-600 transition-colors" title={executiveKpis.topBrand?.name}>
+                        {executiveKpis.topBrand?.name || "---"}
+                    </div>
+                    <div className="mt-1 text-[10px] text-slate-500 font-bold">
+                        売上: <span className="text-violet-600 font-black">¥{executiveKpis.topBrand?.amount.toLocaleString() ?? 0}</span>
+                    </div>
+                </div>
+
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-amber-200 transition-colors cursor-pointer group" onClick={() => setActiveTab('product')}>
                     <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
                         <span>30日 最多出荷商品</span>
                         <Award className="w-3.5 h-3.5 text-amber-500" />
                     </div>
-                    <div className="text-sm sm:text-base font-black text-slate-900 truncate" title={executiveKpis.topProduct?.name}>
+                    <div className="text-xs sm:text-sm font-black text-slate-900 truncate group-hover:text-amber-600 transition-colors" title={executiveKpis.topProduct?.name}>
                         {executiveKpis.topProduct?.name || "---"}
                     </div>
                     <div className="mt-1 text-[10px] text-slate-500 font-bold">
-                        出荷総数: <span className="text-amber-600 font-black">{executiveKpis.topProduct?.qty.toLocaleString() ?? 0} 個</span>
+                        出荷: <span className="text-amber-600 font-black">{executiveKpis.topProduct?.qty.toLocaleString() ?? 0} 個</span>
                     </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-purple-200 transition-colors">
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-purple-200 transition-colors cursor-pointer group" onClick={() => setActiveTab('store')}>
                     <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
-                        <span>30日 トップ売上店舗</span>
+                        <span>30日 首位店舗</span>
                         <Store className="w-3.5 h-3.5 text-purple-600" />
                     </div>
-                    <div className="text-sm sm:text-base font-black text-slate-900 truncate" title={executiveKpis.topStore?.name}>
+                    <div className="text-xs sm:text-sm font-black text-slate-900 truncate group-hover:text-purple-600 transition-colors" title={executiveKpis.topStore?.name}>
                         {executiveKpis.topStore?.name || "---"}
                     </div>
                     <div className="mt-1 text-[10px] text-slate-500 font-bold">
-                        売上高: <span className="text-purple-600 font-black">¥{executiveKpis.topStore?.amount.toLocaleString() ?? 0}</span>
+                        売上: <span className="text-purple-600 font-black">¥{executiveKpis.topStore?.amount.toLocaleString() ?? 0}</span>
                     </div>
                 </div>
             </div>
@@ -987,6 +1040,492 @@ export function ExecutiveSalesCockpit() {
                             </div>
                         </>
                     )}
+                </div>
+            )}
+
+            {/* ─────────────────────────────────────────────────────────────
+                TAB: ブランド別動向・売上分析ビュー（ブランドポートフォリオ戦略コックピット）
+            ───────────────────────────────────────────────────────────── */}
+            {activeTab === 'brand' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    {/* Controls Bar */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                <Tag className="w-3.5 h-3.5 text-violet-600" />
+                                分析対象ブランド:
+                            </span>
+                            <select
+                                value={selectedBrandId}
+                                onChange={e => setSelectedBrandId(e.target.value)}
+                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 max-w-xs sm:max-w-md"
+                            >
+                                <option value="ALL">全ブランド比較（シェア・ランキング・推移）</option>
+                                {brandCockpitData.brandsSummary.map(b => (
+                                    <option key={b.brandId} value={b.brandId}>
+                                        {b.brandName} ({b.productCount}商品 / 売上 ¥{b.revenue.toLocaleString()})
+                                    </option>
+                                ))}
+                            </select>
+
+                            <Link
+                                href="/brands"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-violet-600 hover:text-violet-800 hover:underline"
+                            >
+                                ブランド管理を開く
+                                <ArrowRight className="w-3 h-3" />
+                            </Link>
+                        </div>
+
+                        {/* Period Switch */}
+                        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                            <span className="text-xs font-bold text-slate-400">期間:</span>
+                            <div className="inline-flex p-1 bg-white border border-slate-200 rounded-xl flex-wrap gap-0.5">
+                                {[
+                                    { days: 7, label: "直近7日" },
+                                    { days: 30, label: "直近30日" },
+                                    { days: 90, label: "直近90日" },
+                                    { days: 360, label: "通年360日" },
+                                ].map(p => (
+                                    <button
+                                        key={p.days}
+                                        type="button"
+                                        onClick={() => setBrandPeriodDays(p.days as CockpitPeriodDays)}
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                                            brandPeriodDays === p.days
+                                                ? 'bg-violet-600 text-white shadow-xs'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        {p.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Brand Status KPI Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                                <span>期間売上高</span>
+                                {selectedBrandId !== "ALL" && brandCockpitData.selectedBrand && (
+                                    <span className="text-[10px] font-bold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded">
+                                        シェア {brandCockpitData.selectedBrand.sharePercent.toFixed(1)}%
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-xl font-black text-slate-900">
+                                ¥{selectedBrandId === "ALL"
+                                    ? brandCockpitData.totalRevenue.toLocaleString()
+                                    : (brandCockpitData.selectedBrand?.revenue ?? 0).toLocaleString()}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5">
+                                {selectedBrandId === "ALL" ? "全ブランド合計売上" : `${brandCockpitData.selectedBrand?.brandName || "選択ブランド"} 売上`}
+                            </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                期間販売数
+                            </div>
+                            <div className="text-xl font-black text-blue-600">
+                                {selectedBrandId === "ALL"
+                                    ? brandCockpitData.totalQuantity.toLocaleString()
+                                    : (brandCockpitData.selectedBrand?.quantity ?? 0).toLocaleString()}
+                                <span className="text-xs font-bold text-slate-500 ml-1">個</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5">
+                                日販: {(
+                                    (selectedBrandId === "ALL"
+                                        ? brandCockpitData.totalQuantity
+                                        : (brandCockpitData.selectedBrand?.quantity ?? 0)) / brandPeriodDays
+                                ).toFixed(1)} 個/日
+                            </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                                <span>実質粗利額 (粗利率)</span>
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                    {(selectedBrandId === "ALL"
+                                        ? brandCockpitData.overallGrossMargin
+                                        : (brandCockpitData.selectedBrand?.grossMargin ?? 0)
+                                    ).toFixed(1)}%
+                                </span>
+                            </div>
+                            <div className="text-xl font-black text-emerald-600">
+                                ¥{selectedBrandId === "ALL"
+                                    ? brandCockpitData.totalGrossProfit.toLocaleString()
+                                    : (brandCockpitData.selectedBrand?.grossProfit ?? 0).toLocaleString()}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5">
+                                仕入原価・卸値反映済みの限界利益
+                            </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                展開SKU数 / 全社総在庫
+                            </div>
+                            <div className="text-xl font-black text-slate-900">
+                                {selectedBrandId === "ALL"
+                                    ? activeProducts.length
+                                    : (brandCockpitData.selectedBrand?.productCount ?? 0)}
+                                <span className="text-xs font-bold text-slate-500 ml-1">SKU</span>
+                                <span className="text-slate-300 mx-1.5 font-normal">/</span>
+                                <span className="text-violet-700">
+                                    {selectedBrandId === "ALL"
+                                        ? brandCockpitData.brandsSummary.reduce((sum, b) => sum + b.totalStock, 0).toLocaleString()
+                                        : (brandCockpitData.selectedBrand?.totalStock ?? 0).toLocaleString()}
+                                </span>
+                                <span className="text-xs font-bold text-slate-500 ml-1">個</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5 truncate">
+                                {selectedBrandId === "ALL"
+                                    ? `登録ブランド数: ${activeBrands.length} ブランド`
+                                    : `本社: ${brandCockpitData.selectedBrand?.mainStock ?? 0}個 / 店頭計: ${brandCockpitData.selectedBrand?.storeStockTotal ?? 0}個`}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Chart: Brand Daily Trend */}
+                    <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <BarChart3 className="w-4 h-4 text-violet-600" />
+                                    {selectedBrandId === "ALL"
+                                        ? `全ブランド 売上推移 ＆ ブランド別構成（${brandPeriodDays}日間）`
+                                        : `「${brandCockpitData.selectedBrand?.brandName}」日別売上推移 ＆ 移動平均線（${brandPeriodDays}日間）`}
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                    {selectedBrandId === "ALL"
+                                        ? "全社の日別売上推移と上位ブランドの売上構成。7日移動平均（短期）・30日移動平均（中期）でトレンドを平滑化。"
+                                        : "日々の売上推移（棒）に7日移動平均（実線）・30日移動平均（点線）を重ね合わせ、売上モメンタムを可視化。"}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="h-72 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart data={brandCockpitData.chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="label" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                                    <YAxis
+                                        stroke="#94a3b8"
+                                        fontSize={11}
+                                        tickLine={false}
+                                        tickFormatter={v => v >= 10000 ? `¥${Math.round(v / 10000)}万` : `¥${v}`}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: "#1e293b", borderColor: "#334155", borderRadius: "0.75rem", color: "#fff", fontSize: "11px" }}
+                                        formatter={(val: any, name: any) => [`¥${Number(val).toLocaleString()}`, name]}
+                                        labelFormatter={(label, payload) => {
+                                            const item = payload?.[0]?.payload;
+                                            return item ? `${item.date} (${label}) 総販売個数: ${item.総販売個数 || 0}個` : label;
+                                        }}
+                                    />
+                                    <Legend
+                                        wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                                    />
+                                    <Bar dataKey="売上額" name={selectedBrandId === "ALL" ? "全社日別売上" : "日別売上額"} fill="#c4b5fd" radius={[4, 4, 0, 0]} opacity={0.65} />
+                                    <Line type="monotone" dataKey="7日移動平均" stroke="#2563eb" strokeWidth={2.5} dot={false} name="7日移動平均" />
+                                    <Line type="monotone" dataKey="30日移動平均" stroke="#f59e0b" strokeWidth={2} strokeDasharray="4 4" dot={false} name="30日移動平均" />
+                                    {selectedBrandId === "ALL" && brandCockpitData.topBrandsForChart.map(tb => (
+                                        <Line
+                                            key={tb.id}
+                                            type="monotone"
+                                            dataKey={tb.name}
+                                            stroke={tb.color}
+                                            strokeWidth={1.5}
+                                            dot={false}
+                                            name={tb.name}
+                                        />
+                                    ))}
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* Brand Sales Ranking Table (All Brands) */}
+                    <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <Layers className="w-4 h-4 text-violet-600" />
+                                    ブランド別 売上・粗利・在庫実績ランキング（直近{brandPeriodDays}日間）
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                    各ブランドの売上規模、全社シェア、粗利創出額、および店頭・本社の総在庫数を一覧比較できます。
+                                </p>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400">
+                                全 {brandCockpitData.brandsSummary.length} ブランド
+                            </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                        <th className="py-2.5 px-3">ブランド</th>
+                                        <th className="py-2.5 px-3 text-center">SKU数</th>
+                                        <th className="py-2.5 px-3 text-right">売上高</th>
+                                        <th className="py-2.5 px-3 text-left">全社シェア</th>
+                                        <th className="py-2.5 px-3 text-right">販売数</th>
+                                        <th className="py-2.5 px-3 text-right">粗利額 (粗利率)</th>
+                                        <th className="py-2.5 px-3 text-right">全社総在庫</th>
+                                        <th className="py-2.5 px-3 text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                                    {brandCockpitData.brandsSummary.map((b, idx) => {
+                                        const isSelected = selectedBrandId === b.brandId;
+                                        return (
+                                            <tr
+                                                key={b.brandId}
+                                                className={`hover:bg-slate-50 transition-colors ${isSelected ? "bg-violet-50/60 font-bold" : ""}`}
+                                            >
+                                                <td className="py-3 px-3">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                                                            idx === 0 ? "bg-amber-100 text-amber-700" :
+                                                            idx === 1 ? "bg-slate-200 text-slate-700" :
+                                                            idx === 2 ? "bg-orange-100 text-orange-700" :
+                                                            "bg-slate-100 text-slate-500"
+                                                        }`}>
+                                                            {idx + 1}
+                                                        </span>
+                                                        <div>
+                                                            <div className="font-black text-slate-900 flex items-center gap-1.5">
+                                                                {b.brandName}
+                                                                {isSelected && (
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-violet-200 text-violet-800">
+                                                                        選択中
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {b.concept && (
+                                                                <div className="text-[10px] text-slate-400 truncate max-w-xs">{b.concept}</div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-3 text-center font-bold text-slate-600">
+                                                    {b.productCount} SKU
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-black text-slate-900">
+                                                    ¥{b.revenue.toLocaleString()}
+                                                </td>
+                                                <td className="py-3 px-3 text-left">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-16 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0">
+                                                            <div
+                                                                className="h-full bg-violet-500 rounded-full"
+                                                                style={{ width: `${Math.min(100, b.sharePercent)}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-[11px] font-bold text-slate-600">
+                                                            {b.sharePercent.toFixed(1)}%
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-bold text-slate-700">
+                                                    {b.quantity.toLocaleString()} 個
+                                                </td>
+                                                <td className="py-3 px-3 text-right">
+                                                    <span className="font-bold text-emerald-600">¥{b.grossProfit.toLocaleString()}</span>
+                                                    <span className="text-[10px] text-slate-400 font-bold ml-1.5">({b.grossMargin.toFixed(1)}%)</span>
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-bold text-slate-900">
+                                                    {b.totalStock.toLocaleString()} 個
+                                                    <span className="text-[10px] text-slate-400 block font-normal">
+                                                        本社:{b.mainStock} / 店:{b.storeStockTotal}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-3 text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedBrandId(b.brandId)}
+                                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-colors ${
+                                                            isSelected
+                                                                ? "bg-violet-600 text-white"
+                                                                : "bg-slate-100 hover:bg-violet-100 text-slate-700 hover:text-violet-700"
+                                                        }`}
+                                                    >
+                                                        {isSelected ? "選択中" : "商品・配架分析"}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Deep-dive Section: Selected Brand Products & Store Breakdowns */}
+                    {brandCockpitData.selectedBrand && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Products in this Brand (2 cols) */}
+                            <div className="lg:col-span-2 p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                                    <div>
+                                        <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                            <Package className="w-4 h-4 text-violet-600" />
+                                            「{brandCockpitData.selectedBrand.brandName}」商品別 売上・在庫消化
+                                        </h3>
+                                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                            ブランドを構成する商品の販売実績、粗利、現在庫、および推定在庫残日数です。
+                                        </p>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-400">
+                                        計 {brandCockpitData.selectedBrandProducts.length} 商品
+                                    </span>
+                                </div>
+
+                                {brandCockpitData.selectedBrandProducts.length === 0 ? (
+                                    <div className="py-10 text-center text-slate-400 text-xs font-medium">
+                                        該当ブランドに紐づく有効な商品が登録されていません。
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                                    <th className="py-2 px-2.5">商品名</th>
+                                                    <th className="py-2 px-2.5 text-right">販売数</th>
+                                                    <th className="py-2 px-2.5 text-right">売上高</th>
+                                                    <th className="py-2 px-2.5 text-right">粗利率</th>
+                                                    <th className="py-2 px-2.5 text-right">ブランド内シェア</th>
+                                                    <th className="py-2 px-2.5 text-right">総在庫</th>
+                                                    <th className="py-2 px-2.5 text-center">在庫残日数</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                                                {brandCockpitData.selectedBrandProducts.map(p => (
+                                                    <tr key={p.productId} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="py-2.5 px-2.5">
+                                                            <div className="font-black text-slate-900 truncate max-w-[180px] sm:max-w-xs" title={p.productName}>
+                                                                {p.productName}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400">
+                                                                本社: {p.mainStock}個 / 店頭計: {p.storeStockTotal}個
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-2.5 px-2.5 text-right font-bold text-slate-700">
+                                                            {p.quantity.toLocaleString()} 個
+                                                        </td>
+                                                        <td className="py-2.5 px-2.5 text-right font-black text-slate-900">
+                                                            ¥{p.revenue.toLocaleString()}
+                                                        </td>
+                                                        <td className="py-2.5 px-2.5 text-right font-bold text-emerald-600">
+                                                            {p.grossMargin.toFixed(1)}%
+                                                        </td>
+                                                        <td className="py-2.5 px-2.5 text-right font-bold text-violet-700">
+                                                            {p.shareInBrand.toFixed(1)}%
+                                                        </td>
+                                                        <td className={`py-2.5 px-2.5 text-right font-black ${p.stock <= 5 ? "text-rose-600" : "text-slate-900"}`}>
+                                                            {p.stock.toLocaleString()} 個
+                                                        </td>
+                                                        <td className="py-2.5 px-2.5 text-center">
+                                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                                                p.daysLeft <= 7 ? "bg-rose-100 text-rose-700" :
+                                                                p.daysLeft <= 14 ? "bg-amber-100 text-amber-700" :
+                                                                "bg-slate-100 text-slate-600"
+                                                            }`}>
+                                                                {p.daysLeft === Infinity ? "余裕あり" : `${p.daysLeft}日`}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Store Breakdown for this Brand (1 col) */}
+                            <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 space-y-4">
+                                <div className="border-b border-slate-100 pb-3">
+                                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                        <Store className="w-4 h-4 text-violet-600" />
+                                        取扱店舗・配架別シェア
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                        「{brandCockpitData.selectedBrand.brandName}」の販売先別売上構成
+                                    </p>
+                                </div>
+
+                                {brandCockpitData.selectedBrandStores.length === 0 ? (
+                                    <div className="py-10 text-center text-slate-400 text-xs font-medium">
+                                        この期間の店舗販売実績はありません。
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {brandCockpitData.selectedBrandStores.map((st, sIdx) => (
+                                            <div key={st.storeId} className="space-y-1">
+                                                <div className="flex items-center justify-between text-xs">
+                                                    <span className="font-bold text-slate-800 flex items-center gap-1.5 truncate max-w-[150px]">
+                                                        <span className="text-[10px] text-slate-400 font-black">#{sIdx + 1}</span>
+                                                        {st.storeName}
+                                                    </span>
+                                                    <div className="text-right shrink-0">
+                                                        <span className="font-black text-slate-900">¥{st.revenue.toLocaleString()}</span>
+                                                        <span className="text-[10px] text-slate-400 ml-1">({st.sharePercent.toFixed(1)}%)</span>
+                                                    </div>
+                                                </div>
+                                                <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-violet-600 rounded-full"
+                                                        style={{ width: `${Math.min(100, st.sharePercent)}%` }}
+                                                    />
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 text-right">
+                                                    販売個数: {st.quantity.toLocaleString()} 個
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Consultant Strategy Box for Brands */}
+                    <div className="p-5 rounded-2xl bg-gradient-to-r from-violet-50/70 via-indigo-50/40 to-white border border-violet-100 space-y-3">
+                        <div className="flex items-center gap-2">
+                            <Compass className="w-4 h-4 text-violet-700" />
+                            <h4 className="text-xs font-black text-violet-900 uppercase tracking-wide">
+                                小売業経営コンサルタント視点：ブランド戦略＆定例会アジェンダ
+                            </h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-700 leading-relaxed font-medium">
+                            <div className="p-3.5 rounded-xl bg-white/80 border border-violet-100">
+                                <div className="font-black text-slate-900 mb-1 flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+                                    ブランドポートフォリオの集中度
+                                </div>
+                                <p className="text-[11px] text-slate-600">
+                                    {brandCockpitData.brandsSummary.length > 0 && brandCockpitData.brandsSummary[0].sharePercent >= 50 ? (
+                                        <>首位ブランド「{brandCockpitData.brandsSummary[0].brandName}」が全社売上の {brandCockpitData.brandsSummary[0].sharePercent.toFixed(1)}% を占める集中型構造です。主力ブランドのブランド価値維持と並行して、第2ブランドの育成投資を定例会で検討してください。</>
+                                    ) : (
+                                        <>複数ブランドで売上シェアが分散されており、特定ブランドの需要変動リスクに強い健全なポートフォリオを形成しています。各ブランドの主力チャネルへの重点配架を進めてください。</>
+                                    )}
+                                </p>
+                            </div>
+                            <div className="p-3.5 rounded-xl bg-white/80 border border-violet-100">
+                                <div className="font-black text-slate-900 mb-1 flex items-center gap-1.5">
+                                    <Percent className="w-3.5 h-3.5 text-emerald-600" />
+                                    ブランド別収益性（粗利率）の最適化
+                                </div>
+                                <p className="text-[11px] text-slate-600">
+                                    全社平均粗利率 {brandCockpitData.overallGrossMargin.toFixed(1)}% に対して、高粗利ブランドの配架比率を高めることで企業全体の営業利益率が向上します。粗利率の低いブランドについては仕入ロット交渉または直販比率向上を図ってください。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 

@@ -7,10 +7,11 @@ import {
     aggregateStoreDailySales,
     aggregateMonthlyStoreSales,
     aggregateProductDailySales,
+    aggregateBrandCockpitData,
     calculatePurchasingIntelligence,
     calculateConsultantStrategy,
 } from "@/lib/salesCockpitUtils";
-import type { Sale, Product, RetailStore, SpotRecipient, Supplier, Purchase } from "@/lib/store";
+import type { Sale, Product, RetailStore, SpotRecipient, Supplier, Purchase, Brand } from "@/lib/store";
 
 describe("salesCockpitUtils", () => {
     const baseDate = new Date("2026-11-05T12:00:00Z");
@@ -456,5 +457,96 @@ describe("salesCockpitUtils", () => {
         // 3. 注意書き（免責事項）の生成
         expect(strategy.disclaimerNotes.commissionNote).toContain("実質粗利");
         expect(strategy.disclaimerNotes.fixedCostNote).toContain("固定費");
+    });
+
+    it("ブランド別動向分析 (aggregateBrandCockpitData) が正しく売上・粗利・商品・配架店舗を集計できること", () => {
+        const mockBrands: Brand[] = [
+            { id: "brand-1", name: "宇土マチプレミアム", concept: "最高峰の宇土産品", isTrashed: false },
+            { id: "brand-2", name: "網田ネーブル特選", concept: "柑橘ブランド", isTrashed: false },
+        ];
+
+        const productsWithBrand: Product[] = [
+            {
+                id: "prod-1",
+                name: "ウトマチ特製ドレッシング",
+                brandId: "brand-1",
+                sellingPrice: 800,
+                costPrice: 400,
+                stock: 20,
+                isTrashed: false,
+            } as Product,
+            {
+                id: "prod-2",
+                name: "宇土産 完熟トマトジュース",
+                brandId: "brand-1",
+                sellingPrice: 1200,
+                costPrice: 600,
+                stock: 10,
+                isTrashed: false,
+            } as Product,
+            {
+                id: "prod-3",
+                name: "網田ネーブルゼリー",
+                brandId: "brand-2",
+                sellingPrice: 500,
+                costPrice: 250,
+                stock: 30,
+                isTrashed: false,
+            } as Product,
+        ];
+
+        const storeStocks = [
+            { storeId: "store-1", productId: "prod-1", stock: 10 },
+            { storeId: "store-2", productId: "prod-1", stock: 5 },
+        ];
+
+        // 全ブランド集計 (ALL)
+        const brandDataAll = aggregateBrandCockpitData(
+            mockSales,
+            productsWithBrand,
+            mockBrands,
+            mockStores,
+            mockSpots,
+            "ALL",
+            30,
+            baseDate,
+            storeStocks
+        );
+
+        expect(brandDataAll.totalRevenue).toBeGreaterThan(0);
+        expect(brandDataAll.brandsSummary.length).toBeGreaterThanOrEqual(2);
+        
+        // brand-1 が売上首位
+        const brand1Summary = brandDataAll.brandsSummary.find(b => b.brandId === "brand-1");
+        expect(brand1Summary).toBeDefined();
+        expect(brand1Summary?.brandName).toBe("宇土マチプレミアム");
+        expect(brand1Summary?.productCount).toBe(2);
+        // 在庫: prod-1 (main 20 + store 15 = 35) + prod-2 (main 10) = 45
+        expect(brand1Summary?.totalStock).toBe(45);
+        expect(brand1Summary?.grossMargin).toBe(50); // 粗利率 50%
+
+        // 時系列チャートデータの検証
+        expect(brandDataAll.chartData.length).toBe(30);
+        expect(brandDataAll.chartData[29]).toHaveProperty("売上額");
+        expect(brandDataAll.chartData[29]).toHaveProperty("7日移動平均");
+
+        // 個別ブランド集計 ("brand-1")
+        const brandDataSelected = aggregateBrandCockpitData(
+            mockSales,
+            productsWithBrand,
+            mockBrands,
+            mockStores,
+            mockSpots,
+            "brand-1",
+            30,
+            baseDate,
+            storeStocks
+        );
+
+        expect(brandDataSelected.selectedBrand).toBeDefined();
+        expect(brandDataSelected.selectedBrand?.brandId).toBe("brand-1");
+        expect(brandDataSelected.selectedBrandProducts.length).toBe(2);
+        expect(brandDataSelected.selectedBrandStores.length).toBeGreaterThan(0);
+        expect(brandDataSelected.selectedBrandStores[0]).toHaveProperty("storeName");
     });
 });

@@ -110,11 +110,36 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.24.0 */}
+                    {/* v1.25.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">売上状況エグゼクティブ・コックピットに「ブランド別動向分析」を新設</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "定例会向けコックピットに「ブランド別動向」タブを新設：店舗別・商品別に加え、ブランド軸での売上推移・構成比・粗利・総在庫を定例会でひと目で横断分析できる専用ダッシュボードを追加",
+                                    "全ブランド横断の売上・シェア・粗利・総在庫ランキング比較：ブランドごとの売上高、販売個数、全社売上シェア（%プログレスバー）、粗利額（限界利益）、粗利率、および本社・店頭の総在庫数を一覧で比較把握可能に",
+                                    "ブランド別日次推移グラフ（7日・30日移動平均線付き）：期間幅（7日・30日・90日・360日）に連動し、日別売上額と7日移動平均（短期）・30日移動平均（中期）を描画。ALL選択時は全社売上と上位ブランドの売上構成推移を同時表示",
+                                    "ブランド内・商品別売上＆消化ペース（在庫残日数）の深掘り：選択ブランドに属する商品ごとの販売数、売上高、粗利率、ブランド内シェア%、本社・店頭在庫、および現在の消化ペースに基づく在庫残日数を可視化",
+                                    "取扱店舗・配架別売上シェアの可視化：選択ブランドがどの店舗・スポット販売先で売れているか（店舗別売上高・販売数・構成比）を直感的なプログレスバーで表示",
+                                    "小売業経営コンサルタントによるブランド戦略診断：ブランドポートフォリオの集中度（特定ブランド依存リスク）や粗利率水準の健全性を自動診断し、定例会での意思決定アジェンダを提示",
+                                    "5大エグゼクティブKPIカードへのトップブランド情報統合：サマリーカードに「30日 首位ブランド」を追加し、ワンクリックでブランド別動向タブへジャンプ可能に"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.24.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.24.0 - 2026.11.06</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">ダッシュボード「販促準備アラート」のカード削除機能を追加</h3>
                             <ul className="space-y-2">
                                 {[

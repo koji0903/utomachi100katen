@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.24.0";
+export const CURRENT_VERSION = "v1.25.0";
 export const RELEASE_DATE = "2026.11.06";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "売上状況エグゼクティブ・コックピット「ブランド別動向分析」の新設",
+        description: "経営・現場合同定例会用のエグゼクティブ・コックピットに「ブランド別動向」タブを新設。全ブランドの売上・シェア・粗利・総在庫ランキング比較、ブランド別日次推移（7日・30日移動平均線付き）、ブランド内商品別売上＆消化ペース、取扱店舗・配架別シェア、およびコンサルタントによるブランド戦略診断を網羅。",
+        status: "completed"
+    },
     {
         name: "ダッシュボード「販促準備アラート」のカード削除機能",
         description: "ダッシュボード上の販促準備アラートカードに「削除」ボタンを新設。不要な季節行事や終了したカスタムイベントをワンクリックで非表示・削除可能にし、祝日・システム行事も安全に非表示化できるようアーカイブ対応。",
