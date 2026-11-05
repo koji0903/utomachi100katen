@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
+import { calculateDaysRemaining, getStockoutStatus, getProductStockBreakdown } from "@/lib/stockUtils";
 import { Product, Sale } from "@/lib/store";
 
 describe("calculateDaysRemaining", () => {
@@ -130,5 +130,45 @@ describe("getStockoutStatus", () => {
 
     it("十分な在庫があれば残り日数を表示", () => {
         expect(getStockoutStatus(20).label).toBe("残り約20日分");
+    });
+
+    it("本社在庫が0でも店頭在庫がある場合は適切な警告を返す", () => {
+        expect(getStockoutStatus(15, true).label).toBe("店頭在庫あり（本社要補充）");
+    });
+});
+
+describe("getProductStockBreakdown", () => {
+    it("本社倉庫在庫と各店舗の店頭在庫を合算して全社総在庫を正しく算出する", () => {
+        const dummyProduct: Product = {
+            id: "prod_1",
+            name: "テスト商品",
+            stock: 10, // 本社倉庫に10個
+            sellingPrice: 1000,
+            costPrice: 500,
+            supplierId: "sup_1",
+            brandId: "brand_1",
+            taxRate: "standard",
+            createdAt: "2026-01-01"
+        };
+
+        const storeStocks = [
+            { storeId: "store_1", productId: "prod_1", stock: 15 },
+            { storeId: "store_2", productId: "prod_1", stock: 25 },
+            { storeId: "store_1", productId: "other_prod", stock: 99 },
+        ];
+
+        const retailStores = [
+            { id: "store_1", name: "宇土マリーナ直売所" },
+            { id: "store_2", name: "熊本駅店" },
+        ];
+
+        const breakdown = getProductStockBreakdown(dummyProduct, storeStocks, retailStores);
+
+        expect(breakdown.mainStock).toBe(10);
+        expect(breakdown.storeStockTotal).toBe(40); // 15 + 25
+        expect(breakdown.totalStock).toBe(50); // 10 + 40
+        expect(breakdown.storeStocks.length).toBe(2);
+        expect(breakdown.storeStocks[0].storeName).toBe("宇土マリーナ直売所");
+        expect(breakdown.storeStocks[0].stock).toBe(15);
     });
 });

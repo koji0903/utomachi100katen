@@ -1,15 +1,58 @@
 // src/lib/stockUtils.ts
 import { Product, Sale } from "./store";
 
+export interface ProductStockBreakdown {
+    mainStock: number; // 本社倉庫・拠点在庫
+    storeStockTotal: number; // 委託・店頭配架在庫の合計
+    totalStock: number; // 全社総在庫 (mainStock + storeStockTotal)
+    storeStocks: { storeId: string; storeName: string; stock: number }[];
+}
+
+/**
+ * 商品の本社倉庫在庫・店舗配架在庫・全社総在庫の内訳を算出
+ */
+export function getProductStockBreakdown(
+    product: Product,
+    storeStocks: { storeId: string; productId: string; stock: number }[] = [],
+    retailStores?: { id: string; name: string }[]
+): ProductStockBreakdown {
+    const mainStock = product?.stock ?? 0;
+    const storeMap = new Map<string, string>();
+    if (retailStores) {
+        retailStores.forEach(s => storeMap.set(s.id, s.name));
+    }
+    const relevant = storeStocks.filter(ss => ss.productId === product.id);
+    const storeStockTotal = relevant.reduce((sum, ss) => sum + (ss.stock || 0), 0);
+    const stores = relevant.map(ss => ({
+        storeId: ss.storeId,
+        storeName: storeMap.get(ss.storeId) || "店舗",
+        stock: ss.stock || 0,
+    }));
+
+    return {
+        mainStock,
+        storeStockTotal,
+        totalStock: mainStock + storeStockTotal,
+        storeStocks: stores,
+    };
+}
+
 /**
  * Calculates the estimated days until stockout for a product.
  * @param product The product to check
  * @param sales All sales records
  * @param allProducts Optional full product list to consider consumption via composite/set products
+ * @param customStock Optional stock quantity to use (e.g. totalStock). Defaults to product.stock.
  * @returns number of days remaining, or Infinity if no sales found (or stock 0)
  */
-export function calculateDaysRemaining(product: Product, sales: Sale[], allProducts?: Product[]): number {
-    if (product.stock <= 0) return 0;
+export function calculateDaysRemaining(
+    product: Product,
+    sales: Sale[],
+    allProducts?: Product[],
+    customStock?: number
+): number {
+    const stock = customStock !== undefined ? customStock : (product?.stock ?? 0);
+    if (stock <= 0) return 0;
 
     const now = new Date();
     const thirtyDaysAgo = new Date();
@@ -53,13 +96,16 @@ export function calculateDaysRemaining(product: Product, sales: Sale[], allProdu
     if (totalSold === 0) return Infinity;
 
     const dailyAvg = totalSold / 30;
-    return Math.floor(product.stock / dailyAvg);
+    return Math.floor(stock / dailyAvg);
 }
 
 /**
  * Gets a status color/label based on days remaining.
  */
-export function getStockoutStatus(days: number) {
+export function getStockoutStatus(days: number, isMainEmptyWithStoreStock: boolean = false) {
+    if (isMainEmptyWithStoreStock) {
+        return { label: "店頭在庫あり（本社要補充）", color: "text-amber-600", bg: "bg-amber-50" };
+    }
     if (days === 0) return { label: "在庫切れ", color: "text-red-600", bg: "bg-red-50" };
     if (days <= 3) return { label: "直近で欠品予報", color: "text-red-500", bg: "bg-red-50" };
     if (days <= 7) return { label: "1週間以内に欠品", color: "text-amber-600", bg: "bg-amber-50" };

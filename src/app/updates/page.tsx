@@ -110,11 +110,35 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.18.0 */}
+                    {/* v1.19.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">全社総在庫・店頭配架在庫の統合管理と在庫アラート適正化</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "全社総在庫（倉庫在庫＋店頭配架在庫）の統合集約：委託店舗への出荷納品で本社倉庫在庫が引き落とされた後も、店頭に実在庫がある場合は「店頭配架在庫」として合算集約し、ダッシュボード上で全品在庫切れと誤認される構造的課題を解消",
+                                    "ダッシュボード在庫アラート判定の適正化：本社倉庫単体のみを評価していた従来の判定を「全社総在庫」基準へ刷新。発報しきい値も在庫管理画面と統一（全社総在庫5個以下でアラート）",
+                                    "在庫ステータスバッジの細分化（店頭在庫あり・本社要補充）：本社倉庫が0個でも店頭に在庫が存在する場合は、致命的な「在庫切れ」ではなく「店頭在庫あり（本社要補充）」としてアンバー色で明確に区別",
+                                    "エグゼクティブ・コックピット（店舗別・商品別）の在庫表示拡充：店舗別推移表では該当店舗の店頭在庫数を正しく表示し、全店選択時は「全社総在庫（倉庫/店頭内訳）」を表示。商品別推移でも店舗別配架内訳ピルを表示",
+                                    "発注・仕入判断コックピットの在庫消化日数適正化：販売ペースに対する在庫残日数の計算を全社総在庫ベースに改修し、店頭在庫が豊富にある商品の誤った緊急発注アラートを抑止",
+                                    "滞留在庫・発注推奨における拠点別内訳の可視化：仕入判断画面にて、全社総在庫とともに「本社倉庫」「店頭配架計」の内訳を表示し、仕入判断と店間移動判断を同時に行えるよう改善"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.18.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.18.0 - 2026.11.05</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">ダッシュボード自動リロード防止 ＆ 小売業経営コンサルタント戦略分析コックピットを新設</h3>
                             <ul className="space-y-2">
                                 {[

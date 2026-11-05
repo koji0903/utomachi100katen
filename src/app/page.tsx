@@ -31,7 +31,7 @@ import { CalendarView } from "@/components/CalendarView";
 import { SeasonalAlarm } from "@/components/SeasonalAlarm";
 import { ReportSummaryCard } from "@/components/ReportSummaryCard";
 import { ExecutiveSalesCockpit } from "@/components/ExecutiveSalesCockpit";
-import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
+import { calculateDaysRemaining, getStockoutStatus, getProductStockBreakdown } from "@/lib/stockUtils";
 import { apiFetch, checkIsDemoMode } from "@/lib/apiClient";
 
 function ActivityTimeline() {
@@ -162,7 +162,7 @@ function ActivityTimeline() {
 }
 
 export default function DashboardPage() {
-    const { isLoaded, products, brands, retailStores, spotRecipients, sales, unifiedSales, dailyReports, purchases } = useStore();
+    const { isLoaded, products, brands, retailStores, spotRecipients, sales, unifiedSales, dailyReports, purchases, storeStocks } = useStore();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -232,25 +232,41 @@ export default function DashboardPage() {
     const totalBrands = brands.filter(b => !b.isTrashed).length;
     const totalStores = retailStores.filter(s => !s.isTrashed).length;
 
-    // Low Stock Items (threshold: per-product or 20, OR predicted to run out within 14 days)
+    // Low Stock Items: 全社総在庫（本社在庫＋店頭在庫）と消化ペースから適正に判定
     const lowStockItems = useMemo(() => {
         return products
             .filter(p => !p.isTrashed)
-            .map(p => ({
-                ...p,
-                daysRemaining: calculateDaysRemaining(p, unifiedSales.filter(s => !s.isTrashed), products)
-            }))
-            .filter(p =>
-                p.stock <= (p.alertThreshold ?? 20) ||
-                (p.daysRemaining !== Infinity && p.daysRemaining <= 14)
-            )
+            .map(p => {
+                const stockBreakdown = getProductStockBreakdown(p, storeStocks, retailStores);
+                const daysRemaining = calculateDaysRemaining(
+                    p,
+                    unifiedSales.filter(s => !s.isTrashed),
+                    products,
+                    stockBreakdown.totalStock
+                );
+                const threshold = p.alertThreshold ?? 5; // 商品マスター設定、未設定時は標準5個
+                const isUrgent = stockBreakdown.totalStock <= 0 || (daysRemaining !== Infinity && daysRemaining <= 3);
+                const isWarning = stockBreakdown.totalStock <= threshold || (daysRemaining !== Infinity && daysRemaining <= 14);
+                const isMainEmptyWithStoreStock = stockBreakdown.mainStock <= 0 && stockBreakdown.storeStockTotal > 0;
+
+                return {
+                    ...p,
+                    stockBreakdown,
+                    daysRemaining,
+                    threshold,
+                    isUrgent,
+                    isWarning,
+                    isMainEmptyWithStoreStock,
+                };
+            })
+            .filter(p => p.isWarning || p.isUrgent || p.isMainEmptyWithStoreStock)
             .sort((a, b) => {
                 const aDays = a.daysRemaining === Infinity ? 999 : a.daysRemaining;
                 const bDays = b.daysRemaining === Infinity ? 999 : b.daysRemaining;
-                return aDays - bDays || a.stock - b.stock;
+                return aDays - bDays || a.stockBreakdown.totalStock - b.stockBreakdown.totalStock;
             })
             .slice(0, 5);
-    }, [products, unifiedSales]);
+    }, [products, unifiedSales, storeStocks, retailStores]);
 
     if (!isLoaded) return <div className="p-8">読み込み中...</div>;
 
@@ -448,10 +464,13 @@ export default function DashboardPage() {
                 <div className="lg:col-span-2 space-y-8">
                     <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
                         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                            <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                                <AlertTriangle className="w-5 h-5 text-amber-500" />
-                                在庫アラート
-                            </h2>
+                            <div>
+                                <h2 className="font-bold text-slate-900 flex items-center gap-2">
+                                    <AlertTriangle className="w-5 h-5 text-amber-500" />
+                                    在庫アラート
+                                </h2>
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">全社総在庫（本社倉庫 ＋ 店頭配架）基準</p>
+                            </div>
                             <Link href="/products" className="text-xs font-bold text-[#1e3a8a] py-2 px-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
                                 商品一覧へ
                             </Link>
@@ -470,22 +489,27 @@ export default function DashboardPage() {
                                             </div>
                                             <div>
                                                 <div className="font-bold text-slate-800 text-sm">{product.name}</div>
-                                                <div className="flex items-center gap-2 mt-1">
+                                                <div className="flex flex-wrap items-center gap-2 mt-1">
                                                     <span className="text-[10px] text-slate-500 font-medium">{product.variantName || "通常版"}</span>
                                                     {product.daysRemaining !== undefined && (
-                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${getStockoutStatus(product.daysRemaining).bg} ${getStockoutStatus(product.daysRemaining).color}`}>
-                                                            {getStockoutStatus(product.daysRemaining).label}
+                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${getStockoutStatus(product.daysRemaining, product.isMainEmptyWithStoreStock).bg} ${getStockoutStatus(product.daysRemaining, product.isMainEmptyWithStoreStock).color}`}>
+                                                            {getStockoutStatus(product.daysRemaining, product.isMainEmptyWithStoreStock).label}
                                                         </span>
                                                     )}
                                                 </div>
+                                                <div className="text-[10px] text-slate-400 font-medium mt-1">
+                                                    本社倉庫: <span className="font-bold text-slate-700">{product.stockBreakdown.mainStock}個</span>
+                                                    <span className="mx-1.5 text-slate-300">/</span>
+                                                    店頭配架計: <span className="font-bold text-slate-700">{product.stockBreakdown.storeStockTotal}個</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <div className={`text-base font-black ${product.stock < (product.alertThreshold ?? 20) / 2 ? "text-red-600" : "text-amber-600"}`}>
-                                                {product.stock}個
+                                        <div className="text-right shrink-0">
+                                            <div className={`text-base font-black ${product.stockBreakdown.totalStock <= 0 ? "text-red-600" : product.isMainEmptyWithStoreStock ? "text-amber-600" : "text-slate-800"}`}>
+                                                {product.stockBreakdown.totalStock}個
                                             </div>
                                             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                                現在の在庫数
+                                                全社総在庫
                                             </div>
                                         </div>
                                     </div>

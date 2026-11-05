@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useStore, type Product, type RetailStore, type SpotRecipient, type Sale } from "@/lib/store";
-import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
+import { calculateDaysRemaining, getStockoutStatus, getProductStockBreakdown } from "@/lib/stockUtils";
 import {
     calculateExecutiveKpis,
     aggregateStoreDailySales,
@@ -39,7 +39,7 @@ const PALETTE = [
 ];
 
 export function ExecutiveSalesCockpit() {
-    const { unifiedSales, products, retailStores, spotRecipients, purchases, suppliers } = useStore();
+    const { unifiedSales, products, retailStores, spotRecipients, purchases, suppliers, storeStocks } = useStore();
 
     // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別) | 'purchasing' (発注・仕入判断) | 'consultant' (コンサルタント戦略分析)
     const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product' | 'purchasing' | 'consultant'>('store');
@@ -78,8 +78,8 @@ export function ExecutiveSalesCockpit() {
     // 2. 店舗別ビュー（日別売上 ＆ 主力商品個数推移）
     // ─────────────────────────────────────────────────────────────
     const storeViewData = useMemo(() => {
-        return aggregateStoreDailySales(unifiedSales, selectedStoreId, storePeriodDays, products);
-    }, [unifiedSales, selectedStoreId, storePeriodDays, products]);
+        return aggregateStoreDailySales(unifiedSales, selectedStoreId, storePeriodDays, products, new Date(), storeStocks);
+    }, [unifiedSales, selectedStoreId, storePeriodDays, products, storeStocks]);
 
     // ─────────────────────────────────────────────────────────────
     // 3. 月次ビュー（店舗毎の月別売上推移 過去6ヶ月）
@@ -108,23 +108,34 @@ export function ExecutiveSalesCockpit() {
         );
     }, [unifiedSales, effectiveProductId, productPeriodDays, retailStores, spotRecipients]);
 
-    // 在庫予測
+    // 在庫予測（全社総在庫・本社倉庫・店頭配架の内訳）
     const productStockInfo = useMemo(() => {
         if (!targetProduct) return null;
-        const daysLeft = calculateDaysRemaining(targetProduct, unifiedSales.filter(s => !s.isTrashed), products);
+        const breakdown = getProductStockBreakdown(targetProduct, storeStocks, retailStores);
+        const daysLeft = calculateDaysRemaining(
+            targetProduct,
+            unifiedSales.filter(s => !s.isTrashed),
+            products,
+            breakdown.totalStock
+        );
+        const isMainEmptyWithStoreStock = breakdown.mainStock <= 0 && breakdown.storeStockTotal > 0;
         return {
-            stock: targetProduct.stock,
+            breakdown,
+            stock: breakdown.totalStock,
+            mainStock: breakdown.mainStock,
+            storeStockTotal: breakdown.storeStockTotal,
             daysLeft,
-            status: getStockoutStatus(daysLeft),
+            status: getStockoutStatus(daysLeft, isMainEmptyWithStoreStock),
+            isMainEmptyWithStoreStock,
         };
-    }, [targetProduct, unifiedSales, products]);
+    }, [targetProduct, unifiedSales, products, storeStocks, retailStores]);
 
     // ─────────────────────────────────────────────────────────────
     // 5. 発注・仕入の意思決定情報（購買インテリジェンス）
     // ─────────────────────────────────────────────────────────────
     const purchasingIntelligence = useMemo(() => {
-        return calculatePurchasingIntelligence(products, unifiedSales, purchases, suppliers);
-    }, [products, unifiedSales, purchases, suppliers]);
+        return calculatePurchasingIntelligence(products, unifiedSales, purchases, suppliers, new Date(), storeStocks);
+    }, [products, unifiedSales, purchases, suppliers, storeStocks]);
 
     // ─────────────────────────────────────────────────────────────
     // 6. 小売業経営コンサルタント戦略分析（粗利率・客単価・パレート）
@@ -505,7 +516,9 @@ export function ExecutiveSalesCockpit() {
                                         <th className="py-3 px-4">商品名</th>
                                         <th className="py-3 px-4 text-right">販売個数</th>
                                         <th className="py-3 px-4 text-right">売上金額</th>
-                                        <th className="py-3 px-4 text-right">現在庫数</th>
+                                        <th className="py-3 px-4 text-right">
+                                            {selectedStoreId === "ALL" ? "全社総在庫" : "店頭在庫"}
+                                        </th>
                                         <th className="py-3 px-4 text-right">日販平均</th>
                                     </tr>
                                 </thead>
@@ -526,9 +539,14 @@ export function ExecutiveSalesCockpit() {
                                             <td className="py-3 px-4 text-right font-black text-slate-900">{item.qty.toLocaleString()} 個</td>
                                             <td className="py-3 px-4 text-right font-black text-blue-600">¥{item.amount.toLocaleString()}</td>
                                             <td className="py-3 px-4 text-right">
-                                                <span className={`font-bold ${item.stock <= 5 ? "text-rose-600" : "text-slate-600"}`}>
+                                                <div className={`font-black ${item.stock <= 5 ? "text-rose-600" : "text-slate-900"}`}>
                                                     {item.stock} 個
-                                                </span>
+                                                </div>
+                                                <div className="text-[9px] text-slate-400 font-medium">
+                                                    {selectedStoreId === "ALL"
+                                                        ? `本社:${item.mainStock} / 店頭計:${item.storeStockTotal}`
+                                                        : `本社倉庫:${item.mainStock}個`}
+                                                </div>
                                             </td>
                                             <td className="py-3 px-4 text-right text-slate-500 font-bold">
                                                 {(item.qty / storePeriodDays).toFixed(1)} 個/日
@@ -733,13 +751,13 @@ export function ExecutiveSalesCockpit() {
 
                                 <div className="p-4 rounded-xl bg-white border border-slate-200">
                                     <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
-                                        現在庫数
+                                        全社総在庫数
                                     </div>
                                     <div className={`text-xl font-black ${(productStockInfo?.stock ?? 0) <= 5 ? "text-rose-600" : "text-slate-900"}`}>
                                         {productStockInfo?.stock ?? 0} <span className="text-xs font-bold text-slate-500">個</span>
                                     </div>
                                     <div className="text-[10px] text-slate-400 font-bold mt-0.5">
-                                        アラート基準: {targetProduct.alertThreshold ?? 20} 個
+                                        本社: {productStockInfo?.mainStock ?? 0}個 / 店頭計: {productStockInfo?.storeStockTotal ?? 0}個
                                     </div>
                                 </div>
 
@@ -759,6 +777,18 @@ export function ExecutiveSalesCockpit() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* 店頭配架の内訳 */}
+                            {productStockInfo && productStockInfo.breakdown.storeStocks.length > 0 && (
+                                <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100 flex flex-wrap items-center gap-2 text-xs">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">店頭配架内訳:</span>
+                                    {productStockInfo.breakdown.storeStocks.map(ss => (
+                                        <span key={ss.storeId} className="px-2.5 py-1 bg-white rounded-lg border border-slate-200 text-slate-700 font-bold text-[11px] shadow-2xs">
+                                            {ss.storeName}: <strong className="text-blue-700">{ss.stock}個</strong>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
 
                             {/* Chart: 日次販売個数・金額推移 */}
                             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
@@ -950,7 +980,7 @@ export function ExecutiveSalesCockpit() {
                                     <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
                                         <th className="py-3 px-4">商品名</th>
                                         <th className="py-3 px-4">仕入先 / 生産者</th>
-                                        <th className="py-3 px-4 text-right">現在庫</th>
+                                        <th className="py-3 px-4 text-right">全社総在庫</th>
                                         <th className="py-3 px-4 text-right">直近30日日販</th>
                                         <th className="py-3 px-4 text-center">推定在庫残</th>
                                         <th className="py-3 px-4 text-right">発注残 (入荷待)</th>
@@ -960,7 +990,7 @@ export function ExecutiveSalesCockpit() {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 font-medium">
                                     {purchasingIntelligence.recommendations.map((item, idx) => {
-                                        const status = getStockoutStatus(item.daysRemaining);
+                                        const status = getStockoutStatus(item.daysRemaining, item.isMainZeroOnly);
                                         return (
                                             <tr key={item.productId} className="hover:bg-slate-50/60 transition-colors">
                                                 <td className="py-3 px-4 font-bold text-slate-800">
@@ -979,9 +1009,17 @@ export function ExecutiveSalesCockpit() {
                                                     {item.supplierName}
                                                 </td>
                                                 <td className="py-3 px-4 text-right">
-                                                    <span className={`font-black ${item.currentStock <= 0 ? "text-rose-600" : item.currentStock <= 5 ? "text-amber-600" : "text-slate-900"}`}>
+                                                    <div className={`font-black ${item.currentStock <= 0 ? "text-rose-600" : item.currentStock <= 5 ? "text-amber-600" : "text-slate-900"}`}>
                                                         {item.currentStock} 個
-                                                    </span>
+                                                    </div>
+                                                    <div className="text-[9px] text-slate-400 font-medium">
+                                                        本社:{item.mainStock ?? 0} / 店頭:{item.storeStockTotal ?? 0}
+                                                    </div>
+                                                    {item.isMainZeroOnly && (
+                                                        <span className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-black inline-block mt-0.5">
+                                                            店頭有・本社補充
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="py-3 px-4 text-right font-bold text-slate-700">
                                                     {item.dailyVelocity.toFixed(1)} 個/日
@@ -1086,7 +1124,7 @@ export function ExecutiveSalesCockpit() {
                                                 {item.productName} {item.variantName ? `(${item.variantName})` : ""}
                                             </div>
                                             <div className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                                30日販売数: <span className="font-bold text-slate-700">{item.soldQty30} 個</span> / 現在庫: <span className="font-bold text-amber-600">{item.currentStock} 個</span>
+                                                30日販売数: <span className="font-bold text-slate-700">{item.soldQty30} 個</span> / 全社総在庫: <span className="font-bold text-amber-600">{item.currentStock} 個</span> <span className="text-[10px] text-slate-400 font-normal">(本社:{item.mainStock ?? 0} / 店頭計:{item.storeStockTotal ?? 0})</span>
                                             </div>
                                         </div>
                                         <div className="text-right">

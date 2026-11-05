@@ -154,7 +154,8 @@ export function aggregateStoreDailySales(
     storeId: string, // "ALL" または特定 storeId
     daysCount: 7 | 30,
     products: Product[],
-    baseDate: Date = new Date()
+    baseDate: Date = new Date(),
+    storeStocks: { storeId: string; productId: string; stock: number }[] = []
 ) {
     const days = getPastDaysList(daysCount, baseDate);
     const validSales = sales.filter(s => !s.isTrashed && s.period);
@@ -183,10 +184,22 @@ export function aggregateStoreDailySales(
     const sortedItems = Array.from(itemAggMap.entries())
         .map(([pId, data]) => {
             const p = prodMap.get(pId);
+            const mainStock = p?.stock ?? 0;
+            const relevantSS = storeStocks.filter(ss => ss.productId === pId);
+            const storeStockTotal = relevantSS.reduce((sum, ss) => sum + (ss.stock || 0), 0);
+            const thisStoreStock = storeId !== "ALL"
+                ? (relevantSS.find(ss => ss.storeId === storeId)?.stock ?? 0)
+                : 0;
+            const displayStock = storeId !== "ALL" ? thisStoreStock : (mainStock + storeStockTotal);
+
             return {
                 productId: pId,
                 productName: p ? (p.variantName ? `${p.name} (${p.variantName})` : p.name) : "未特定商品",
-                stock: p?.stock ?? 0,
+                stock: displayStock,
+                mainStock,
+                storeStockTotal,
+                thisStoreStock,
+                isStoreSpecific: storeId !== "ALL",
                 ...data
             };
         })
@@ -424,7 +437,10 @@ export interface ReorderRecommendation {
     product: Product;
     supplierId: string;
     supplierName: string;
-    currentStock: number;
+    currentStock: number; // 全社総在庫 (本社+店頭)
+    mainStock?: number; // 本社倉庫在庫
+    storeStockTotal?: number; // 店頭配架計
+    isMainZeroOnly?: boolean; // 本社のみ欠品（店頭在庫あり）
     dailyVelocity: number;
     daysRemaining: number;
     pendingOrderQty: number; // 発注済み未入荷数量
@@ -441,7 +457,9 @@ export interface StagnantStockItem {
     variantName?: string;
     product: Product;
     supplierName: string;
-    currentStock: number;
+    currentStock: number; // 全社総在庫
+    mainStock?: number; // 本社倉庫在庫
+    storeStockTotal?: number; // 店頭配架計
     daysRemaining: number;
     soldQty30: number;
     unitCost: number;
@@ -476,7 +494,8 @@ export function calculatePurchasingIntelligence(
     sales: Sale[],
     purchases: Purchase[],
     suppliers: Supplier[],
-    baseDate: Date = new Date()
+    baseDate: Date = new Date(),
+    storeStocks: { storeId: string; productId: string; stock: number }[] = []
 ): PurchasingIntelligence {
     const validProducts = products.filter(p => !p.isTrashed);
     const validSales = sales.filter(s => !s.isTrashed);
@@ -521,27 +540,33 @@ export function calculatePurchasingIntelligence(
     validProducts.forEach(product => {
         const soldQty30 = soldQty30Map.get(product.id) || 0;
         const dailyVelocity = soldQty30 / 30;
-        const daysRemaining = calculateDaysRemaining(product, validSales, validProducts);
-        const pendingOrderQty = pendingOrderQtyMap.get(product.id) || 0;
-        const threshold = product.alertThreshold ?? 20;
+        const mainStock = product.stock ?? 0;
+        const relevantSS = storeStocks.filter(ss => ss.productId === product.id);
+        const storeStockTotal = relevantSS.reduce((sum, ss) => sum + (ss.stock || 0), 0);
+        const totalStock = mainStock + storeStockTotal;
 
-        const isUnderThreshold = product.stock <= threshold;
+        const daysRemaining = calculateDaysRemaining(product, validSales, validProducts, totalStock);
+        const pendingOrderQty = pendingOrderQtyMap.get(product.id) || 0;
+        const threshold = product.alertThreshold ?? 5; // 統一基準しきい値 (未設定時は5)
+
+        const isZeroStock = totalStock <= 0;
+        const isMainZeroOnly = mainStock <= 0 && storeStockTotal > 0;
+        const isUnderThreshold = totalStock <= threshold;
         const isRunningOutSoon = daysRemaining !== Infinity && daysRemaining <= 14;
-        const isZeroStock = product.stock <= 0;
 
         const supplier = supplierMap.get(product.supplierId) || null;
         const supplierName = supplier?.name || "仕入先未設定";
         const unitCost = product.costPrice || 0;
 
-        // 要発注判定（在庫しきい値以下、または14日以内欠品、または在庫0）
-        if (isZeroStock || isUnderThreshold || isRunningOutSoon) {
+        // 要発注判定（全社総在庫が0またはしきい値以下、または14日以内欠品、または本社欠品で店舗在庫少）
+        if (isZeroStock || isUnderThreshold || isRunningOutSoon || (isMainZeroOnly && dailyVelocity > 0)) {
             // 推奨発注数: 30日分カバー在庫、またはしきい値の2倍
             const targetStock = dailyVelocity > 0
                 ? Math.max(Math.ceil(dailyVelocity * 30), threshold * 2)
                 : Math.max(threshold * 2, 10);
 
-            // 有効在庫 = 現在庫 + 入荷待ち
-            const effectiveStock = product.stock + pendingOrderQty;
+            // 有効在庫 = 全社総在庫 + 入荷待ち
+            const effectiveStock = totalStock + pendingOrderQty;
             const shortage = Math.max(0, targetStock - effectiveStock);
 
             // 不足がある場合、または在庫0で発注残もない場合
@@ -556,7 +581,10 @@ export function calculatePurchasingIntelligence(
                     product,
                     supplierId: product.supplierId || "unassigned",
                     supplierName,
-                    currentStock: product.stock,
+                    currentStock: totalStock,
+                    mainStock,
+                    storeStockTotal,
+                    isMainZeroOnly,
                     dailyVelocity,
                     daysRemaining,
                     pendingOrderQty,
@@ -569,20 +597,22 @@ export function calculatePurchasingIntelligence(
             }
         }
 
-        // 滞留・過剰在庫判定（直近30日販売ゼロで在庫あり、または残日数90日超で在庫多数）
-        const isStagnant = (soldQty30 === 0 && product.stock > 0) || (daysRemaining > 90 && product.stock > threshold * 3);
-        if (isStagnant && product.stock > 0) {
+        // 滞留・過剰在庫判定（直近30日販売ゼロで全社在庫あり、または残日数90日超で全社在庫多数）
+        const isStagnant = (soldQty30 === 0 && totalStock > 0) || (daysRemaining > 90 && totalStock > threshold * 3);
+        if (isStagnant && totalStock > 0) {
             stagnantItems.push({
                 productId: product.id,
                 productName: product.name,
                 variantName: product.variantName,
                 product,
                 supplierName,
-                currentStock: product.stock,
+                currentStock: totalStock,
+                mainStock,
+                storeStockTotal,
                 daysRemaining,
                 soldQty30,
                 unitCost,
-                stockValue: product.stock * unitCost,
+                stockValue: totalStock * unitCost,
             });
         }
     });

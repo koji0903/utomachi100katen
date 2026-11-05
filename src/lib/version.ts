@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.18.0";
+export const CURRENT_VERSION = "v1.19.0";
 export const RELEASE_DATE = "2026.11.05";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "全社総在庫・店舗在庫統合と在庫判定の適正化",
+        description: "本社倉庫在庫（拠点在庫）だけでなく、各委託店舗への店頭配架在庫を統合した「全社総在庫」を算出。店舗在庫がある場合の誤った欠品・至急発注アラートを解消し、店頭配架内訳の可視化と正確な在庫消化日数を実現。",
+        status: "completed"
+    },
     {
         name: "小売業コンサルタント戦略分析コックピット",
         description: "経営陣と現場の定例会向け戦略分析。粗利高（限界利益 MQ）・粗利率、客単価・買上点数・商品単価の分解、パレート分析（ABCランク・売れ筋集中リスク）、チャネル別ポートフォリオ、および具体的アクション提言の自動生成。",
