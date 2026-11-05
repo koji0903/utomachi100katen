@@ -51,6 +51,9 @@ export function ExecutiveSalesCockpit() {
     const [selectedStoreId, setSelectedStoreId] = useState<string>("ALL");
     const [storePeriodDays, setStorePeriodDays] = useState<CockpitPeriodDays>(7);
 
+    // 店舗毎・月次推移ビュー用フィルタ ("ALL" または 特定の店舗名)
+    const [monthlySelectedStore, setMonthlySelectedStore] = useState<string>("ALL");
+
     // 商品別ビュー用フィルタ (7日 / 30日 / 90日 / 360日)
     const [selectedProductId, setSelectedProductId] = useState<string>("");
     const [productPeriodDays, setProductPeriodDays] = useState<CockpitPeriodDays>(7);
@@ -119,6 +122,13 @@ export function ExecutiveSalesCockpit() {
     const monthlyViewData = useMemo(() => {
         return aggregateMonthlyStoreSales(unifiedSales, retailStores, spotRecipients, 6);
     }, [unifiedSales, retailStores, spotRecipients]);
+
+    const selectedMonthlyStoreColor = useMemo(() => {
+        if (monthlySelectedStore === "ALL") return "#2563eb";
+        if (monthlySelectedStore === "その他店舗") return "#94a3b8";
+        const idx = monthlyViewData.mainStores.findIndex(st => st.name === monthlySelectedStore);
+        return idx >= 0 ? PALETTE[idx % PALETTE.length] : "#2563eb";
+    }, [monthlySelectedStore, monthlyViewData.mainStores]);
 
     // ─────────────────────────────────────────────────────────────
     // 4. ブランド別ビュー（全ブランド比較＆個別ブランド商品・配架分析）
@@ -739,16 +749,104 @@ export function ExecutiveSalesCockpit() {
             {activeTab === 'monthly' && (
                 <div className="space-y-6 animate-in fade-in duration-300">
                     <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
-                        <div>
-                            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                                <Layers className="w-4 h-4 text-blue-600" />
-                                店舗別の月次売上推移（過去6ヶ月・積み上げ比較）
-                            </h3>
-                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                各店舗の月次成長傾向と、全社売上に占める店舗別シェアの推移を可視化します
-                            </p>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <Layers className="w-4 h-4 text-blue-600" />
+                                    {monthlySelectedStore === "ALL"
+                                        ? "店舗別の月次売上推移（過去6ヶ月・積み上げ比較）"
+                                        : `「${monthlySelectedStore}」月次売上推移（過去6ヶ月・単独表示）`}
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                    {monthlySelectedStore === "ALL"
+                                        ? "各店舗の月次成長傾向と、全社売上に占める店舗別シェアの推移を可視化します"
+                                        : "選択した拠点単独の月次売上推移です。上部の切替または凡例をクリックして他拠点や積み上げ比較に戻せます"}
+                                </p>
+                            </div>
+
+                            {/* Store Selector Dropdown */}
+                            <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                                <span className="text-xs font-bold text-slate-400">表示切替:</span>
+                                <select
+                                    value={monthlySelectedStore}
+                                    onChange={e => setMonthlySelectedStore(e.target.value)}
+                                    className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="ALL">全店舗（積み上げ比較）</option>
+                                    {monthlyViewData.mainStores.map(st => (
+                                        <option key={st.id} value={st.name}>
+                                            {st.name}（単独表示）
+                                        </option>
+                                    ))}
+                                    {monthlyViewData.hasOthers && (
+                                        <option value="その他店舗">その他店舗（単独表示）</option>
+                                    )}
+                                </select>
+                                {monthlySelectedStore !== "ALL" && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setMonthlySelectedStore("ALL")}
+                                        className="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-black transition-colors"
+                                    >
+                                        積み上げ比較に戻す
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
+                        {/* Quick Filter Pills (Store buttons) */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 text-xs">
+                            <button
+                                type="button"
+                                onClick={() => setMonthlySelectedStore("ALL")}
+                                className={`px-3 py-1 rounded-full text-xs font-black transition-all shrink-0 ${
+                                    monthlySelectedStore === "ALL"
+                                        ? "bg-slate-900 text-white shadow-xs"
+                                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                }`}
+                            >
+                                全店舗（積み上げ）
+                            </button>
+                            {monthlyViewData.mainStores.map((st, idx) => {
+                                const isSelected = monthlySelectedStore === st.name;
+                                const color = PALETTE[idx % PALETTE.length];
+                                return (
+                                    <button
+                                        key={st.id}
+                                        type="button"
+                                        onClick={() => setMonthlySelectedStore(prev => prev === st.name ? "ALL" : st.name)}
+                                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 border ${
+                                            isSelected
+                                                ? "border-transparent text-white shadow-xs font-black"
+                                                : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                                        }`}
+                                        style={isSelected ? { backgroundColor: color } : undefined}
+                                    >
+                                        <span
+                                            className="w-2 h-2 rounded-full shrink-0"
+                                            style={{ backgroundColor: color }}
+                                        />
+                                        <span>{st.name}</span>
+                                    </button>
+                                );
+                            })}
+                            {monthlyViewData.hasOthers && (
+                                <button
+                                    type="button"
+                                    onClick={() => setMonthlySelectedStore(prev => prev === "その他店舗" ? "ALL" : "その他店舗")}
+                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 border ${
+                                        monthlySelectedStore === "その他店舗"
+                                            ? "bg-slate-500 border-transparent text-white shadow-xs font-black"
+                                            : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                                    }`}
+                                >
+                                    <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                                    <span>その他店舗</span>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Chart Area */}
                         <div className="h-72 sm:h-80 w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={monthlyViewData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -759,20 +857,46 @@ export function ExecutiveSalesCockpit() {
                                         formatter={(val: any, name: any) => [`¥${Number(val).toLocaleString()}`, name]}
                                         contentStyle={{ backgroundColor: "#ffffff", borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
                                     />
-                                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
-                                    {monthlyViewData.mainStores.map((st, idx) => (
+                                    <Legend
+                                        wrapperStyle={{ fontSize: "11px", paddingTop: "8px", cursor: "pointer" }}
+                                        onClick={(e: any) => {
+                                            const clickedKey = e?.dataKey;
+                                            if (clickedKey) {
+                                                setMonthlySelectedStore(prev => prev === clickedKey ? "ALL" : String(clickedKey));
+                                            }
+                                        }}
+                                    />
+                                    {monthlySelectedStore === "ALL" ? (
+                                        <>
+                                            {monthlyViewData.mainStores.map((st, idx) => (
+                                                <Bar
+                                                    key={st.id}
+                                                    dataKey={st.name}
+                                                    stackId="a"
+                                                    fill={PALETTE[idx % PALETTE.length]}
+                                                />
+                                            ))}
+                                            {monthlyViewData.hasOthers && (
+                                                <Bar dataKey="その他店舗" stackId="a" fill="#cbd5e1" />
+                                            )}
+                                        </>
+                                    ) : (
                                         <Bar
-                                            key={st.id}
-                                            dataKey={st.name}
-                                            stackId="a"
-                                            fill={PALETTE[idx % PALETTE.length]}
+                                            dataKey={monthlySelectedStore}
+                                            fill={selectedMonthlyStoreColor}
+                                            radius={[6, 6, 0, 0]}
+                                            name={monthlySelectedStore}
                                         />
-                                    ))}
-                                    {monthlyViewData.hasOthers && (
-                                        <Bar dataKey="その他店舗" stackId="a" fill="#cbd5e1" />
                                     )}
                                 </BarChart>
                             </ResponsiveContainer>
+                        </div>
+
+                        <div className="text-[10px] text-slate-400 font-medium flex items-center justify-between border-t border-slate-100 pt-2">
+                            <span>※ グラフの凡例（レジェンド）または上部ボタンをクリックすると、該当店舗単独の棒グラフに切り替わります。</span>
+                            {monthlySelectedStore !== "ALL" && (
+                                <span className="font-bold text-blue-600">現在「{monthlySelectedStore}」単独表示中</span>
+                            )}
                         </div>
                     </div>
 
@@ -794,43 +918,78 @@ export function ExecutiveSalesCockpit() {
                                         <th className="py-3 px-4 text-right">前月売上</th>
                                         <th className="py-3 px-4 text-right">前月比成長率</th>
                                         <th className="py-3 px-4 text-right">過去6ヶ月累計</th>
+                                        <th className="py-3 px-4 text-center">グラフ切替</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 font-medium">
-                                    {monthlyViewData.storePerformance.map((st, idx) => (
-                                        <tr key={st.id} className="hover:bg-slate-50/60 transition-colors">
-                                            <td className="py-3 px-4 font-bold text-slate-800 flex items-center gap-2">
-                                                <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] font-black">
-                                                    {idx + 1}
-                                                </span>
-                                                <span>{st.name}</span>
-                                            </td>
-                                            <td className="py-3 px-4 text-right font-black text-slate-900">
-                                                ¥{st.curAmt.toLocaleString()}
-                                            </td>
-                                            <td className="py-3 px-4 text-right text-slate-500 font-bold">
-                                                ¥{st.prevAmt.toLocaleString()}
-                                            </td>
-                                            <td className="py-3 px-4 text-right font-black">
-                                                {st.growth !== null ? (
-                                                    st.growth >= 0 ? (
-                                                        <span className="text-emerald-600 inline-flex items-center gap-0.5">
-                                                            <ArrowUpRight className="w-3 h-3" /> +{st.growth.toFixed(1)}%
-                                                        </span>
+                                    {monthlyViewData.storePerformance.map((st, idx) => {
+                                        const isSelected = monthlySelectedStore === st.name;
+                                        return (
+                                            <tr
+                                                key={st.id}
+                                                onClick={() => setMonthlySelectedStore(prev => prev === st.name ? "ALL" : st.name)}
+                                                className={`cursor-pointer transition-colors ${
+                                                    isSelected ? "bg-blue-50/80 font-bold" : "hover:bg-slate-50/60"
+                                                }`}
+                                            >
+                                                <td className="py-3 px-4 font-bold text-slate-800 flex items-center gap-2">
+                                                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                                                        isSelected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"
+                                                    }`}>
+                                                        {idx + 1}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5">
+                                                        {st.name}
+                                                        {isSelected && (
+                                                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-200 text-blue-800">
+                                                                グラフ表示中
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-black text-slate-900">
+                                                    ¥{st.curAmt.toLocaleString()}
+                                                </td>
+                                                <td className="py-3 px-4 text-right text-slate-500 font-bold">
+                                                    ¥{st.prevAmt.toLocaleString()}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-black">
+                                                    {st.growth !== null ? (
+                                                        st.growth >= 0 ? (
+                                                            <span className="text-emerald-600 inline-flex items-center gap-0.5">
+                                                                <ArrowUpRight className="w-3 h-3" /> +{st.growth.toFixed(1)}%
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-rose-600 inline-flex items-center gap-0.5">
+                                                                <ArrowDownRight className="w-3 h-3" /> {st.growth.toFixed(1)}%
+                                                            </span>
+                                                        )
                                                     ) : (
-                                                        <span className="text-rose-600 inline-flex items-center gap-0.5">
-                                                            <ArrowDownRight className="w-3 h-3" /> {st.growth.toFixed(1)}%
-                                                        </span>
-                                                    )
-                                                ) : (
-                                                    <span className="text-slate-400">---</span>
-                                                )}
-                                            </td>
-                                            <td className="py-3 px-4 text-right font-black text-blue-600">
-                                                ¥{st.totalAll.toLocaleString()}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                        <span className="text-slate-400">---</span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-black text-blue-600">
+                                                    ¥{st.totalAll.toLocaleString()}
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setMonthlySelectedStore(prev => prev === st.name ? "ALL" : st.name);
+                                                        }}
+                                                        className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                                                            isSelected
+                                                                ? "bg-blue-600 text-white font-black"
+                                                                : "bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600"
+                                                        }`}
+                                                    >
+                                                        {isSelected ? "単独表示中" : "単独表示"}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

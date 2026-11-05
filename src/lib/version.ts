@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.26.0";
+export const CURRENT_VERSION = "v1.27.0";
 export const RELEASE_DATE = "2026.11.06";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "店舗別月次売上推移の「個別項目（単独）棒グラフ表示」切替機能",
+        description: "エグゼクティブ・コックピットの「店舗毎・月次推移」において、従来の全店舗積み上げ比較に加え、各店舗ボタン・プルダウン・凡例クリックによる特定店舗単独の月次棒グラフ表示切替に対応。個別拠点の成長トレンドをクリアに分析可能に。",
+        status: "completed"
+    },
     {
         name: "SKU（商品種類数）推移 ＆ 展開生産性・カニバリゼーション分析機能",
         description: "商品の種類拡大が売上・粗利に与える影響を経営視点で可視化する「SKU展開・生産性分析」を新設。月次累積SKU数と販売稼働SKU数の推移、1稼働SKUあたり売上・粗利の創出効率、SKU拡大弾力性（売上成長率÷SKU増加率による希薄化判定）、A/B/C/休眠ランクの4象限パレート分析、新商品の立ち上がり追跡、およびコンサルタント処方箋を網羅。",

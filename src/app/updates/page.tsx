@@ -110,11 +110,32 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.26.0 */}
+                    {/* v1.27.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">店舗別月次売上推移の個別項目（単独）棒グラフ表示切替機能を追加</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "店舗別月次売上推移グラフでの単独表示切替：従来の「全店舗（積み上げ比較）」に加え、プルダウンまたは各店舗ピルボタンから特定の店舗を選択して、その拠点単独の月次売上推移の棒グラフに瞬時に切り替え可能に",
+                                    "グラフ凡例（レジェンド）クリックによる直感的フォーカス：グラフ下部の店舗名凡例をクリックするだけで、該当店舗の単独棒グラフと全店舗積み上げ比較をシームレスにトグル切替できるインタラクティブ操作を導入",
+                                    "月次業績一覧テーブルとの完全双方向連動：下部の店舗別月次業績サマリーテーブルの各行クリックや「単独表示」ボタンからもグラフ表示店舗をダイレクトに切り替えられ、現在フォーカス中の拠点をハイライト表示"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.26.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.26.0 - 2026.11.06</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">商品種類数（SKU）推移 ＆ 展開生産性・カニバリゼーション分析を新設</h3>
                             <ul className="space-y-2">
                                 {[
