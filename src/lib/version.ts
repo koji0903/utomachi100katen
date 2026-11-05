@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.19.0";
+export const CURRENT_VERSION = "v1.20.0";
 export const RELEASE_DATE = "2026.11.05";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "直近売上推移連動の発注判断・非販売品除外 ＆ 自動リロード根本根絶",
+        description: "発注推奨リストにおいて直近7日・30日の販売推移（急伸・安定・鈍化）を反映した適正発注数を算出。直近販売実績のない非稼働・休止品を自動除外し誤発注を根絶。PWAラッパー完全撤廃と安全なアンインストーラーによりページの予期しない自動リロードを徹底解消。",
+        status: "completed"
+    },
     {
         name: "全社総在庫・店舗在庫統合と在庫判定の適正化",
         description: "本社倉庫在庫（拠点在庫）だけでなく、各委託店舗への店頭配架在庫を統合した「全社総在庫」を算出。店舗在庫がある場合の誤った欠品・至急発注アラートを解消し、店頭配架内訳の可視化と正確な在庫消化日数を実現。",

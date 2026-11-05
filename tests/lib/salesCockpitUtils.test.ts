@@ -302,6 +302,73 @@ describe("salesCockpitUtils", () => {
         expect(stagnant?.stockValue).toBe(40 * 500); // 20,000円
     });
 
+    it("calculatePurchasingIntelligence: 直近の売上推移（急伸・鈍化）を反映し、販売実績のない休止商品は発注推奨から除外されること", () => {
+        // 未販売・休止商品（在庫0、販売実績0）
+        const dormantProduct: Product = {
+            id: "dormant-1",
+            name: "販売休止中の旧パッケージ商品",
+            supplierId: "sup-1",
+            sellingPrice: 500,
+            costPrice: 250,
+            stock: 0,
+            alertThreshold: 5,
+            isTrashed: false,
+        } as Product;
+
+        // 急伸商品（直近7日で急激に売れた商品）
+        const surgingProduct: Product = {
+            id: "surging-1",
+            name: "SNSで話題の宇土海苔チップス",
+            supplierId: "sup-2",
+            sellingPrice: 400,
+            costPrice: 200,
+            stock: 2, // 残りわずか
+            alertThreshold: 5,
+            isTrashed: false,
+        } as Product;
+
+        const testProducts = [...mockProducts, dormantProduct, surgingProduct];
+
+        // 直近7日間に surging-1 を合計14個（日販2.0個/日）販売した売上データを追加
+        const surgingSales: Sale[] = [
+            {
+                id: "sale-surge-1",
+                storeId: "store-1",
+                type: "daily",
+                period: "2026-11-04",
+                totalAmount: 5600,
+                items: [
+                    { productId: "surging-1", quantity: 14, priceAtSale: 400, subtotal: 5600, commission: 0, netProfit: 5600 }
+                ],
+                isTrashed: false,
+            } as Sale,
+        ];
+
+        const testSales = [...mockSales, ...surgingSales];
+
+        const intel = calculatePurchasingIntelligence(
+            testProducts,
+            testSales,
+            [],
+            mockSuppliers,
+            baseDate
+        );
+
+        // 1. 販売実績なし・在庫0の dormant-1 は発注推奨リストに入っていないこと
+        const dormantRec = intel.recommendations.find(r => r.productId === "dormant-1");
+        expect(dormantRec).toBeUndefined();
+        expect(intel.inactiveZeroStockCount).toBeGreaterThanOrEqual(1);
+
+        // 2. 急伸商品の surging-1 は発注推奨に入り、salesTrend が 'surging' と判定されること
+        const surgingRec = intel.recommendations.find(r => r.productId === "surging-1");
+        expect(surgingRec).toBeDefined();
+        expect(surgingRec?.salesTrend).toBe("surging");
+        expect(surgingRec?.soldQty7).toBe(14);
+        expect(surgingRec?.soldQty30).toBe(14);
+        expect(surgingRec?.isUrgent).toBe(true);
+        expect(surgingRec?.recommendedOrderQty).toBeGreaterThan(0);
+    });
+
     it("calculateConsultantStrategy: 小売業経営コンサルタント視点での粗利率・客単価・パレート分析が正しく算出されること", () => {
         const strategy = calculateConsultantStrategy(
             mockSales,

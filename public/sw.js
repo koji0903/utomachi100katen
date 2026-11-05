@@ -1,12 +1,20 @@
-// Self-unregistering service worker to clean up previous registrations and prevent unexpected reloads
+// Safe service worker uninstaller
+// Does NOT call skipWaiting() or clients.claim() to prevent unexpected browser page reloads.
+
 self.addEventListener('install', () => {
-  self.skipWaiting();
+  // Do not call self.skipWaiting()
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    self.registration.unregister().then(() => {
-      return self.clients.matchAll();
-    })
+    Promise.all([
+      self.registration.unregister(),
+      typeof caches !== 'undefined'
+        ? caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+        : Promise.resolve(),
+    ])
   );
 });
+
+// Pass-through all network requests directly
+self.addEventListener('fetch', () => {});

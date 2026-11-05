@@ -430,6 +430,8 @@ export function aggregateProductDailySales(
     };
 }
 
+export type SalesTrend = 'surging' | 'stable' | 'slowing';
+
 export interface ReorderRecommendation {
     productId: string;
     productName: string;
@@ -441,7 +443,12 @@ export interface ReorderRecommendation {
     mainStock?: number; // 本社倉庫在庫
     storeStockTotal?: number; // 店頭配架計
     isMainZeroOnly?: boolean; // 本社のみ欠品（店頭在庫あり）
-    dailyVelocity: number;
+    dailyVelocity: number; // 採用された実効日販（推移を反映）
+    dailyVelocity30: number; // 直近30日日販
+    dailyVelocity7: number; // 直近7日日販
+    soldQty30: number; // 直近30日販売数
+    soldQty7: number; // 直近7日販売数
+    salesTrend: SalesTrend; // 'surging' (直近急伸) | 'stable' (安定) | 'slowing' (直近鈍化)
     daysRemaining: number;
     pendingOrderQty: number; // 発注済み未入荷数量
     isUrgent: boolean; // 7日以内欠品または在庫0
@@ -481,6 +488,7 @@ export interface PurchasingIntelligence {
     totalRecommendedCost: number;
     totalPendingOrderCount: number;
     totalPendingOrderAmount: number;
+    inactiveZeroStockCount: number; // 直近販売実績がなく在庫0の非稼働・休止商品数（除外対象）
     recommendations: ReorderRecommendation[];
     supplierSummaries: SupplierOrderSummary[];
     stagnantItems: StagnantStockItem[];
@@ -523,29 +531,68 @@ export function calculatePurchasingIntelligence(
         }
     });
 
-    // 過去30日間の商品別販売数量の集計
+    // 過去7日および過去30日間の商品別販売数量の集計
+    const last7Days = getPastDaysList(7, baseDate);
     const last30Days = getPastDaysList(30, baseDate);
-    const last30Sales = validSales.filter(s => s.period && last30Days.includes(s.period));
+
+    const soldQty7Map = new Map<string, number>();
     const soldQty30Map = new Map<string, number>();
-    last30Sales.forEach(s => {
+
+    validSales.forEach(s => {
+        if (!s.period) return;
+        const is7 = last7Days.includes(s.period);
+        const is30 = last30Days.includes(s.period);
+        if (!is7 && !is30) return;
+
         s.items?.forEach(i => {
-            const cur = soldQty30Map.get(i.productId) || 0;
-            soldQty30Map.set(i.productId, cur + (i.quantity || 0));
+            const qty = i.quantity || 0;
+            if (is30) {
+                const cur30 = soldQty30Map.get(i.productId) || 0;
+                soldQty30Map.set(i.productId, cur30 + qty);
+            }
+            if (is7) {
+                const cur7 = soldQty7Map.get(i.productId) || 0;
+                soldQty7Map.set(i.productId, cur7 + qty);
+            }
         });
     });
 
     const recommendations: ReorderRecommendation[] = [];
     const stagnantItems: StagnantStockItem[] = [];
+    let inactiveZeroStockCount = 0;
 
     validProducts.forEach(product => {
         const soldQty30 = soldQty30Map.get(product.id) || 0;
-        const dailyVelocity = soldQty30 / 30;
+        const soldQty7 = soldQty7Map.get(product.id) || 0;
+        const dailyVelocity30 = soldQty30 / 30;
+        const dailyVelocity7 = soldQty7 / 7;
+
+        // トレンド推移判定
+        let salesTrend: SalesTrend = 'stable';
+        if (soldQty7 >= 2 && dailyVelocity7 >= dailyVelocity30 * 1.3) {
+            salesTrend = 'surging'; // 直近7日で売上が急伸
+        } else if (soldQty30 >= 3 && dailyVelocity7 < dailyVelocity30 * 0.7) {
+            salesTrend = 'slowing'; // 直近7日で売上が鈍化
+        }
+
+        // 推移を反映した実効日販速度
+        let effectiveVelocity = dailyVelocity30;
+        if (salesTrend === 'surging') {
+            effectiveVelocity = Math.max(dailyVelocity7, dailyVelocity30);
+        } else if (salesTrend === 'slowing') {
+            effectiveVelocity = (dailyVelocity7 * 2 + dailyVelocity30) / 3;
+        }
+
         const mainStock = product.stock ?? 0;
         const relevantSS = storeStocks.filter(ss => ss.productId === product.id);
         const storeStockTotal = relevantSS.reduce((sum, ss) => sum + (ss.stock || 0), 0);
         const totalStock = mainStock + storeStockTotal;
 
-        const daysRemaining = calculateDaysRemaining(product, validSales, validProducts, totalStock);
+        // 実効日販に基づく在庫消化日数
+        const daysRemaining = effectiveVelocity > 0
+            ? Math.floor(totalStock / effectiveVelocity)
+            : (totalStock > 0 ? Infinity : 0);
+
         const pendingOrderQty = pendingOrderQtyMap.get(product.id) || 0;
         const threshold = product.alertThreshold ?? 5; // 統一基準しきい値 (未設定時は5)
 
@@ -554,15 +601,26 @@ export function calculatePurchasingIntelligence(
         const isUnderThreshold = totalStock <= threshold;
         const isRunningOutSoon = daysRemaining !== Infinity && daysRemaining <= 14;
 
+        // 【重要】直近販売実績のない非稼働・休止商品（直近30日も7日も0個）の判定
+        const hasRecentSales = soldQty30 > 0 || soldQty7 > 0;
+
+        if (!hasRecentSales && isZeroStock) {
+            // 販売実績がなく在庫も0 ＝ 取り扱っていない／休止中の商品のため、発注推奨から除外
+            inactiveZeroStockCount++;
+        }
+
         const supplier = supplierMap.get(product.supplierId) || null;
         const supplierName = supplier?.name || "仕入先未設定";
         const unitCost = product.costPrice || 0;
 
-        // 要発注判定（全社総在庫が0またはしきい値以下、または14日以内欠品、または本社欠品で店舗在庫少）
-        if (isZeroStock || isUnderThreshold || isRunningOutSoon || (isMainZeroOnly && dailyVelocity > 0)) {
-            // 推奨発注数: 30日分カバー在庫、またはしきい値の2倍
-            const targetStock = dailyVelocity > 0
-                ? Math.max(Math.ceil(dailyVelocity * 30), threshold * 2)
+        // 要発注判定:
+        // 直近で販売実績があり、かつ（全社総在庫が0、しきい値以下、14日以内欠品、または本社欠品で店舗少）
+        if (hasRecentSales && (isZeroStock || isUnderThreshold || isRunningOutSoon || (isMainZeroOnly && effectiveVelocity > 0))) {
+            // 推奨発注数: 
+            // トレンドに応じてカバー日数を調整（急伸時は45日分、通常は30日分、鈍化時は20日分）
+            const daysToCover = salesTrend === 'surging' ? 45 : (salesTrend === 'slowing' ? 20 : 30);
+            const targetStock = effectiveVelocity > 0
+                ? Math.max(Math.ceil(effectiveVelocity * daysToCover), threshold * 2)
                 : Math.max(threshold * 2, 10);
 
             // 有効在庫 = 全社総在庫 + 入荷待ち
@@ -585,7 +643,12 @@ export function calculatePurchasingIntelligence(
                     mainStock,
                     storeStockTotal,
                     isMainZeroOnly,
-                    dailyVelocity,
+                    dailyVelocity: effectiveVelocity,
+                    dailyVelocity30,
+                    dailyVelocity7,
+                    soldQty30,
+                    soldQty7,
+                    salesTrend,
                     daysRemaining,
                     pendingOrderQty,
                     isUrgent,
@@ -597,7 +660,9 @@ export function calculatePurchasingIntelligence(
             }
         }
 
-        // 滞留・過剰在庫判定（直近30日販売ゼロで全社在庫あり、または残日数90日超で全社在庫多数）
+        // 滞留・過剰在庫判定:
+        // 1. 直近30日販売ゼロで全社在庫が眠っている商品（非販売品だが在庫資産がある）
+        // 2. 販売はあるが在庫消化に90日以上かかる過剰在庫
         const isStagnant = (soldQty30 === 0 && totalStock > 0) || (daysRemaining > 90 && totalStock > threshold * 3);
         if (isStagnant && totalStock > 0) {
             stagnantItems.push({
@@ -659,6 +724,7 @@ export function calculatePurchasingIntelligence(
         totalRecommendedCost,
         totalPendingOrderCount,
         totalPendingOrderAmount,
+        inactiveZeroStockCount,
         recommendations,
         supplierSummaries,
         stagnantItems,

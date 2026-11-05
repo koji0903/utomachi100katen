@@ -110,11 +110,36 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.19.0 */}
+                    {/* v1.20.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">直近売上推移連動の発注判断・非販売品除外 ＆ 自動リロード根本根絶</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "自動リロード問題の根本的根絶：next.config.ts から PWA（@ducanh2912/next-pwa）ラッパーを完全撤廃し、Webpack によるクライアント側 sw-entry（reloadOnOnline / controllerchange リスナー）の自動注入を完全に排除",
+                                    "安全な Service Worker アンインストーラーの配備：public/sw.js で self.skipWaiting() や clients.claim() を一切呼ばずに登録解除と CacheStorage 全消去を行う安全設計に移行し、ブラウザのコントローラー変化による不意の再読み込みを防止",
+                                    "AppLayout でのセッション制御とキャッシュクリア：ブラウザ上に残存する古い Service Worker とキャッシュストレージを初回のみ安全に解除し、毎レンダリングでの不要なアンレジスターAPI呼び出しを抑止",
+                                    "全ボタン要素の type=\"button\" 徹底：ダッシュボードおよびコックピット内の全切り替えボタンに明示的な type=\"button\" を指定し、暗黙のフォーム送信（ページ再読み込み）リスクを完全排除",
+                                    "直近売上推移（7日 vs 30日）を反映した発注判断：直近7日間で需要が急増している「🚀 急伸（7日加速）」商品と「📉 鈍化（慎重発注）」商品を自動判定し、目標カバー日数を動的調整して欠品防止と過剰在庫抑制を両立",
+                                    "販売していない商品（非稼働・休止品）の発注推奨からの完全除外：直近30日間・7日間の販売実績がなく在庫0の休止・非取扱商品を判定し、推奨リストから自動除外（除外件数を画面に明記）。現在実動している重点商品のみに絞り込んだ購買意思決定を実現",
+                                    "発注推奨リストのトレンドクイックフィルター新設：「すべて（販売中）」「🚀 急伸」「⚠️ 至急（7日以内）」のワンクリック絞り込みを追加し、定例会議での仕入検討を加速"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.19.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.19.0 - 2026.11.05</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">全社総在庫・店頭配架在庫の統合管理と在庫アラート適正化</h3>
                             <ul className="space-y-2">
                                 {[
