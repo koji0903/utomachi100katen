@@ -107,10 +107,17 @@ function EventEditModal({
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                    {!isSystem && event.id && onDelete && (
+                    {onDelete && (event.id || isSystem) && (
                         <button 
-                            onClick={() => { if(window.confirm("この行事を削除しますか？")) onDelete(event.id!); }}
-                            className="p-4 bg-red-50 text-red-600 rounded-2xl hover:bg-red-100 transition-colors"
+                            type="button"
+                            onClick={() => {
+                                if (window.confirm("この行事アラートを削除しますか？")) {
+                                    const id = event.id || (isSystem ? `${date}_${name}` : "");
+                                    if (id) onDelete(id);
+                                }
+                            }}
+                            className="p-4 bg-red-50 text-red-600 rounded-2xl hover:bg-red-100 transition-colors flex items-center justify-center"
+                            title="この行事アラートを削除"
                         >
                             <Trash2 className="w-5 h-5" />
                         </button>
@@ -175,6 +182,7 @@ export function SeasonalAlarm() {
         // Add System Events (with potential overrides)
         processedEvents.forEach(event => {
             const override = customMap.get(`${event.date}_${event.name}`);
+            if (override?.isTrashed) return; // 削除されたシステム行事は除外
             
             const eventDate = new Date(event.date);
             const diffTime = eventDate.getTime() - now.getTime();
@@ -239,7 +247,7 @@ export function SeasonalAlarm() {
         });
 
         // Add Custom Events
-        promotionEvents.filter(e => e.type === 'custom').forEach(e => {
+        promotionEvents.filter(e => e.type === 'custom' && !e.isTrashed).forEach(e => {
             const eventDate = new Date(e.date);
             const diffTime = eventDate.getTime() - now.getTime();
             const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
@@ -293,10 +301,44 @@ export function SeasonalAlarm() {
 
     const handleDeleteEvent = async (id: string) => {
         try {
-            await deletePromotionEvent(id);
+            const event = promotionEvents.find(e => e.id === id);
+            if (event?.type === 'system' || id.includes('_')) {
+                const parts = id.split('_');
+                const date = parts[0];
+                const name = parts.slice(1).join('_');
+                await savePromotionEvent({
+                    id,
+                    name: event?.name || name,
+                    date: event?.date || date,
+                    type: 'system',
+                    isTrashed: true
+                });
+            } else {
+                await deletePromotionEvent(id);
+            }
             setEditingEvent(null);
         } catch (error) {
             console.error("行事の削除に失敗しました:", error);
+            alert("データの削除に失敗しました。もう一度お試しください。");
+        }
+    };
+
+    const handleDeleteAlert = async (alertItem: AlertItem) => {
+        if (!window.confirm(`「${alertItem.title}」の販促準備アラートを削除しますか？\n（ダッシュボードに表示されなくなります）`)) return;
+        try {
+            if (alertItem.type === 'custom') {
+                await deletePromotionEvent(alertItem.id);
+            } else {
+                await savePromotionEvent({
+                    id: `${alertItem.date}_${alertItem.title}`,
+                    name: alertItem.title,
+                    date: alertItem.date,
+                    type: 'system',
+                    isTrashed: true
+                });
+            }
+        } catch (error) {
+            console.error("販促アラートの削除に失敗しました:", error);
             alert("データの削除に失敗しました。もう一度お試しください。");
         }
     };
@@ -354,19 +396,28 @@ export function SeasonalAlarm() {
                                     <div className="text-xs font-bold text-slate-900 italic">
                                         {new Date(alert.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}
                                     </div>
-                                    <button 
-                                        onClick={() => setEditingEvent({
-                                            id: alert.type === 'system' ? promotionEvents.find(e => e.id === `${alert.date}_${alert.title}`)?.id : alert.id,
-                                            name: alert.title,
-                                            date: alert.date,
-                                            description: alert.description,
-                                            type: alert.type
-                                        })}
-                                        className="mt-2 p-1.5 bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                        title="情報を編集"
-                                    >
-                                        <Pencil className="w-3.5 h-3.5" />
-                                    </button>
+                                    <div className="flex items-center gap-1 mt-1.5 opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button 
+                                            onClick={() => setEditingEvent({
+                                                id: alert.type === 'system' ? promotionEvents.find(e => e.id === `${alert.date}_${alert.title}`)?.id : alert.id,
+                                                name: alert.title,
+                                                date: alert.date,
+                                                description: alert.description,
+                                                type: alert.type
+                                            })}
+                                            className="p-1.5 bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                            title="情報を編集"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDeleteAlert(alert)}
+                                            className="p-1.5 bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                            title="アラートを削除"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -411,16 +462,15 @@ export function SeasonalAlarm() {
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                                <div className="flex items-center gap-1.5">
-                                    <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-                                        alert.status === 'error' ? 'bg-red-500' : 
-                                        alert.status === 'warning' ? 'bg-amber-500' :
-                                        alert.status === 'success' ? 'bg-emerald-500' :
-                                        'bg-blue-500'
-                                    }`} />
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">ステータス</span>
-                                </div>
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                <button 
+                                    onClick={() => handleDeleteAlert(alert)}
+                                    className="text-[10px] font-bold text-slate-400 hover:text-red-600 flex items-center gap-1 hover:bg-red-50 px-2 py-1.5 rounded-lg transition-all"
+                                    title="この販促アラートを削除"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>削除</span>
+                                </button>
                                 <button 
                                     onClick={() => setSelectedEvent(alert)}
                                     className="text-[10px] font-black text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-xl transition-all hover:scale-105"

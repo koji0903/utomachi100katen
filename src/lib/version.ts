@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.23.0";
-export const RELEASE_DATE = "2026.11.05";
+export const CURRENT_VERSION = "v1.24.0";
+export const RELEASE_DATE = "2026.11.06";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "ダッシュボード「販促準備アラート」のカード削除機能",
+        description: "ダッシュボード上の販促準備アラートカードに「削除」ボタンを新設。不要な季節行事や終了したカスタムイベントをワンクリックで非表示・削除可能にし、祝日・システム行事も安全に非表示化できるようアーカイブ対応。",
+        status: "completed"
+    },
     {
         name: "利益計算厳密化・委託手数料控除＆固定費免責注記の実装",
         description: "売上原価だけでなく委託販売・ECモール手数料を直接変動費として控除した「実質手残り限界利益（MQ）」と名目表面粗利を厳密に分離。原価未設定品の粗利率100%誤判定（偽のエース選定）を根絶し、固定費シミュレーションに基づく損益分岐点売上高と未確定概算に関する免責注意書きを明記。",
