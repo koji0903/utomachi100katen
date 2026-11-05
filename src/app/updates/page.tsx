@@ -110,11 +110,36 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.17.0 */}
+                    {/* v1.18.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">ダッシュボード自動リロード防止 ＆ 小売業経営コンサルタント戦略分析コックピットを新設</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "ダッシュボード自動リロード問題の根本解消：PWA Service Workerのキャッシュ競合およびWorkboxクライアントクレームによる予期しないページリロードを完全抑止。全環境でアクティブなService Workerを自動クリーンアップ",
+                                    "Amazon同期のセッションスロットリング：ダッシュボード表示時のAmazon自動同期にセッションストレージ制御を導入し、同一セッション内での不要な重複実行・データ更新揺れを防止",
+                                    "コンサルタント戦略分析タブの新設：経営陣と現場の定例会向けに、売上高（P×Q）だけでなく「粗利高（限界利益 MQ）」「粗利率（%）」「客単価」「買上点数」「商品単価」を一目で把握できる戦略ビューを追加",
+                                    "定例会アジェンダ・具体的提言の自動生成：「利益率改善」「客単価アップ」「集中度・リスク」「チャネル戦略」の4大重要テーマについて、現状の診断と会議で決定すべき具体アクションを緊急度付きで提示",
+                                    "販売チャネル別ポートフォリオ：実店舗（直営・委託） vs EC（Amazon等） vs スポット催事の売上構成比と粗利率の対比により、販路ごとの利益貢献度とリソース配分の意思決定を支援",
+                                    "店舗別 収益性＆客単価・買上点数マトリクス：全店舗・スポットの売上・粗利・客数・平均客単価・平均買上点数・平均商品単価を一覧表で比較し、売上要因（客数減か客単価減か）を即時切り分け可能に",
+                                    "商品別パレート（ABC）分析＆粗利マトリクス：累積売上比率によるA/B/Cランク分類、上位20%商品が占める売上シェアの集中リスク判定、および「高粗利エース商品」と「薄利・原価改善要商品」の自動ラベリング"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.17.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.17.0 - 2026.11.05</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">発注・仕入の意思決定支援コックピットを新設</h3>
                             <ul className="space-y-2">
                                 {[

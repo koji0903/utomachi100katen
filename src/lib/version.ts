@@ -11,10 +11,20 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.17.0";
+export const CURRENT_VERSION = "v1.18.0";
 export const RELEASE_DATE = "2026.11.05";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "小売業コンサルタント戦略分析コックピット",
+        description: "経営陣と現場の定例会向け戦略分析。粗利高（限界利益 MQ）・粗利率、客単価・買上点数・商品単価の分解、パレート分析（ABCランク・売れ筋集中リスク）、チャネル別ポートフォリオ、および具体的アクション提言の自動生成。",
+        status: "completed"
+    },
+    {
+        name: "ダッシュボード安定化・自動リロード抑制",
+        description: "Service Workerの不要なキャッシュハイジャックやチャンク不整合による意図しない自動リロードを完全抑止。Amazon自動同期のセッションスロットリングと連動し、安定した画面閲覧環境を提供。",
+        status: "completed"
+    },
     {
         name: "基本的な売上・日次記録",
         description: "日次・月次売上の入力、入力済み売上の店舗・日付・商品個数・費用編集、天気情報の自動取得、業務日報の作成機能。",

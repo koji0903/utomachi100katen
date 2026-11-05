@@ -169,6 +169,20 @@ export default function DashboardPage() {
         setMounted(true);
         // Amazon同期をバックグラウンドで実行（未認証・デモモード時はスキップ）
         if (checkIsDemoMode()) return;
+
+        // セッションストレージで前回の同期実行時刻をチェック（同一セッション内での不要な重複実行・データ更新揺れを防止）
+        try {
+            const lastSync = sessionStorage.getItem("last_amazon_sync_time");
+            const now = Date.now();
+            if (lastSync && now - parseInt(lastSync, 10) < 1000 * 60 * 30) {
+                // 30分以内の場合はスキップ
+                return;
+            }
+            sessionStorage.setItem("last_amazon_sync_time", now.toString());
+        } catch {
+            // sessionStorageアクセス不可環境のフォールバック
+        }
+
         apiFetch("/api/amazon/sync", { method: "POST" })
             .then(res => res.json())
             .then(data => {

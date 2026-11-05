@@ -3,12 +3,9 @@ import withPWAInit from "@ducanh2912/next-pwa";
 
 const withPWA = withPWAInit({
   dest: "public",
-  disable: process.env.NODE_ENV === "development",
-  register: true,
+  disable: true, // Disable service worker to prevent unintended reloads and cache conflicts
+  register: false,
   reloadOnOnline: false,
-  workboxOptions: {
-    navigateFallbackDenylist: [/^\/analytics/, /^\/api/],
-  },
 });
 
 const nextConfig: NextConfig = {

@@ -8,6 +8,7 @@ import {
     aggregateMonthlyStoreSales,
     aggregateProductDailySales,
     calculatePurchasingIntelligence,
+    calculateConsultantStrategy,
 } from "@/lib/salesCockpitUtils";
 import type { Sale, Product, RetailStore, SpotRecipient, Supplier, Purchase } from "@/lib/store";
 
@@ -299,5 +300,48 @@ describe("salesCockpitUtils", () => {
         expect(stagnant).toBeDefined();
         expect(stagnant?.soldQty30).toBe(0);
         expect(stagnant?.stockValue).toBe(40 * 500); // 20,000円
+    });
+
+    it("calculateConsultantStrategy: 小売業経営コンサルタント視点での粗利率・客単価・パレート分析が正しく算出されること", () => {
+        const strategy = calculateConsultantStrategy(
+            mockSales,
+            mockProducts,
+            mockStores,
+            mockSpots,
+            30,
+            baseDate
+        );
+
+        // 30日売上と粗利
+        expect(strategy.totalRevenue).toBeGreaterThan(0);
+        expect(strategy.totalCost).toBeGreaterThan(0);
+        expect(strategy.totalGrossProfit).toBe(strategy.totalRevenue - strategy.totalCost);
+        expect(strategy.overallGrossMargin).toBeGreaterThan(0);
+
+        // 客単価・買上点数（ゴミ箱除外で4件）
+        expect(strategy.totalTransactions).toBe(4);
+        expect(strategy.averageBasket).toBe(Math.round(strategy.totalRevenue / strategy.totalTransactions));
+        expect(strategy.averageUnitsPerBasket).toBeGreaterThan(0);
+
+        // 店舗別収益性
+        expect(strategy.storesProfitability.length).toBeGreaterThan(0);
+        const store1 = strategy.storesProfitability.find(s => s.storeId === "store-1");
+        expect(store1).toBeDefined();
+        expect(store1?.totalRevenue).toBe(9600);
+        expect(store1?.grossProfit).toBe(4800);
+        expect(store1?.grossMarginRatio).toBe(50);
+        expect(store1?.averageBasket).toBe(3200); // 9600 / 3 transactions
+
+        // 商品別パレート（ABC分析）
+        expect(strategy.productsProfitability.length).toBeGreaterThan(0);
+        const topProd = strategy.productsProfitability[0];
+        expect(topProd.rankClass).toBe("A");
+        expect(topProd.cumulativeRevenueShare).toBeGreaterThan(0);
+
+        // コンサルタントアジェンダ提言
+        expect(strategy.consultantAgendas.length).toBeGreaterThanOrEqual(3);
+        expect(strategy.consultantAgendas.some(a => a.category === "利益率改善")).toBe(true);
+        expect(strategy.consultantAgendas.some(a => a.category === "客単価アップ")).toBe(true);
+        expect(strategy.consultantAgendas.some(a => a.category === "集中度・リスク")).toBe(true);
     });
 });

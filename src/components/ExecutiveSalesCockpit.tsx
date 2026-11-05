@@ -10,7 +10,9 @@ import {
     TrendingUp, Store, Package, Calendar, Award,
     AlertCircle, Sparkles, ChevronRight, BarChart3,
     ArrowUpRight, ArrowDownRight, Layers, ShoppingBag,
-    Truck, AlertTriangle, CheckCircle2, Clock, ArrowRight
+    Truck, AlertTriangle, CheckCircle2, Clock, ArrowRight,
+    Compass, Target, PieChart, Users, DollarSign, Percent,
+    ShieldAlert
 } from "lucide-react";
 import Link from "next/link";
 import { useStore, type Product, type RetailStore, type SpotRecipient, type Sale } from "@/lib/store";
@@ -21,6 +23,7 @@ import {
     aggregateMonthlyStoreSales,
     aggregateProductDailySales,
     calculatePurchasingIntelligence,
+    calculateConsultantStrategy,
 } from "@/lib/salesCockpitUtils";
 
 // グラフ用カラーパレット
@@ -38,8 +41,8 @@ const PALETTE = [
 export function ExecutiveSalesCockpit() {
     const { unifiedSales, products, retailStores, spotRecipients, purchases, suppliers } = useStore();
 
-    // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別) | 'purchasing' (発注・仕入判断)
-    const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product' | 'purchasing'>('store');
+    // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別) | 'purchasing' (発注・仕入判断) | 'consultant' (コンサルタント戦略分析)
+    const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product' | 'purchasing' | 'consultant'>('store');
     
     // 店舗別ビュー用フィルタ
     const [selectedStoreId, setSelectedStoreId] = useState<string>("ALL");
@@ -48,6 +51,9 @@ export function ExecutiveSalesCockpit() {
     // 商品別ビュー用フィルタ
     const [selectedProductId, setSelectedProductId] = useState<string>("");
     const [productPeriodDays, setProductPeriodDays] = useState<7 | 30>(7);
+
+    // コンサルタント分析ビュー用フィルタ
+    const [consultantPeriodDays, setConsultantPeriodDays] = useState<7 | 30>(30);
 
     // 有効な商品・店舗
     const activeProducts = useMemo(() => products.filter(p => !p.isTrashed), [products]);
@@ -121,7 +127,20 @@ export function ExecutiveSalesCockpit() {
     }, [products, unifiedSales, purchases, suppliers]);
 
     // ─────────────────────────────────────────────────────────────
-    // 6. コンサルタント視点での定例会サマリー示唆（ハイライト）
+    // 6. 小売業経営コンサルタント戦略分析（粗利率・客単価・パレート）
+    // ─────────────────────────────────────────────────────────────
+    const consultantStrategy = useMemo(() => {
+        return calculateConsultantStrategy(
+            unifiedSales,
+            products,
+            retailStores,
+            spotRecipients,
+            consultantPeriodDays
+        );
+    }, [unifiedSales, products, retailStores, spotRecipients, consultantPeriodDays]);
+
+    // ─────────────────────────────────────────────────────────────
+    // 7. コンサルタント視点での定例会サマリー示唆（ハイライト）
     // ─────────────────────────────────────────────────────────────
     const consultantInsights = useMemo(() => {
         const bullets: string[] = [];
@@ -137,26 +156,31 @@ export function ExecutiveSalesCockpit() {
             }
         }
 
-        // 2. 主力牽引店舗
+        // 2. 収益性・粗利率（コンサルタント視点）
+        if (consultantStrategy.totalRevenue > 0) {
+            bullets.push(`【粗利・限界利益】直近${consultantPeriodDays}日の全社粗利額は ¥${consultantStrategy.totalGrossProfit.toLocaleString()}（粗利率 ${consultantStrategy.overallGrossMargin.toFixed(1)}%）。平均客単価は ¥${consultantStrategy.averageBasket.toLocaleString()}（買上点数 ${consultantStrategy.averageUnitsPerBasket}点）です。`);
+        }
+
+        // 3. 主力牽引店舗
         if (executiveKpis.topStore) {
             bullets.push(`店舗別では「${executiveKpis.topStore.name}」が直近30日で ¥${executiveKpis.topStore.amount.toLocaleString()} を売り上げ、全社の最大シェアを牽引しています。`);
         }
 
-        // 3. 発注・仕入れの緊急判断材料
+        // 4. 発注・仕入れの緊急判断材料
         if (purchasingIntelligence.urgentCount > 0) {
             bullets.push(`【発注判断】現在 ${purchasingIntelligence.urgentCount} 品目が至急発注推奨（欠品または7日以内欠品）です。想定仕入予算は約 ¥${purchasingIntelligence.totalRecommendedCost.toLocaleString()} で、早期の仕入確定が必要です。`);
         } else if (purchasingIntelligence.attentionCount > 0) {
             bullets.push(`【発注判断】向こう14日以内に欠品懸念のある商品が ${purchasingIntelligence.attentionCount} 品目あります。定例会にて仕入先へのロット発注の要否をご確認ください。`);
         }
 
-        // 4. 滞留在庫への警鐘
+        // 5. 滞留在庫への警鐘
         if (purchasingIntelligence.stagnantItems.length > 0) {
             const topStagnant = purchasingIntelligence.stagnantItems[0];
             bullets.push(`【仕入抑制】「${topStagnant.productName}」など ${purchasingIntelligence.stagnantItems.length} 品目が直近30日販売停滞（在庫総額約 ¥${purchasingIntelligence.stagnantItems.reduce((sum, i) => sum + i.stockValue, 0).toLocaleString()}）。追加仕入は見合わせ、セールやセット商品化での消化を推奨します。`);
         }
 
         return bullets;
-    }, [executiveKpis, purchasingIntelligence]);
+    }, [executiveKpis, purchasingIntelligence, consultantStrategy, consultantPeriodDays]);
 
     return (
         <section className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-6 sm:p-10 space-y-8 animate-in fade-in duration-500">
@@ -227,6 +251,20 @@ export function ExecutiveSalesCockpit() {
                         {purchasingIntelligence.urgentCount > 0 && (
                             <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
                         )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('consultant')}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
+                            activeTab === 'consultant'
+                                ? 'bg-white text-blue-900 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                        <Compass className="w-4 h-4 text-indigo-600" />
+                        <span>コンサルタント戦略分析</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-black">
+                            定例会推奨
+                        </span>
                     </button>
                 </div>
             </div>
@@ -1067,6 +1105,476 @@ export function ExecutiveSalesCockpit() {
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ───────────────────────────────────────────────────────────── */}
+            {/* VIEW 5: 小売業経営コンサルタント 戦略コックピット (定例会討議用) */}
+            {/* ───────────────────────────────────────────────────────────── */}
+            {activeTab === 'consultant' && (
+                <div className="space-y-8 animate-in fade-in duration-300">
+                    {/* ビュー・コントロールバー */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-gradient-to-r from-indigo-50/70 via-blue-50/50 to-white rounded-3xl border border-indigo-100">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <Compass className="w-4 h-4 text-indigo-700" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-700">
+                                    定例会討議用・コンサルタント視点
+                                </span>
+                            </div>
+                            <h3 className="font-black text-slate-900 text-base sm:text-lg">
+                                小売業経営コンサルタント 戦略コックピット
+                            </h3>
+                            <p className="text-slate-500 text-xs mt-0.5">
+                                売上高だけでなく、粗利高（MQ）・粗利率・客単価・買上点数・パレート集中度から、定例会で打つべき具体アクションを提示します。
+                            </p>
+                        </div>
+
+                        {/* 期間切替 (7日 vs 30日) */}
+                        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-indigo-200/60 shadow-sm self-start sm:self-center">
+                            <button
+                                onClick={() => setConsultantPeriodDays(7)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                    consultantPeriodDays === 7
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                直近7日間
+                            </button>
+                            <button
+                                onClick={() => setConsultantPeriodDays(30)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                    consultantPeriodDays === 30
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                直近30日間
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 4大コンサルタント・コア指標 */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                        {/* 1. 限界利益（MQ）＆ 粗利率 */}
+                        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-indigo-300 transition-colors">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
+                                <span>限界利益額 (粗利高 MQ)</span>
+                                <DollarSign className="w-3.5 h-3.5 text-indigo-600" />
+                            </div>
+                            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                ¥{consultantStrategy.totalGrossProfit.toLocaleString()}
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-xs font-bold pt-2 border-t border-slate-100">
+                                <span className="text-slate-500">全社平均粗利率</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                                    consultantStrategy.overallGrossMargin >= 40
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : consultantStrategy.overallGrossMargin >= 30
+                                        ? 'bg-blue-50 text-blue-700'
+                                        : 'bg-rose-50 text-rose-700'
+                                }`}>
+                                    {consultantStrategy.overallGrossMargin.toFixed(1)}%
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* 2. 平均客単価（Basket Size） */}
+                        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-blue-300 transition-colors">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
+                                <span>平均客単価 (Basket)</span>
+                                <Users className="w-3.5 h-3.5 text-blue-600" />
+                            </div>
+                            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                ¥{consultantStrategy.averageBasket.toLocaleString()}
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 font-medium pt-2 border-t border-slate-100">
+                                <span>買上点数: <strong className="text-slate-800 font-black">{consultantStrategy.averageUnitsPerBasket}点</strong></span>
+                                <span>単価: <strong className="text-slate-800 font-black">¥{consultantStrategy.averageUnitPrice.toLocaleString()}</strong></span>
+                            </div>
+                        </div>
+
+                        {/* 3. 売れ筋集中度（パレート分析） */}
+                        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-amber-300 transition-colors">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
+                                <span>売れ筋集中度 (上位20%)</span>
+                                <Target className="w-3.5 h-3.5 text-amber-500" />
+                            </div>
+                            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                {consultantStrategy.paretoRatio.top20RevenueShare}%
+                                <span className="text-xs text-slate-400 font-bold ml-1.5">売上シェア</span>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-xs font-bold pt-2 border-t border-slate-100">
+                                <span className="text-slate-500">上位 {consultantStrategy.paretoRatio.top20PercentProductCount} 品目</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                    consultantStrategy.paretoRatio.dependenceLevel === 'high'
+                                        ? 'bg-rose-50 text-rose-700'
+                                        : consultantStrategy.paretoRatio.dependenceLevel === 'moderate'
+                                        ? 'bg-blue-50 text-blue-700'
+                                        : 'bg-emerald-50 text-emerald-700'
+                                }`}>
+                                    {consultantStrategy.paretoRatio.dependenceLevel === 'high'
+                                        ? '集中リスク警戒'
+                                        : consultantStrategy.paretoRatio.dependenceLevel === 'moderate'
+                                        ? '標準的バランス'
+                                        : '分散ロングテール'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* 4. 総取引伝票数 & 出荷数 */}
+                        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-purple-300 transition-colors">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between mb-2">
+                                <span>取引伝票数 / 販売総数</span>
+                                <BarChart3 className="w-3.5 h-3.5 text-purple-600" />
+                            </div>
+                            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                {consultantStrategy.totalTransactions}
+                                <span className="text-xs text-slate-400 font-bold ml-1">件</span>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-xs font-bold pt-2 border-t border-slate-100">
+                                <span className="text-slate-500">総出荷個数</span>
+                                <span className="text-purple-700 font-black">
+                                    {consultantStrategy.totalUnits.toLocaleString()} 個
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 定例会討議アジェンダ（コンサルタント提言カード） */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-indigo-600" />
+                                定例会アジェンダ・具体的アクション提言（コンサルタント分析）
+                            </h4>
+                            <span className="text-[11px] text-slate-400 font-medium">
+                                直近{consultantPeriodDays}日間の実績に基づく診断
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {consultantStrategy.consultantAgendas.map((agenda, idx) => (
+                                <div
+                                    key={idx}
+                                    className={`p-5 rounded-2xl border transition-all ${
+                                        agenda.urgency === 'high'
+                                            ? 'bg-rose-50/30 border-rose-200 hover:border-rose-300'
+                                            : agenda.urgency === 'medium'
+                                            ? 'bg-amber-50/30 border-amber-200 hover:border-amber-300'
+                                            : 'bg-white border-slate-200 hover:border-indigo-200'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                                agenda.category === '利益率改善'
+                                                    ? 'bg-indigo-100 text-indigo-800'
+                                                    : agenda.category === '客単価アップ'
+                                                    ? 'bg-blue-100 text-blue-800'
+                                                    : agenda.category === '集中度・リスク'
+                                                    ? 'bg-rose-100 text-rose-800'
+                                                    : 'bg-purple-100 text-purple-800'
+                                            }`}>
+                                                {agenda.category}
+                                            </span>
+                                            <span className="font-black text-slate-800 text-xs sm:text-sm">
+                                                {agenda.title}
+                                            </span>
+                                        </div>
+                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                                            agenda.urgency === 'high'
+                                                ? 'bg-rose-600 text-white animate-pulse'
+                                                : agenda.urgency === 'medium'
+                                                ? 'bg-amber-500 text-white'
+                                                : 'bg-slate-200 text-slate-700'
+                                        }`}>
+                                            {agenda.urgency === 'high' ? '至急決議' : agenda.urgency === 'medium' ? '協議推奨' : '順調維持'}
+                                        </span>
+                                    </div>
+
+                                    <p className="text-xs text-slate-600 leading-relaxed font-medium mb-3">
+                                        {agenda.diagnostic}
+                                    </p>
+
+                                    <div className="p-3 bg-white/80 rounded-xl border border-slate-100 flex items-start gap-2">
+                                        <ArrowRight className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
+                                        <p className="text-xs font-bold text-slate-800 leading-relaxed">
+                                            <span className="text-indigo-700">定例会でのアクション: </span>
+                                            {agenda.actionProposal}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* チャネル別ポートフォリオ（店頭 vs EC vs 催事） */}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                            <div>
+                                <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <PieChart className="w-4 h-4 text-blue-600" />
+                                    販売チャネル別ポートフォリオ（売上シェア ＆ 粗利率の対比）
+                                </h4>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                    販路ごとの販売比率と利益率のバランスを把握し、リソース配分の意思決定を行います。
+                                </p>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full self-start sm:self-auto">
+                                全社売上: ¥{consultantStrategy.totalRevenue.toLocaleString()}
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {consultantStrategy.channelBreakdown.map((ch) => (
+                                <div key={ch.channelKey} className="p-5 rounded-2xl bg-slate-50/60 border border-slate-100 hover:border-blue-200 transition-colors space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-black text-slate-800 text-xs">{ch.label}</span>
+                                        <span className="text-xs font-black text-blue-600">{ch.share.toFixed(1)}%</span>
+                                    </div>
+
+                                    {/* Progress bar */}
+                                    <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                        <div
+                                            className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                                            style={{ width: `${Math.min(100, ch.share)}%` }}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-xs">
+                                        <div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase">売上高</div>
+                                            <div className="font-black text-slate-900">¥{ch.revenue.toLocaleString()}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase">粗利率 (MQ%)</div>
+                                            <div className={`font-black ${ch.grossMarginRatio >= 40 ? 'text-emerald-600' : 'text-slate-800'}`}>
+                                                {ch.grossMarginRatio.toFixed(1)}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 font-medium flex justify-between">
+                                        <span>伝票数: {ch.transactionCount}件</span>
+                                        <span>粗利: ¥{ch.grossProfit.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            ))}
+                            {consultantStrategy.channelBreakdown.length === 0 && (
+                                <div className="col-span-3 p-8 text-center text-slate-400 text-xs font-bold">
+                                    対象期間の販売データがありません
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 店舗別収益性 ＆ 客単価・買上点数マトリクス */}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                            <div>
+                                <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <Store className="w-4 h-4 text-emerald-600" />
+                                    店舗別 収益性 ＆ 客単価・買上点数マトリクス
+                                </h4>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                    定例会にて「売上未達が客数減なのか、客単価・買上点数の低下なのか」を即時切り分ける診断表です。
+                                </p>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full self-start sm:self-auto">
+                                対象店舗: {consultantStrategy.storesProfitability.length} 店舗・スポット
+                            </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                                <thead>
+                                    <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-50/50">
+                                        <th className="py-3 px-3">店舗・チャネル</th>
+                                        <th className="py-3 px-3 text-right">売上高</th>
+                                        <th className="py-3 px-3 text-right">粗利額 (MQ)</th>
+                                        <th className="py-3 px-3 text-right">粗利率</th>
+                                        <th className="py-3 px-3 text-right">客数 (伝票)</th>
+                                        <th className="py-3 px-3 text-right">平均客単価</th>
+                                        <th className="py-3 px-3 text-right">買上点数</th>
+                                        <th className="py-3 px-3 text-right">平均商品単価</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {consultantStrategy.storesProfitability.map((st, idx) => {
+                                        const isHighBasket = st.averageBasket >= consultantStrategy.averageBasket * 1.2 && st.transactionCount >= 2;
+                                        const isLowBasket = st.averageBasket < consultantStrategy.averageBasket * 0.8 && st.transactionCount >= 2;
+
+                                        return (
+                                            <tr key={st.storeId} className="hover:bg-slate-50/80 transition-colors">
+                                                <td className="py-3 px-3">
+                                                    <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                                                        <span className="text-[10px] text-slate-400 font-mono">#{idx + 1}</span>
+                                                        <span>{st.storeName}</span>
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400 mt-0.5">
+                                                        {st.channelType}
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-black text-slate-900">
+                                                    ¥{st.totalRevenue.toLocaleString()}
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-bold text-indigo-700">
+                                                    ¥{st.grossProfit.toLocaleString()}
+                                                </td>
+                                                <td className="py-3 px-3 text-right">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                                        st.grossMarginRatio >= 40
+                                                            ? 'bg-emerald-50 text-emerald-700'
+                                                            : st.grossMarginRatio >= 30
+                                                            ? 'bg-blue-50 text-blue-700'
+                                                            : 'bg-rose-50 text-rose-700'
+                                                    }`}>
+                                                        {st.grossMarginRatio.toFixed(1)}%
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-medium text-slate-600">
+                                                    {st.transactionCount} 件
+                                                </td>
+                                                <td className="py-3 px-3 text-right">
+                                                    <span className={`font-black ${
+                                                        isHighBasket
+                                                            ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md'
+                                                            : isLowBasket
+                                                            ? 'text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md'
+                                                            : 'text-slate-800'
+                                                    }`}>
+                                                        ¥{st.averageBasket.toLocaleString()}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-bold text-slate-700">
+                                                    {st.averageUnitsPerBasket} 点
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-medium text-slate-500">
+                                                    ¥{st.averageUnitPrice.toLocaleString()}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {consultantStrategy.storesProfitability.length === 0 && (
+                                        <tr>
+                                            <td colSpan={8} className="py-8 text-center text-slate-400 text-xs font-bold">
+                                                店舗販売データがありません
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* 商品別パレート（ABC）分析 ＆ 粗利エース商品特定 */}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                            <div>
+                                <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <Award className="w-4 h-4 text-amber-500" />
+                                    商品別 パレート（ABC）分析 ＆ 粗利マトリクス
+                                </h4>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                    売上貢献度（Aランク: 累積80% / Bランク: 95% / Cランク: 5%）と粗利率を掛け合わせ、重点育成・価格見直し品を特定します。
+                                </p>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full self-start sm:self-auto">
+                                集計商品: {consultantStrategy.productsProfitability.length} 品目
+                            </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                                <thead>
+                                    <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-50/50">
+                                        <th className="py-3 px-3">ランク</th>
+                                        <th className="py-3 px-3">商品名</th>
+                                        <th className="py-3 px-3 text-right">販売数</th>
+                                        <th className="py-3 px-3 text-right">売上高</th>
+                                        <th className="py-3 px-3 text-right">粗利額 (MQ)</th>
+                                        <th className="py-3 px-3 text-right">粗利率</th>
+                                        <th className="py-3 px-3 text-right">構成比</th>
+                                        <th className="py-3 px-3 text-right">累積比率</th>
+                                        <th className="py-3 px-3 text-center">経営戦略特性</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {consultantStrategy.productsProfitability.map((p) => (
+                                        <tr key={p.productId} className="hover:bg-slate-50/80 transition-colors">
+                                            <td className="py-3 px-3">
+                                                <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
+                                                    p.rankClass === 'A'
+                                                        ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                                        : p.rankClass === 'B'
+                                                        ? 'bg-blue-100 text-blue-900 border border-blue-200'
+                                                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                                }`}>
+                                                    {p.rankClass}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-3">
+                                                <div className="font-bold text-slate-900 truncate max-w-xs" title={p.productName}>
+                                                    {p.productName}
+                                                </div>
+                                            </td>
+                                            <td className="py-3 px-3 text-right font-bold text-slate-700">
+                                                {p.quantity.toLocaleString()} 個
+                                            </td>
+                                            <td className="py-3 px-3 text-right font-black text-slate-900">
+                                                ¥{p.revenue.toLocaleString()}
+                                            </td>
+                                            <td className="py-3 px-3 text-right font-bold text-indigo-700">
+                                                ¥{p.grossProfit.toLocaleString()}
+                                            </td>
+                                            <td className="py-3 px-3 text-right">
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                                    p.grossMarginRatio >= 40
+                                                        ? 'bg-emerald-50 text-emerald-700'
+                                                        : p.grossMarginRatio >= 30
+                                                        ? 'bg-blue-50 text-blue-700'
+                                                        : 'bg-rose-50 text-rose-700'
+                                                }`}>
+                                                    {p.grossMarginRatio.toFixed(1)}%
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-3 text-right font-bold text-slate-600">
+                                                {p.revenueShare.toFixed(1)}%
+                                            </td>
+                                            <td className="py-3 px-3 text-right font-medium text-slate-400">
+                                                {p.cumulativeRevenueShare.toFixed(1)}%
+                                            </td>
+                                            <td className="py-3 px-3 text-center">
+                                                {p.isHighMarginAce && (
+                                                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                                                        <Sparkles className="w-2.5 h-2.5" /> 高粗利エース
+                                                    </span>
+                                                )}
+                                                {p.isLowMarginAlert && (
+                                                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
+                                                        <ShieldAlert className="w-2.5 h-2.5" /> 薄利・原価改善要
+                                                    </span>
+                                                )}
+                                                {!p.isHighMarginAce && !p.isLowMarginAlert && (
+                                                    <span className="text-[10px] text-slate-400 font-medium">
+                                                        標準構成
+                                                    </span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {consultantStrategy.productsProfitability.length === 0 && (
+                                        <tr>
+                                            <td colSpan={9} className="py-8 text-center text-slate-400 text-xs font-bold">
+                                                商品販売データがありません
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

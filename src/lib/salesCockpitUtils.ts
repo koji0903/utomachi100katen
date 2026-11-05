@@ -634,3 +634,405 @@ export function calculatePurchasingIntelligence(
         stagnantItems,
     };
 }
+
+// ─────────────────────────────────────────────────────────────
+// 5. 小売業経営コンサルタント戦略分析（粗利率・客単価・チャネル・パレート）
+// ─────────────────────────────────────────────────────────────
+
+export interface ConsultantStoreProfitability {
+    storeId: string;
+    storeName: string;
+    channelType: string;
+    totalRevenue: number;
+    totalCost: number;
+    grossProfit: number;
+    grossMarginRatio: number; // %
+    transactionCount: number;
+    totalUnits: number;
+    averageBasket: number; // 客単価 (売上 / 伝票数)
+    averageUnitsPerBasket: number; // 平均買上点数 (個数 / 伝票数)
+    averageUnitPrice: number; // 平均商品単価 (売上 / 個数)
+}
+
+export interface ConsultantProductProfitability {
+    productId: string;
+    productName: string;
+    quantity: number;
+    revenue: number;
+    cost: number;
+    grossProfit: number;
+    grossMarginRatio: number; // %
+    revenueShare: number; // %
+    cumulativeRevenueShare: number; // %
+    rankClass: 'A' | 'B' | 'C';
+    isHighMarginAce: boolean;
+    isLowMarginAlert: boolean;
+}
+
+export interface ConsultantChannelBreakdown {
+    channelKey: string;
+    label: string;
+    revenue: number;
+    share: number; // %
+    cost: number;
+    grossProfit: number;
+    grossMarginRatio: number; // %
+    transactionCount: number;
+}
+
+export interface ConsultantStrategyIntelligence {
+    periodDays: 7 | 30;
+    totalRevenue: number;
+    totalCost: number;
+    totalGrossProfit: number;
+    overallGrossMargin: number; // %
+    totalTransactions: number;
+    totalUnits: number;
+    averageBasket: number;
+    averageUnitsPerBasket: number;
+    averageUnitPrice: number;
+    channelBreakdown: ConsultantChannelBreakdown[];
+    storesProfitability: ConsultantStoreProfitability[];
+    productsProfitability: ConsultantProductProfitability[];
+    paretoRatio: {
+        top20PercentProductCount: number;
+        top20RevenueShare: number; // %
+        dependenceLevel: 'high' | 'moderate' | 'balanced';
+    };
+    consultantAgendas: {
+        category: '利益率改善' | '客単価アップ' | '集中度・リスク' | 'チャネル戦略';
+        title: string;
+        diagnostic: string;
+        actionProposal: string;
+        urgency: 'high' | 'medium' | 'low';
+    }[];
+}
+
+/**
+ * 定例会向け 経営コンサルタント戦略分析データの算出
+ */
+export function calculateConsultantStrategy(
+    sales: Sale[],
+    products: Product[],
+    retailStores: RetailStore[],
+    spotRecipients: SpotRecipient[],
+    periodDays: 7 | 30 = 30,
+    baseDate: Date = new Date()
+): ConsultantStrategyIntelligence {
+    const days = getPastDaysList(periodDays, baseDate);
+    const validSales = sales.filter(s => !s.isTrashed && s.period && days.includes(s.period));
+
+    // 商品マップ
+    const prodMap = new Map<string, Product>();
+    products.forEach(p => prodMap.set(p.id, p));
+
+    // 店舗マップ
+    const storeMap = new Map<string, { name: string; channelType: string }>();
+    retailStores.forEach(s => {
+        let channelType = "委託販売店舗";
+        if (s.name.includes("Amazon") || s.name.toLowerCase().includes("ec")) {
+            channelType = "EC (Amazon/オンライン)";
+        } else if (s.type === "C") {
+            channelType = "直営・店頭店舗";
+        }
+        storeMap.set(s.id, { name: s.name, channelType });
+    });
+    spotRecipients.forEach(s => {
+        storeMap.set(s.id, { name: s.name, channelType: "催事・特設スポット" });
+    });
+
+    let totalRevenue = 0;
+    let totalCost = 0;
+    let totalUnits = 0;
+    const totalTransactions = validSales.length;
+
+    // 店舗別集計
+    const storeAggMap = new Map<string, {
+        revenue: number;
+        cost: number;
+        units: number;
+        transactions: number;
+    }>();
+
+    // 商品別集計
+    const prodAggMap = new Map<string, {
+        quantity: number;
+        revenue: number;
+        cost: number;
+    }>();
+
+    // チャネル別集計
+    const channelAggMap = new Map<string, {
+        label: string;
+        revenue: number;
+        cost: number;
+        transactions: number;
+    }>();
+
+    validSales.forEach(sale => {
+        const storeInfo = storeMap.get(sale.storeId) || { name: sale.storeName || "その他店舗", channelType: "店頭店舗" };
+        let channelKey = storeInfo.channelType;
+        if (sale.salesChannel) {
+            if (sale.salesChannel.includes("Amazon") || sale.salesChannel.includes("EC")) {
+                channelKey = "EC (Amazon/オンライン)";
+            } else if (sale.salesChannel.includes("催事") || sale.salesChannel.includes("イベント")) {
+                channelKey = "催事・特設スポット";
+            }
+        }
+
+        let saleCost = 0;
+        let saleRevenue = sale.totalAmount || 0;
+        let saleUnits = 0;
+
+        sale.items?.forEach(item => {
+            const p = prodMap.get(item.productId);
+            const unitCost = p?.costPrice ?? 0;
+            const itemCost = item.variableCostAmount !== undefined && item.variableCostAmount > 0
+                ? item.variableCostAmount
+                : (item.quantity * unitCost);
+            const itemRev = item.subtotal || (item.quantity * item.priceAtSale) || 0;
+            const itemQty = item.quantity || 0;
+
+            saleCost += itemCost;
+            saleUnits += itemQty;
+
+            // 商品集計
+            const curP = prodAggMap.get(item.productId) || { quantity: 0, revenue: 0, cost: 0 };
+            prodAggMap.set(item.productId, {
+                quantity: curP.quantity + itemQty,
+                revenue: curP.revenue + itemRev,
+                cost: curP.cost + itemCost,
+            });
+        });
+
+        // 売上データに totalQuantity があれば尊重
+        if (sale.totalQuantity && sale.totalQuantity > 0) {
+            saleUnits = sale.totalQuantity;
+        }
+
+        totalRevenue += saleRevenue;
+        totalCost += saleCost;
+        totalUnits += saleUnits;
+
+        // 店舗集計
+        const curStore = storeAggMap.get(sale.storeId) || { revenue: 0, cost: 0, units: 0, transactions: 0 };
+        storeAggMap.set(sale.storeId, {
+            revenue: curStore.revenue + saleRevenue,
+            cost: curStore.cost + saleCost,
+            units: curStore.units + saleUnits,
+            transactions: curStore.transactions + 1,
+        });
+
+        // チャネル集計
+        const curChan = channelAggMap.get(channelKey) || { label: channelKey, revenue: 0, cost: 0, transactions: 0 };
+        channelAggMap.set(channelKey, {
+            label: channelKey,
+            revenue: curChan.revenue + saleRevenue,
+            cost: curChan.cost + saleCost,
+            transactions: curChan.transactions + 1,
+        });
+    });
+
+    const totalGrossProfit = totalRevenue - totalCost;
+    const overallGrossMargin = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+    const averageBasket = totalTransactions > 0 ? Math.round(totalRevenue / totalTransactions) : 0;
+    const averageUnitsPerBasket = totalTransactions > 0 ? Math.round((totalUnits / totalTransactions) * 10) / 10 : 0;
+    const averageUnitPrice = totalUnits > 0 ? Math.round(totalRevenue / totalUnits) : 0;
+
+    // 店舗別収益性配列
+    const storesProfitability: ConsultantStoreProfitability[] = Array.from(storeAggMap.entries()).map(([storeId, data]) => {
+        const storeInfo = storeMap.get(storeId) || { name: "店舗", channelType: "店頭店舗" };
+        const grossProfit = data.revenue - data.cost;
+        const grossMarginRatio = data.revenue > 0 ? (grossProfit / data.revenue) * 100 : 0;
+        const avgBasket = data.transactions > 0 ? Math.round(data.revenue / data.transactions) : 0;
+        const avgUnits = data.transactions > 0 ? Math.round((data.units / data.transactions) * 10) / 10 : 0;
+        const avgUnitPx = data.units > 0 ? Math.round(data.revenue / data.units) : 0;
+
+        return {
+            storeId,
+            storeName: storeInfo.name,
+            channelType: storeInfo.channelType,
+            totalRevenue: data.revenue,
+            totalCost: data.cost,
+            grossProfit,
+            grossMarginRatio,
+            transactionCount: data.transactions,
+            totalUnits: data.units,
+            averageBasket: avgBasket,
+            averageUnitsPerBasket: avgUnits,
+            averageUnitPrice: avgUnitPx,
+        };
+    }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    // チャネル別配列
+    const channelBreakdown: ConsultantChannelBreakdown[] = Array.from(channelAggMap.entries()).map(([channelKey, data]) => {
+        const profit = data.revenue - data.cost;
+        const margin = data.revenue > 0 ? (profit / data.revenue) * 100 : 0;
+        const share = totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0;
+        return {
+            channelKey,
+            label: data.label,
+            revenue: data.revenue,
+            share,
+            cost: data.cost,
+            grossProfit: profit,
+            grossMarginRatio: margin,
+            transactionCount: data.transactions,
+        };
+    }).sort((a, b) => b.revenue - a.revenue);
+
+    // 商品別パレート（ABC）分析
+    const rawProductsProfit = Array.from(prodAggMap.entries()).map(([productId, data]) => {
+        const p = prodMap.get(productId);
+        const profit = data.revenue - data.cost;
+        const margin = data.revenue > 0 ? (profit / data.revenue) * 100 : 0;
+        const revShare = totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0;
+        return {
+            productId,
+            productName: p ? (p.variantName ? `${p.name} (${p.variantName})` : p.name) : "未特定商品",
+            quantity: data.quantity,
+            revenue: data.revenue,
+            cost: data.cost,
+            grossProfit: profit,
+            grossMarginRatio: margin,
+            revenueShare: revShare,
+            cumulativeRevenueShare: 0,
+            rankClass: 'C' as 'A' | 'B' | 'C',
+            isHighMarginAce: false,
+            isLowMarginAlert: false,
+        };
+    }).sort((a, b) => b.revenue - a.revenue);
+
+    let cumulative = 0;
+    const productsProfitability: ConsultantProductProfitability[] = rawProductsProfit.map((prod, idx) => {
+        cumulative += prod.revenueShare;
+        let rank: 'A' | 'B' | 'C' = 'C';
+        if (cumulative <= 80 || idx === 0) {
+            rank = 'A';
+        } else if (cumulative <= 95) {
+            rank = 'B';
+        } else {
+            rank = 'C';
+        }
+
+        const isHighMarginAce = (rank === 'A' || rank === 'B') && prod.grossMarginRatio >= overallGrossMargin && prod.revenue > 0;
+        const isLowMarginAlert = prod.quantity >= 5 && prod.grossMarginRatio < 25;
+
+        return {
+            ...prod,
+            cumulativeRevenueShare: Math.min(100, Math.round(cumulative * 10) / 10),
+            rankClass: rank,
+            isHighMarginAce,
+            isLowMarginAlert,
+        };
+    });
+
+    // パレート分析（80:20分析）
+    const totalProdCount = Math.max(1, productsProfitability.length);
+    const top20PercentCount = Math.max(1, Math.ceil(totalProdCount * 0.2));
+    const top20Rev = productsProfitability.slice(0, top20PercentCount).reduce((sum, p) => sum + p.revenue, 0);
+    const top20RevenueShare = totalRevenue > 0 ? Math.round((top20Rev / totalRevenue) * 100) : 0;
+
+    let dependenceLevel: 'high' | 'moderate' | 'balanced' = 'moderate';
+    if (top20RevenueShare >= 80) {
+        dependenceLevel = 'high';
+    } else if (top20RevenueShare < 60) {
+        dependenceLevel = 'balanced';
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 定例会アジェンダ・具体的提言の自動生成
+    // ─────────────────────────────────────────────────────────────
+    const consultantAgendas: ConsultantStrategyIntelligence['consultantAgendas'] = [];
+
+    // 1. 粗利率・利益構造診断
+    const lowMarginItems = productsProfitability.filter(p => p.isLowMarginAlert);
+    const highMarginAces = productsProfitability.filter(p => p.isHighMarginAce);
+    if (overallGrossMargin < 35 && totalRevenue > 0) {
+        consultantAgendas.push({
+            category: '利益率改善',
+            title: `全社粗利率の底上げ検討（現在 ${overallGrossMargin.toFixed(1)}%）`,
+            diagnostic: `全社粗利率が35%を下回っており、販促値引きや原価高騰による利益圧迫が懸念されます。${lowMarginItems.length > 0 ? `特に「${lowMarginItems[0].productName}」（粗利率 ${lowMarginItems[0].grossMarginRatio.toFixed(1)}%）の薄利傾向が目立ちます。` : ""}`,
+            actionProposal: '定例会にて、低粗利商品の販売価格見直し、仕入ロット増による原価低減、または高粗利商品とのセット販売化を決定してください。',
+            urgency: 'high',
+        });
+    } else {
+        consultantAgendas.push({
+            category: '利益率改善',
+            title: `高粗利エース商品のフェイス拡大（全社粗利率 ${overallGrossMargin.toFixed(1)}% 良好）`,
+            diagnostic: `粗利額 ¥${totalGrossProfit.toLocaleString()}（粗利率 ${overallGrossMargin.toFixed(1)}%）と健全な水準を維持しています。${highMarginAces.length > 0 ? `「${highMarginAces[0].productName}」などの高粗利エースが利益の柱となっています。` : ""}`,
+            actionProposal: '主力店舗のゴールデンゾーン（目線の高さ）への高粗利商品の陳列拡大と、POP販促の強化を指示してください。',
+            urgency: 'low',
+        });
+    }
+
+    // 2. 客単価・買上点数の分解診断
+    const lowestBasketStore = [...storesProfitability].filter(s => s.transactionCount >= 3).sort((a, b) => a.averageBasket - b.averageBasket)[0];
+    const highestBasketStore = [...storesProfitability].filter(s => s.transactionCount >= 3).sort((a, b) => b.averageBasket - a.averageBasket)[0];
+    consultantAgendas.push({
+        category: '客単価アップ',
+        title: `客単価構造の分解（全社平均: ¥${averageBasket.toLocaleString()} / 買上点数: ${averageUnitsPerBasket}点）`,
+        diagnostic: `売上＝客数×客単価。最高客単価店舗は「${highestBasketStore?.storeName || "主力店"}」（¥${highestBasketStore?.averageBasket.toLocaleString()}）に対し、最低客単価店舗は「${lowestBasketStore?.storeName || "一部店舗"}」（¥${lowestBasketStore?.averageBasket.toLocaleString() || 0}）と格差が存在します。`,
+        actionProposal: lowestBasketStore
+            ? `客単価が低い「${lowestBasketStore.storeName}」では、レジ横のついで買いPOP設置や複数個まとめ買い割引（2個購入で¥50引等）を現場と合意してください。`
+            : '全店舗でレジ横のクロスセル商材の展開と、スタッフによるおすすめ推奨トークの徹底を定例会で指示してください。',
+        urgency: lowestBasketStore && lowestBasketStore.averageBasket < averageBasket * 0.7 ? 'high' : 'medium',
+    });
+
+    // 3. パレート集中リスクと商品開発
+    if (dependenceLevel === 'high') {
+        const top1Prod = productsProfitability[0];
+        consultantAgendas.push({
+            category: '集中度・リスク',
+            title: `特定商品への売上集中リスク（上位20%でシェア ${top20RevenueShare}%）`,
+            diagnostic: `売れ筋上位20%（${top20PercentCount}品目）で売上の${top20RevenueShare}%を占める極端な集中構造です。${top1Prod ? `特に「${top1Prod.productName}」の動向が全社業績を左右する状態です。` : ""}`,
+            actionProposal: 'トップ商品の欠品防止（安全在庫＋1週間分）を徹底するとともに、定例会にてBランク上位商品のプロモーション強化による「第2の柱」育成を推進してください。',
+            urgency: 'high',
+        });
+    } else {
+        consultantAgendas.push({
+            category: '集中度・リスク',
+            title: `バランスの良い商品ポートフォリオ（上位20%シェア ${top20RevenueShare}%）`,
+            diagnostic: `売れ筋が特定1〜2商品に偏っておらず、複数商品で売上を分散獲得できています（ロングテールが機能）。`,
+            actionProposal: '各商品の販売チャネルごとの特性（どの店舗でどの商品が伸びているか）を精査し、店舗別推奨ラインナップの最適化を図ってください。',
+            urgency: 'low',
+        });
+    }
+
+    // 4. チャネル戦略
+    if (channelBreakdown.length > 1) {
+        const topChannel = channelBreakdown[0];
+        const subChannel = channelBreakdown[1];
+        consultantAgendas.push({
+            category: 'チャネル戦略',
+            title: `チャネルミックスの最適化（主軸: ${topChannel.label} ${topChannel.share.toFixed(1)}%）`,
+            diagnostic: `最大チャネル「${topChannel.label}」（粗利率 ${topChannel.grossMarginRatio.toFixed(1)}%）に次ぎ、「${subChannel.label}」（シェア ${subChannel.share.toFixed(1)}%、粗利率 ${subChannel.grossMarginRatio.toFixed(1)}%）が展開中。`,
+            actionProposal: topChannel.grossMarginRatio > subChannel.grossMarginRatio
+                ? `より粗利率の高い「${topChannel.label}」への供給優先度を高めつつ、「${subChannel.label}」の販売手数料・物流コストの改善を検討してください。`
+                : `利益率の高い「${subChannel.label}」の販売構成比をさらに拡大するため、専用商品や在庫枠の拡充を検討してください。`,
+            urgency: 'medium',
+        });
+    }
+
+    return {
+        periodDays,
+        totalRevenue,
+        totalCost,
+        totalGrossProfit,
+        overallGrossMargin,
+        totalTransactions,
+        totalUnits,
+        averageBasket,
+        averageUnitsPerBasket,
+        averageUnitPrice,
+        channelBreakdown,
+        storesProfitability,
+        productsProfitability,
+        paretoRatio: {
+            top20PercentProductCount: top20PercentCount,
+            top20RevenueShare,
+            dependenceLevel,
+        },
+        consultantAgendas,
+    };
+}
