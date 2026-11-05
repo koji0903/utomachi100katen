@@ -30,6 +30,7 @@ import { useStore, type Activity } from "@/lib/store";
 import { CalendarView } from "@/components/CalendarView";
 import { SeasonalAlarm } from "@/components/SeasonalAlarm";
 import { ReportSummaryCard } from "@/components/ReportSummaryCard";
+import { ExecutiveSalesCockpit } from "@/components/ExecutiveSalesCockpit";
 import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
 import { apiFetch, checkIsDemoMode } from "@/lib/apiClient";
 
@@ -419,6 +420,9 @@ export default function DashboardPage() {
                     </Link>
                 </div>
             </section>
+
+            {/* 定例会向け 売上状況エグゼクティブ・コックピット */}
+            <ExecutiveSalesCockpit />
 
             {/* Calendar Section (Full Width) */}
             <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">

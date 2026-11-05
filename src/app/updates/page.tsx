@@ -110,11 +110,37 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.15.0 */}
+                    {/* v1.16.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">定例会向け 売上状況エグゼクティブ・コックピットを新設</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "経営・現場の定例会向けダッシュボード新設：売上状況エグゼクティブ・コックピットをダッシュボード中央に配置し、会議でひと目で現状を把握可能に",
+                                    "店舗別×日次売上推移（直近7日間・30日間）：店舗選択（全店舗または各拠点）と期間切り替えで、日別売上金額の波を即座に可視化",
+                                    "店舗内の商品別売上個数の推移グラフ：上位5商品の売上個数をマルチ折れ線グラフで表示し、売れ筋の推移や欠品兆候を直感的に特定",
+                                    "商品別売上ランキング＆日販平均表：店舗ごとの商品別売上個数・売上金額・現在庫数・1日あたり平均販売数を一覧表示",
+                                    "店舗毎の月別売上推移（過去6ヶ月）：全社売上における店舗別シェアの推移を積み上げ棒グラフで可視化し、前月比成長率バッジを表示",
+                                    "商品別×日次販売推移と店舗別シェア：特定商品の日別販売個数・売上金額の推移エリアチャートと、どの店舗で売れているかの内訳シェアを表示",
+                                    "現在庫・推定在庫残日数のリアルタイム連動：売れ行きペースに応じた在庫残日数とアラート判定を統合し、定例会での追加発注・補充判断を直結支援",
+                                    "経営コンサルタント視点の現状示唆：直近7日売上の前週比モメンタム、最大牽引店舗、売れ筋商品の在庫リスクを自動ハイライト表示"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.15.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.15.0 - 2026.11.02</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">帳票・在庫・入金管理の業務整合性を強化</h3>
                             <ul className="space-y-2">
                                 {[

@@ -11,8 +11,8 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.15.0";
-export const RELEASE_DATE = "2026.11.02";
+export const CURRENT_VERSION = "v1.16.0";
+export const RELEASE_DATE = "2026.11.05";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
@@ -42,7 +42,7 @@ export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     },
     {
         name: "売上分析ダッシュボード",
-        description: "店舗別・曜日別の売上推移、利益率の可視化機能。",
+        description: "経営陣・現場合同定例会用の売上状況エグゼクティブ・コックピット。店舗別直近7日・30日の日別売上推移、商品別売上個数の推移、店舗別月次推移、商品別販売シェアの即時可視化機能。",
         status: "completed"
     },
     {
