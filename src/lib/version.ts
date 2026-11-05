@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.21.0";
+export const CURRENT_VERSION = "v1.22.0";
 export const RELEASE_DATE = "2026.11.05";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "自動リロード問題の完全終息・根絶改修",
+        description: "旧Workboxサービスワーカーの残存によるChunkLoadErrorリロードを完全自己破壊スクリプトで即時消滅。SWRの60秒経過後バックグラウンド一斉再フェッチ・メインスレッドフリーズによるHMRタイムアウト切断リロードを抑止し、isLoaded反転による画面アンマウント・リセットを完全解消。",
+        status: "completed"
+    },
     {
         name: "エグゼクティブ・コックピットの90日・360日期間拡張と移動平均線トレンド可視化",
         description: "売上状況コックピット（店舗別・商品別）に四半期（90日間）および通年（360日間）の期間幅選択を追加。日次売上・販売個数のブレを平滑化する「7日移動平均線」および「30日移動平均線」を同時描画し、曜日ノイズに惑わされない本質的な売上トレンドを瞬時に把握可能に。",

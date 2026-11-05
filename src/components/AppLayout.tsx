@@ -32,41 +32,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, []);
 
-    // Unregister active service workers & clear caches safely to prevent unwanted cache hijacking, chunk mismatch, and sudden page reloads
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-
-        // Prevent repeated unregister calls in the same tab session
-        const hasCleaned = sessionStorage.getItem("pwa_cleanup_done");
-        if (hasCleaned) return;
-
-        try {
-            sessionStorage.setItem("pwa_cleanup_done", "true");
-
-            if ("serviceWorker" in navigator) {
-                navigator.serviceWorker.getRegistrations().then((registrations) => {
-                    for (const registration of registrations) {
-                        registration.unregister().then((success) => {
-                            if (success && process.env.NODE_ENV !== "production") {
-                                console.log("[PWA] Unregistered active service worker to prevent reload issues.");
-                            }
-                        });
-                    }
-                }).catch(() => {});
-            }
-
-            if ("caches" in window) {
-                caches.keys().then((names) => {
-                    for (const name of names) {
-                        caches.delete(name);
-                    }
-                }).catch(() => {});
-            }
-        } catch {
-            // Storage access restrictions fallback
-        }
-    }, []);
-
     useEffect(() => {
         if (!loading && !user && pathname !== "/login") {
             router.push("/login");

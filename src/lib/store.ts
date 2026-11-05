@@ -867,11 +867,13 @@ const fetcher = async <T>(collectionName: string, isDemoMode: boolean): Promise<
 const swrConfig = {
     revalidateOnFocus: false, // Prevents unnecessary reads on window focus
     revalidateOnReconnect: false,
-    dedupingInterval: 60000, // 1 minute deduplication
+    revalidateIfStale: false, // Prevent background re-fetch storms on stale cache
+    shouldRetryOnError: false, // Stop repeated retries that freeze main thread
+    dedupingInterval: 300000, // 5 minute deduplication
 };
 
 export function useStore() {
-    const { isAuthLoading, user, isDemoMode } = useAuth() as any; // Temporary fix for type mismatch if any
+    const { loading: isAuthLoading, user, isDemoMode } = useAuth();
 
     const checkDemoMode = () => {
         if (isDemoMode) {

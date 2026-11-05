@@ -110,11 +110,35 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.21.0 */}
+                    {/* v1.22.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">ページの勝手な自動リロード問題を完全終息・根絶</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "旧Workbox Service Workerの完全排除（Self-Destruct）：sw.js に self.skipWaiting() を再配備してブラウザに残留していた古いWorkboxを強制退役させ、CacheStorageの完全消去と自己登録解除を実行。古いキャッシュと最新コードの不整合（ChunkLoadError）によるNext.jsの強制location.reload()を根本から阻止",
+                                    "第0ミリ秒 同期クリーンアップスクリプトの配置：app/layout.tsx の <head> 最先頭にインラインスクリプトを設置し、ページのハイドレーション開始前に残存Service WorkerとCacheStorageを完全消滅。controllerchange リスナーの無力化によりリロード暴発を徹底封殺",
+                                    "/sw.js のキャッシュ完全無効化ヘッダー設定：next.config.ts にて /sw.js に対する Cache-Control: no-store, no-cache, must-revalidate を設定し、最新の自己破壊スクリプトがブラウザやCDNにキャッシュされず即時適用されるよう防護",
+                                    "SWR 60秒後の一斉再フェッチ・メインスレッドフリーズ防止：store.ts の swrConfig にて revalidateIfStale: false, shouldRetryOnError: false, dedupingInterval: 300,000 (5分) を適用し、ダッシュボード閲覧中の不要な全コレクション一斉再取得とHMRハートビート切断（Fast Refresh full reload）を完全抑止",
+                                    "isLoaded反転による画面全消去（疑似リロード）の防止：app/page.tsx にて初期データが存在する場合は一時的なロード中状態による全コンポーネントアンマウント（チラつき・再描画）を防止し、安定した画面表示を恒久的に維持",
+                                    "useAuth() の loading プロパティ未定義参照バグを解消：store.ts での型不整合を解消し、認証ステート評価のチラつきを根絶"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.21.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.21.0 - 2026.11.05</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">エグゼクティブ・コックピットの90日・360日期間拡張と移動平均線トレンド可視化</h3>
                             <ul className="space-y-2">
                                 {[

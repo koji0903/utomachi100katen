@@ -1,20 +1,18 @@
-// Safe service worker uninstaller
-// Does NOT call skipWaiting() or clients.claim() to prevent unexpected browser page reloads.
+// Safe self-destruct service worker
+// Immediately claims waiting state to retire legacy Workbox service workers,
+// unregisters itself, and wipes all CacheStorage without hijacking fetch events.
 
 self.addEventListener('install', () => {
-  // Do not call self.skipWaiting()
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
-      self.registration.unregister(),
       typeof caches !== 'undefined'
         ? caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
         : Promise.resolve(),
+      self.registration.unregister(),
     ])
   );
 });
-
-// Pass-through all network requests directly
-self.addEventListener('fetch', () => {});

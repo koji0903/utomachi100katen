@@ -268,7 +268,9 @@ export default function DashboardPage() {
             .slice(0, 5);
     }, [products, unifiedSales, storeStocks, retailStores]);
 
-    if (!isLoaded) return <div className="p-8">読み込み中...</div>;
+    // 初回ロード時かつキャッシュが全くない時のみ全画面ローディング（画面の不要なアンマウント・リセットを防止）
+    const hasInitialData = products.length > 0 || sales.length > 0;
+    if (!isLoaded && !hasInitialData) return <div className="p-8 text-slate-500 font-bold">読み込み中...</div>;
 
     const quickActions = [
         {
