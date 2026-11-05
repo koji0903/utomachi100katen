@@ -8,6 +8,7 @@ import {
     aggregateMonthlyStoreSales,
     aggregateProductDailySales,
     aggregateBrandCockpitData,
+    calculateSkuProductivityAnalysis,
     calculatePurchasingIntelligence,
     calculateConsultantStrategy,
 } from "@/lib/salesCockpitUtils";
@@ -548,5 +549,124 @@ describe("salesCockpitUtils", () => {
         expect(brandDataSelected.selectedBrandProducts.length).toBe(2);
         expect(brandDataSelected.selectedBrandStores.length).toBeGreaterThan(0);
         expect(brandDataSelected.selectedBrandStores[0]).toHaveProperty("storeName");
+    });
+
+    it("SKU展開および生産性分析 (calculateSkuProductivityAnalysis) が正しく月次推移・パレート・弾力性を算出できること", () => {
+        const mockBrands: Brand[] = [
+            { id: "brand-1", name: "宇土マチプレミアム", isTrashed: false },
+        ];
+
+        const productsWithDates: Product[] = [
+            {
+                id: "prod-1",
+                name: "定番ドレッシング",
+                brandId: "brand-1",
+                costPrice: 400,
+                sellingPrice: 800,
+                stock: 20,
+                createdAt: "2026-06-01",
+                isTrashed: false,
+            } as Product,
+            {
+                id: "prod-2",
+                name: "人気トマトジュース",
+                brandId: "brand-1",
+                costPrice: 600,
+                sellingPrice: 1200,
+                stock: 10,
+                createdAt: "2026-08-01",
+                isTrashed: false,
+            } as Product,
+            {
+                id: "prod-3",
+                name: "新作ネーブルゼリー",
+                brandId: "brand-1",
+                costPrice: 250,
+                sellingPrice: 500,
+                stock: 30,
+                createdAt: "2026-10-15",
+                isTrashed: false,
+            } as Product,
+            {
+                id: "prod-4",
+                name: "休眠ジャム",
+                brandId: "brand-1",
+                costPrice: 300,
+                sellingPrice: 600,
+                stock: 15,
+                createdAt: "2026-06-01",
+                isTrashed: false,
+            } as Product,
+        ];
+
+        const multiMonthSales: Sale[] = [
+            // 2026-06: prod-1 のみ販売 (1 SKU 稼働)
+            {
+                id: "sale-jun",
+                storeId: "store-1",
+                type: "daily",
+                period: "2026-06-15",
+                totalQuantity: 10,
+                totalAmount: 8000,
+                totalCommission: 0,
+                totalNetProfit: 4000,
+                items: [{ productId: "prod-1", quantity: 10, priceAtSale: 800, subtotal: 8000, commission: 0, netProfit: 4000 }],
+            } as Sale,
+            // 2026-11 (直近): prod-1, prod-2, prod-3 販売 (3 SKU 稼働)
+            {
+                id: "sale-nov",
+                storeId: "store-1",
+                type: "daily",
+                period: "2026-11-05",
+                totalQuantity: 20,
+                totalAmount: 20000,
+                totalCommission: 0,
+                totalNetProfit: 10000,
+                items: [
+                    { productId: "prod-1", quantity: 10, priceAtSale: 800, subtotal: 8000, commission: 0, netProfit: 4000 },
+                    { productId: "prod-2", quantity: 5, priceAtSale: 1200, subtotal: 6000, commission: 0, netProfit: 3000 },
+                    { productId: "prod-3", quantity: 12, priceAtSale: 500, subtotal: 6000, commission: 0, netProfit: 3000 },
+                ],
+            } as Sale,
+        ];
+
+        const analysis = calculateSkuProductivityAnalysis(
+            productsWithDates,
+            multiMonthSales,
+            mockBrands,
+            6,
+            baseDate
+        );
+
+        // 基本SKUメトリクス
+        expect(analysis.currentTotalSkus).toBe(4);
+        expect(analysis.currentActiveSkus).toBe(3); // prod-1, prod-2, prod-3
+        expect(analysis.currentInactiveSkus).toBe(1); // prod-4 は売上ゼロ
+        expect(analysis.activeSkuRate).toBe(75); // 3 / 4 * 100 = 75%
+        expect(analysis.revenuePerActiveSku).toBeGreaterThan(0);
+        expect(analysis.profitPerActiveSku).toBeGreaterThan(0);
+
+        // 休眠品資産（prod-4: 15個 * 300円 = 4,500円）
+        expect(analysis.dormantCapitalTiedUp).toBe(4500);
+
+        // 月次履歴
+        expect(analysis.monthlyHistory.length).toBe(6);
+        const novMonth = analysis.monthlyHistory.find(m => m.month === "2026-11");
+        expect(novMonth).toBeDefined();
+        expect(novMonth?.activeSkus).toBe(3);
+        expect(novMonth?.totalRevenue).toBe(20000);
+
+        // パレート分析
+        expect(analysis.paretoBreakdown.length).toBe(4); // A, B, C, inactive
+        const inactiveGroup = analysis.paretoBreakdown.find(g => g.rank === "inactive");
+        expect(inactiveGroup?.skuCount).toBe(1);
+        expect(inactiveGroup?.totalStockValue).toBe(4500);
+
+        // 新規SKU追跡
+        expect(analysis.recentNewSkus.length).toBeGreaterThan(0);
+
+        // コンサルタント診断
+        expect(analysis.consultantDiagnosis.headline).toBeDefined();
+        expect(analysis.consultantDiagnosis.actionPoints.length).toBeGreaterThanOrEqual(3);
     });
 });

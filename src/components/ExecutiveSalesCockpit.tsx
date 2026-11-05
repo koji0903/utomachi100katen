@@ -12,7 +12,7 @@ import {
     ArrowUpRight, ArrowDownRight, Layers, ShoppingBag,
     Truck, AlertTriangle, CheckCircle2, Clock, ArrowRight,
     Compass, Target, PieChart, Users, DollarSign, Percent,
-    ShieldAlert, Activity, Tag
+    ShieldAlert, Activity, Tag, Boxes, Sliders, GitBranch
 } from "lucide-react";
 import Link from "next/link";
 import { useStore, type Product, type RetailStore, type SpotRecipient, type Sale, type Brand } from "@/lib/store";
@@ -23,6 +23,7 @@ import {
     aggregateMonthlyStoreSales,
     aggregateProductDailySales,
     aggregateBrandCockpitData,
+    calculateSkuProductivityAnalysis,
     calculatePurchasingIntelligence,
     calculateConsultantStrategy,
     type CockpitPeriodDays,
@@ -43,8 +44,8 @@ const PALETTE = [
 export function ExecutiveSalesCockpit() {
     const { unifiedSales, products, brands = [], retailStores, spotRecipients, purchases, suppliers, storeStocks, fixedCosts = [] } = useStore();
 
-    // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別) | 'brand' (ブランド別) | 'purchasing' (発注・仕入判断) | 'consultant' (コンサルタント戦略分析)
-    const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product' | 'brand' | 'purchasing' | 'consultant'>('store');
+    // タブ: 'store' (店舗別) | 'monthly' (月次推移) | 'product' (商品別) | 'brand' (ブランド別) | 'sku' (SKU展開・生産性分析) | 'purchasing' (発注・仕入判断) | 'consultant' (コンサルタント戦略分析)
+    const [activeTab, setActiveTab] = useState<'store' | 'monthly' | 'product' | 'brand' | 'sku' | 'purchasing' | 'consultant'>('store');
     
     // 店舗別ビュー用フィルタ (7日 / 30日 / 90日 / 360日)
     const [selectedStoreId, setSelectedStoreId] = useState<string>("ALL");
@@ -57,6 +58,9 @@ export function ExecutiveSalesCockpit() {
     // ブランド別ビュー用フィルタ (7日 / 30日 / 90日 / 360日)
     const [selectedBrandId, setSelectedBrandId] = useState<string>("ALL");
     const [brandPeriodDays, setBrandPeriodDays] = useState<CockpitPeriodDays>(30);
+
+    // SKU展開・生産性分析ビュー用フィルタ (過去6ヶ月 / 過去12ヶ月)
+    const [skuMonthsCount, setSkuMonthsCount] = useState<6 | 12>(6);
 
     // コンサルタント分析ビュー用フィルタ (7日 / 30日 / 90日)
     const [consultantPeriodDays, setConsultantPeriodDays] = useState<7 | 30 | 90>(30);
@@ -132,6 +136,20 @@ export function ExecutiveSalesCockpit() {
             storeStocks
         );
     }, [unifiedSales, products, brands, retailStores, spotRecipients, selectedBrandId, brandPeriodDays, storeStocks]);
+
+    // ─────────────────────────────────────────────────────────────
+    // 5. SKU展開・生産性分析（商品種類数の推移と売上・利益への影響）
+    // ─────────────────────────────────────────────────────────────
+    const skuAnalysis = useMemo(() => {
+        return calculateSkuProductivityAnalysis(
+            products,
+            unifiedSales,
+            brands,
+            skuMonthsCount,
+            new Date(),
+            storeStocks
+        );
+    }, [products, unifiedSales, brands, skuMonthsCount, storeStocks]);
 
     // ─────────────────────────────────────────────────────────────
     // 4. 商品別ビュー（特定商品の直近7日・30日 販売個数・店舗別推移）
@@ -238,7 +256,12 @@ export function ExecutiveSalesCockpit() {
             bullets.push(`【ブランド動向】「${executiveKpis.topBrand.name}」が直近30日で売上 ¥${executiveKpis.topBrand.amount.toLocaleString()}（ブランド別首位）を牽引しています。「ブランド別動向」タブで各ブランドの構成比・粗利・配架状況を分析できます。`);
         }
 
-        // 5. 発注・仕入れの緊急判断材料
+        // 5. SKU展開効率・生産性
+        if (skuAnalysis.currentTotalSkus > 0) {
+            bullets.push(`【SKU展開効率】全${skuAnalysis.currentTotalSkus}商品中、直近稼働率は ${skuAnalysis.activeSkuRate.toFixed(1)}%（1稼働SKUあたり月商 約¥${skuAnalysis.revenuePerActiveSku.toLocaleString()}）。${skuAnalysis.currentInactiveSkus > 0 ? `直近30日売上ゼロの休眠${skuAnalysis.currentInactiveSkus}品に約¥${skuAnalysis.dormantCapitalTiedUp.toLocaleString()}の在庫資金が滞留しています。` : "全品目が販売稼働しており高効率なラインナップです。"}`);
+        }
+
+        // 6. 発注・仕入れの緊急判断材料
         if (purchasingIntelligence.urgentCount > 0) {
             bullets.push(`【発注判断】現在 ${purchasingIntelligence.urgentCount} 品目が至急発注推奨（欠品または7日以内欠品）です。想定仕入予算は約 ¥${purchasingIntelligence.totalRecommendedCost.toLocaleString()} で、早期の仕入確定が必要です。`);
         } else if (purchasingIntelligence.attentionCount > 0) {
@@ -324,6 +347,21 @@ export function ExecutiveSalesCockpit() {
                     >
                         <Tag className="w-4 h-4 text-violet-600" />
                         ブランド別動向
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('sku')}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
+                            activeTab === 'sku'
+                                ? 'bg-white text-blue-900 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                        <Boxes className="w-4 h-4 text-emerald-600" />
+                        <span>SKU展開・生産性</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-black">
+                            経営指標
+                        </span>
                     </button>
                     <button
                         type="button"
@@ -1524,6 +1562,459 @@ export function ExecutiveSalesCockpit() {
                                     全社平均粗利率 {brandCockpitData.overallGrossMargin.toFixed(1)}% に対して、高粗利ブランドの配架比率を高めることで企業全体の営業利益率が向上します。粗利率の低いブランドについては仕入ロット交渉または直販比率向上を図ってください。
                                 </p>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─────────────────────────────────────────────────────────────
+                TAB: SKU（商品種類数）推移および展開効率・生産性分析ビュー
+            ───────────────────────────────────────────────────────────── */}
+            {activeTab === 'sku' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    {/* Controls Bar */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                <Boxes className="w-3.5 h-3.5 text-emerald-600" />
+                                SKU展開分析:
+                            </span>
+                            <span className="text-xs font-bold text-slate-500">
+                                全 <span className="text-slate-900 font-black">{skuAnalysis.currentTotalSkus}</span> 商品種類（直近稼働: {skuAnalysis.currentActiveSkus} SKU / 休眠: {skuAnalysis.currentInactiveSkus} SKU）
+                            </span>
+                            <Link
+                                href="/products"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-800 hover:underline"
+                            >
+                                商品一覧・登録を開く
+                                <ArrowRight className="w-3 h-3" />
+                            </Link>
+                        </div>
+
+                        {/* Period Switch */}
+                        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                            <span className="text-xs font-bold text-slate-400">分析期間:</span>
+                            <div className="inline-flex p-1 bg-white border border-slate-200 rounded-xl flex-wrap gap-0.5">
+                                {[
+                                    { months: 6, label: "過去6ヶ月推移" },
+                                    { months: 12, label: "過去12ヶ月推移" },
+                                ].map(p => (
+                                    <button
+                                        key={p.months}
+                                        type="button"
+                                        onClick={() => setSkuMonthsCount(p.months as 6 | 12)}
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                                            skuMonthsCount === p.months
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        {p.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 4大 SKU生産性 KPI Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                                <span>稼働SKU率</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                    skuAnalysis.activeSkuRate >= 75
+                                        ? "bg-emerald-50 text-emerald-700"
+                                        : skuAnalysis.activeSkuRate >= 50
+                                        ? "bg-amber-50 text-amber-700"
+                                        : "bg-rose-50 text-rose-700"
+                                }`}>
+                                    {skuAnalysis.activeSkuRate >= 75 ? "健全稼働" : skuAnalysis.activeSkuRate >= 50 ? "選別注意" : "要改善"}
+                                </span>
+                            </div>
+                            <div className="text-xl font-black text-slate-900">
+                                {skuAnalysis.activeSkuRate.toFixed(1)}%
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5">
+                                実稼働 {skuAnalysis.currentActiveSkus} / 全 {skuAnalysis.currentTotalSkus} SKU (休眠 {skuAnalysis.currentInactiveSkus}品)
+                            </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                1稼働SKUあたり売上
+                            </div>
+                            <div className="text-xl font-black text-blue-600">
+                                ¥{skuAnalysis.revenuePerActiveSku.toLocaleString()}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5">
+                                直近30日の1商品種類あたり売上創出力
+                            </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                1稼働SKUあたり粗利
+                            </div>
+                            <div className="text-xl font-black text-emerald-600">
+                                ¥{skuAnalysis.profitPerActiveSku.toLocaleString()}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5">
+                                仕入原価・卸値反映済みの手残り限界利益
+                            </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                                <span>SKU拡大弾力性</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                    skuAnalysis.elasticityStatus === 'efficient'
+                                        ? "bg-emerald-50 text-emerald-700"
+                                        : skuAnalysis.elasticityStatus === 'moderate'
+                                        ? "bg-blue-50 text-blue-700"
+                                        : skuAnalysis.elasticityStatus === 'diluted'
+                                        ? "bg-rose-50 text-rose-700"
+                                        : "bg-slate-100 text-slate-600"
+                                }`}>
+                                    {skuAnalysis.elasticityStatus === 'efficient' ? "高効率拡大" :
+                                     skuAnalysis.elasticityStatus === 'moderate' ? "安定拡大" :
+                                     skuAnalysis.elasticityStatus === 'diluted' ? "希薄化警報" : "蓄積中"}
+                                </span>
+                            </div>
+                            <div className="text-xl font-black text-slate-900">
+                                {skuAnalysis.skuElasticity !== null ? skuAnalysis.skuElasticity.toFixed(2) : "---"}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5 truncate" title={skuAnalysis.elasticityComment}>
+                                売上成長率 ÷ SKU増加率（1.0超で高効率）
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Elasticity Highlight Banner if Diluted or Efficient */}
+                    {skuAnalysis.elasticityComment && (
+                        <div className={`p-4 rounded-2xl border text-xs leading-relaxed font-medium flex items-start gap-3 ${
+                            skuAnalysis.elasticityStatus === 'diluted'
+                                ? "bg-rose-50/70 border-rose-200 text-rose-800"
+                                : skuAnalysis.elasticityStatus === 'efficient'
+                                ? "bg-emerald-50/70 border-emerald-200 text-emerald-800"
+                                : "bg-blue-50/60 border-blue-100 text-slate-700"
+                        }`}>
+                            <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-blue-600" />
+                            <div>
+                                <span className="font-black mr-2">【SKU展開評価】</span>
+                                <span>{skuAnalysis.elasticityComment}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Chart: Monthly SKU Count vs Revenue vs Productivity */}
+                    <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <BarChart3 className="w-4 h-4 text-emerald-600" />
+                                    商品種類数（SKU）の推移 ＆ 売上・1SKUあたり生産性（過去{skuMonthsCount}ヶ月）
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                    種類数（棒グラフ）の増加展開に対し、売上総額（青線）と1SKUあたり売上（橙線・右軸）がどう推移しているかを検証します。
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="h-80 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart data={skuAnalysis.monthlyHistory} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="label" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                                    <YAxis
+                                        yAxisId="left"
+                                        stroke="#94a3b8"
+                                        fontSize={11}
+                                        tickLine={false}
+                                        tickFormatter={v => v >= 10000 ? `¥${Math.round(v / 10000)}万` : `¥${v}`}
+                                    />
+                                    <YAxis
+                                        yAxisId="right"
+                                        orientation="right"
+                                        stroke="#94a3b8"
+                                        fontSize={11}
+                                        tickLine={false}
+                                        tickFormatter={v => `¥${Math.round(v / 1000)}k`}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: "#1e293b", borderColor: "#334155", borderRadius: "0.75rem", color: "#fff", fontSize: "11px" }}
+                                        formatter={(val: any, name: any) => {
+                                            if (name === "総SKU数" || name === "販売稼働SKU数" || name === "新投入SKU数") {
+                                                return [`${val} SKU`, name];
+                                            }
+                                            return [`¥${Number(val).toLocaleString()}`, name];
+                                        }}
+                                    />
+                                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                                    <Bar yAxisId="left" dataKey="totalRevenue" fill="#93c5fd" radius={[4, 4, 0, 0]} name="売上総額" opacity={0.65} />
+                                    <Line yAxisId="left" type="monotone" dataKey="totalGrossProfit" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} name="粗利総額" />
+                                    <Line yAxisId="right" type="monotone" dataKey="revenuePerActiveSku" stroke="#f97316" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 4 }} name="1稼働SKUあたり売上 (右軸)" />
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        {/* Sub Monthly Table for detail */}
+                        <div className="overflow-x-auto pt-2">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr className="border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                        <th className="py-2 px-2.5">月次</th>
+                                        <th className="py-2 px-2.5 text-center">総SKU数</th>
+                                        <th className="py-2 px-2.5 text-center">稼働SKU数</th>
+                                        <th className="py-2 px-2.5 text-center">稼働率</th>
+                                        <th className="py-2 px-2.5 text-center">新投入SKU</th>
+                                        <th className="py-2 px-2.5 text-right">売上総額</th>
+                                        <th className="py-2 px-2.5 text-right">粗利総額 (率)</th>
+                                        <th className="py-2 px-2.5 text-right">1稼働SKU売上</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                                    {skuAnalysis.monthlyHistory.map(m => (
+                                        <tr key={m.month} className="hover:bg-slate-50 transition-colors">
+                                            <td className="py-2 px-2.5 font-bold text-slate-900">{m.label}</td>
+                                            <td className="py-2 px-2.5 text-center font-bold text-slate-600">{m.totalSkus}</td>
+                                            <td className="py-2 px-2.5 text-center font-bold text-emerald-600">{m.activeSkus}</td>
+                                            <td className="py-2 px-2.5 text-center">
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                                    m.activeSkuRate >= 75 ? "bg-emerald-50 text-emerald-700" :
+                                                    m.activeSkuRate >= 50 ? "bg-amber-50 text-amber-700" :
+                                                    "bg-rose-50 text-rose-700"
+                                                }`}>
+                                                    {m.activeSkuRate.toFixed(1)}%
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-2.5 text-center font-bold text-blue-600">
+                                                {m.newSkusIntroduced > 0 ? `+${m.newSkusIntroduced}` : "0"}
+                                            </td>
+                                            <td className="py-2 px-2.5 text-right font-black text-slate-900">
+                                                ¥{m.totalRevenue.toLocaleString()}
+                                            </td>
+                                            <td className="py-2 px-2.5 text-right">
+                                                <span className="font-bold text-emerald-600">¥{m.totalGrossProfit.toLocaleString()}</span>
+                                                <span className="text-[10px] text-slate-400 ml-1 font-bold">({m.overallGrossMargin.toFixed(1)}%)</span>
+                                            </td>
+                                            <td className="py-2 px-2.5 text-right font-bold text-orange-600">
+                                                ¥{m.revenuePerActiveSku.toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Pareto Matrix (A/B/C/Inactive) */}
+                    <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <Layers className="w-4 h-4 text-emerald-600" />
+                                    SKUパレート・貢献度ポートフォリオ（直近30日間）
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                    増えた商品種類が利益を生んでいるか、それとも売上0のまま資金を固定化させているかを4象限で分析します。
+                                </p>
+                            </div>
+                            {skuAnalysis.dormantCapitalTiedUp > 0 && (
+                                <div className="text-right">
+                                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg">
+                                        休眠品滞留資金: 約¥{skuAnalysis.dormantCapitalTiedUp.toLocaleString()}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {skuAnalysis.paretoBreakdown.map(group => {
+                                const isInactive = group.rank === 'inactive';
+                                const isA = group.rank === 'A';
+                                return (
+                                    <div
+                                        key={group.rank}
+                                        className={`p-4 rounded-xl border flex flex-col justify-between ${
+                                            isA
+                                                ? "bg-emerald-50/40 border-emerald-200"
+                                                : isInactive
+                                                ? "bg-rose-50/40 border-rose-200"
+                                                : "bg-slate-50/70 border-slate-200"
+                                        }`}
+                                    >
+                                        <div>
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className={`text-xs font-black px-2 py-0.5 rounded ${
+                                                    isA ? "bg-emerald-600 text-white" :
+                                                    group.rank === 'B' ? "bg-blue-600 text-white" :
+                                                    group.rank === 'C' ? "bg-amber-600 text-white" :
+                                                    "bg-rose-600 text-white"
+                                                }`}>
+                                                    {group.label}
+                                                </span>
+                                                <span className="text-xs font-black text-slate-900">
+                                                    {group.skuCount} <span className="text-[10px] font-bold text-slate-400">SKU ({group.skuShare.toFixed(1)}%)</span>
+                                                </span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 font-medium mb-3">
+                                                {group.description}
+                                            </p>
+
+                                            <div className="space-y-1.5 text-xs">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-slate-400">期間売上高</span>
+                                                    <span className="font-black text-slate-900">
+                                                        ¥{group.revenue.toLocaleString()}
+                                                        <span className="text-[10px] text-slate-400 font-bold ml-1">({group.revenueShare.toFixed(1)}%)</span>
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-slate-400">粗利 (粗利率)</span>
+                                                    <span className="font-bold text-emerald-600">
+                                                        ¥{group.grossProfit.toLocaleString()}
+                                                        <span className="text-[10px] text-slate-400 font-normal ml-1">({group.grossMargin.toFixed(1)}%)</span>
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-slate-400">在庫資産額 (投下資金)</span>
+                                                    <span className={`font-bold ${isInactive ? "text-rose-600" : "text-slate-700"}`}>
+                                                        ¥{group.totalStockValue.toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-3 pt-2.5 border-t border-slate-200/60 text-[10px] text-slate-500">
+                                            {isA && "★ 最優先で欠品防止＆店頭配架維持を推奨"}
+                                            {group.rank === 'B' && "↑ Aランク昇格に向けた販促・セット組を推奨"}
+                                            {group.rank === 'C' && "・補完品として低在庫運用を推奨"}
+                                            {isInactive && "⚠ 追加仕入凍結＆早期換金（セール等）を推奨"}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Recent New SKUs Launch Tracker */}
+                    <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                                    直近新商品（新投入SKU）の立ち上がり追跡（新展開の検証）
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                    直近投入された商品の販売ペース、粗利、在庫消化状況から新展開の成功度を追跡します。
+                                </p>
+                            </div>
+                        </div>
+
+                        {skuAnalysis.recentNewSkus.length === 0 ? (
+                            <div className="py-8 text-center text-xs text-slate-400 font-medium">
+                                直近投入の新商品データはありません。
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr className="border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                            <th className="py-2 px-2.5">商品名 / ブランド</th>
+                                            <th className="py-2 px-2.5 text-center">初動日 (経過日数)</th>
+                                            <th className="py-2 px-2.5 text-center">立ち上がり判定</th>
+                                            <th className="py-2 px-2.5 text-right">30日販売数</th>
+                                            <th className="py-2 px-2.5 text-right">30日売上高</th>
+                                            <th className="py-2 px-2.5 text-right">粗利率</th>
+                                            <th className="py-2 px-2.5 text-right">現在庫数</th>
+                                            <th className="py-2 px-2.5 text-center">在庫残日数</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                                        {skuAnalysis.recentNewSkus.map(p => (
+                                            <tr key={p.productId} className="hover:bg-slate-50 transition-colors">
+                                                <td className="py-2.5 px-2.5">
+                                                    <div className="font-black text-slate-900 truncate max-w-[180px] sm:max-w-xs" title={p.productName}>
+                                                        {p.productName}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400">{p.brandName}</div>
+                                                </td>
+                                                <td className="py-2.5 px-2.5 text-center font-bold text-slate-600">
+                                                    {p.firstSaleDate}
+                                                    <span className="text-[10px] text-slate-400 block font-normal">({p.daysSinceLaunch}日経過)</span>
+                                                </td>
+                                                <td className="py-2.5 px-2.5 text-center">
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                                        p.status === 'rocket'
+                                                            ? "bg-emerald-100 text-emerald-800"
+                                                            : p.status === 'steady'
+                                                            ? "bg-blue-100 text-blue-800"
+                                                            : "bg-rose-100 text-rose-800"
+                                                    }`}>
+                                                        {p.status === 'rocket' ? "★ 好発進" :
+                                                         p.status === 'steady' ? "順調推移" :
+                                                         "滞留注意"}
+                                                    </span>
+                                                </td>
+                                                <td className="py-2.5 px-2.5 text-right font-bold text-slate-900">
+                                                    {p.totalQuantity.toLocaleString()} 個
+                                                </td>
+                                                <td className="py-2.5 px-2.5 text-right font-black text-slate-900">
+                                                    ¥{p.totalRevenue.toLocaleString()}
+                                                </td>
+                                                <td className="py-2.5 px-2.5 text-right font-bold text-emerald-600">
+                                                    {p.grossMargin.toFixed(1)}%
+                                                </td>
+                                                <td className="py-2.5 px-2.5 text-right font-bold text-slate-700">
+                                                    {p.currentStock.toLocaleString()} 個
+                                                </td>
+                                                <td className="py-2.5 px-2.5 text-center">
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                                        p.daysLeft <= 7 ? "bg-rose-100 text-rose-700" :
+                                                        p.daysLeft <= 14 ? "bg-amber-100 text-amber-700" :
+                                                        "bg-slate-100 text-slate-600"
+                                                    }`}>
+                                                        {p.daysLeft === Infinity ? "余裕あり" : `${p.daysLeft}日`}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Consultant SKU Strategy Box */}
+                    <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-white border border-emerald-200 space-y-4">
+                        <div className="flex items-center gap-2">
+                            <Compass className="w-5 h-5 text-emerald-700" />
+                            <div>
+                                <h4 className="text-xs font-black text-emerald-900 uppercase tracking-wide">
+                                    小売業経営コンサルタント視点：SKU展開戦略と定例会アクション
+                                </h4>
+                                <div className="text-sm font-black text-slate-900 mt-0.5">
+                                    {skuAnalysis.consultantDiagnosis.headline}
+                                </div>
+                            </div>
+                        </div>
+
+                        <p className="text-xs text-slate-700 leading-relaxed font-medium bg-white/80 p-3.5 rounded-xl border border-emerald-100">
+                            {skuAnalysis.consultantDiagnosis.summary}
+                        </p>
+
+                        <div className="space-y-2">
+                            <div className="text-[11px] font-black uppercase text-emerald-900 tracking-wider">
+                                定例会で決定すべき具体策（処方箋）：
+                            </div>
+                            <ul className="space-y-1.5">
+                                {skuAnalysis.consultantDiagnosis.actionPoints.map((pt, pIdx) => (
+                                    <li key={pIdx} className="flex items-start gap-2 text-xs text-slate-700 font-medium">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                                        <span>{pt}</span>
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
                     </div>
                 </div>

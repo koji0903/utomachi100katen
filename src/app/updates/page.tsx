@@ -110,11 +110,35 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.25.0 */}
+                    {/* v1.26.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">商品種類数（SKU）推移 ＆ 展開生産性・カニバリゼーション分析を新設</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "定例会向けコックピットに「SKU展開・生産性」タブを新設：商品種類の増加が売上や利益を押し上げているか、それともカニバリゼーション（共食い）や死に筋化を起こしているかを経営視点で検証できる専用ダッシュボードを追加",
+                                    "月次SKU数推移と1SKUあたり売上・粗利の複合可視化：過去6ヶ月・12ヶ月にわたる総SKU数（種類数）と販売稼働SKU数の推移を棒グラフ、売上総額と1稼働SKUあたり売上を折れ線グラフで同時描画し、種類の拡充による希薄化を即座に検知",
+                                    "SKU拡大弾力性（Elasticity）指標の導入：SKU増加率に対して売上が何倍のペースで成長しているかを自動算出。高効率拡大（弾力性1.0超）・安定拡大・希薄化警報の3段階でSKU投資効率を判定",
+                                    "直近30日のSKUパレート・4象限ポートフォリオ分析：Aランク（売上上位80%を稼ぐ中核主力品）、Bランク（次15%の育成品）、Cランク（下位5%の補完品）、休眠品（売上0の非稼働品）に分類し、休眠品に寝ている在庫資産額（投下資金）をアラート表示",
+                                    "新商品（新投入SKU）の立ち上がり追跡：直近投入された商品の販売ペース、粗利率、現在庫、および在庫残日数から「好発進」「順調」「滞留注意」を自動判定",
+                                    "小売業経営コンサルタントによるSKU拡大戦略の処方箋：現在のSKU展開フェーズ（健全拡大・選別最適化・ラインナップ整理）と、定例会で決定すべき具体的なアクション（スクラップ＆ビルドルール、休眠品資金回収など）を提示"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.25.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.25.0 - 2026.11.06</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">売上状況エグゼクティブ・コックピットに「ブランド別動向分析」を新設</h3>
                             <ul className="space-y-2">
                                 {[

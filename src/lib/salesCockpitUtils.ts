@@ -1797,3 +1797,450 @@ export function calculateConsultantStrategy(
         consultantAgendas,
     };
 }
+
+// ─────────────────────────────────────────────────────────────
+// 8. SKU（商品種類数）推移およびSKU展開効率・生産性分析
+// ─────────────────────────────────────────────────────────────
+
+export interface MonthlySkuMetrics {
+    month: string; // YYYY-MM
+    label: string; // e.g. "2026年6月"
+    totalSkus: number; // その月時点での有効累積SKU数
+    activeSkus: number; // その月に1点以上売上があったSKU数
+    inactiveSkus: number; // その月売上0だったSKU数
+    activeSkuRate: number; // % (activeSkus / totalSkus * 100)
+    newSkusIntroduced: number; // その月に新しく登場・初売上したSKU数
+    totalRevenue: number;
+    totalCost: number;
+    totalGrossProfit: number;
+    overallGrossMargin: number; // %
+    revenuePerActiveSku: number; // 売上 ÷ 稼働SKU
+    profitPerActiveSku: number; // 粗利 ÷ 稼働SKU
+    revenuePerTotalSku: number; // 売上 ÷ 総SKU
+}
+
+export interface SkuParetoGroup {
+    rank: 'A' | 'B' | 'C' | 'inactive';
+    label: string;
+    description: string;
+    skuCount: number;
+    skuShare: number; // %
+    revenue: number;
+    revenueShare: number; // %
+    grossProfit: number;
+    grossMargin: number; // %
+    totalStockValue: number; // 在庫資産額 (原価ベース)
+}
+
+export interface RecentNewSkuItem {
+    productId: string;
+    productName: string;
+    variantName?: string;
+    brandName?: string;
+    firstSaleDate: string; // YYYY-MM-DD
+    daysSinceLaunch: number;
+    totalRevenue: number;
+    totalQuantity: number;
+    grossProfit: number;
+    grossMargin: number;
+    currentStock: number;
+    daysLeft: number;
+    status: 'rocket' | 'steady' | 'struggling'; // 立ち上がり判定
+}
+
+export interface SkuProductivityAnalysis {
+    currentTotalSkus: number;
+    currentActiveSkus: number;
+    currentInactiveSkus: number;
+    activeSkuRate: number; // %
+    revenuePerActiveSku: number; // 直近30日の1稼働SKUあたり売上
+    profitPerActiveSku: number; // 直近30日の1稼働SKUあたり粗利
+    skuElasticity: number | null; // SKU弾力性 (売上成長率 ÷ SKU増加率)
+    elasticityStatus: 'efficient' | 'moderate' | 'diluted' | 'insufficient_data';
+    elasticityComment: string;
+    monthlyHistory: MonthlySkuMetrics[];
+    paretoBreakdown: SkuParetoGroup[];
+    recentNewSkus: RecentNewSkuItem[];
+    dormantCapitalTiedUp: number; // 休眠SKUに寝ている在庫資産額
+    consultantDiagnosis: {
+        headline: string;
+        stage: 'expansion' | 'optimization' | 'rationalization';
+        summary: string;
+        actionPoints: string[];
+    };
+}
+
+/**
+ * 8. SKU（商品種類数）推移およびSKU展開効率・生産性の算出
+ */
+export function calculateSkuProductivityAnalysis(
+    products: Product[],
+    sales: Sale[],
+    brands: Brand[] = [],
+    monthsCount: number = 6,
+    baseDate: Date = new Date(),
+    storeStocks: { storeId: string; productId: string; stock: number }[] = []
+): SkuProductivityAnalysis {
+    const activeProducts = products.filter(p => !p.isTrashed);
+    const validSales = sales.filter(s => !s.isTrashed && s.period);
+    const pastMonths = getPastMonthsList(monthsCount, baseDate);
+    const brandMap = new Map<string, string>();
+    brands.forEach(b => brandMap.set(b.id, b.name));
+
+    // 各商品の現在庫数と在庫資産額
+    const stockMap = new Map<string, { totalStock: number; stockValue: number }>();
+    activeProducts.forEach(p => {
+        const relevantSS = storeStocks.filter(ss => ss.productId === p.id);
+        const storeStockTotal = relevantSS.reduce((sum, ss) => sum + (ss.stock || 0), 0);
+        const mainStock = p.stock || 0;
+        const totalStock = mainStock + storeStockTotal;
+        const unitCost = p.costPrice !== undefined && p.costPrice > 0 ? p.costPrice : 0;
+        stockMap.set(p.id, {
+            totalStock,
+            stockValue: totalStock * unitCost,
+        });
+    });
+
+    // 商品ごとの初販売日・登場日の推定
+    const firstSaleMap = new Map<string, string>();
+    validSales.forEach(s => {
+        s.items?.forEach(item => {
+            if (!item.productId) return;
+            const cur = firstSaleMap.get(item.productId);
+            if (!cur || s.period < cur) {
+                firstSaleMap.set(item.productId, s.period);
+            }
+        });
+    });
+
+    // createdAt があればより古い方を採用、なければ本日基準
+    const todayStr = formatDateYmd(baseDate);
+    activeProducts.forEach(p => {
+        const saleFirst = firstSaleMap.get(p.id);
+        let createdStr: string | null = null;
+        if (p.createdAt) {
+            try {
+                const cDate = typeof p.createdAt === 'string'
+                    ? new Date(p.createdAt)
+                    : (p.createdAt?.toDate ? p.createdAt.toDate() : new Date(p.createdAt));
+                if (!isNaN(cDate.getTime())) {
+                    createdStr = formatDateYmd(cDate);
+                }
+            } catch {
+                // ignore
+            }
+        }
+        const effectiveFirst = (createdStr && saleFirst)
+            ? (createdStr < saleFirst ? createdStr : saleFirst)
+            : (createdStr || saleFirst || todayStr);
+        firstSaleMap.set(p.id, effectiveFirst);
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // 月次SKU推移の集計（過去Nヶ月）
+    // ─────────────────────────────────────────────────────────────
+    const monthlyHistory: MonthlySkuMetrics[] = pastMonths.map(mStr => {
+        const parts = mStr.split("-");
+        const label = `${parseInt(parts[0], 10)}年${parseInt(parts[1], 10)}月`;
+        const monthEndStr = `${mStr}-31`; // 該月末日概算
+
+        // その月時点での有効SKU
+        const skusIntroducedByMonth = activeProducts.filter(p => {
+            const fDate = firstSaleMap.get(p.id) || todayStr;
+            return fDate <= monthEndStr;
+        });
+        const totalSkus = Math.max(1, skusIntroducedByMonth.length);
+
+        // その月に初めて登場したSKU数
+        const newSkusIntroduced = activeProducts.filter(p => {
+            const fDate = firstSaleMap.get(p.id);
+            return fDate && fDate.startsWith(mStr);
+        }).length;
+
+        // その月の販売データ
+        const mSales = validSales.filter(s => s.period.startsWith(mStr));
+        const activeSkuSet = new Set<string>();
+        let totalRevenue = 0;
+        let totalCost = 0;
+
+        mSales.forEach(s => {
+            s.items?.forEach(item => {
+                if (!item.productId) return;
+                activeSkuSet.add(item.productId);
+                const p = activeProducts.find(prod => prod.id === item.productId);
+                const rev = item.subtotal || (item.quantity * item.priceAtSale) || 0;
+                const unitCost = p?.costPrice !== undefined && p.costPrice > 0 ? p.costPrice : 0;
+                const cost = item.variableCostAmount !== undefined && item.variableCostAmount > 0
+                    ? item.variableCostAmount
+                    : ((item.quantity || 0) * unitCost);
+                totalRevenue += rev;
+                totalCost += cost;
+            });
+        });
+
+        const activeSkus = activeSkuSet.size;
+        const inactiveSkus = Math.max(0, totalSkus - activeSkus);
+        const activeSkuRate = totalSkus > 0 ? (activeSkus / totalSkus) * 100 : 0;
+        const totalGrossProfit = totalRevenue - totalCost;
+        const overallGrossMargin = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+        const revenuePerActiveSku = activeSkus > 0 ? Math.round(totalRevenue / activeSkus) : 0;
+        const profitPerActiveSku = activeSkus > 0 ? Math.round(totalGrossProfit / activeSkus) : 0;
+        const revenuePerTotalSku = totalSkus > 0 ? Math.round(totalRevenue / totalSkus) : 0;
+
+        return {
+            month: mStr,
+            label,
+            totalSkus,
+            activeSkus,
+            inactiveSkus,
+            activeSkuRate,
+            newSkusIntroduced,
+            totalRevenue,
+            totalCost,
+            totalGrossProfit,
+            overallGrossMargin,
+            revenuePerActiveSku,
+            profitPerActiveSku,
+            revenuePerTotalSku,
+        };
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // SKU弾力性 (SKU Expansion Elasticity) の算出
+    // ─────────────────────────────────────────────────────────────
+    // 有効な最古月と最新月（直近）の比較
+    const validMonths = monthlyHistory.filter(m => m.totalRevenue > 0 || m.activeSkus > 0);
+    let skuElasticity: number | null = null;
+    let elasticityStatus: 'efficient' | 'moderate' | 'diluted' | 'insufficient_data' = 'insufficient_data';
+    let elasticityComment = "過去実績の蓄積が完了次第、SKU増加に対する売上弾力性を自動算出します。";
+
+    if (validMonths.length >= 2) {
+        const earliest = validMonths[0];
+        const latest = validMonths[validMonths.length - 1];
+        const skuDiff = latest.totalSkus - earliest.totalSkus;
+        const skuGrowthRate = earliest.totalSkus > 0 ? skuDiff / earliest.totalSkus : 0;
+        const revDiff = latest.totalRevenue - earliest.totalRevenue;
+        const revGrowthRate = earliest.totalRevenue > 0 ? revDiff / earliest.totalRevenue : 0;
+
+        if (skuGrowthRate > 0.05) { // 5%以上SKUが増加している場合
+            const el = revGrowthRate / skuGrowthRate;
+            skuElasticity = Number(el.toFixed(2));
+
+            if (el >= 1.0) {
+                elasticityStatus = 'efficient';
+                elasticityComment = `SKU数の増加率（+${(skuGrowthRate * 100).toFixed(1)}%）を上回るペースで売上が成長（+${(revGrowthRate * 100).toFixed(1)}%）。商品種類の拡充が新規需要を掘り起こし、売上・粗利拡大に直結している極めて健全な拡大フェーズです（弾力性: ${el.toFixed(2)}）。`;
+            } else if (el >= 0.3) {
+                elasticityStatus = 'moderate';
+                elasticityComment = `SKU数の増加（+${(skuGrowthRate * 100).toFixed(1)}%）に伴い売上も増収（+${(revGrowthRate * 100).toFixed(1)}%）していますが、1SKUあたりの平均売上はやや希薄化しています。追加ラインナップの選別と主力SKUへの販売集中が必要です（弾力性: ${el.toFixed(2)}）。`;
+            } else {
+                elasticityStatus = 'diluted';
+                elasticityComment = `【カニバリゼーション・希薄化警報】SKU数が+${(skuGrowthRate * 100).toFixed(1)}%増加した一方、売上成長は+${(revGrowthRate * 100).toFixed(1)}%にとどまり、新商品が既存品の売上を共食いしているか、売れない非稼働品が増加しています。低稼働SKUの終売・ラインナップ整理を推奨します（弾力性: ${el.toFixed(2)}）。`;
+            }
+        } else {
+            elasticityStatus = 'moderate';
+            elasticityComment = `期間中のSKU数は安定推移しています（総SKU数: ${latest.totalSkus}SKU）。新商品投入時は1SKUあたり売上・粗利の推移を定例会で注視してください。`;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 直近30日のパレート・SKU貢献度分析（A / B / C / 休眠）
+    // ─────────────────────────────────────────────────────────────
+    const last30Days = getPastDaysList(30, baseDate);
+    const last30Sales = validSales.filter(s => last30Days.includes(s.period));
+
+    const prod30Map = new Map<string, { qty: number; revenue: number; cost: number; grossProfit: number }>();
+    last30Sales.forEach(s => {
+        s.items?.forEach(item => {
+            if (!item.productId) return;
+            const p = activeProducts.find(prod => prod.id === item.productId);
+            const cur = prod30Map.get(item.productId) || { qty: 0, revenue: 0, cost: 0, grossProfit: 0 };
+            const rev = item.subtotal || (item.quantity * item.priceAtSale) || 0;
+            const unitCost = p?.costPrice !== undefined && p.costPrice > 0 ? p.costPrice : 0;
+            const cost = item.variableCostAmount !== undefined && item.variableCostAmount > 0
+                ? item.variableCostAmount
+                : ((item.quantity || 0) * unitCost);
+            cur.qty += (item.quantity || 0);
+            cur.revenue += rev;
+            cur.cost += cost;
+            cur.grossProfit += (rev - cost);
+            prod30Map.set(item.productId, cur);
+        });
+    });
+
+    const total30Revenue = Array.from(prod30Map.values()).reduce((sum, v) => sum + v.revenue, 0);
+
+    // 商品を直近売上降順でソート
+    const sortedProductsWithSales = activeProducts.map(p => {
+        const perf = prod30Map.get(p.id) || { qty: 0, revenue: 0, cost: 0, grossProfit: 0 };
+        const st = stockMap.get(p.id) || { totalStock: 0, stockValue: 0 };
+        return {
+            product: p,
+            ...perf,
+            ...st,
+        };
+    }).sort((a, b) => b.revenue - a.revenue);
+
+    let runningRev = 0;
+    const aList: typeof sortedProductsWithSales = [];
+    const bList: typeof sortedProductsWithSales = [];
+    const cList: typeof sortedProductsWithSales = [];
+    const inactiveList: typeof sortedProductsWithSales = [];
+
+    sortedProductsWithSales.forEach(item => {
+        if (item.revenue <= 0) {
+            inactiveList.push(item);
+            return;
+        }
+        runningRev += item.revenue;
+        const ratio = total30Revenue > 0 ? runningRev / total30Revenue : 0;
+        if (ratio <= 0.80 || aList.length === 0) {
+            aList.push(item);
+        } else if (ratio <= 0.95) {
+            bList.push(item);
+        } else {
+            cList.push(item);
+        }
+    });
+
+    const totalSkusCount = activeProducts.length || 1;
+
+    const buildGroup = (
+        rank: 'A' | 'B' | 'C' | 'inactive',
+        label: string,
+        desc: string,
+        list: typeof sortedProductsWithSales
+    ): SkuParetoGroup => {
+        const skuCount = list.length;
+        const rev = list.reduce((sum, i) => sum + i.revenue, 0);
+        const gp = list.reduce((sum, i) => sum + i.grossProfit, 0);
+        const stockVal = list.reduce((sum, i) => sum + i.stockValue, 0);
+        const gm = rev > 0 ? (gp / rev) * 100 : 0;
+        return {
+            rank,
+            label,
+            description: desc,
+            skuCount,
+            skuShare: (skuCount / totalSkusCount) * 100,
+            revenue: rev,
+            revenueShare: total30Revenue > 0 ? (rev / total30Revenue) * 100 : 0,
+            grossProfit: gp,
+            grossMargin: gm,
+            totalStockValue: stockVal,
+        };
+    };
+
+    const paretoBreakdown: SkuParetoGroup[] = [
+        buildGroup('A', 'Aランク（主力中核品）', '売上上位80%を稼ぎ出す看板商品群', aList),
+        buildGroup('B', 'Bランク（中堅・育成品）', '売上の次の15%を支える成長候補商品群', bList),
+        buildGroup('C', 'Cランク（ロングテール品）', '売上の残り5%を占める補完ラインナップ', cList),
+        buildGroup('inactive', '休眠品（直近30日売上0）', '直近30日間販売実績がない非稼働商品群', inactiveList),
+    ];
+
+    const dormantCapitalTiedUp = inactiveList.reduce((sum, i) => sum + i.stockValue, 0);
+
+    // ─────────────────────────────────────────────────────────────
+    // 直近新商品（新SKU）の立ち上がり追跡
+    // ─────────────────────────────────────────────────────────────
+    // 登場日が新しい順にソート
+    const recentNewSkus: RecentNewSkuItem[] = activeProducts
+        .map(p => {
+            const fDate = firstSaleMap.get(p.id) || todayStr;
+            const diffDays = Math.max(0, Math.round((new Date(todayStr).getTime() - new Date(fDate).getTime()) / (1000 * 60 * 60 * 24)));
+            const perf = prod30Map.get(p.id) || { qty: 0, revenue: 0, cost: 0, grossProfit: 0 };
+            const st = stockMap.get(p.id) || { totalStock: 0, stockValue: 0 };
+            const daysLeft = calculateDaysRemaining(p, validSales, activeProducts, st.totalStock);
+            const gm = perf.revenue > 0 ? (perf.grossProfit / perf.revenue) * 100 : 0;
+
+            let status: 'rocket' | 'steady' | 'struggling' = 'steady';
+            if (perf.qty >= 10 || (total30Revenue > 0 && perf.revenue / total30Revenue >= 0.05)) {
+                status = 'rocket';
+            } else if (perf.qty === 0 && st.totalStock > 0) {
+                status = 'struggling';
+            }
+
+            return {
+                productId: p.id,
+                productName: p.variantName ? `${p.name} (${p.variantName})` : p.name,
+                variantName: p.variantName,
+                brandName: brandMap.get(p.brandId) || "ブランド未設定",
+                firstSaleDate: fDate,
+                daysSinceLaunch: diffDays,
+                totalRevenue: perf.revenue,
+                totalQuantity: perf.qty,
+                grossProfit: perf.grossProfit,
+                grossMargin: gm,
+                currentStock: st.totalStock,
+                daysLeft,
+                status,
+            };
+        })
+        .sort((a, b) => b.firstSaleDate.localeCompare(a.firstSaleDate))
+        .slice(0, 8);
+
+    // 最新月KPI
+    const latestMonth = monthlyHistory[monthlyHistory.length - 1] || {
+        totalSkus: activeProducts.length,
+        activeSkus: aList.length + bList.length + cList.length,
+        inactiveSkus: inactiveList.length,
+        activeSkuRate: ( (aList.length + bList.length + cList.length) / (activeProducts.length || 1) ) * 100,
+        revenuePerActiveSku: Math.round(total30Revenue / Math.max(1, (aList.length + bList.length + cList.length))),
+        profitPerActiveSku: Math.round(
+            Array.from(prod30Map.values()).reduce((sum, v) => sum + v.grossProfit, 0) /
+            Math.max(1, (aList.length + bList.length + cList.length))
+        ),
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // 小売業経営コンサルタント総合診断＆処方箋
+    // ─────────────────────────────────────────────────────────────
+    const activeRate = latestMonth.activeSkuRate;
+    let stage: 'expansion' | 'optimization' | 'rationalization' = 'expansion';
+    let headline = "";
+    let summary = "";
+    const actionPoints: string[] = [];
+
+    if (activeRate >= 75 && (skuElasticity === null || skuElasticity >= 0.8)) {
+        stage = 'expansion';
+        headline = `【健全拡大フェーズ】SKU稼働率 ${activeRate.toFixed(1)}%：新商品が着実に売上・粗利を創出中`;
+        summary = `全${activeProducts.length}商品中${latestMonth.activeSkus}商品が活発に稼働しており、商品の種類拡大が売上・粗利の増加を力強く牽引しています。ロングテールの裾野も広がり、客層の拡大に寄与しています。`;
+        actionPoints.push("主力Aランク商品の欠品を防止しつつ、好調な新商品の店頭フェイス（棚割り面積）を拡大してください。");
+        actionPoints.push("Bランク（育成品）の中から第2・第3の主力に育てる重点商品を定例会で指定し、POPやセット販促を強化してください。");
+        actionPoints.push("新商品投入サイクルを維持しつつ、仕入ロットと発注残管理を厳密に行い在庫回転率を維持してください。");
+    } else if (activeRate >= 50) {
+        stage = 'optimization';
+        headline = `【選別・最適化フェーズ】SKU稼働率 ${activeRate.toFixed(1)}%：主力集中と低稼働品の棚卸しが必要`;
+        summary = `現在、全体の約${(100 - activeRate).toFixed(0)}%の商品が直近で動いておらず、種類を増やしたことによる管理工数や棚割り面積の希薄化が始まっています。売れ筋上位への在庫集中が急務です。`;
+        actionPoints.push(`休眠・低稼働の${inactiveList.length}商品（在庫総額 約¥${dormantCapitalTiedUp.toLocaleString()}）の追加仕入を凍結し、ワゴンセール等で資金回収を急いでください。`);
+        actionPoints.push("新商品を1品導入する際は、低稼働品を1品終売・縮小する「スクラップ＆ビルド（1イン・1アウト）ルール」の策定を検討してください。");
+        actionPoints.push("店舗ごとの売れ行き差を精査し、売れない店舗に置かれている在庫を好調店舗へ店舗間移動してください。");
+    } else {
+        stage = 'rationalization';
+        headline = `【ラインナップ整理フェーズ】SKU稼働率 ${activeRate.toFixed(1)}%：SKU肥大化による資金固定化の警戒`;
+        summary = `登録商品の半数以上が直近で売上を生んでおらず、SKUの増加が売上増に寄与せず在庫資産を圧迫しています（休眠品在庫: 約¥${dormantCapitalTiedUp.toLocaleString()}）。思い切ったラインナップの絞り込みが必要です。`;
+        actionPoints.push("売上上位80%を稼ぐAランク商品（わずか全体の数%）に発注資金と棚スペースを集中させてください。");
+        actionPoints.push("直近60日以上売上ゼロの商品は「取扱停止・廃番」の検討に入り、在庫の早期換金化（割引セット品化）を図ってください。");
+        actionPoints.push("新商品開発・仕入の承認基準を厳格化し、事前のテストマーケティング（受注販売・少数ロット仕入）を徹底してください。");
+    }
+
+    return {
+        currentTotalSkus: activeProducts.length,
+        currentActiveSkus: latestMonth.activeSkus,
+        currentInactiveSkus: latestMonth.inactiveSkus,
+        activeSkuRate: activeRate,
+        revenuePerActiveSku: latestMonth.revenuePerActiveSku,
+        profitPerActiveSku: latestMonth.profitPerActiveSku,
+        skuElasticity,
+        elasticityStatus,
+        elasticityComment,
+        monthlyHistory,
+        paretoBreakdown,
+        recentNewSkus,
+        dormantCapitalTiedUp,
+        consultantDiagnosis: {
+            headline,
+            stage,
+            summary,
+            actionPoints,
+        },
+    };
+}

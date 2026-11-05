@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.25.0";
+export const CURRENT_VERSION = "v1.26.0";
 export const RELEASE_DATE = "2026.11.06";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "SKU（商品種類数）推移 ＆ 展開生産性・カニバリゼーション分析機能",
+        description: "商品の種類拡大が売上・粗利に与える影響を経営視点で可視化する「SKU展開・生産性分析」を新設。月次累積SKU数と販売稼働SKU数の推移、1稼働SKUあたり売上・粗利の創出効率、SKU拡大弾力性（売上成長率÷SKU増加率による希薄化判定）、A/B/C/休眠ランクの4象限パレート分析、新商品の立ち上がり追跡、およびコンサルタント処方箋を網羅。",
+        status: "completed"
+    },
     {
         name: "売上状況エグゼクティブ・コックピット「ブランド別動向分析」の新設",
         description: "経営・現場合同定例会用のエグゼクティブ・コックピットに「ブランド別動向」タブを新設。全ブランドの売上・シェア・粗利・総在庫ランキング比較、ブランド別日次推移（7日・30日移動平均線付き）、ブランド内商品別売上＆消化ペース、取扱店舗・配架別シェア、およびコンサルタントによるブランド戦略診断を網羅。",
