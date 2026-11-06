@@ -18,7 +18,7 @@ interface RetailStoreModalProps {
 const BRAND = "#b27f79";
 
 export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreModalProps) {
-    const { addRetailStore, updateRetailStore, retailStores } = useStore();
+    const { addRetailStore, updateRetailStore, retailStores, companySettings } = useStore();
     const { zipStatus, lookupZip } = useZipCode();
 
     const [formData, setFormData] = useState({
@@ -46,6 +46,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         squareLocationId: "",
         wholesaleRate: 60,
         linkedConsignmentStoreId: "",
+        defaultBankAccountId: 'account1' as 'account1' | 'account2' | 'account3' | 'all',
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -85,10 +86,11 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                     squareLocationId: initialData.squareLocationId || "",
                     wholesaleRate: initialData.wholesaleRate ?? 60,
                     linkedConsignmentStoreId: initialData.linkedConsignmentStoreId || "",
+                    defaultBankAccountId: initialData.defaultBankAccountId || 'account1',
                 });
                 setPreviews((initialData.imageUrls || []).map(url => ({ url, isExisting: true })));
             } else {
-                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0, honorific: '御中', squareLocationId: "", wholesaleRate: 60, linkedConsignmentStoreId: "" });
+                setFormData({ name: "", zipCode: "", address: "", tel: "", email: "", pic: "", memo: "", commissionRate: 15, lat: undefined, lng: undefined, imageUrls: [], type: 'A', pricingRule: 0, activeProductIds: [], useDifferentBilling: false, billingName: "", billingZipCode: "", billingAddress: "", billingTel: "", dailySalesGoal: 0, honorific: '御中', squareLocationId: "", wholesaleRate: 60, linkedConsignmentStoreId: "", defaultBankAccountId: 'account1' });
                 setPreviews([]);
             }
             setImageFiles([]);
@@ -598,7 +600,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                     <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
                                         <Save className="w-3.5 h-3.5" />
                                     </div>
-                                    <label className="text-sm font-bold text-slate-800">請求先情報</label>
+                                    <label className="text-sm font-bold text-slate-800">請求先・振込先設定</label>
                                 </div>
                                 <label className="flex items-center gap-2 cursor-pointer">
                                     <input
@@ -607,8 +609,36 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                         onChange={e => setFormData({ ...formData, useDifferentBilling: e.target.checked })}
                                         className="w-4 h-4 rounded text-[#b27f79] focus:ring-[#b27f79] border-slate-300 transition-all"
                                     />
-                                    <span className="text-xs font-medium text-slate-600">店舗情報と異なる場合のみ入力</span>
+                                    <span className="text-xs font-medium text-slate-600">店舗と請求先が異なる場合</span>
                                 </label>
+                            </div>
+
+                            {/* 基本振込先口座の指定 */}
+                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70">
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                    請求書に記載する振込先口座（基本設定）
+                                </label>
+                                <p className="text-[11px] text-slate-500 mb-2">
+                                    この取引先宛ての請求書を作成する際、自動で初期選択される口座です。
+                                </p>
+                                <select
+                                    value={formData.defaultBankAccountId}
+                                    onChange={e => setFormData({ ...formData, defaultBankAccountId: e.target.value as any })}
+                                    className={inputCls}
+                                >
+                                    <option value="account1">
+                                        第1口座: {companySettings.bankName || "未設定"} {companySettings.bankBranch || ""} {companySettings.bankAccountNumber ? `(${companySettings.bankAccountNumber})` : ""}
+                                    </option>
+                                    <option value="account2">
+                                        第2口座: {companySettings.bankName2 ? `${companySettings.bankName2} ${companySettings.bankBranch2 || ""} (${companySettings.bankAccountNumber2})` : "（未登録）"}
+                                    </option>
+                                    <option value="account3">
+                                        第3口座: {companySettings.bankName3 ? `${companySettings.bankName3} ${companySettings.bankBranch3 || ""} (${companySettings.bankAccountNumber3})` : "（未登録）"}
+                                    </option>
+                                    <option value="all">
+                                        全ての登録口座（第1〜第3口座）を並記
+                                    </option>
+                                </select>
                             </div>
 
                             {formData.useDifferentBilling && (

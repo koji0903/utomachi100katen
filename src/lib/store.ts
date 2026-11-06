@@ -69,6 +69,12 @@ export interface CompanySettings {
     bankAccountType2?: string;
     bankAccountNumber2?: string;
     bankAccountHolder2?: string;
+    // 振込先口座3
+    bankName3?: string;
+    bankBranch3?: string;
+    bankAccountType3?: string;
+    bankAccountNumber3?: string;
+    bankAccountHolder3?: string;
     // ブランド資産
     logoUrl?: string;        // ロゴ画像 URL
     sealUrl?: string;        // 印影画像 URL
@@ -104,6 +110,11 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     bankAccountType2: '普通',
     bankAccountNumber2: '',
     bankAccountHolder2: '',
+    bankName3: '',
+    bankBranch3: '',
+    bankAccountType3: '普通',
+    bankAccountNumber3: '',
+    bankAccountHolder3: '',
     logoUrl: '',
     sealUrl: '',
     fixedCostTemplates: [
@@ -210,6 +221,7 @@ export interface RetailStore extends BaseEntity {
     honorific?: '様' | '御中';
     squareLocationId?: string; // Square Location ID
     linkedConsignmentStoreId?: string; // 紐付け先委託販売先 (タイプB用)
+    defaultBankAccountId?: 'account1' | 'account2' | 'account3' | 'all'; // 請求書作成時の基本振込先口座
 }
 
 export const isConsignmentStore = (store?: RetailStore | null): boolean => {
@@ -407,6 +419,7 @@ export interface IssuedDocument extends BaseEntity {
     finalAdjustment?: number;
     hidePrices?: boolean;
     showTransferFeeNote?: boolean; // 請求書に振込手数料の注意書きを表示するか（未設定の既存帳票は表示）
+    bankAccountChoice?: 'account1' | 'account2' | 'account3' | 'all'; // 請求書に記載する振込先口座の選択
     memo?: string;
     paymentMethod?: '銀行振込' | '現金' | 'QR決済' | 'その他'; // Used for receipts
     transactionId?: string;
@@ -497,6 +510,7 @@ export interface SpotRecipient extends BaseEntity {
     memo?: string;
     lastUsedAt?: string;        // ISO date — 最終使用日（名寄せ優先順位用）
     honorific?: '様' | '御中';
+    defaultBankAccountId?: 'account1' | 'account2' | 'account3' | 'all'; // 請求書作成時の基本振込先口座
     createdAt?: string | any;
 }
 

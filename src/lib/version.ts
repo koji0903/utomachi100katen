@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.27.0";
+export const CURRENT_VERSION = "v1.28.0";
 export const RELEASE_DATE = "2026.11.06";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "振込先第3口座の登録と取引先別・請求書ごとの記載口座選択＆基本設定記憶機能",
+        description: "管理設定にて従来の第1・第2口座に加え「第3口座」の登録に対応。請求書作成時には相手先に応じて記載する振込先口座（第1口座/第2口座/第3口座/全口座並記）を選択可能とし、「この相手先の基本口座として保存」にチェックを入れることで次回以降も自動反映。店舗・取引先マスタでも相手先ごとの基本振込口座を直接指定・管理可能に。",
+        status: "completed"
+    },
     {
         name: "店舗別月次売上推移の「個別項目（単独）棒グラフ表示」切替機能",
         description: "エグゼクティブ・コックピットの「店舗毎・月次推移」において、従来の全店舗積み上げ比較に加え、各店舗ボタン・プルダウン・凡例クリックによる特定店舗単独の月次棒グラフ表示切替に対応。個別拠点の成長トレンドをクリアに分析可能に。",

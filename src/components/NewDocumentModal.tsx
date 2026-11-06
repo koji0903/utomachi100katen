@@ -30,8 +30,9 @@ interface NewDocumentModalProps {
 
 export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: NewDocumentModalProps) {
     const { 
-        retailStores, suppliers, saveIssuedDocument, updateIssuedDocument, 
-        generateDocNumber, updateSpotRecipient, transactions, sales, products, spotRecipients 
+        retailStores, suppliers, saveIssuedDocument, updateIssuedDocument, updateRetailStore,
+        generateDocNumber, updateSpotRecipient, transactions, sales, products, spotRecipients,
+        companySettings
     } = useStore();
 
     const [docType, setDocType] = useState<IssuedDocument["type"]>(editingDoc?.type ?? "delivery_note");
@@ -45,6 +46,8 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
     const [showPreview, setShowPreview] = useState(false);
     const [hidePrices, setHidePrices] = useState(editingDoc?.hidePrices ?? false);
     const [showTransferFeeNote, setShowTransferFeeNote] = useState(editingDoc?.showTransferFeeNote ?? true);
+    const [bankAccountChoice, setBankAccountChoice] = useState<IssuedDocument['bankAccountChoice']>(editingDoc?.bankAccountChoice ?? 'account1');
+    const [saveAsDefaultBankAccount, setSaveAsDefaultBankAccount] = useState(true);
     const [transactionId, setTransactionId] = useState(editingDoc?.transactionId ?? initialTransactionId ?? "");
     const [linkedConsignmentStoreId, setLinkedConsignmentStoreId] = useState(editingDoc?.linkedConsignmentStoreId ?? "");
     const [skipInventoryAdjustment, setSkipInventoryAdjustment] = useState(editingDoc?.skipInventoryAdjustment ?? !!editingDoc?.linkedConsignmentStoreId);
@@ -87,12 +90,22 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                 setSkipInventoryAdjustment(false);
                 setAttributeSalesToLinkedStore(false);
             }
+            if (selected?.defaultBankAccountId) {
+                setBankAccountChoice(selected.defaultBankAccountId);
+            }
+        } else if (recipientType === "spot" && spotRecipient) {
+            setLinkedConsignmentStoreId("");
+            setSkipInventoryAdjustment(false);
+            setAttributeSalesToLinkedStore(false);
+            if (spotRecipient.defaultBankAccountId) {
+                setBankAccountChoice(spotRecipient.defaultBankAccountId);
+            }
         } else {
             setLinkedConsignmentStoreId("");
             setSkipInventoryAdjustment(false);
             setAttributeSalesToLinkedStore(false);
         }
-    }, [recipientType, storeId, retailStores, editingDoc]);
+    }, [recipientType, storeId, spotRecipient, retailStores, editingDoc]);
 
     useEffect(() => {
         if (editingDoc) return;
@@ -181,6 +194,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                 finalAdjustment: isSalesDocument ? finalAdjustment : undefined,
                 hidePrices: docType === "delivery_note" ? hidePrices : undefined,
                 showTransferFeeNote: docType === "invoice" ? showTransferFeeNote : undefined,
+                bankAccountChoice: (docType === "invoice" || docType === "payment_summary") ? bankAccountChoice : undefined,
                 paymentMethod: docType === "receipt" ? paymentMethod : undefined,
                 memo: editingDoc?.memo ?? "",
                 transactionId: (isSalesDocument && transactionId) ? transactionId : undefined,
@@ -208,7 +222,17 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                 });
             }
 
-            if (recipientType === "spot" && spotRecipient) {
+            // 相手先の基本振込先口座として保存
+            if ((docType === "invoice" || docType === "payment_summary") && saveAsDefaultBankAccount) {
+                if (recipientType === "store" && storeId) {
+                    await updateRetailStore(storeId, { defaultBankAccountId: bankAccountChoice });
+                } else if (recipientType === "spot" && spotRecipient) {
+                    await updateSpotRecipient(spotRecipient.id, { 
+                        defaultBankAccountId: bankAccountChoice,
+                        lastUsedAt: new Date().toISOString() 
+                    });
+                }
+            } else if (recipientType === "spot" && spotRecipient) {
                 await updateSpotRecipient(spotRecipient.id, { lastUsedAt: new Date().toISOString() });
             }
 
@@ -375,6 +399,57 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                         </div>
                     )}
 
+                    {(docType === "invoice" || docType === "payment_summary") && (
+                        <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    <span>🏦</span>
+                                    <span>請求書に記載する振込先口座</span>
+                                </label>
+                                <span className="text-[10px] text-slate-400 font-medium">相手先ごとに指定可能</span>
+                            </div>
+
+                            <div className="space-y-2">
+                                <select
+                                    value={bankAccountChoice}
+                                    onChange={e => setBankAccountChoice(e.target.value as any)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                                >
+                                    {companySettings?.bankName && (
+                                        <option value="account1">
+                                            第1口座: {companySettings.bankName} {companySettings.bankBranch} ({companySettings.bankAccountType} {companySettings.bankAccountNumber})
+                                        </option>
+                                    )}
+                                    {companySettings?.bankName2 && (
+                                        <option value="account2">
+                                            第2口座: {companySettings.bankName2} {companySettings.bankBranch2} ({companySettings.bankAccountType2} {companySettings.bankAccountNumber2})
+                                        </option>
+                                    )}
+                                    {companySettings?.bankName3 && (
+                                        <option value="account3">
+                                            第3口座: {companySettings.bankName3} {companySettings.bankBranch3} ({companySettings.bankAccountType3} {companySettings.bankAccountNumber3})
+                                        </option>
+                                    )}
+                                    <option value="all">全口座を並べて記載（従来方式）</option>
+                                </select>
+
+                                {recipientName && (
+                                    <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={saveAsDefaultBankAccount}
+                                            onChange={e => setSaveAsDefaultBankAccount(e.target.checked)}
+                                            className="w-3.5 h-3.5 rounded text-rose-500 focus:ring-rose-400"
+                                        />
+                                        <span className="text-xs font-medium text-slate-600">
+                                            「{recipientName}」の基本振込口座として保存する（次回作成時にも自動反映）
+                                        </span>
+                                    </label>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {(docType === "estimate" || docType === "invoice" || docType === "delivery_note") && (
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">紐付ける取引 (任意)</label>
@@ -468,6 +543,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                     customTaxType={(docType === "estimate" || docType === "invoice" || docType === "delivery_note") ? taxType : undefined}
                     hidePrices={docType === "delivery_note" ? hidePrices : false}
                     showTransferFeeNote={docType === "invoice" ? showTransferFeeNote : undefined}
+                    customBankAccountChoice={docType === "invoice" ? bankAccountChoice : undefined}
                     onClose={() => setShowPreview(false)}
                 />
             )}
@@ -487,6 +563,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                     customTaxType={issuingDoc.taxType}
                     hidePrices={issuingDoc.hidePrices}
                     showTransferFeeNote={issuingDoc.showTransferFeeNote}
+                    customBankAccountChoice={issuingDoc.bankAccountChoice}
                     autoIssue
                     onIssued={onClose}
                     onClose={() => setIssuingDoc(null)}

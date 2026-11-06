@@ -443,6 +443,44 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* 第3口座 */}
+                        <div className="pt-8 space-y-4">
+                            <h3 className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded w-fit">第3口座（任意）</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">銀行名</label>
+                                    <input type="text" value={form.bankName3 ?? ""} onChange={e => handleChange("bankName3", e.target.value)}
+                                        placeholder="例: 住信SBIネット銀行" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">支店名</label>
+                                    <input type="text" value={form.bankBranch3 ?? ""} onChange={e => handleChange("bankBranch3", e.target.value)}
+                                        placeholder="例: 法人第一支店" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座種別</label>
+                                    <select value={form.bankAccountType3 ?? "普通"} onChange={e => handleChange("bankAccountType3", e.target.value)}
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors bg-white">
+                                        <option value="普通">普通</option>
+                                        <option value="当座">当座</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座番号</label>
+                                    <input type="text" value={form.bankAccountNumber3 ?? ""} onChange={e => handleChange("bankAccountNumber3", e.target.value)}
+                                        placeholder="1234567" inputMode="numeric" maxLength={10}
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">口座名義</label>
+                                    <input type="text" value={form.bankAccountHolder3 ?? ""} onChange={e => handleChange("bankAccountHolder3", e.target.value)}
+                                        placeholder="ウトマチヒャッカテン" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-400 transition-colors" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

@@ -110,11 +110,34 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.27.0 */}
+                    {/* v1.28.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">振込先第3口座の追加登録 ＆ 請求先ごとの記載口座選択・基本設定記憶機能</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "管理設定に「第3口座（任意）」の登録枠を新設：銀行名、支店名、口座種別、口座番号、口座名義を第1口座・第2口座と同様に管理可能に",
+                                    "請求書作成時の記載口座セレクター：相手先や取引内容に合わせて「第1口座」「第2口座」「第3口座」「全口座並記」をワンクリックで選択可能",
+                                    "請求先ごとの基本口座記憶（自動反映）：請求書作成時に「この相手先の基本口座として保存する」にチェックを入れて保存すると、次回以降同じ相手先宛ての請求書作成時に自動で記憶口座が反映",
+                                    "店舗・取引先マスタでの基本振込口座設定：店舗・事業者編集モーダルの「請求先・振込先設定」にて、各店舗の基本振込先口座を事前設定可能に",
+                                    "請求書プレビュー＆発行帳票での指定口座単独または全口座並記の正確な印字出力に対応"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.27.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.27.0 - 2026.11.06</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">店舗別月次売上推移の個別項目（単独）棒グラフ表示切替機能を追加</h3>
                             <ul className="space-y-2">
                                 {[

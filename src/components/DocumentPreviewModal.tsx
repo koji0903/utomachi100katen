@@ -34,6 +34,7 @@ interface DocumentPreviewModalProps {
     customAdjustments?: IssuedDocument['adjustments'];
     customTaxRate?: IssuedDocument['taxRate'];
     customTaxType?: IssuedDocument['taxType'];
+    customBankAccountChoice?: IssuedDocument['bankAccountChoice'];
     hidePrices?: boolean;
     showTransferFeeNote?: boolean;
     autoDownload?: boolean; // New prop
@@ -68,6 +69,7 @@ export function DocumentPreviewModal({
     customAdjustments,
     customTaxRate,
     customTaxType,
+    customBankAccountChoice,
     hidePrices: propHidePrices,
     showTransferFeeNote: propShowTransferFeeNote,
     autoDownload = false,
@@ -81,6 +83,15 @@ export function DocumentPreviewModal({
     const [currentType, setCurrentType] = useState<DocumentType>(type);
     const [currentDocNumber, setCurrentDocNumber] = useState(propDocNumber);
 
+    const targetDoc = useMemo(() => {
+        if (!currentDocNumber) return null;
+        return issuedDocuments.find(d => d.docNumber === currentDocNumber);
+    }, [issuedDocuments, currentDocNumber]);
+
+    const [bankChoice, setBankChoice] = useState<IssuedDocument['bankAccountChoice']>(
+        customBankAccountChoice ?? targetDoc?.bankAccountChoice ?? 'all'
+    );
+
     const previewRef = useRef<HTMLDivElement>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [memo, setMemo] = useState("");
@@ -88,11 +99,6 @@ export function DocumentPreviewModal({
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [isIssuingReceipt, setIsIssuingReceipt] = useState(false);
     const autoIssueStarted = useRef(false);
-
-    const targetDoc = useMemo(() => {
-        if (!currentDocNumber) return null;
-        return issuedDocuments.find(d => d.docNumber === currentDocNumber);
-    }, [issuedDocuments, currentDocNumber]);
 
     const rounding = companySettings?.roundingMode ?? "floor";
 
@@ -417,6 +423,34 @@ export function DocumentPreviewModal({
 
                 {/* Scrollable preview area */}
                 <div className="flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6">
+
+                    {/* ── Bank Account Choice Controls (for Invoice / Payment Summary) ─── */}
+                    {(isInvoice || isPaymentSummary) && (
+                        <div className="mb-4 p-3 bg-white border border-slate-200 rounded-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-700">記載する振込先口座:</span>
+                                <span className="text-[10px] text-slate-400">（プレビュー・印刷に即座に反映）</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <select
+                                    value={bankChoice ?? "all"}
+                                    onChange={e => setBankChoice(e.target.value as any)}
+                                    className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                                >
+                                    <option value="all">全口座記載（設定済み口座をすべて表示）</option>
+                                    {companySettings?.bankName && (
+                                        <option value="account1">第1口座: {companySettings.bankName} {companySettings.bankBranch} ({companySettings.bankAccountType} {companySettings.bankAccountNumber})</option>
+                                    )}
+                                    {companySettings?.bankName2 && (
+                                        <option value="account2">第2口座: {companySettings.bankName2} {companySettings.bankBranch2} ({companySettings.bankAccountType2} {companySettings.bankAccountNumber2})</option>
+                                    )}
+                                    {companySettings?.bankName3 && (
+                                        <option value="account3">第3口座: {companySettings.bankName3} {companySettings.bankBranch3} ({companySettings.bankAccountType3} {companySettings.bankAccountNumber3})</option>
+                                    )}
+                                </select>
+                            </div>
+                        </div>
+                    )}
 
                     {/* ── AI Memo Controls (outside the printable area) ─── */}
                     <div className="mb-4 flex items-start gap-3">
@@ -826,25 +860,27 @@ export function DocumentPreviewModal({
                         {(isInvoice || isPaymentSummary) && (
                             <div className="bank-info" style={{ marginTop: "40px", borderTop: `1px solid #eee`, paddingTop: "24px", breakInside: "avoid", pageBreakInside: "avoid" }}>
                                 <div style={{ fontSize: "12px", fontWeight: "700", color: "#333", marginBottom: "12px" }}>【お振込先】</div>
-                                <div style={{ display: "flex", gap: "40px" }}>
-                                    {/* Bank 1 */}
-                                    <div style={{ flex: 1, padding: "12px", backgroundColor: "#fcfcfc", border: "1px solid #eee", borderRadius: "4px" }}>
-                                        <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px", fontWeight: "600" }}>第1口座</div>
-                                        <div style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1a", marginBottom: "4px" }}>
-                                            {companySettings?.bankName}　{companySettings?.bankBranch}
+                                <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
+                                    {/* Account 1 */}
+                                    {(bankChoice === 'all' || bankChoice === 'account1' || (!bankChoice && true)) && companySettings?.bankName && (
+                                        <div style={{ flex: 1, minWidth: "220px", padding: "12px", backgroundColor: "#fcfcfc", border: "1px solid #eee", borderRadius: "4px" }}>
+                                            <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px", fontWeight: "600" }}>第1口座</div>
+                                            <div style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1a", marginBottom: "4px" }}>
+                                                {companySettings?.bankName}　{companySettings?.bankBranch}
+                                            </div>
+                                            <div style={{ fontSize: "13px", color: "#333", display: "flex", gap: "10px", marginBottom: "4px" }}>
+                                                <span>{companySettings?.bankAccountType}</span>
+                                                <span style={{ letterSpacing: "0.05em", fontWeight: "600" }}>{companySettings?.bankAccountNumber}</span>
+                                            </div>
+                                            <div style={{ fontSize: "11px", color: "#555" }}>
+                                                口座名義：{companySettings?.bankAccountHolder}
+                                            </div>
                                         </div>
-                                        <div style={{ fontSize: "13px", color: "#333", display: "flex", gap: "10px", marginBottom: "4px" }}>
-                                            <span>{companySettings?.bankAccountType}</span>
-                                            <span style={{ letterSpacing: "0.05em", fontWeight: "600" }}>{companySettings?.bankAccountNumber}</span>
-                                        </div>
-                                        <div style={{ fontSize: "11px", color: "#555" }}>
-                                            口座名義：{companySettings?.bankAccountHolder}
-                                        </div>
-                                    </div>
+                                    )}
 
-                                    {/* Bank 2 (Optional) */}
-                                    {companySettings?.bankName2 && (
-                                        <div style={{ flex: 1, padding: "12px", backgroundColor: "#fcfcfc", border: "1px solid #eee", borderRadius: "4px" }}>
+                                    {/* Account 2 */}
+                                    {(bankChoice === 'all' || bankChoice === 'account2') && companySettings?.bankName2 && (
+                                        <div style={{ flex: 1, minWidth: "220px", padding: "12px", backgroundColor: "#fcfcfc", border: "1px solid #eee", borderRadius: "4px" }}>
                                             <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px", fontWeight: "600" }}>第2口座</div>
                                             <div style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1a", marginBottom: "4px" }}>
                                                 {companySettings?.bankName2}　{companySettings?.bankBranch2}
@@ -855,6 +891,23 @@ export function DocumentPreviewModal({
                                             </div>
                                             <div style={{ fontSize: "11px", color: "#555" }}>
                                                 口座名義：{companySettings?.bankAccountHolder2}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Account 3 */}
+                                    {(bankChoice === 'all' || bankChoice === 'account3') && companySettings?.bankName3 && (
+                                        <div style={{ flex: 1, minWidth: "220px", padding: "12px", backgroundColor: "#fcfcfc", border: "1px solid #eee", borderRadius: "4px" }}>
+                                            <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px", fontWeight: "600" }}>第3口座</div>
+                                            <div style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1a", marginBottom: "4px" }}>
+                                                {companySettings?.bankName3}　{companySettings?.bankBranch3}
+                                            </div>
+                                            <div style={{ fontSize: "13px", color: "#333", display: "flex", gap: "10px", marginBottom: "4px" }}>
+                                                <span>{companySettings?.bankAccountType3}</span>
+                                                <span style={{ letterSpacing: "0.05em", fontWeight: "600" }}>{companySettings?.bankAccountNumber3}</span>
+                                            </div>
+                                            <div style={{ fontSize: "11px", color: "#555" }}>
+                                                口座名義：{companySettings?.bankAccountHolder3}
                                             </div>
                                         </div>
                                     )}
