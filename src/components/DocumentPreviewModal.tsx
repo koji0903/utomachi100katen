@@ -89,8 +89,24 @@ export function DocumentPreviewModal({
     }, [issuedDocuments, currentDocNumber]);
 
     const [bankChoice, setBankChoice] = useState<IssuedDocument['bankAccountChoice']>(
-        customBankAccountChoice ?? targetDoc?.bankAccountChoice ?? 'all'
+        customBankAccountChoice ?? targetDoc?.bankAccountChoice ?? 'account1'
     );
+
+    const activeBankAccounts: ('account1' | 'account2' | 'account3')[] = useMemo(() => {
+        if (!bankChoice || bankChoice === 'account1') return ['account1'];
+        if (bankChoice === 'account2') return ['account2'];
+        if (bankChoice === 'account3') return ['account3'];
+        if (bankChoice === 'all') {
+            const accs: ('account1' | 'account2' | 'account3')[] = [];
+            if (companySettings?.bankName) accs.push('account1');
+            if (companySettings?.bankName2) accs.push('account2');
+            if (accs.length === 0) accs.push('account1');
+            return accs;
+        }
+        const parts = bankChoice.split(',').map(s => s.trim());
+        const valid = parts.filter((p): p is ('account1' | 'account2' | 'account3') => ['account1', 'account2', 'account3'].includes(p));
+        return (valid.length > 0 ? valid : (['account1'] as ('account1' | 'account2' | 'account3')[])).slice(0, 2);
+    }, [bankChoice, companySettings]);
 
     const previewRef = useRef<HTMLDivElement>(null);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -433,19 +449,27 @@ export function DocumentPreviewModal({
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
                                 <select
-                                    value={bankChoice ?? "all"}
+                                    value={bankChoice ?? "account1"}
                                     onChange={e => setBankChoice(e.target.value as any)}
                                     className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-300"
                                 >
-                                    <option value="all">全口座記載（設定済み口座をすべて表示）</option>
                                     {companySettings?.bankName && (
-                                        <option value="account1">第1口座: {companySettings.bankName} {companySettings.bankBranch} ({companySettings.bankAccountType} {companySettings.bankAccountNumber})</option>
+                                        <option value="account1">第1口座のみ: {companySettings.bankName} {companySettings.bankBranch}</option>
                                     )}
                                     {companySettings?.bankName2 && (
-                                        <option value="account2">第2口座: {companySettings.bankName2} {companySettings.bankBranch2} ({companySettings.bankAccountType2} {companySettings.bankAccountNumber2})</option>
+                                        <option value="account2">第2口座のみ: {companySettings.bankName2} {companySettings.bankBranch2}</option>
                                     )}
                                     {companySettings?.bankName3 && (
-                                        <option value="account3">第3口座: {companySettings.bankName3} {companySettings.bankBranch3} ({companySettings.bankAccountType3} {companySettings.bankAccountNumber3})</option>
+                                        <option value="account3">第3口座のみ: {companySettings.bankName3} {companySettings.bankBranch3}</option>
+                                    )}
+                                    {companySettings?.bankName && companySettings?.bankName2 && (
+                                        <option value="account1,account2">第1口座 ＋ 第2口座（2口座並記）</option>
+                                    )}
+                                    {companySettings?.bankName && companySettings?.bankName3 && (
+                                        <option value="account1,account3">第1口座 ＋ 第3口座（2口座並記）</option>
+                                    )}
+                                    {companySettings?.bankName2 && companySettings?.bankName3 && (
+                                        <option value="account2,account3">第2口座 ＋ 第3口座（2口座並記）</option>
                                     )}
                                 </select>
                             </div>
@@ -862,7 +886,7 @@ export function DocumentPreviewModal({
                                 <div style={{ fontSize: "12px", fontWeight: "700", color: "#333", marginBottom: "12px" }}>【お振込先】</div>
                                 <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
                                     {/* Account 1 */}
-                                    {(bankChoice === 'all' || bankChoice === 'account1' || (!bankChoice && true)) && companySettings?.bankName && (
+                                    {activeBankAccounts.includes('account1') && companySettings?.bankName && (
                                         <div style={{ flex: 1, minWidth: "220px", padding: "12px", backgroundColor: "#fcfcfc", border: "1px solid #eee", borderRadius: "4px" }}>
                                             <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px", fontWeight: "600" }}>第1口座</div>
                                             <div style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1a", marginBottom: "4px" }}>
@@ -879,7 +903,7 @@ export function DocumentPreviewModal({
                                     )}
 
                                     {/* Account 2 */}
-                                    {(bankChoice === 'all' || bankChoice === 'account2') && companySettings?.bankName2 && (
+                                    {activeBankAccounts.includes('account2') && companySettings?.bankName2 && (
                                         <div style={{ flex: 1, minWidth: "220px", padding: "12px", backgroundColor: "#fcfcfc", border: "1px solid #eee", borderRadius: "4px" }}>
                                             <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px", fontWeight: "600" }}>第2口座</div>
                                             <div style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1a", marginBottom: "4px" }}>
@@ -896,7 +920,7 @@ export function DocumentPreviewModal({
                                     )}
 
                                     {/* Account 3 */}
-                                    {(bankChoice === 'all' || bankChoice === 'account3') && companySettings?.bankName3 && (
+                                    {activeBankAccounts.includes('account3') && companySettings?.bankName3 && (
                                         <div style={{ flex: 1, minWidth: "220px", padding: "12px", backgroundColor: "#fcfcfc", border: "1px solid #eee", borderRadius: "4px" }}>
                                             <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px", fontWeight: "600" }}>第3口座</div>
                                             <div style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1a", marginBottom: "4px" }}>

@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.28.0";
+export const CURRENT_VERSION = "v1.28.1";
 export const RELEASE_DATE = "2026.11.06";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "新規帳票作成時の振込先口座の複数指定（最大2口座まで）機能",
+        description: "請求書・支払明細書の作成時に、登録されている振込先口座（第1・第2・第3口座）の中から印字したい口座を最大2つまで自由に組み合わせて指定できるチェックボックスカードUIを実装。最低1口座必須・上限2口座ガードを設け、相手先ごとの基本設定記憶や帳票プレビューでの2口座並記表示にも完全対応。",
+        status: "completed"
+    },
     {
         name: "振込先第3口座の登録と取引先別・請求書ごとの記載口座選択＆基本設定記憶機能",
         description: "管理設定にて従来の第1・第2口座に加え「第3口座」の登録に対応。請求書作成時には相手先に応じて記載する振込先口座（第1口座/第2口座/第3口座/全口座並記）を選択可能とし、「この相手先の基本口座として保存」にチェックを入れることで次回以降も自動反映。店舗・取引先マスタでも相手先ごとの基本振込口座を直接指定・管理可能に。",

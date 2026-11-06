@@ -110,11 +110,33 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.28.0 */}
+                    {/* v1.28.1 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">新規帳票作成での振込先口座の複数指定（最大2口座まで）に対応</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "チェックボックスカードによる口座選択UI：新規帳票作成画面において、第1・第2・第3口座の中から記載したい口座を直感的に選択できる専用カードUIを設置",
+                                    "最大2口座までの指定制限ガード：請求書に記載する振込口座を最大2つまでに制限し、2口座選択時は未選択カードを自動制御して誤設定を防止。最低1口座の選択も必須化",
+                                    "2口座の組み合わせ指定＆プレビュー印字出力：単独口座だけでなく「第1口座 ＋ 第2口座」「第1口座 ＋ 第3口座」「第2口座 ＋ 第3口座」などの柔軟な2口座並記印字に対応",
+                                    "相手先ごとの2口座基本設定の自動記憶・次回反映：指定した口座の組み合わせを「基本振込口座」として相手先ごとに記憶し、次回作成時にも自動反映"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.28.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.28.0 - 2026.11.06</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">振込先第3口座の追加登録 ＆ 請求先ごとの記載口座選択・基本設定記憶機能</h3>
                             <ul className="space-y-2">
                                 {[

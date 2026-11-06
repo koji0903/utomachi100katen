@@ -221,7 +221,7 @@ export interface RetailStore extends BaseEntity {
     honorific?: '様' | '御中';
     squareLocationId?: string; // Square Location ID
     linkedConsignmentStoreId?: string; // 紐付け先委託販売先 (タイプB用)
-    defaultBankAccountId?: 'account1' | 'account2' | 'account3' | 'all'; // 請求書作成時の基本振込先口座
+    defaultBankAccountId?: 'account1' | 'account2' | 'account3' | 'account1,account2' | 'account1,account3' | 'account2,account3' | 'all' | string; // 請求書作成時の基本振込先口座（最大2つまで指定可能）
 }
 
 export const isConsignmentStore = (store?: RetailStore | null): boolean => {
@@ -419,7 +419,7 @@ export interface IssuedDocument extends BaseEntity {
     finalAdjustment?: number;
     hidePrices?: boolean;
     showTransferFeeNote?: boolean; // 請求書に振込手数料の注意書きを表示するか（未設定の既存帳票は表示）
-    bankAccountChoice?: 'account1' | 'account2' | 'account3' | 'all'; // 請求書に記載する振込先口座の選択
+    bankAccountChoice?: 'account1' | 'account2' | 'account3' | 'account1,account2' | 'account1,account3' | 'account2,account3' | 'all' | string; // 請求書に記載する振込先口座の選択（最大2つまで指定可能）
     memo?: string;
     paymentMethod?: '銀行振込' | '現金' | 'QR決済' | 'その他'; // Used for receipts
     transactionId?: string;
@@ -510,7 +510,7 @@ export interface SpotRecipient extends BaseEntity {
     memo?: string;
     lastUsedAt?: string;        // ISO date — 最終使用日（名寄せ優先順位用）
     honorific?: '様' | '御中';
-    defaultBankAccountId?: 'account1' | 'account2' | 'account3' | 'all'; // 請求書作成時の基本振込先口座
+    defaultBankAccountId?: 'account1' | 'account2' | 'account3' | 'account1,account2' | 'account1,account3' | 'account2,account3' | 'all' | string; // 請求書作成時の基本振込先口座（最大2つまで指定可能）
     createdAt?: string | any;
 }
 

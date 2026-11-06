@@ -9,6 +9,7 @@ import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
 import { SpotRecipientInput } from "@/components/SpotRecipientInput";
 import { InvoiceEditor } from "@/components/InvoiceEditor";
 import { NumberInput } from "@/components/NumberInput";
+import { showNotification } from "@/lib/notifications";
 
 const BRAND = "#b27f79";
 const BRAND_LIGHT = "#fdf5f5";
@@ -48,6 +49,39 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
     const [showTransferFeeNote, setShowTransferFeeNote] = useState(editingDoc?.showTransferFeeNote ?? true);
     const [bankAccountChoice, setBankAccountChoice] = useState<IssuedDocument['bankAccountChoice']>(editingDoc?.bankAccountChoice ?? 'account1');
     const [saveAsDefaultBankAccount, setSaveAsDefaultBankAccount] = useState(true);
+
+    const selectedBankAccounts: ('account1' | 'account2' | 'account3')[] = useMemo(() => {
+        if (!bankAccountChoice) return ['account1'];
+        if (bankAccountChoice === 'all') {
+            const accs: ('account1' | 'account2' | 'account3')[] = [];
+            if (companySettings?.bankName) accs.push('account1');
+            if (companySettings?.bankName2) accs.push('account2');
+            if (accs.length === 0) accs.push('account1');
+            return accs;
+        }
+        const parts = bankAccountChoice.split(',').map(s => s.trim());
+        const valid = parts.filter((p): p is ('account1' | 'account2' | 'account3') => ['account1', 'account2', 'account3'].includes(p));
+        return (valid.length > 0 ? valid : (['account1'] as ('account1' | 'account2' | 'account3')[])).slice(0, 2);
+    }, [bankAccountChoice, companySettings]);
+
+    const toggleAccount = (acc: 'account1' | 'account2' | 'account3') => {
+        if (selectedBankAccounts.includes(acc)) {
+            if (selectedBankAccounts.length <= 1) {
+                showNotification("請求書には最低1つの振込先口座の指定が必要です。", "info");
+                return;
+            }
+            const next = selectedBankAccounts.filter(a => a !== acc);
+            setBankAccountChoice(next.join(',') as any);
+        } else {
+            if (selectedBankAccounts.length >= 2) {
+                showNotification("振込先口座は最大2つまで指定可能です。", "info");
+                return;
+            }
+            const next = [...selectedBankAccounts, acc];
+            next.sort();
+            setBankAccountChoice(next.join(',') as any);
+        }
+    };
     const [transactionId, setTransactionId] = useState(editingDoc?.transactionId ?? initialTransactionId ?? "");
     const [linkedConsignmentStoreId, setLinkedConsignmentStoreId] = useState(editingDoc?.linkedConsignmentStoreId ?? "");
     const [skipInventoryAdjustment, setSkipInventoryAdjustment] = useState(editingDoc?.skipInventoryAdjustment ?? !!editingDoc?.linkedConsignmentStoreId);
@@ -406,47 +440,116 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                                     <span>🏦</span>
                                     <span>請求書に記載する振込先口座</span>
                                 </label>
-                                <span className="text-[10px] text-slate-400 font-medium">相手先ごとに指定可能</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-slate-400 font-medium">相手先ごとに指定可能</span>
+                                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-600 shadow-2xs">
+                                        選択: <span className={selectedBankAccounts.length === 2 ? "text-blue-600 font-extrabold" : "text-slate-800"}>{selectedBankAccounts.length}</span> / 2口座
+                                    </span>
+                                </div>
                             </div>
+                            <p className="text-[11px] text-slate-500">
+                                請求書に記載する口座を最大2つまで選択してください（チェックを入れた口座が帳票に印字されます）。
+                            </p>
 
-                            <div className="space-y-2">
-                                <select
-                                    value={bankAccountChoice}
-                                    onChange={e => setBankAccountChoice(e.target.value as any)}
-                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-300"
-                                >
-                                    {companySettings?.bankName && (
-                                        <option value="account1">
-                                            第1口座: {companySettings.bankName} {companySettings.bankBranch} ({companySettings.bankAccountType} {companySettings.bankAccountNumber})
-                                        </option>
-                                    )}
-                                    {companySettings?.bankName2 && (
-                                        <option value="account2">
-                                            第2口座: {companySettings.bankName2} {companySettings.bankBranch2} ({companySettings.bankAccountType2} {companySettings.bankAccountNumber2})
-                                        </option>
-                                    )}
-                                    {companySettings?.bankName3 && (
-                                        <option value="account3">
-                                            第3口座: {companySettings.bankName3} {companySettings.bankBranch3} ({companySettings.bankAccountType3} {companySettings.bankAccountNumber3})
-                                        </option>
-                                    )}
-                                    <option value="all">全口座を並べて記載（従来方式）</option>
-                                </select>
-
-                                {recipientName && (
-                                    <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                            <div className="space-y-2 pt-1">
+                                {/* 第1口座 */}
+                                {companySettings?.bankName && (
+                                    <label className={`flex items-start gap-3 p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                                        selectedBankAccounts.includes('account1')
+                                            ? "bg-white border-blue-400 shadow-xs ring-2 ring-blue-50"
+                                            : selectedBankAccounts.length >= 2
+                                                ? "bg-slate-100/60 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed"
+                                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                    }`}>
                                         <input
                                             type="checkbox"
-                                            checked={saveAsDefaultBankAccount}
-                                            onChange={e => setSaveAsDefaultBankAccount(e.target.checked)}
-                                            className="w-3.5 h-3.5 rounded text-rose-500 focus:ring-rose-400"
+                                            checked={selectedBankAccounts.includes('account1')}
+                                            disabled={!selectedBankAccounts.includes('account1') && selectedBankAccounts.length >= 2}
+                                            onChange={() => toggleAccount('account1')}
+                                            className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-400 border-slate-300"
                                         />
-                                        <span className="text-xs font-medium text-slate-600">
-                                            「{recipientName}」の基本振込口座として保存する（次回作成時にも自動反映）
-                                        </span>
+                                        <div className="flex-1">
+                                            <div className="font-bold flex items-center gap-2 text-slate-800">
+                                                <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-bold">第1口座</span>
+                                                <span>{companySettings.bankName} {companySettings.bankBranch}</span>
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 mt-0.5">
+                                                {companySettings.bankAccountType} {companySettings.bankAccountNumber}（口座名義: {companySettings.bankAccountHolder}）
+                                            </div>
+                                        </div>
+                                    </label>
+                                )}
+
+                                {/* 第2口座 */}
+                                {companySettings?.bankName2 && (
+                                    <label className={`flex items-start gap-3 p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                                        selectedBankAccounts.includes('account2')
+                                            ? "bg-white border-blue-400 shadow-xs ring-2 ring-blue-50"
+                                            : selectedBankAccounts.length >= 2
+                                                ? "bg-slate-100/60 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed"
+                                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                    }`}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedBankAccounts.includes('account2')}
+                                            disabled={!selectedBankAccounts.includes('account2') && selectedBankAccounts.length >= 2}
+                                            onChange={() => toggleAccount('account2')}
+                                            className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-400 border-slate-300"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="font-bold flex items-center gap-2 text-slate-800">
+                                                <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-bold">第2口座</span>
+                                                <span>{companySettings.bankName2} {companySettings.bankBranch2}</span>
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 mt-0.5">
+                                                {companySettings.bankAccountType2} {companySettings.bankAccountNumber2}（口座名義: {companySettings.bankAccountHolder2}）
+                                            </div>
+                                        </div>
+                                    </label>
+                                )}
+
+                                {/* 第3口座 */}
+                                {companySettings?.bankName3 && (
+                                    <label className={`flex items-start gap-3 p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                                        selectedBankAccounts.includes('account3')
+                                            ? "bg-white border-blue-400 shadow-xs ring-2 ring-blue-50"
+                                            : selectedBankAccounts.length >= 2
+                                                ? "bg-slate-100/60 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed"
+                                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                    }`}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedBankAccounts.includes('account3')}
+                                            disabled={!selectedBankAccounts.includes('account3') && selectedBankAccounts.length >= 2}
+                                            onChange={() => toggleAccount('account3')}
+                                            className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-400 border-slate-300"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="font-bold flex items-center gap-2 text-slate-800">
+                                                <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-bold">第3口座</span>
+                                                <span>{companySettings.bankName3} {companySettings.bankBranch3}</span>
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 mt-0.5">
+                                                {companySettings.bankAccountType3} {companySettings.bankAccountNumber3}（口座名義: {companySettings.bankAccountHolder3}）
+                                            </div>
+                                        </div>
                                     </label>
                                 )}
                             </div>
+
+                            {recipientName && (
+                                <label className="flex items-center gap-2 pt-2 border-t border-slate-200/60 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={saveAsDefaultBankAccount}
+                                        onChange={e => setSaveAsDefaultBankAccount(e.target.checked)}
+                                        className="w-3.5 h-3.5 rounded text-rose-500 focus:ring-rose-400"
+                                    />
+                                    <span className="text-xs font-medium text-slate-600">
+                                        「{recipientName}」の基本振込口座として保存する（次回作成時にも自動反映）
+                                    </span>
+                                </label>
+                            )}
                         </div>
                     )}
 

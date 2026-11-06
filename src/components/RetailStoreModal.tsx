@@ -46,7 +46,7 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
         squareLocationId: "",
         wholesaleRate: 60,
         linkedConsignmentStoreId: "",
-        defaultBankAccountId: 'account1' as 'account1' | 'account2' | 'account3' | 'all',
+        defaultBankAccountId: 'account1' as any,
     });
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [geoResult, setGeoResult] = useState<"ok" | "error" | null>(null);
@@ -622,22 +622,38 @@ export function RetailStoreModal({ isOpen, onClose, initialData }: RetailStoreMo
                                     この取引先宛ての請求書を作成する際、自動で初期選択される口座です。
                                 </p>
                                 <select
-                                    value={formData.defaultBankAccountId}
+                                    value={formData.defaultBankAccountId || 'account1'}
                                     onChange={e => setFormData({ ...formData, defaultBankAccountId: e.target.value as any })}
                                     className={inputCls}
                                 >
                                     <option value="account1">
-                                        第1口座: {companySettings.bankName || "未設定"} {companySettings.bankBranch || ""} {companySettings.bankAccountNumber ? `(${companySettings.bankAccountNumber})` : ""}
+                                        第1口座のみ: {companySettings.bankName || "未設定"} {companySettings.bankBranch || ""} {companySettings.bankAccountNumber ? `(${companySettings.bankAccountNumber})` : ""}
                                     </option>
-                                    <option value="account2">
-                                        第2口座: {companySettings.bankName2 ? `${companySettings.bankName2} ${companySettings.bankBranch2 || ""} (${companySettings.bankAccountNumber2})` : "（未登録）"}
-                                    </option>
-                                    <option value="account3">
-                                        第3口座: {companySettings.bankName3 ? `${companySettings.bankName3} ${companySettings.bankBranch3 || ""} (${companySettings.bankAccountNumber3})` : "（未登録）"}
-                                    </option>
-                                    <option value="all">
-                                        全ての登録口座（第1〜第3口座）を並記
-                                    </option>
+                                    {companySettings.bankName2 && (
+                                        <option value="account2">
+                                            第2口座のみ: {companySettings.bankName2} {companySettings.bankBranch2 || ""} ({companySettings.bankAccountNumber2})
+                                        </option>
+                                    )}
+                                    {companySettings.bankName3 && (
+                                        <option value="account3">
+                                            第3口座のみ: {companySettings.bankName3} {companySettings.bankBranch3 || ""} ({companySettings.bankAccountNumber3})
+                                        </option>
+                                    )}
+                                    {companySettings.bankName && companySettings.bankName2 && (
+                                        <option value="account1,account2">
+                                            第1口座 ＋ 第2口座（2口座並記）
+                                        </option>
+                                    )}
+                                    {companySettings.bankName && companySettings.bankName3 && (
+                                        <option value="account1,account3">
+                                            第1口座 ＋ 第3口座（2口座並記）
+                                        </option>
+                                    )}
+                                    {companySettings.bankName2 && companySettings.bankName3 && (
+                                        <option value="account2,account3">
+                                            第2口座 ＋ 第3口座（2口座並記）
+                                        </option>
+                                    )}
                                 </select>
                             </div>
 
