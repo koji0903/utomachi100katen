@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.28.1";
-export const RELEASE_DATE = "2026.11.06";
+export const CURRENT_VERSION = "v1.28.2";
+export const RELEASE_DATE = "2026.11.16";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "在庫管理整合性ロジック（仕入反映・委託出庫・日報売上減算）の点検および強化",
+        description: "仕入管理における「仕入済み」「支払済」登録時の受領数0値フォールバック処理を是正し、発注全数の確実な在庫加算を保証。さらに納品書出庫における商品特定フォールバック（商品名・バリエーション名照合）を追加し、委託販売・日報売上入力に伴う本部在庫および委託先店舗在庫の適正な減算サイクルを厳密化。",
+        status: "completed"
+    },
     {
         name: "新規帳票作成時の振込先口座の複数指定（最大2口座まで）機能",
         description: "請求書・支払明細書の作成時に、登録されている振込先口座（第1・第2・第3口座）の中から印字したい口座を最大2つまで自由に組み合わせて指定できるチェックボックスカードUIを実装。最低1口座必須・上限2口座ガードを設け、相手先ごとの基本設定記憶や帳票プレビューでの2口座並記表示にも完全対応。",

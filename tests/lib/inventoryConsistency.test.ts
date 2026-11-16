@@ -24,6 +24,21 @@ describe("inventoryConsistency", () => {
         ]);
     });
 
+    it("納品書のproductIdが未設定でも商品名(label)から特定して出庫する", () => {
+        const doc = {
+            type: "delivery_note",
+            status: "issued",
+            details: [{ label: "宇土産みかん 10kg箱 (Mサイズ)", quantity: 5 }],
+        };
+        const products = [
+            { id: "p-orange", name: "宇土産みかん 10kg箱", variantName: "Mサイズ" }
+        ];
+
+        expect(getDeliveryNoteInventoryEffects(doc, products, [])).toEqual([
+            { scope: "main", productId: "p-orange", quantity: -5 },
+        ]);
+    });
+
     it("納品書の複製下書きは在庫を二重に減らさない", () => {
         const issued = getDeliveryNoteInventoryEffects({
             type: "delivery_note",
@@ -95,6 +110,22 @@ describe("inventoryConsistency", () => {
         expect(item).toMatchObject({ quantity: 10, receivedQuantity: 10 });
         expect(getPurchaseInventoryEffects({ status: "received", items: [item] })).toEqual([
             { scope: "main", productId: "p1", quantity: 10 },
+        ]);
+    });
+
+    it("仕入済み(received/paid)でreceivedQuantityが0や未指定でも発注数量を全数在庫へ反映する", () => {
+        expect(getPurchaseInventoryEffects({
+            status: "received",
+            items: [{ productId: "p1", quantity: 8, receivedQuantity: 0 }],
+        })).toEqual([
+            { scope: "main", productId: "p1", quantity: 8 },
+        ]);
+
+        expect(getPurchaseInventoryEffects({
+            status: "paid",
+            items: [{ productId: "p2", quantity: 15 }],
+        })).toEqual([
+            { scope: "main", productId: "p2", quantity: 15 },
         ]);
     });
 

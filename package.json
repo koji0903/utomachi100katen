@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
+    "test": "node ./node_modules/vitest/vitest.mjs run",
     "audit:delivery-inventory": "node scripts/audit-delivery-inventory.mjs",
     "repair:orphan-payments": "node scripts/audit-delivery-inventory.mjs --repair-orphan-payments",
     "test:storage-rules": "firebase emulators:exec --only storage --project utomachi100katen-rules-test \"vitest run --config vitest.storage.config.ts\"",

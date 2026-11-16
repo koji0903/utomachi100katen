@@ -110,11 +110,33 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.28.1 */}
+                    {/* v1.28.2 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">仕入管理・委託出庫・日報売上入力の在庫連動ロジック点検と厳密化</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "仕入管理での入荷完了時の在庫反映を保証：ステータスが「仕入済み（在庫反映）」または「支払済」の際、明細の受領数量が未入力または0のケースでも発注全数が確実に本部在庫へ加算されるようフォールバック処理を強化",
+                                    "新規仕入作成モーダルでの初期受領数同期：ステータスを仕入済みに設定した状態で新規アイテムを追加した際にも、初期数量が受領数へ即時連動するよう改善",
+                                    "納品書による委託先・卸先出庫の照合強化：納品書明細で商品IDが未設定の手入力行でも、商品名・バリエーション名からマスター品を正確に特定して本部在庫を自動出庫（減算）",
+                                    "日報売上入力・委託店舗補充の在庫サイクル維持：日報の店舗補充による「本部在庫出庫（減）→店舗在庫入庫（増）」と、売上入力時の「委託先店舗在庫の減算（直営・卸は本部在庫減算）」の2段階預け在庫ロジックを再確認・テスト完了"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.28.1 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.28.1 - 2026.11.06</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">新規帳票作成での振込先口座の複数指定（最大2口座まで）に対応</h3>
                             <ul className="space-y-2">
                                 {[

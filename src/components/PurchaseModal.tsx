@@ -140,7 +140,7 @@ export function PurchaseModal({ isOpen, onClose, initialData }: PurchaseModalPro
                 { 
                     productId: availableProducts.length > 0 ? availableProducts[0].id : "", 
                     quantity: 1, 
-                    receivedQuantity: prev.type === 'B' ? 1 : 0,
+                    receivedQuantity: (prev.type === 'B' || prev.status === 'received' || prev.status === 'paid') ? 1 : 0,
                     unitCost: availableProducts.length > 0 ? availableProducts[0].purchasePrice : 0, 
                     totalCost: availableProducts.length > 0 ? availableProducts[0].purchasePrice : 0 
                 }

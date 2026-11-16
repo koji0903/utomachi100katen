@@ -47,6 +47,8 @@ type PurchaseLike = {
 
 type ProductLike = {
     id: string;
+    name?: string;
+    variantName?: string;
     isComposite?: boolean;
     components?: Array<{ productId: string; quantity: number }>;
 };
@@ -70,7 +72,7 @@ type DeliveryNoteLike = {
     linkedConsignmentStoreId?: string;
     skipInventoryAdjustment?: boolean;
     isTrashed?: boolean;
-    details?: Array<{ productId?: string; quantity: number }>;
+    details?: Array<{ productId?: string; label?: string; quantity: number }>;
     inventoryEffects?: InventoryEffect[];
 };
 
@@ -119,7 +121,10 @@ export function getPurchaseInventoryEffects(purchase?: PurchaseLike | null): Inv
 
     return mergeInventoryEffects((purchase.items || []).map(item => {
         const isFullyReceived = purchase.status === 'received' || purchase.status === 'paid';
-        const receivedQuantity = item.receivedQuantity ?? (isFullyReceived ? item.quantity : 0);
+        // received/paid時は全数入荷完了のため、0や未設定時は発注数(quantity)を全数反映
+        const receivedQuantity = isFullyReceived
+            ? (item.receivedQuantity || item.quantity)
+            : (item.receivedQuantity ?? 0);
         return { scope: 'main' as const, productId: item.productId, quantity: receivedQuantity };
     }));
 }
@@ -184,8 +189,15 @@ export function getDeliveryNoteInventoryEffects(
 
     const effects: InventoryEffect[] = [];
     for (const item of document.details || []) {
-        if (!item.productId || !Number.isFinite(item.quantity) || item.quantity <= 0) continue;
-        const product = products.find(candidate => candidate.id === item.productId);
+        if (!Number.isFinite(item.quantity) || item.quantity <= 0) continue;
+        const product = products.find(candidate =>
+            (item.productId && candidate.id === item.productId) ||
+            (item.label && (
+                candidate.name === item.label ||
+                (candidate.variantName && `${candidate.name} (${candidate.variantName})` === item.label) ||
+                (candidate.variantName && `${candidate.name}(${candidate.variantName})` === item.label)
+            ))
+        );
         if (!product) continue;
 
         if (product.isComposite && product.components?.length) {
