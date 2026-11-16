@@ -23,7 +23,9 @@ import {
     X,
     RefreshCw,
     Store,
-    ArrowRight
+    ArrowRight,
+    Building2,
+    FileSpreadsheet
 } from "lucide-react";
 import Link from "next/link";
 
@@ -252,6 +254,14 @@ export default function InventoryPage() {
                         <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
                         {isSyncing ? 'Amazon同期中' : 'Amazon同期'}
                     </button>
+
+                    <Link
+                        href="/inventory/fiscal-report"
+                        className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 sm:px-5 py-2.5 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-all shadow-lg shadow-amber-900/10 whitespace-nowrap active:scale-95"
+                    >
+                        <Building2 className="w-5 h-5" />
+                        決算在庫レポート
+                    </Link>
 
                     <Link
                         href="/inventory/audits/new"

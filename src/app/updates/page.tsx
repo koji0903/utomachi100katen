@@ -110,11 +110,35 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.28.2 */}
+                    {/* v1.29.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">10月末決算対応「決算在庫管理レポート（期末棚卸資産明細書）」を新設</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "10月末決算のワンクリック期間指定＆任意期間カスタム：直近確定決算期（2025/11/01〜2026/10/31）、前年度決算期、進行期などのプリセット選択と、自由な日付範囲指定による即時再計算に対応",
+                                    "期首・期間入出庫・期末在庫の完全等式算出：期末日時点の確定在庫、期間内の総入庫（仕入・生産受入）・総出庫（売上・納品・販促等）、および期首在庫を「期首＋入庫－出庫＝期末」の会計等式で正確に逆算",
+                                    "原価ベースの期末棚卸評価額集計：商品マスターの個別仕入原価（costPrice）を基準に、期末棚卸資産の総評価額（円）と各品目の資産価値を自動算出",
+                                    "全社総在庫（委託預け在庫含む）と本部実在庫の集計範囲切替：税務・決算会計で必要となる積送品・委託先店舗の預け在庫を含めた「全社棚卸資産」と自社倉庫の「本部実在庫」のワンクリック切り替えに対応",
+                                    "決算対象外商品の選択・除外設定（永続保持）：サンプル品や備品、非課税資産などの除外設定モーダルを搭載し、除外設定をブラウザに自動記憶。レポート上でも対象品と除外品を即座にタブ切り替え確認可能",
+                                    "税理士・監査提出用帳票印刷（A4横・承認印欄完備）＆ 会計ソフト連携用CSVダウンロード：freee、マネーフォワード、弥生会計等で活用できるBOM付きCSVエクスポートと、代表者・経理責任者印欄を備えたフォーマルな印刷レイアウトに対応"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.28.2 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.28.2 - 2026.11.16</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">仕入管理・委託出庫・日報売上入力の在庫連動ロジック点検と厳密化</h3>
                             <ul className="space-y-2">
                                 {[
