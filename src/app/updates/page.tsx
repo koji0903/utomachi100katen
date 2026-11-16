@@ -110,11 +110,32 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.29.0 */}
+                    {/* v1.29.1 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">決算在庫管理レポート：取扱開始前期間（2025年10月決算以前等）の在庫算出ロジックを是正</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "初回仕入日・取扱開始日による期間境界判定の導入：仕入伝票（purchases）および入出庫履歴（stock_movements / store_stock_movements）から各商品・全社の初活動日を特定し、取扱開始前の期間（2025年10月決算期など）を指定した際に初期在庫残差が計上されないよう修正（全数0・評価額0円として計上）",
+                                    "創業初年度（初仕入期：2026年10月期）における期首在庫0円の厳密保証：取扱開始前の期首時点（2025-11-01）の在庫を0として扱い、初期登録分を含めた当期受入・払出・期末在庫の完全会計等式が成立するよう是正",
+                                    "取扱開始前期間のガイダンス表示追加：仕入・事業活動開始前の期間を選択した際、画面上部に「取扱開始前の決算期間のためすべて0として算出されている」旨のインフォメーションバナーを表示"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.29.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.29.0 - 2026.11.16</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">10月末決算対応「決算在庫管理レポート（期末棚卸資産明細書）」を新設</h3>
                             <ul className="space-y-2">
                                 {[

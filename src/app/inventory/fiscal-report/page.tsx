@@ -39,6 +39,7 @@ export default function FiscalInventoryReportPage() {
         stockMovements,
         storeStockMovements,
         storeStocks,
+        purchases,
         brands,
         suppliers,
         companySettings,
@@ -115,6 +116,7 @@ export default function FiscalInventoryReportPage() {
             stockMovements,
             storeStockMovements,
             storeStocks,
+            purchases,
             brands,
             suppliers,
             startDate,
@@ -128,6 +130,7 @@ export default function FiscalInventoryReportPage() {
         stockMovements,
         storeStockMovements,
         storeStocks,
+        purchases,
         brands,
         suppliers,
         startDate,
@@ -409,6 +412,20 @@ export default function FiscalInventoryReportPage() {
                     </div>
                 </div>
             </div>
+
+            {/* 活動開始前期間の案内（印刷時は非表示） */}
+            {report.summary.totalBeginningQty === 0 &&
+                report.summary.totalInboundQty === 0 &&
+                report.summary.totalOutboundQty === 0 &&
+                report.summary.totalEndingQty === 0 && (
+                    <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-4 flex items-start gap-3 print:hidden shadow-xs">
+                        <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                        <div className="text-xs text-blue-900 leading-relaxed">
+                            <span className="font-bold">仕入・取扱開始前の決算期間です：</span>
+                            指定された期間（{startDate} 〜 {endDate}）は、当社の仕入・事業活動開始日（2026年3月）より前の期間のため、取扱前として期首・期末在庫および入出庫はすべて 0（計上なし）となっています。
+                        </div>
+                    </div>
+                )}
 
             {/* サマリーカード（KPI） */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 print:grid-cols-4 print:gap-2">

@@ -26,10 +26,11 @@ describe("fiscalInventoryReport", () => {
         ];
 
         // stockMovements:
-        // p1: 2026-10-15 に入庫 15 (期間内), 2026-10-25 に出庫 5 (期間内), 2026-11-05 に出庫 2 (期末後)
+        // p1: 前期 2025-10-01 に入庫 2 (前期繰越), 2026-10-15 に入庫 15 (期間内), 2026-10-25 に出庫 5 (期間内), 2026-11-05 に出庫 2 (期末後)
         // 現在庫が 10 なので、期末時点(2026-10-31)の在庫は 10 + 2 = 12
         // 期間中入庫 15、期間中出庫 5 なので、期首在庫は 12 - 15 + 5 = 2
         const mockMovements = [
+            { productId: "p1", type: "in", quantity: 2, date: "2025-10-01" } as any,
             { productId: "p1", type: "in", quantity: 15, date: "2026-10-15" } as any,
             { productId: "p1", type: "out", quantity: 5, date: "2026-10-25" } as any,
             { productId: "p1", type: "out", quantity: 2, date: "2026-11-05" } as any,
@@ -99,5 +100,73 @@ describe("fiscalInventoryReport", () => {
         expect(csv).toContain("決算在庫管理レポート（棚卸資産明細書）");
         expect(csv).toContain("宇土産海苔");
         expect(csv).toContain("SKU-NORI");
+    });
+
+    it("仕入開始前（2026年3月より前）の2025年10月決算期は、現在庫があっても全品在庫0・評価額0となる", () => {
+        // 商品A: 現在庫14、初回仕入が2026-03-17
+        const mockProducts = [
+            { id: "p1", name: "商品A", stock: 14, costPrice: 1000, brandId: "b1", supplierId: "s1" } as any,
+        ];
+        // 2026年3月に仕入実績
+        const mockPurchases = [
+            { id: "pur1", arrivalDate: "2026-03-17", items: [{ productId: "p1", quantity: 50 }] } as any,
+        ];
+        const mockMovements = [
+            { productId: "p1", type: "in", quantity: 50, date: "2026-03-17" } as any,
+            { productId: "p1", type: "out", quantity: 36, date: "2026-04-10" } as any,
+        ];
+
+        // 2025年10月決算（2024-11-01 〜 2025-10-31）
+        const report2025 = generateFiscalInventoryReport({
+            products: mockProducts,
+            purchases: mockPurchases,
+            stockMovements: mockMovements,
+            storeStockMovements: [],
+            storeStocks: [],
+            startDate: "2024-11-01",
+            endDate: "2025-10-31",
+        });
+
+        expect(report2025.items.length).toBe(1);
+        const item = report2025.items[0];
+        expect(item.beginningStock).toBe(0);
+        expect(item.inboundQty).toBe(0);
+        expect(item.outboundQty).toBe(0);
+        expect(item.endingStock).toBe(0);
+        expect(item.endingAmount).toBe(0);
+        expect(report2025.summary.totalEndingAmount).toBe(0);
+        expect(report2025.summary.totalEndingQty).toBe(0);
+    });
+
+    it("初仕入期（2026年10月決算期）では期首在庫が0となり、期末在庫が正しく算出される", () => {
+        const mockProducts = [
+            { id: "p1", name: "商品A", stock: 14, costPrice: 1000, brandId: "b1", supplierId: "s1" } as any,
+        ];
+        const mockPurchases = [
+            { id: "pur1", arrivalDate: "2026-03-17", items: [{ productId: "p1", quantity: 50 }] } as any,
+        ];
+        const mockMovements = [
+            { productId: "p1", type: "in", quantity: 50, date: "2026-03-17" } as any,
+            { productId: "p1", type: "out", quantity: 36, date: "2026-04-10" } as any,
+        ];
+
+        // 2026年10月決算（2025-11-01 〜 2026-10-31）
+        const report2026 = generateFiscalInventoryReport({
+            products: mockProducts,
+            purchases: mockPurchases,
+            stockMovements: mockMovements,
+            storeStockMovements: [],
+            storeStocks: [],
+            startDate: "2025-11-01",
+            endDate: "2026-10-31",
+        });
+
+        const item = report2026.items[0];
+        // 2025年11月1日時点ではまだ仕入前なので期首在庫は0
+        expect(item.beginningStock).toBe(0);
+        expect(item.endingStock).toBe(14);
+        expect(item.endingAmount).toBe(14 * 1000);
+        // 会計等式の成立確認
+        expect(item.beginningStock + item.inboundQty - item.outboundQty).toBe(item.endingStock);
     });
 });

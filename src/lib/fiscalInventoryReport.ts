@@ -1,4 +1,4 @@
-import { Product, StockMovement, StoreStockMovement, StoreStock, Brand, Supplier } from "@/lib/store";
+import { Product, StockMovement, StoreStockMovement, StoreStock, Brand, Supplier, Purchase } from "@/lib/store";
 
 export interface FiscalReportItem {
     productId: string;
@@ -45,6 +45,7 @@ export interface GenerateFiscalReportParams {
     stockMovements: StockMovement[];
     storeStockMovements: StoreStockMovement[];
     storeStocks: StoreStock[];
+    purchases?: Purchase[];
     brands?: Brand[];
     suppliers?: Supplier[];
     startDate: string; // YYYY-MM-DD
@@ -95,6 +96,22 @@ export function getFiscalYearPresets(baseDate = new Date()) {
     };
 }
 
+function extractDateOnly(val: any): string | null {
+    if (!val) return null;
+    if (typeof val === "string") {
+        const m = val.match(/^\d{4}-\d{2}-\d{2}/);
+        return m ? m[0] : null;
+    }
+    if (typeof val === "object" && typeof val.toDate === "function") {
+        try {
+            return val.toDate().toISOString().split("T")[0];
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
 /**
  * 決算在庫レポートを計算する
  */
@@ -104,6 +121,7 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
         stockMovements,
         storeStockMovements,
         storeStocks,
+        purchases = [],
         brands = [],
         suppliers = [],
         startDate,
@@ -115,6 +133,53 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
     const brandMap = new Map(brands.map(b => [b.id, b.name]));
     const supplierMap = new Map(suppliers.map(s => [s.id, s.name]));
     const excludedSet = new Set(excludedProductIds);
+
+    // ─── 商品ごとの取扱・仕入初日（firstActivityDate）の構築 ───
+    const productFirstDateMap = new Map<string, string>();
+    const registerProductDate = (productId: string, rawDate: any) => {
+        const dateStr = extractDateOnly(rawDate);
+        if (!dateStr) return;
+        const current = productFirstDateMap.get(productId);
+        if (!current || dateStr < current) {
+            productFirstDateMap.set(productId, dateStr);
+        }
+    };
+
+    // 1. 仕入伝票から初仕入日
+    for (const pur of purchases) {
+        if (pur.isTrashed) continue;
+        const pDate = pur.arrivalDate || pur.receivedDate || pur.orderDate;
+        if (pur.items && Array.isArray(pur.items)) {
+            for (const item of pur.items) {
+                if (item.productId) registerProductDate(item.productId, pDate);
+            }
+        }
+        if (pur.productId) {
+            registerProductDate(pur.productId, pDate);
+        }
+    }
+
+    // 2. 本部在庫変動履歴から
+    for (const sm of stockMovements) {
+        if (sm.productId && sm.date) {
+            registerProductDate(sm.productId, sm.date);
+        }
+    }
+
+    // 3. 店舗在庫変動履歴から
+    for (const ssm of storeStockMovements) {
+        if (ssm.productId && ssm.date) {
+            registerProductDate(ssm.productId, ssm.date);
+        }
+    }
+
+    // 全社としての初活動日（全商品の最小実績日）
+    let companyEarliestDate: string | null = null;
+    for (const d of productFirstDateMap.values()) {
+        if (!companyEarliestDate || d < companyEarliestDate) {
+            companyEarliestDate = d;
+        }
+    }
 
     // 本部・店舗の現在庫マップ
     const mainCurrentStockMap = new Map<string, number>();
@@ -204,23 +269,52 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
         const costPrice = p.costPrice || 0;
         const sellingPrice = p.sellingPrice || 0;
 
+        // 商品の取扱初日（商品固有の実績日、または商品作成日、または全社初活動日）
+        const pCreatedDate = extractDateOnly(p.createdAt);
+        const effectiveFirstDate = productFirstDateMap.get(p.id) || pCreatedDate || companyEarliestDate;
+
+        // 判定1: 取扱開始前（期間末時点でもまだ仕入れ・取扱が始まっていない過去期間、例: 2025年10月期）
+        if (effectiveFirstDate && endDate < effectiveFirstDate) {
+            allItems.push({
+                productId: p.id,
+                productName: p.name,
+                variantName: p.variantName,
+                sku: p.amazonSku,
+                brandId: p.brandId,
+                brandName: brandMap.get(p.brandId) || "未設定",
+                supplierId: p.supplierId,
+                supplierName: supplierMap.get(p.supplierId) || "未設定",
+                costPrice,
+                sellingPrice,
+                beginningStock: 0,
+                inboundQty: 0,
+                outboundQty: 0,
+                endingStock: 0,
+                endingAmount: 0,
+                mainEndingStock: 0,
+                storeEndingStock: 0,
+                isExcluded,
+            });
+            continue;
+        }
+
         // 本部在庫の期末値（現在庫から期末後変動を逆算）
         const mainCurrent = mainCurrentStockMap.get(p.id) || 0;
         const mainPostIn = mainPostEndInbound.get(p.id) || 0;
         const mainPostOut = mainPostEndOutbound.get(p.id) || 0;
         // 期末在庫 = 現在庫 - (期末後入庫) + (期末後出庫)
-        const mainEnding = mainCurrent - mainPostIn + mainPostOut;
+        let mainEnding = mainCurrent - mainPostIn + mainPostOut;
+        if (mainEnding < 0) mainEnding = 0;
 
         // 委託先店舗在庫の期末値
         let storeEnding = 0;
         if (includeStoreStock) {
             const storeCurrent = storeCurrentStockMap.get(p.id) || 0;
             const storePostNet = storePostEndNet.get(p.id) || 0;
-            storeEnding = storeCurrent - storePostNet;
+            storeEnding = Math.max(0, storeCurrent - storePostNet);
         }
 
         const endingStock = mainEnding + storeEnding;
-        const endingAmount = Math.max(0, endingStock) * costPrice;
 
         // 期間中の入出庫
         const mainIn = mainPeriodInbound.get(p.id) || 0;
@@ -239,7 +333,21 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
         }
 
         // 期首在庫 = 期末在庫 - 期間入庫 + 期間出庫
-        const beginningStock = endingStock - inboundQty + outboundQty;
+        let beginningStock = endingStock - inboundQty + outboundQty;
+
+        // 判定2: 取扱開始期（初仕入期・創業初年度、例: 2026年10月期の期首 2025-11-01）
+        // 期間開始日時点ではまだ取扱前なので、期首在庫は必ず 0
+        if (effectiveFirstDate && startDate < effectiveFirstDate) {
+            beginningStock = 0;
+            // 会計等式: beginningStock(0) + inboundQty - outboundQty = endingStock を維持
+            // 初期登録残差や初期仕入等がある場合、受入合計に包含して等式を一致させる
+            inboundQty = endingStock + outboundQty;
+        } else if (beginningStock < 0) {
+            beginningStock = 0;
+            inboundQty = endingStock + outboundQty;
+        }
+
+        const endingAmount = endingStock * costPrice;
 
         allItems.push({
             productId: p.id,
