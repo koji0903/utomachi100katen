@@ -178,20 +178,20 @@ export function Sidebar({ isOpen = true, onClose, onSearchClick }: SidebarProps)
   return (
     <>
       {/* Desktop: permanent sidebar */}
-      <div className="hidden lg:flex h-full flex-shrink-0">
+      <div className="hidden lg:flex h-full flex-shrink-0 print:hidden">
         {sidebarContent}
       </div>
 
       {/* Mobile: slide-over drawer */}
       {/* Backdrop */}
       <div
-        className={`lg:hidden fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        className={`lg:hidden print:hidden fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
         onClick={onClose}
         aria-hidden="true"
       />
       {/* Drawer panel */}
       <div
-        className={`lg:hidden fixed inset-y-0 left-0 z-[70] flex flex-col transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`lg:hidden print:hidden fixed inset-y-0 left-0 z-[70] flex flex-col transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         {sidebarContent}
       </div>

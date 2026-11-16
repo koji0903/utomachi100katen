@@ -110,11 +110,31 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.29.1 */}
+                    {/* v1.29.2 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">決算在庫管理レポート：帳票印刷時のレポート専用レイアウト最適化</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "サイドバー・モバイルヘッダー等の画面ナビゲーションを印刷から完全除外：共通レイアウト（AppLayout / Sidebar）に印刷時非表示・スクロール制限解除（print:hidden / overflow-visible）を適用し、帳票部分のみが出力されるよう改善",
+                                    "A4横（Landscape）専用の決算帳票レイアウト整備：印刷用ヘッダー（承認印欄付き）・サマリーKPI・棚卸明細テーブル・合計行・計算基準フッター注記のみを整然と出力し、複数ページに跨る場合も各ページ先頭にテーブルヘッダーが自動印字されるよう対応"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.29.1 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.29.1 - 2026.11.16</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">決算在庫管理レポート：取扱開始前期間（2025年10月決算以前等）の在庫算出ロジックを是正</h3>
                             <ul className="space-y-2">
                                 {[

@@ -59,16 +59,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <div className="flex h-screen bg-[#f8fafc] overflow-hidden text-slate-900 font-sans">
+        <div className="flex h-screen bg-[#f8fafc] overflow-hidden text-slate-900 font-sans print:block print:h-auto print:overflow-visible print:bg-white">
             <Sidebar 
                 isOpen={sidebarOpen} 
                 onClose={() => setSidebarOpen(false)} 
                 onSearchClick={() => setIsSearchOpen(true)}
             />
 
-            <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative">
+            <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative print:block print:overflow-visible">
                 {/* Mobile header bar */}
-                <header className="lg:hidden flex items-center justify-between px-5 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/60 flex-shrink-0 z-30 sticky top-0">
+                <header className="lg:hidden print:hidden flex items-center justify-between px-5 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/60 flex-shrink-0 z-30 sticky top-0">
                     <div className="flex items-center gap-4">
                         <button
                             onClick={() => setSidebarOpen(true)}
@@ -91,8 +91,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </button>
                 </header>
 
-                <main className="flex-1 overflow-y-auto bg-[#f8fafc]">
-                    <div className="max-w-[1600px] mx-auto min-h-full">
+                <main className="flex-1 overflow-y-auto bg-[#f8fafc] print:overflow-visible print:bg-white">
+                    <div className="max-w-[1600px] mx-auto min-h-full print:max-w-none print:m-0">
                         <ErrorBoundary key={pathname}>
                             {children}
                         </ErrorBoundary>

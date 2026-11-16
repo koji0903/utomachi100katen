@@ -207,7 +207,32 @@ export default function FiscalInventoryReportPage() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 print:p-0 print:m-0 print:max-w-none">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 print:p-0 print:m-0 print:max-w-none print:space-y-4">
+            <style jsx global>{`
+                @media print {
+                    @page {
+                        size: A4 landscape;
+                        margin: 10mm 12mm;
+                    }
+                    html, body {
+                        background: #ffffff !important;
+                        height: auto !important;
+                        overflow: visible !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .printable-fiscal-table thead {
+                        display: table-header-group;
+                    }
+                    .printable-fiscal-table tfoot {
+                        display: table-row-group;
+                    }
+                    .printable-fiscal-table tr {
+                        break-inside: avoid;
+                        page-break-inside: avoid;
+                    }
+                }
+            `}</style>
             {/* 画面ヘッダー（印刷時は非表示） */}
             <div className="space-y-4 print:hidden">
                 <div className="flex items-center gap-2">
@@ -490,7 +515,7 @@ export default function FiscalInventoryReportPage() {
             </div>
 
             {/* テーブルセクション */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden print:border-none print:shadow-none">
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden print:overflow-visible print:border-none print:shadow-none">
                 {/* テーブルヘッダー操作部（印刷時は非表示） */}
                 <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
                     {/* タブ（決算対象 / 除外商品） */}
@@ -562,8 +587,8 @@ export default function FiscalInventoryReportPage() {
                 </div>
 
                 {/* 明細テーブル */}
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
+                <div className="overflow-x-auto print:overflow-visible">
+                    <table className="w-full text-left text-xs border-collapse printable-fiscal-table">
                         <thead className="bg-slate-50/80 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/80 print:bg-slate-100 print:text-slate-700">
                             <tr>
                                 <th className="px-4 py-3 print:px-2 print:py-1.5">商品情報</th>
@@ -754,6 +779,22 @@ export default function FiscalInventoryReportPage() {
                             </tr>
                         </tfoot>
                     </table>
+                </div>
+            </div>
+
+            {/* 印刷用フッター注記（印刷時のみ表示） */}
+            <div className="hidden print:block text-[10px] text-slate-500 border-t border-slate-300 pt-3 mt-4 leading-relaxed">
+                <div className="flex justify-between items-start gap-4">
+                    <div>
+                        <p>※ 計算式：期首在庫 ＋ 期間入庫 － 期間出庫 ＝ 期末在庫（各商品の初回仕入・取扱開始日以前は 0 として算出）</p>
+                        <p>※ 評価基準：商品マスター登録の個別仕入原価（税抜/評価単価）に基づく原価法評価</p>
+                        {report.summary.excludedSkuCount > 0 && (
+                            <p>※ 決算対象外として除外設定された {report.summary.excludedSkuCount} SKU は上記明細および合計額から除かれています。</p>
+                        )}
+                    </div>
+                    <div className="text-right shrink-0">
+                        <div>{companySettings?.companyName || "宇土まち100花展"} 棚卸資産管理システム</div>
+                    </div>
                 </div>
             </div>
 
