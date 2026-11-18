@@ -28,7 +28,7 @@ interface FaxOrderModalProps {
 interface FaxOrderLineItem {
     id: string;
     productId: string;
-    quantity: number;
+    quantityInput: string;
     janCodeOverride?: string;
 }
 
@@ -45,7 +45,7 @@ const formatJapaneseDate = (dateStr: string) => {
 const createEmptyLine = (): FaxOrderLineItem => ({
     id: `line-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     productId: "",
-    quantity: 1,
+    quantityInput: "1",
 });
 
 export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModalProps) {
@@ -81,7 +81,7 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
             return purchaseItems.map((it, idx) => ({
                 id: `init-${idx}-${Date.now()}`,
                 productId: it.productId,
-                quantity: it.quantity || 1,
+                quantityInput: String(it.quantity || 1),
             }));
         }
         return [createEmptyLine()];
@@ -155,8 +155,10 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
                 line.janCodeOverride !== undefined
                     ? line.janCodeOverride
                     : product?.janCode || "";
+            const quantity = parseInt(line.quantityInput, 10) || 0;
             return {
                 ...line,
+                quantity,
                 product,
                 janCode,
             };
@@ -201,11 +203,29 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
         );
     };
 
-    const handleChangeLineQuantity = (id: string, quantity: number) => {
+    const handleChangeLineQuantity = (id: string, rawValue: string) => {
+        const normalized = rawValue
+            .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0))
+            .replace(/\D/g, "")
+            .replace(/^0+(?=\d)/, "");
+
         setItems((prev) =>
             prev.map((item) =>
-                item.id === id ? { ...item, quantity: Math.max(1, quantity || 1) } : item
+                item.id === id ? { ...item, quantityInput: normalized } : item
             )
+        );
+    };
+
+    const handleBlurLineQuantity = (id: string) => {
+        setItems((prev) =>
+            prev.map((item) => {
+                if (item.id !== id) return item;
+                const parsed = parseInt(item.quantityInput, 10);
+                if (!parsed || parsed < 1) {
+                    return { ...item, quantityInput: "1" };
+                }
+                return { ...item, quantityInput: String(parsed) };
+            })
         );
     };
 
@@ -464,15 +484,15 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
                                                     数量
                                                 </label>
                                                 <input
-                                                    type="number"
-                                                    min={1}
-                                                    value={line.quantity}
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    value={line.quantityInput}
+                                                    onFocus={(e) => e.currentTarget.select()}
                                                     onChange={(e) =>
-                                                        handleChangeLineQuantity(
-                                                            line.id,
-                                                            parseInt(e.target.value, 10)
-                                                        )
+                                                        handleChangeLineQuantity(line.id, e.target.value)
                                                     }
+                                                    onBlur={() => handleBlurLineQuantity(line.id)}
+                                                    placeholder="1"
                                                     className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm font-bold text-right bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                                                 />
                                             </div>

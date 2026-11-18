@@ -11,7 +11,7 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.30.0";
+export const CURRENT_VERSION = "v1.30.1";
 export const RELEASE_DATE = "2026.11.18";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [

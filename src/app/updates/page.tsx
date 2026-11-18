@@ -110,11 +110,31 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.30.0 */}
+                    {/* v1.30.1 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">FAX注文票：数量入力のキーボード操作性を改善</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "数量入力欄で「1」が消えず追加入力しづらかった問題を解消：入力途中の空欄状態を許容し、フォーカス外れ時に最小値1へ自動補正するよう改善",
+                                    "フォーカス時の全選択および全角数字の自動半角変換に対応し、キーボードから任意の数量をスムーズに上書き入力可能に"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.30.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.30.0 - 2026.11.18</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">仕入管理：FAX注文票生成・印刷/PDF出力機能を追加</h3>
                             <ul className="space-y-2">
                                 {[
