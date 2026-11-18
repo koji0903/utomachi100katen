@@ -110,11 +110,31 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.33.0 */}
+                    {/* v1.33.1 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">基盤アップデート：Next.js セキュリティアップグレード（v16.4.3 → v16.4.6）</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "Next.js および eslint-config-next を v16.4.3 から v16.4.6 へアップグレードし、既知のセキュリティアドバイザリに対応",
+                                    "全単体テスト（66件）および本番ビルドの互換性・動作検証を完了"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.33.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.33.0 - 2026.11.18</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">全システム網羅監査：在庫・売上・EC同期・会計ロジックの厳密化と事務員向け業務UIの統合革新</h3>
                             <ul className="space-y-2">
                                 {[
