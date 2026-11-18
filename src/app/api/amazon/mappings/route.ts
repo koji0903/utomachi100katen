@@ -1,0 +1,169 @@
+import { NextResponse } from "next/server";
+import { adminDb, FieldValue } from "@/lib/firebase-admin";
+import { listAmazonListings } from "@/lib/amazon";
+import { withAuth, internalError, logError } from "@/lib/apiAuth";
+
+export const dynamic = "force-dynamic";
+
+export interface AmazonSkuMappingComponent {
+    productId: string;
+    quantity: number;
+}
+
+export interface AmazonSkuMappingRecord {
+    id: string;
+    sku: string;
+    asin?: string;
+    amazonTitle?: string;
+    components: AmazonSkuMappingComponent[];
+    enabled: boolean;
+    updatedAt?: string | null;
+}
+
+const COLLECTION_NAME = "amazon_sku_mappings";
+
+const serializeDoc = (doc: FirebaseFirestore.QueryDocumentSnapshot): AmazonSkuMappingRecord => {
+    const data = doc.data();
+    const updatedAt =
+        data.updatedAt && typeof data.updatedAt.toDate === "function"
+            ? data.updatedAt.toDate().toISOString()
+            : typeof data.updatedAt === "string"
+                ? data.updatedAt
+                : null;
+
+    return {
+        id: doc.id,
+        sku: String(data.sku || ""),
+        asin: data.asin ? String(data.asin) : undefined,
+        amazonTitle: data.amazonTitle ? String(data.amazonTitle) : undefined,
+        components: Array.isArray(data.components)
+            ? data.components
+                .filter((c: unknown): c is { productId: string; quantity?: unknown } =>
+                    Boolean(c && typeof c === "object" && "productId" in c && typeof (c as { productId?: unknown }).productId === "string" && (c as { productId: string }).productId.trim() !== "")
+                )
+                .map((c) => ({
+                    productId: c.productId,
+                    quantity: Math.max(1, Number(c.quantity) || 1),
+                }))
+            : [],
+        enabled: data.enabled !== false,
+        updatedAt,
+    };
+};
+
+export const GET = withAuth(async (req, { uid }) => {
+    try {
+        if (!adminDb) {
+            logError("Amazon Mappings GET", new Error("adminDb is not initialized"));
+            return internalError();
+        }
+
+        const url = new URL(req.url);
+        const fetchListings = url.searchParams.get("fetchListings") === "1";
+
+        const snapshot = await adminDb.collection(COLLECTION_NAME).get();
+        const mappings = snapshot.docs.map(serializeDoc);
+
+        let listings = undefined;
+        let listingsError: string | undefined = undefined;
+
+        if (fetchListings) {
+            try {
+                listings = await listAmazonListings();
+            } catch (err: unknown) {
+                logError("Amazon Mappings GET:listings", err, { uid });
+                listingsError = err instanceof Error ? err.message : "Amazon出品一覧の取得に失敗しました";
+            }
+        }
+
+        return NextResponse.json({
+            success: true,
+            mappings,
+            listings,
+            listingsError,
+        });
+    } catch (error) {
+        logError("Amazon Mappings GET", error, { uid });
+        return internalError();
+    }
+});
+
+export const POST = withAuth(async (req, { uid }) => {
+    try {
+        if (!adminDb) {
+            logError("Amazon Mappings POST", new Error("adminDb is not initialized"));
+            return internalError();
+        }
+
+        const body = await req.json().catch(() => null);
+        if (!body || !Array.isArray(body.mappings)) {
+            return NextResponse.json({ error: "mappings 配列が必要です。" }, { status: 400 });
+        }
+
+        const normalizedMap = new Map<string, Omit<AmazonSkuMappingRecord, "id" | "updatedAt">>();
+
+        for (const raw of body.mappings) {
+            if (!raw || typeof raw.sku !== "string") continue;
+            const sku = raw.sku.trim();
+            if (!sku) continue;
+
+            const components: AmazonSkuMappingComponent[] = Array.isArray(raw.components)
+                ? raw.components
+                    .filter((c: unknown): c is { productId: string; quantity?: unknown } =>
+                        Boolean(c && typeof c === "object" && "productId" in c && typeof (c as { productId?: unknown }).productId === "string" && (c as { productId: string }).productId.trim() !== "")
+                    )
+                    .map((c: { productId: string; quantity?: unknown }) => ({
+                        productId: c.productId.trim(),
+                        quantity: Math.max(1, Math.floor(Number(c.quantity) || 1)),
+                    }))
+                : [];
+
+            // コンポーネントが1つ以上あるものだけ保存対象にする（未設定行は保存しない）
+            if (components.length === 0) continue;
+
+            normalizedMap.set(sku, {
+                sku,
+                asin: raw.asin ? String(raw.asin).trim() : "",
+                amazonTitle: raw.amazonTitle ? String(raw.amazonTitle).trim() : "",
+                components,
+                enabled: raw.enabled !== false,
+            });
+        }
+
+        const colRef = adminDb.collection(COLLECTION_NAME);
+        const existingSnap = await colRef.get();
+
+        const batch = adminDb.batch();
+        const targetDocIds = new Set<string>();
+
+        for (const [sku, record] of normalizedMap.entries()) {
+            const docId = encodeURIComponent(sku);
+            targetDocIds.add(docId);
+            batch.set(colRef.doc(docId), {
+                sku: record.sku,
+                asin: record.asin || "",
+                amazonTitle: record.amazonTitle || "",
+                components: record.components,
+                enabled: record.enabled,
+                updatedAt: FieldValue.serverTimestamp(),
+            });
+        }
+
+        for (const doc of existingSnap.docs) {
+            if (!targetDocIds.has(doc.id)) {
+                batch.delete(doc.ref);
+            }
+        }
+
+        await batch.commit();
+
+        const updatedSnap = await colRef.get();
+        return NextResponse.json({
+            success: true,
+            mappings: updatedSnap.docs.map(serializeDoc),
+        });
+    } catch (error) {
+        logError("Amazon Mappings POST", error, { uid });
+        return internalError();
+    }
+});

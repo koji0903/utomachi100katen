@@ -11,13 +11,18 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.30.2";
+export const CURRENT_VERSION = "v1.32.0";
 export const RELEASE_DATE = "2026.11.18";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
     {
-        name: "仕入管理「FAX注文票」生成・出力機能",
-        description: "仕入管理画面にFAX注文票を作成・出力する機能を新設。注文日・注文先（仕入先DBから選択）・自社情報（設定から自動取得）・注文商品（商品DBから選択）・数量・JANコード・備考（ラベル仕様や販売者記載のデフォルト文言入り）をリアルタイムプレビューで編集し、A4印刷およびPDFダウンロードに対応。既存の発注レコードからのワンクリック作成にも対応。",
+        name: "Amazon SKU マッピング（セット販売・複数SKU紐づけ）機能",
+        description: "Amazon SP-API から出品中の全商品（SKU・ASIN・商品名）を自動取得し、各SKUに対してシステム内の「どの商品を何個」販売・在庫減算するかを柔軟に紐づけできる設定画面を新設。複数個入りのセット商品、複数商品の詰め合わせ、同一商品の複数SKU、およびAmazon実売価の自動按分取り込みに対応。",
+        status: "completed"
+    },
+    {
+        name: "仕入管理「FAX注文票」生成・出力＆履歴・入荷在庫連動機能",
+        description: "仕入管理画面にFAX注文票を作成・出力する機能を新設。注文日・注文先・自社情報・注文商品・数量・JANコード・備考をリアルタイムプレビューで編集し、A4印刷・PDF出力および仕入履歴への保存・再編集に対応。作成後に入荷済みチェック（モーダル内および一覧表のワンクリックフラグ）を入れることで、各商品の在庫数へ即座に加算反映されます。",
         status: "completed"
     },
     {

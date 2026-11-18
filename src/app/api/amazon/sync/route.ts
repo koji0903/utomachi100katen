@@ -101,6 +101,49 @@ export const POST = withAuth(async (_req, { uid }) => {
             amazonStore = { id: activeStoreDoc.id, name: activeStoreDoc.data().name };
         }
 
+        // 1.6. Amazon SKU マッピングおよび商品マスターを事前ロード
+        const [mappingsSnap, allProductsSnap] = await Promise.all([
+            db.collection("amazon_sku_mappings").get(),
+            db.collection("products").get(),
+        ]);
+
+        const activeProductMap = new Map<string, { id: string; name: string; sellingPrice: number; amazonSku?: string }>();
+        const amazonSkuToProductMap = new Map<string, { id: string; name: string; sellingPrice: number }>();
+
+        for (const pDoc of allProductsSnap.docs) {
+            const pData = pDoc.data();
+            if (pData.isTrashed === true) continue;
+            const entry = {
+                id: pDoc.id,
+                name: String(pData.name || ""),
+                sellingPrice: Number(pData.sellingPrice) || 0,
+                amazonSku: pData.amazonSku ? String(pData.amazonSku).trim() : undefined,
+            };
+            activeProductMap.set(pDoc.id, entry);
+            if (entry.amazonSku) {
+                amazonSkuToProductMap.set(entry.amazonSku, entry);
+            }
+        }
+
+        const skuMappingMap = new Map<string, { productId: string; quantity: number }[]>();
+        for (const mDoc of mappingsSnap.docs) {
+            const mData = mDoc.data();
+            if (mData.enabled === false) continue;
+            const skuKey = String(mData.sku || "").trim();
+            if (!skuKey || !Array.isArray(mData.components)) continue;
+            const comps = mData.components
+                .filter((c: unknown): c is { productId: string; quantity?: unknown } =>
+                    Boolean(c && typeof c === "object" && "productId" in c && typeof (c as { productId?: unknown }).productId === "string" && activeProductMap.has((c as { productId: string }).productId))
+                )
+                .map((c) => ({
+                    productId: c.productId,
+                    quantity: Math.max(1, Math.floor(Number(c.quantity) || 1)),
+                }));
+            if (comps.length > 0) {
+                skuMappingMap.set(skuKey, comps);
+            }
+        }
+
         // 2. 注文情報（最新）の取得
         const orders = await getAmazonOrders();
         let newOrdersCount = 0;
@@ -122,26 +165,62 @@ export const POST = withAuth(async (_req, { uid }) => {
                     const productUpdates: Map<string, { productName: string; quantity: number }> = new Map();
 
                     for (const item of order.items) {
-                        const pSnap = await db.collection("products")
-                            .where("amazonSku", "==", item.sku)
-                            .get();
+                        const skuKey = String(item.sku || "").trim();
+                        const mappedComponents = skuMappingMap.get(skuKey);
 
-                        const pDoc = pSnap.docs.find(candidate => candidate.data().isTrashed !== true);
-                        if (pDoc) {
-                            const pId = pDoc.id;
-                            const pData = pDoc.data();
-                            const existing = productUpdates.get(pId);
-                            const nextQty = (existing ? existing.quantity : 0) + item.quantity;
-
-                            productUpdates.set(pId, { productName: pData.name, quantity: nextQty });
-                            saleItems.push({
-                                productId: pId,
-                                quantity: item.quantity,
-                                priceAtSale: item.price,
-                                subtotal: item.quantity * item.price,
-                                commission: 0,
-                                netProfit: item.quantity * item.price
+                        if (mappedComponents && mappedComponents.length > 0) {
+                            const lineTotal = Math.round(Number(item.price) || 0);
+                            const weights = mappedComponents.map((comp) => {
+                                const prod = activeProductMap.get(comp.productId);
+                                return Math.max(1, (prod?.sellingPrice || 0) * comp.quantity);
                             });
+                            const totalWeight = weights.reduce((s, w) => s + w, 0);
+                            let allocated = 0;
+
+                            mappedComponents.forEach((comp, idx) => {
+                                const prod = activeProductMap.get(comp.productId);
+                                if (!prod) return;
+
+                                const deductQty = item.quantity * comp.quantity;
+                                const existing = productUpdates.get(prod.id);
+                                productUpdates.set(prod.id, {
+                                    productName: prod.name,
+                                    quantity: (existing ? existing.quantity : 0) + deductQty,
+                                });
+
+                                const isLast = idx === mappedComponents.length - 1;
+                                const partSubtotal = isLast
+                                    ? Math.max(0, lineTotal - allocated)
+                                    : Math.round((lineTotal * weights[idx]) / totalWeight);
+                                allocated += partSubtotal;
+
+                                const unitPriceAtSale = deductQty > 0 ? Math.round(partSubtotal / deductQty) : 0;
+                                saleItems.push({
+                                    productId: prod.id,
+                                    quantity: deductQty,
+                                    priceAtSale: unitPriceAtSale,
+                                    subtotal: partSubtotal,
+                                    commission: 0,
+                                    netProfit: partSubtotal,
+                                });
+                            });
+                        } else {
+                            // フォールバック: 商品マスターの amazonSku で直接紐づけ
+                            const prod = amazonSkuToProductMap.get(skuKey);
+                            if (prod) {
+                                const existing = productUpdates.get(prod.id);
+                                const nextQty = (existing ? existing.quantity : 0) + item.quantity;
+
+                                productUpdates.set(prod.id, { productName: prod.name, quantity: nextQty });
+                                saleItems.push({
+                                    productId: prod.id,
+                                    quantity: item.quantity,
+                                    priceAtSale: item.price,
+                                    subtotal: item.quantity * item.price,
+                                    commission: 0,
+                                    netProfit: item.quantity * item.price,
+                                });
+                            }
                         }
                     }
 

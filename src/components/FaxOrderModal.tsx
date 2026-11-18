@@ -14,6 +14,8 @@ import {
     ChevronUp,
     RotateCcw,
     Settings,
+    Save,
+    CheckCircle2,
 } from "lucide-react";
 import { useStore, Purchase } from "@/lib/store";
 import { downloadPdfFromElement } from "@/lib/pdfGenerator";
@@ -49,8 +51,16 @@ const createEmptyLine = (): FaxOrderLineItem => ({
 });
 
 export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModalProps) {
-    const { suppliers, products, companySettings } = useStore();
+    const { suppliers, products, companySettings, purchases, addPurchase, updatePurchase } = useStore();
     const previewRef = useRef<HTMLDivElement>(null);
+
+    const [savedPurchaseId, setSavedPurchaseId] = useState<string | null>(
+        () => initialPurchase?.id || null
+    );
+    const [isReceived, setIsReceived] = useState<boolean>(
+        () => initialPurchase ? (initialPurchase.status === "received" || initialPurchase.status === "paid") : false
+    );
+    const [isSaving, setIsSaving] = useState(false);
 
     const [orderDate, setOrderDate] = useState<string>(
         () => initialPurchase?.orderDate || new Date().toISOString().split("T")[0]
@@ -58,7 +68,9 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
     const [supplierId, setSupplierId] = useState<string>(
         () => initialPurchase?.supplierId || ""
     );
-    const [supplierFax, setSupplierFax] = useState<string>("");
+    const [supplierFax, setSupplierFax] = useState<string>(
+        () => initialPurchase?.faxNumber || ""
+    );
     const [filterBySupplier, setFilterBySupplier] = useState<boolean>(true);
     const [items, setItems] = useState<FaxOrderLineItem[]>(() => {
         if (!initialPurchase) return [createEmptyLine()];
@@ -78,15 +90,21 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
                     : [];
 
         if (purchaseItems.length > 0) {
-            return purchaseItems.map((it, idx) => ({
-                id: `init-${idx}-${Date.now()}`,
-                productId: it.productId,
-                quantityInput: String(it.quantity || 1),
-            }));
+            return purchaseItems.map((it, idx) => {
+                const faxItemMeta = initialPurchase.faxItems?.find((fi) => fi.productId === it.productId);
+                return {
+                    id: `init-${idx}-${Date.now()}`,
+                    productId: it.productId,
+                    quantityInput: String(it.quantity || 1),
+                    janCodeOverride: faxItemMeta?.janCodeOverride,
+                };
+            });
         }
         return [createEmptyLine()];
     });
-    const [notes, setNotes] = useState<string>(DEFAULT_FAX_ORDER_NOTES);
+    const [notes, setNotes] = useState<string>(
+        () => initialPurchase?.faxNotes || initialPurchase?.memo || DEFAULT_FAX_ORDER_NOTES
+    );
 
     const [companyInfoOverride, setCompanyInfoOverride] = useState<{
         companyName?: string;
@@ -237,7 +255,115 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
         );
     };
 
-    const handlePrint = () => {
+    const saveFaxOrder = async (options?: { nextReceived?: boolean; silent?: boolean }): Promise<string | null> => {
+        if (!supplierId) {
+            if (!options?.silent) showNotification("注文先を選択してください。", "error");
+            return null;
+        }
+        if (validPreviewItems.length === 0) {
+            if (!options?.silent) showNotification("注文商品を1つ以上選択してください。", "error");
+            return null;
+        }
+
+        const targetReceived = options?.nextReceived !== undefined ? options.nextReceived : isReceived;
+        const existing = savedPurchaseId ? purchases.find((p) => p.id === savedPurchaseId) : undefined;
+        const today = new Date().toISOString().split("T")[0];
+
+        const purchaseItems = validPreviewItems.map((item) => {
+            const unitCost = item.product?.costPrice || 0;
+            const quantity = Math.max(1, item.quantity || 1);
+            return {
+                productId: item.productId,
+                quantity,
+                receivedQuantity: targetReceived ? quantity : 0,
+                unitCost,
+                totalCost: unitCost * quantity,
+            };
+        });
+        const totalAmount = purchaseItems.reduce((sum, item) => sum + item.totalCost, 0);
+
+        const nextStatus: Purchase["status"] = targetReceived
+            ? (existing?.status === "paid" ? "paid" : "received")
+            : (!existing || existing.status === "received" || existing.status === "paid" ? "ordered" : existing.status);
+
+        const receivedDate = targetReceived ? (existing?.receivedDate || existing?.arrivalDate || today) : "";
+        const arrivalDate = targetReceived ? (existing?.arrivalDate || existing?.receivedDate || today) : "";
+
+        const faxNumberValue = supplierFax.trim();
+        const faxItemsMeta = validPreviewItems.map((item) => ({
+            productId: item.productId,
+            janCodeOverride: item.janCodeOverride ?? item.janCode ?? "",
+        }));
+
+        const payload = {
+            type: "A" as const,
+            status: nextStatus,
+            supplierId,
+            items: purchaseItems,
+            totalAmount,
+            orderDate: orderDate || today,
+            receivedDate,
+            arrivalDate,
+            paymentDate: targetReceived ? existing?.paymentDate : "",
+            memo: notes,
+            orderMethod: "fax" as const,
+            faxNumber: faxNumberValue,
+            faxNotes: notes,
+            faxItems: faxItemsMeta,
+        };
+
+        setIsSaving(true);
+        try {
+            if (savedPurchaseId) {
+                await updatePurchase(savedPurchaseId, payload);
+                if (!options?.silent) {
+                    showNotification(
+                        targetReceived
+                            ? "FAX注文票を更新し、入荷済みとして在庫数に反映しました。"
+                            : "FAX注文票の履歴を更新しました。"
+                    );
+                }
+                return savedPurchaseId;
+            } else {
+                const newId = await addPurchase(payload);
+                if (newId) setSavedPurchaseId(newId);
+                if (!options?.silent) {
+                    showNotification(
+                        targetReceived
+                            ? "FAX注文票を履歴に保存し、入荷済みとして在庫数に反映しました。"
+                            : "FAX注文票を仕入履歴に保存しました。"
+                    );
+                }
+                return newId || null;
+            }
+        } catch (err) {
+            console.error("Failed to save FAX order:", err);
+            if (!options?.silent) showNotification("FAX注文票の保存に失敗しました。", "error");
+            return null;
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleToggleReceived = async (checked: boolean) => {
+        if (!checked && savedPurchaseId) {
+            const existing = purchases.find((p) => p.id === savedPurchaseId);
+            if (existing && (existing.status === "received" || existing.status === "paid")) {
+                if (!window.confirm("入荷済みのチェックを外して「発注済」に戻しますか？反映された在庫数も差し戻されます。")) {
+                    return;
+                }
+            }
+        }
+        setIsReceived(checked);
+        if (savedPurchaseId) {
+            await saveFaxOrder({ nextReceived: checked });
+        }
+    };
+
+    const handlePrint = async () => {
+        if (!savedPurchaseId && supplierId && validPreviewItems.length > 0) {
+            await saveFaxOrder({ silent: true });
+        }
         window.print();
     };
 
@@ -245,6 +371,9 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
         if (!previewRef.current) return;
         setIsGeneratingPdf(true);
         try {
+            if (!savedPurchaseId && supplierId && validPreviewItems.length > 0) {
+                await saveFaxOrder({ silent: true });
+            }
             const supplierPart = selectedSupplier?.name
                 ? `_${selectedSupplier.name.replace(/[\\/:*?"<>|\s]/g, "")}`
                 : "";
@@ -284,6 +413,19 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
                     </div>
 
                     <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => saveFaxOrder()}
+                            disabled={isSaving}
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-bold rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors disabled:opacity-50"
+                        >
+                            {isSaving ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Save className="w-4 h-4" />
+                            )}
+                            <span>{savedPurchaseId ? "履歴を更新" : "履歴に保存"}</span>
+                        </button>
                         <button
                             type="button"
                             onClick={handlePrint}
@@ -651,6 +793,32 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
                                     </div>
                                 </div>
                             )}
+                        </div>
+
+                        {/* 入荷確認フラグ（在庫反映） */}
+                        <div className={`border rounded-xl p-3.5 transition-colors ${isReceived ? "bg-emerald-50/70 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
+                            <label className="flex items-start gap-3 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={isReceived}
+                                    disabled={isSaving}
+                                    onChange={(e) => handleToggleReceived(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                />
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-1.5 text-sm font-bold text-slate-800">
+                                        <CheckCircle2 className={`w-4 h-4 ${isReceived ? "text-emerald-600" : "text-slate-400"}`} />
+                                        <span>入荷済み（在庫数に反映する）</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                        {savedPurchaseId
+                                            ? isReceived
+                                                ? "入荷済みとして在庫数に反映されています。チェックを外すと発注済みに戻り在庫が差し戻されます。"
+                                                : "商品が入荷したらチェックを入れてください。即座に各商品の在庫数が増加します。"
+                                            : "チェックを入れて保存すると、最初から入荷済みとして在庫数へ加算されます。"}
+                                    </p>
+                                </div>
+                            </label>
                         </div>
                     </div>
 

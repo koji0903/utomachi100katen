@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw, RefreshCw, User, Layers } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Trash2, Image as ImageIcon, Store, Box, HelpCircle, Sparkles, AlertTriangle, History, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw, RefreshCw, User, Layers, Link2 } from "lucide-react";
 import { useStore, Product } from "@/lib/store";
 import { ProductModal } from "@/components/ProductModal";
 import { BrandingHub } from "@/components/BrandingHub";
+import { AmazonMappingModal } from "@/components/AmazonMappingModal";
 import { showNotification } from "@/lib/notifications";
 import { apiFetch, checkIsDemoMode } from "@/lib/apiClient";
 import { calculateDaysRemaining, getStockoutStatus } from "@/lib/stockUtils";
@@ -22,6 +23,7 @@ export default function ProductsPage() {
   const [brandingProduct, setBrandingProduct] = useState<Product | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [showTrash, setShowTrash] = useState(false);
+  const [isAmazonMappingOpen, setIsAmazonMappingOpen] = useState(false);
 
   // Note: The instruction provided a `filteredProducts` definition that uses `selectedBrands`
   // and a different filtering logic. To maintain syntactic correctness and align with the
@@ -345,6 +347,13 @@ export default function ProductsPage() {
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Amazon同期
+            </button>
+            <button
+              onClick={() => setIsAmazonMappingOpen(true)}
+              className="flex items-center gap-2 bg-transparent text-slate-600 hover:bg-white hover:text-amber-700 px-4 py-2 rounded-xl border border-transparent hover:border-amber-100 transition-all shadow-sm font-bold text-xs"
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              Amazon SKU紐づけ
             </button>
             <Link
               href="/suppliers"
@@ -749,6 +758,12 @@ export default function ProductsPage() {
           isOpen={!!brandingProduct}
           onClose={() => setBrandingProduct(null)}
           product={brandingProduct}
+        />
+      )}
+      {isAmazonMappingOpen && (
+        <AmazonMappingModal
+          isOpen={isAmazonMappingOpen}
+          onClose={() => setIsAmazonMappingOpen(false)}
         />
       )}
     </div>

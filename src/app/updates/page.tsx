@@ -110,11 +110,53 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.30.2 */}
+                    {/* v1.32.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">商品管理：Amazon SKU マッピング（セット販売・複数SKU紐づけ）機能を追加</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "Amazon SKU 紐づけ設定モーダルを新設：商品管理ページの「Amazon SKU紐づけ」ボタンから、Amazon SP-API 経由で出品中の全商品（SKU・ASIN・商品名・出品状態）を自動取得して一覧表示",
+                                    "セット販売・組み合わせ商品・複数SKUに対応：1つのAmazon SKUに対して、システム内の複数商品とそれぞれの減算個数（例：2個セット、3種詰め合わせなど）を自由に紐づけ可能",
+                                    "Amazon売上同期の拡張：注文取り込み時にマッピング設定を優先参照し、構成商品の必要個数を自動減算するとともにAmazonの実売価を構成商品の価格比率で按分して売上・取引データへ正確に反映"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.31.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.31.0 - 2026.11.18</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">FAX注文票：仕入履歴管理＆入荷チェックによる在庫数自動加算に対応</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "FAX注文票の履歴保存・再編集に対応：モーダル上部の「履歴に保存」ボタン（および印刷・PDF出力時の自動保存）により、新規仕入登録と同様に仕入管理一覧へ「FAX注文」として履歴が記録され、一覧からいつでも再編集・再印刷が可能に",
+                                    "入荷確認チェックフラグを新設：FAX注文票モーダル内および仕入管理一覧テーブルの両方に「入荷済」チェックボックスを追加",
+                                    "在庫数の自動加算・差し戻し連動：入荷済にチェックを入れるとステータスが「仕入済み」となり各商品の在庫数と在庫履歴へ即座に加算反映され、誤ってチェックした場合もチェックを外すことで安全に在庫数を差し戻し可能"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.30.2 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.30.2 - 2026.11.18</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">FAX注文票：印刷プレビューが真っ白になる不具合を修正</h3>
                             <ul className="space-y-2">
                                 {[

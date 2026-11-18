@@ -300,3 +300,70 @@ export async function updateAmazonListing(sku: string, quantity?: number, price?
 
 // 既存の互換性のためのエイリアス
 export const updateAmazonInventory = (sku: string, quantity: number) => updateAmazonListing(sku, quantity);
+
+export interface AmazonListingSummary {
+    sku: string;
+    asin: string;
+    itemName: string;
+    status: string[];
+    conditionType: string;
+}
+
+/**
+ * Amazon SP-API から出品中の全商品一覧（SKU・ASIN・商品名・ステータス）を取得します
+ */
+export async function listAmazonListings(): Promise<AmazonListingSummary[]> {
+    const accessToken = await getAccessToken();
+    const sellerId = process.env.AMAZON_SELLER_ID;
+    if (!sellerId) {
+        throw new Error("AMAZON_SELLER_ID が未設定です。");
+    }
+
+    const marketplaceId = process.env.AMAZON_USE_SANDBOX === "true"
+        ? "ATVPDKIKX0DER"
+        : MARKETPLACE_ID_JP;
+
+    const allItems: AmazonListingSummary[] = [];
+    let pageToken: string | null = null;
+
+    do {
+        const params = new URLSearchParams({
+            marketplaceIds: marketplaceId,
+            includedData: "summaries",
+            pageSize: "20",
+        });
+        if (pageToken) {
+            params.set("pageToken", pageToken);
+        }
+
+        const url = `${SP_API_REGION_ENDPOINT}/listings/2021-08-01/items/${sellerId}?${params.toString()}`;
+        const response = await fetch(url, {
+            headers: {
+                "x-amz-access-token": accessToken,
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Listings Search API Error (${response.status}): ${text}`);
+        }
+
+        const data = await response.json();
+        const items = Array.isArray(data.items) ? data.items : [];
+        for (const item of items) {
+            const summary = item.summaries?.[0] || {};
+            allItems.push({
+                sku: item.sku || "",
+                asin: summary.asin || "",
+                itemName: summary.itemName || "",
+                status: Array.isArray(summary.status) ? summary.status : [],
+                conditionType: summary.conditionType || "",
+            });
+        }
+
+        pageToken = data.pagination?.nextToken || null;
+    } while (pageToken);
+
+    return allItems;
+}

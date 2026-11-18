@@ -351,6 +351,10 @@ export interface Purchase extends BaseEntity {
     paymentDate?: string;      // 支払い日
     expectedArrivalDate?: string;
     memo?: string;
+    orderMethod?: 'standard' | 'fax';
+    faxNumber?: string;
+    faxNotes?: string;
+    faxItems?: { productId: string; janCodeOverride?: string }[];
     createdAt?: string | any;
 
     // Legacy fields for backward compatibility during migration
@@ -1313,8 +1317,8 @@ export function useStore() {
     };
 
     // --- Purchase Actions (Inbound Shipments) ---
-    const addPurchase = async (purchaseData: Omit<Purchase, "id" | "createdAt">) => {
-        if (checkDemoMode()) return;
+    const addPurchase = async (purchaseData: Omit<Purchase, "id" | "createdAt">): Promise<string | undefined> => {
+        if (checkDemoMode()) return undefined;
         const newRef = doc(collection(db, "inbound_shipments"));
         const items = (purchaseData.items || []).map(item => ({
             ...item,
@@ -1342,6 +1346,7 @@ export function useStore() {
         mutatePurchases([...purchases, newPurchase], false);
         refreshInventoryCaches(effects);
         mutatePurchases();
+        return newRef.id;
     };
 
     const updatePurchase = async (id: string, purchaseUpdate: Partial<Omit<Purchase, "id" | "createdAt">>) => {

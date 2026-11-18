@@ -190,6 +190,37 @@ function PurchasesPageContent() {
         updatePurchase(purchase.id, update);
     };
 
+    const handleQuickArrivalCheck = async (purchase: Purchase, checked: boolean) => {
+        const today = new Date().toISOString().split('T')[0];
+        if (checked) {
+            await updatePurchase(purchase.id, {
+                status: 'received',
+                receivedDate: purchase.receivedDate || today,
+                arrivalDate: purchase.arrivalDate || today,
+                items: (purchase.items || []).map(item => ({
+                    ...item,
+                    receivedQuantity: item.quantity,
+                })),
+            });
+            showNotification("入荷済みに更新し、在庫数へ反映しました。");
+        } else {
+            if (!window.confirm("入荷済みのチェックを外して「発注済」に戻しますか？反映された在庫数も差し戻されます。")) {
+                return;
+            }
+            await updatePurchase(purchase.id, {
+                status: 'ordered',
+                receivedDate: "",
+                arrivalDate: "",
+                paymentDate: "",
+                items: (purchase.items || []).map(item => ({
+                    ...item,
+                    receivedQuantity: 0,
+                })),
+            });
+            showNotification("入荷済みを解除し、在庫数を差し戻しました。");
+        }
+    };
+
     const handleDelete = (id: string) => {
         if (window.confirm("この発注記録をゴミ箱に移動してもよろしいですか？")) {
             deletePurchase(id);
@@ -358,9 +389,17 @@ function PurchasesPageContent() {
                                         }`}
                                     >
                                         <td className="p-5">
-                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${purchase.type === 'A' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-purple-50 text-purple-600 border border-purple-100'}`}>
-                                                パターン{purchase.type}
-                                            </span>
+                                            <div className="flex flex-col items-start gap-1">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${purchase.type === 'A' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-purple-50 text-purple-600 border border-purple-100'}`}>
+                                                    パターン{purchase.type}
+                                                </span>
+                                                {purchase.orderMethod === 'fax' && (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                        <FileText className="w-2.5 h-2.5" />
+                                                        FAX注文
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="p-5 text-slate-900 font-bold">{supplier?.name || "不明"}</td>
                                         <td className="p-5 text-sm text-slate-700">
@@ -416,12 +455,25 @@ function PurchasesPageContent() {
                                             )}
                                         </td>
                                         <td className="p-5 text-center">
-                                            <button
-                                                onClick={() => handleToggleStatus(purchase)}
-                                                className="transition-all hover:scale-105 active:scale-95"
-                                            >
-                                                {getStatusBadge(purchase.status)}
-                                            </button>
+                                            <div className="flex flex-col items-center gap-1.5">
+                                                <button
+                                                    onClick={() => handleToggleStatus(purchase)}
+                                                    className="transition-all hover:scale-105 active:scale-95"
+                                                >
+                                                    {getStatusBadge(purchase.status)}
+                                                </button>
+                                                {!purchase.isTrashed && (
+                                                    <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer select-none hover:text-emerald-700">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={purchase.status === 'received' || purchase.status === 'paid'}
+                                                            onChange={(e) => handleQuickArrivalCheck(purchase, e.target.checked)}
+                                                            className="w-3.5 h-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                        />
+                                                        <span>入荷済</span>
+                                                    </label>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="p-5 text-right">
                                             <div className="flex items-center justify-end gap-2">
@@ -446,8 +498,8 @@ function PurchasesPageContent() {
                                                     <>
                                                         <button
                                                             onClick={() => handleOpenFaxModal(purchase)}
-                                                            className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                                                            title="FAX注文票を作成"
+                                                            className={`p-2 rounded-lg transition-colors ${purchase.orderMethod === 'fax' ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-slate-600 hover:bg-slate-100'}`}
+                                                            title={purchase.orderMethod === 'fax' ? "FAX注文票を開く（編集・再印刷・入荷確認）" : "FAX注文票を作成"}
                                                         >
                                                             <FileText className="w-4 h-4" />
                                                         </button>
@@ -496,6 +548,7 @@ function PurchasesPageContent() {
 
         {isFaxModalOpen && (
             <FaxOrderModal
+                key={faxTargetPurchase?.id || "new"}
                 isOpen={isFaxModalOpen}
                 onClose={() => setIsFaxModalOpen(false)}
                 initialPurchase={faxTargetPurchase}
