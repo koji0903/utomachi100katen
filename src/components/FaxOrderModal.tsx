@@ -265,8 +265,8 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto print:static print:p-0 print:bg-white print:block">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col overflow-hidden max-h-[95vh] print:max-h-none print:shadow-none print:rounded-none print:block">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto print:static print:p-0 print:bg-white print:backdrop-blur-none print:overflow-visible print:block">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col overflow-hidden max-h-[95vh] print:max-h-none print:overflow-visible print:shadow-none print:rounded-none print:block">
                 {/* Modal Header */}
                 <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-200 bg-white shrink-0 print:hidden">
                     <div className="flex items-center gap-3">
@@ -656,7 +656,7 @@ export function FaxOrderModal({ isOpen, onClose, initialPurchase }: FaxOrderModa
 
                     {/* Right Pane: A4 Preview */}
                     <div
-                        className={`flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6 print:p-0 print:bg-white print:overflow-visible ${
+                        className={`flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6 print:p-0 print:bg-white print:overflow-visible print:block ${
                             mobileTab === "preview" ? "block" : "hidden lg:block"
                         }`}
                     >
