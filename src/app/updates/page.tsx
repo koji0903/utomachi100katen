@@ -110,11 +110,33 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.29.2 */}
+                    {/* v1.30.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">仕入管理：FAX注文票生成・印刷/PDF出力機能を追加</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "仕入管理画面に「FAX注文票」作成モーダルを新設：ヘッダーの新規作成ボタンおよび各発注行の操作ボタン（既存発注データの引き継ぎ）の両方から起動可能",
+                                    "データベース連携入力：注文先（仕入先DB）・注文商品（商品DB）を選択するだけで住所・担当者・JANコードを自動反映し、数量や送信先FAX番号、自社情報（管理設定から自動取得）もその場で編集可能",
+                                    "備考欄のデフォルトテンプレート搭載：「表ラベルなし・裏ラベルなし・裏ラベルは別にお願いします。販売者欄にマッチング株式会社の記載をお願いします」を初期セットし、ワンクリックでリセット可能",
+                                    "モノクロFAX送信に適したA4縦プレビューのリアルタイム表示、およびそのまま使えるA4印刷・PDFダウンロード出力に対応"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.29.2 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.29.2 - 2026.11.16</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">決算在庫管理レポート：帳票印刷時のレポート専用レイアウト最適化</h3>
                             <ul className="space-y-2">
                                 {[

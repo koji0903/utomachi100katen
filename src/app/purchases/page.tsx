@@ -3,9 +3,10 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, Edit2, Trash2, Search, ShoppingBag, CheckCircle, Clock, ChevronLeft, Sparkles, RotateCcw } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, ShoppingBag, CheckCircle, Clock, ChevronLeft, Sparkles, RotateCcw, FileText } from "lucide-react";
 import { useStore, Purchase } from "@/lib/store";
 import { PurchaseModal } from "@/components/PurchaseModal";
+import { FaxOrderModal } from "@/components/FaxOrderModal";
 import { calculateDaysRemaining } from "@/lib/stockUtils";
 import { showNotification } from "@/lib/notifications";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -30,6 +31,13 @@ function PurchasesPageContent() {
     const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [showTrash, setShowTrash] = useState(false);
+    const [isFaxModalOpen, setIsFaxModalOpen] = useState(false);
+    const [faxTargetPurchase, setFaxTargetPurchase] = useState<Purchase | null>(null);
+
+    const handleOpenFaxModal = (purchase: Purchase | null = null) => {
+        setFaxTargetPurchase(purchase);
+        setIsFaxModalOpen(true);
+    };
 
     const handleAutoGenerate = async () => {
         if (!window.confirm("在庫不足の商品に対して、自動的に発注データを作成しますか？")) return;
@@ -249,9 +257,10 @@ function PurchasesPageContent() {
     };
 
     return (
-        <div className="p-4 sm:p-8 max-w-7xl mx-auto">
+        <>
+        <div className={`p-4 sm:p-8 max-w-7xl mx-auto ${isFaxModalOpen ? "print:hidden" : ""}`}>
             {/* Header */}
-            <div className="flex justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
                 <div className="flex items-center gap-3">
                     <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                         <ShoppingBag className="w-6 h-6" />
@@ -270,13 +279,20 @@ function PurchasesPageContent() {
                         <p className="text-slate-500 text-sm">仕入先への発注から入荷、直接入荷の管理を一元化します。</p>
                     </div>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                     <button
                         onClick={() => setShowTrash(!showTrash)}
                         className={`flex items-center gap-2 px-4 py-2.5 font-bold rounded-xl shadow-sm active:scale-95 transition-all text-sm border ${showTrash ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
                     >
                         <Trash2 className="w-4 h-4" />
                         {showTrash ? "戻る" : "ゴミ箱"}
+                    </button>
+                    <button
+                        onClick={() => handleOpenFaxModal(null)}
+                        className="flex items-center gap-2 bg-white text-slate-700 px-4 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm font-bold text-sm"
+                    >
+                        <FileText className="w-4 h-4 text-emerald-600" />
+                        FAX注文票
                     </button>
                     <Tooltip content="在庫数と過去の販売ペースから、今後一週間で不足しそうな商品を自動計算して発注オーダー(パターンA)を作成します。" position="bottom">
                         <button
@@ -429,6 +445,13 @@ function PurchasesPageContent() {
                                                 ) : (
                                                     <>
                                                         <button
+                                                            onClick={() => handleOpenFaxModal(purchase)}
+                                                            className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                                            title="FAX注文票を作成"
+                                                        >
+                                                            <FileText className="w-4 h-4" />
+                                                        </button>
+                                                        <button
                                                             onClick={() => handleEdit(purchase)}
                                                             className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                                                             title="編集"
@@ -470,6 +493,15 @@ function PurchasesPageContent() {
                 initialData={editingPurchase}
             />
         </div>
+
+        {isFaxModalOpen && (
+            <FaxOrderModal
+                isOpen={isFaxModalOpen}
+                onClose={() => setIsFaxModalOpen(false)}
+                initialPurchase={faxTargetPurchase}
+            />
+        )}
+        </>
     );
 }
 

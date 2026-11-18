@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.29.2";
-export const RELEASE_DATE = "2026.11.16";
+export const CURRENT_VERSION = "v1.30.0";
+export const RELEASE_DATE = "2026.11.18";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "仕入管理「FAX注文票」生成・出力機能",
+        description: "仕入管理画面にFAX注文票を作成・出力する機能を新設。注文日・注文先（仕入先DBから選択）・自社情報（設定から自動取得）・注文商品（商品DBから選択）・数量・JANコード・備考（ラベル仕様や販売者記載のデフォルト文言入り）をリアルタイムプレビューで編集し、A4印刷およびPDFダウンロードに対応。既存の発注レコードからのワンクリック作成にも対応。",
+        status: "completed"
+    },
     {
         name: "10月末決算対応「決算在庫管理レポート（期末棚卸資産明細書）」生成機能",
         description: "10月末決算期（直近決算期・前年度・今期・カスタム任意期間）に対応し、期首在庫・期間入庫・期間出庫・期末在庫および原価ベース期末棚卸評価額を完全等式で逆算集計する決算専用レポートを新設。初回仕入日・取扱開始日（2026年3月〜）の境界判定により事業開始前期間（2025年10月期等）の在庫を0として正確に算出。全社総在庫と本部実在庫の集計範囲切替、対象外商品の選択・除外設定、A4横帳票印刷・CSV出力に対応。",
