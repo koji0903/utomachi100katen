@@ -62,4 +62,16 @@ describe("summarizeTaxByRate", () => {
         expect(r.standard.subtotal).toBe(1000);
         expect(r.reduced.subtotal).toBe(0);
     });
+
+    it("税込(inclusive) 110円の内消費税が浮動小数点誤差で9円にならず10円になる", () => {
+        // 110 - 110 / 1.1 === 9.999999999999986 in IEEE 754 float
+        const r = summarizeTaxByRate(
+            [{ amount: 110, rateType: "standard" }],
+            "floor",
+            "inclusive"
+        );
+        expect(r.standard.taxAmount).toBe(10);
+        expect(r.standard.subtotal).toBe(100);
+        expect(r.standard.total).toBe(110);
+    });
 });

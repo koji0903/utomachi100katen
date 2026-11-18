@@ -101,7 +101,10 @@ export function SalesAnalysisTab() {
     // Available years from sales data
     const availableYears = useMemo(() => {
         const years = new Set<string>();
-        sales.forEach(s => { if (s.period?.length >= 4) years.add(s.period.slice(0, 4)); });
+        sales.forEach(s => {
+            if (s.isTrashed) return;
+            if (s.period?.length >= 4) years.add(s.period.slice(0, 4));
+        });
         return [...years].sort().reverse();
     }, [sales]);
 
@@ -263,7 +266,7 @@ export function SalesAnalysisTab() {
                     <select value={filterStoreId} onChange={e => setFilterStoreId(e.target.value)}
                         className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none font-medium text-slate-700">
                         <option value="">すべての店舗</option>
-                        {retailStores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        {retailStores.filter(s => !s.isTrashed).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                 </div>
                 <div className="flex items-center gap-2">

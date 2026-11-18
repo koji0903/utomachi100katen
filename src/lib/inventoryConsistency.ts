@@ -241,6 +241,7 @@ export function diffInventoryEffects(
 export function getDailyReportInventoryEffects(
     report: DailyReportLike | null | undefined,
     stores: StoreLike[],
+    products: ProductLike[] = [],
 ): InventoryEffect[] {
     if (!report || report.isTrashed) return [];
     const effects: InventoryEffect[] = [];
@@ -249,12 +250,28 @@ export function getDailyReportInventoryEffects(
 
     if (report.type === 'store' && report.storeId && isConsignment) {
         for (const item of report.restocking || []) {
-            effects.push({ scope: 'main', productId: item.productId, quantity: -item.qty });
-            effects.push({ scope: 'store', storeId: report.storeId, productId: item.productId, quantity: item.qty });
+            const product = products.find(candidate => candidate.id === item.productId);
+            if (product?.isComposite && product.components?.length) {
+                for (const component of product.components) {
+                    const compQty = component.quantity * item.qty;
+                    effects.push({ scope: 'main', productId: component.productId, quantity: -compQty });
+                    effects.push({ scope: 'store', storeId: report.storeId, productId: component.productId, quantity: compQty });
+                }
+            } else {
+                effects.push({ scope: 'main', productId: item.productId, quantity: -item.qty });
+                effects.push({ scope: 'store', storeId: report.storeId, productId: item.productId, quantity: item.qty });
+            }
         }
     }
     for (const item of report.promotions || []) {
-        effects.push({ scope: 'main', productId: item.productId, quantity: -item.qty });
+        const product = products.find(candidate => candidate.id === item.productId);
+        if (product?.isComposite && product.components?.length) {
+            for (const component of product.components) {
+                effects.push({ scope: 'main', productId: component.productId, quantity: -(component.quantity * item.qty) });
+            }
+        } else {
+            effects.push({ scope: 'main', productId: item.productId, quantity: -item.qty });
+        }
     }
 
     return mergeInventoryEffects(effects);

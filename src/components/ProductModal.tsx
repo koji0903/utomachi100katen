@@ -91,9 +91,10 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
         const currentKey = initialData?.id || 'new';
         if (initializedKeyRef.current === currentKey) {
             if (!initialData) {
+                const validBrands = brands.filter(b => !b.isTrashed);
                 setFormData(prev => ({
                     ...prev,
-                    brandId: prev.brandId || (brands.length > 0 ? brands[0].id : ""),
+                    brandId: prev.brandId || (validBrands.length > 0 ? validBrands[0].id : ""),
                 }));
             }
             return;
@@ -150,9 +151,10 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
 
             setImagePreview(initialData.imageUrl || null);
         } else {
+            const validBrands = brands.filter(b => !b.isTrashed);
             setFormData({
                 ...defaultFormData,
-                brandId: brands.length > 0 ? brands[0].id : "",
+                brandId: validBrands.length > 0 ? validBrands[0].id : "",
                 supplierId: "",
                 storePrices: [],
                 storeWholesalePrices: [],
@@ -205,14 +207,15 @@ export function ProductModal({ isOpen, onClose, initialData }: ProductModalProps
 
     const sortedProductsForBOM = useMemo(() => {
         const brandMap = new Map(brands.map(b => [b.id, b.name]));
-        return [...products].sort((a, b) => {
+        return products.filter(p => !p.isTrashed && p.id !== initialData?.id).sort((a, b) => {
             const brandA = brandMap.get(a.brandId) || "";
             const brandB = brandMap.get(b.brandId) || "";
             if (brandA !== brandB) return brandA.localeCompare(brandB);
             return a.name.localeCompare(b.name);
         });
-    }, [products, brands]);
+    }, [products, brands, initialData?.id]);
 
+    const activeBrands = useMemo(() => brands.filter(brand => !brand.isTrashed), [brands]);
     const activeSuppliers = useMemo(() => suppliers.filter(supplier => !supplier.isTrashed), [suppliers]);
     const activeRetailStores = useMemo(() => retailStores.filter(store => !store.isTrashed), [retailStores]);
 
@@ -569,7 +572,7 @@ JANコード: ${formData.janCode || "なし"}
                                                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] transition-all bg-slate-50 focus:bg-white cursor-pointer"
                                             >
                                                 <option value="" disabled>ブランドを選択</option>
-                                                {brands.map((brand) => (
+                                                {brands.filter(b => !b.isTrashed).map((brand) => (
                                                     <option key={brand.id} value={brand.id}>
                                                         {brand.name}
                                                     </option>

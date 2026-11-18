@@ -22,11 +22,12 @@ export const TAX_RATE_LABELS: Record<TaxRateType, string> = {
  * @param mode    'floor' | 'round' | 'ceil'
  */
 export function applyRounding(amount: number, mode: RoundingMode): number {
+    const normalized = Math.round(amount * 1e6) / 1e6;
     switch (mode) {
-        case 'ceil': return Math.ceil(amount);
-        case 'round': return Math.round(amount);
+        case 'ceil': return Math.ceil(normalized);
+        case 'round': return Math.round(normalized);
         case 'floor':
-        default: return Math.floor(amount);
+        default: return Math.floor(normalized);
     }
 }
 

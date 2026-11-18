@@ -80,7 +80,7 @@ export async function getAmazonProduct(sku: string): Promise<AmazonProduct | nul
 
         if (!sellerId) throw new Error("AMAZON_SELLER_ID が未設定です。");
 
-        const url = `${SP_API_REGION_ENDPOINT}/listings/2021-08-01/items/${sellerId}/${trimmedSku}?marketplaceIds=${MARKETPLACE_ID_JP}&includedData=summaries,attributes`;
+        const url = `${SP_API_REGION_ENDPOINT}/listings/2021-08-01/items/${sellerId}/${encodeURIComponent(trimmedSku)}?marketplaceIds=${MARKETPLACE_ID_JP}&includedData=summaries,attributes`;
         
         console.log(`[Amazon] Fetching product listing (SKU): ${trimmedSku}`);
 
@@ -201,21 +201,26 @@ export async function getAmazonOrders(): Promise<AmazonOrder[]> {
             const orderStatusStr = order.OrderStatus || order.orderStatus || "";
             const orderTotalAmount = order.OrderTotal?.Amount || order.orderTotal?.amount || order.OrderTotal?.amount || order.orderTotal?.Amount || "0";
 
+            const parsedItems = items.map((item: any) => {
+                const itemSku = item.SellerSKU || item.sellerSKU || item.sku || "";
+                const itemQuantity = item.QuantityOrdered || item.quantityOrdered || item.quantity || 0;
+                const itemPriceAmount = item.ItemPrice?.Amount || item.itemPrice?.amount || item.ItemPrice?.amount || item.itemPrice?.Amount || "0";
+                return {
+                    sku: itemSku,
+                    quantity: itemQuantity,
+                    price: parseFloat(itemPriceAmount) || 0
+                };
+            });
+
+            const parsedOrderTotal = parseFloat(orderTotalAmount) || 0;
+            const fallbackItemsSum = parsedItems.reduce((sum: number, it: { price: number }) => sum + (it.price || 0), 0);
+
             formattedOrders.push({
                 amazonOrderId: amazonOrderId,
                 purchaseDate: purchaseDateStr,
                 orderStatus: orderStatusStr,
-                totalAmount: parseFloat(orderTotalAmount),
-                items: items.map((item: any) => {
-                    const itemSku = item.SellerSKU || item.sellerSKU || item.sku || "";
-                    const itemQuantity = item.QuantityOrdered || item.quantityOrdered || item.quantity || 0;
-                    const itemPriceAmount = item.ItemPrice?.Amount || item.itemPrice?.amount || item.ItemPrice?.amount || item.itemPrice?.Amount || "0";
-                    return {
-                        sku: itemSku,
-                        quantity: itemQuantity,
-                        price: parseFloat(itemPriceAmount)
-                    };
-                })
+                totalAmount: parsedOrderTotal > 0 ? parsedOrderTotal : fallbackItemsSum,
+                items: parsedItems
             });
         }
 
@@ -238,7 +243,7 @@ export async function updateAmazonListing(sku: string, quantity?: number, price?
         
         if (!sellerId) throw new Error("AMAZON_SELLER_ID が未設定です。");
 
-        const url = `${SP_API_REGION_ENDPOINT}/listings/2021-08-01/items/${sellerId}/${sku}?marketplaceIds=${MARKETPLACE_ID_JP}`;
+        const url = `${SP_API_REGION_ENDPOINT}/listings/2021-08-01/items/${sellerId}/${encodeURIComponent(sku.trim())}?marketplaceIds=${MARKETPLACE_ID_JP}`;
         
         const patches = [];
 

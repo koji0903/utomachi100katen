@@ -145,7 +145,7 @@ export function DocumentPreviewModal({
         if (!storeId && !isEstimate && !isInvoice) return []; // Require storeId for registered documents
 
         const filtered = (sales || []).filter(s => {
-            if (!s || !s.items) return false;
+            if (!s || s.isTrashed || !s.items) return false;
             const matchStore = storeId ? s.storeId === storeId : true;
             // Defensive startswith
             const sPeriod = s.period || "";
@@ -185,6 +185,7 @@ export function DocumentPreviewModal({
         if (!isPaymentSummary) return [];
         const lines: PurchaseLine[] = [];
         const filteredPurchases = purchases.filter(p => {
+            if (p.isTrashed) return false;
             const matchSupplier = supplierId ? p.supplierId === supplierId : true;
             const dateStr = p.arrivalDate || p.orderDate;
             const matchMonth = month ? dateStr?.startsWith(month) : true;
@@ -246,6 +247,8 @@ export function DocumentPreviewModal({
         const adjTotal = customAdjustments.reduce((sum: number, a: any) => sum + a.amount, 0);
         taxSummary.grandTotal += adjTotal;
     }
+    const finalAdj = existingDoc?.finalAdjustment || 0;
+    taxSummary.grandTotal += finalAdj;
 
     const totalWithTax = (isReceipt && existingDoc) ? existingDoc.totalAmount : taxSummary.grandTotal;
     const subtotal = taxSummary.standard.subtotal + taxSummary.reduced.subtotal;

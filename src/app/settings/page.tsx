@@ -11,6 +11,7 @@ import {
     CloudSun, Mail, ChevronRight, Plus, Trash2
 } from "lucide-react";
 import { SettingsImageUpload } from "@/components/SettingsImageUpload";
+import { NumberInput } from "@/components/NumberInput";
 import { uploadImageWithCompression } from "@/lib/imageUpload";
 import { showNotification } from "@/lib/notifications";
 
@@ -512,14 +513,21 @@ export default function SettingsPage() {
 
 
                 {/* ── 6. 固定費テンプレート初期設定 ───────────────────── */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <div id="fixed-costs" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-6">
+                    <div className="flex flex-wrap items-center gap-2 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
                         <span className="text-sm">💸</span>
                         <h2 className="font-semibold text-slate-800 text-sm">固定費テンプレート初期設定</h2>
-                        <span className="ml-auto text-[10px] text-slate-400">一括登録モーダルの初期値になります</span>
+                        <span className="text-[10px] text-slate-400">『月次固定費管理』画面で新規月を作成する際の初期テンプレートになります</span>
+                        <Link
+                            href="/fixed-costs"
+                            className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-[#1e3a8a] hover:bg-blue-50 transition-colors shadow-2xs"
+                        >
+                            月次固定費管理を開く
+                            <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
                     </div>
                     <div className="p-6 space-y-4">
-                        <p className="text-xs text-slate-500">経費入力画面の「固定費を一括登録」モーダルを開いたときに、デフォルトで入力される初期項目・金額を恒久的に管理できます。チェックを外した項目はデフォルトでオフになります。</p>
+                        <p className="text-xs text-slate-500">「月次固定費管理」画面で新規月を作成する際や「テンプレートから値を呼び出す」を実行したときに、デフォルトで入力される初期項目・金額を恒久的に管理できます。チェックを外した項目はデフォルトでオフになります。</p>
                         
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-xs border-collapse min-w-[600px]">
@@ -597,11 +605,12 @@ export default function SettingsPage() {
                                             <td className="py-3 pr-2 text-right">
                                                 <div className="relative inline-block w-full">
                                                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">¥</span>
-                                                    <input 
-                                                        type="number"
+                                                    <NumberInput
+                                                        min={0}
+                                                        fallbackValue={0}
                                                         disabled={!item.enabled}
-                                                        value={item.amount || ""}
-                                                        onChange={(e) => handleTemplateFieldChange(item.id, "amount", Number(e.target.value))}
+                                                        value={item.amount || 0}
+                                                        onChange={(val) => handleTemplateFieldChange(item.id, "amount", val ?? 0)}
                                                         className="w-full bg-slate-900 border-none rounded-lg pl-5 pr-2 py-1.5 text-right text-xs font-mono font-black text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                                                     />
                                                 </div>

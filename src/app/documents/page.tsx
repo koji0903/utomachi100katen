@@ -14,6 +14,7 @@ import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
 import { NewDocumentModal } from "@/components/NewDocumentModal";
 import { ProxyInvoicePreviewModal } from "@/components/ProxyInvoicePreviewModal";
 import { ProxyInvoiceModal } from "@/components/ProxyInvoiceModal";
+import { InvoicePaymentModal } from "@/components/InvoicePaymentModal";
 import { summarizeTaxByRate } from "@/lib/taxUtils";
 import { calculateInvoiceBalance } from "@/lib/store";
 
@@ -46,7 +47,7 @@ function StatusBadge({ status }: { status: "draft" | "issued" }) {
 function TypeBadge({ doc, allDocs }: { doc: IssuedDocument, allDocs: IssuedDocument[] }) {
     const { type, sourceDocId } = doc;
     const sourceDoc = sourceDocId ? allDocs.find(d => d.id === sourceDocId) : null;
-    const hasLinkedInvoice = type === "delivery_note" && allDocs.some(d => d.type === "invoice" && d.sourceDocId === doc.id && !d.isTrashed);
+    const hasLinkedInvoice = type === "delivery_note" && allDocs.some(d => d.type === "invoice" && !d.isTrashed && (d.sourceDocId === doc.id || (Array.isArray(d.sourceDocIds) && d.sourceDocIds.includes(doc.id))));
 
     if (type === "delivery_note") return (
         <div className="flex flex-col gap-1 items-start">
@@ -146,6 +147,7 @@ function DocumentsPageContent() {
     const [showTrash, setShowTrash] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isConvertingMultiple, setIsConvertingMultiple] = useState(false);
+    const [paymentDoc, setPaymentDoc] = useState<IssuedDocument | null>(null);
     const searchParams = useSearchParams();
     const highlightId = searchParams.get("id");
 
@@ -533,7 +535,20 @@ function DocumentsPageContent() {
                                             {doc.type === 'invoice' ? (() => {
                                                 const bal = calculateInvoiceBalance(doc, invoicePayments);
                                                 if (bal === 0) return <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold whitespace-nowrap">完済</span>;
-                                                return <span className="text-[11px] text-rose-500 font-bold whitespace-nowrap">{fmtMoney(bal)}</span>;
+                                                return (
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        <span className="text-[11px] text-rose-500 font-bold whitespace-nowrap">{fmtMoney(bal)}</span>
+                                                        {!doc.isTrashed && (
+                                                            <button
+                                                                onClick={() => setPaymentDoc(doc)}
+                                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-colors whitespace-nowrap"
+                                                                title="ワンクリックで入金登録"
+                                                            >
+                                                                <CreditCard className="w-2.5 h-2.5" />入金登録
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
                                             })() : doc.type === 'receipt' ? (
                                                 <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold whitespace-nowrap">受領済</span>
                                             ) : <span className="text-slate-300 text-xs">—</span>}
@@ -609,8 +624,17 @@ function DocumentsPageContent() {
                                                                 ? <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                                                                 : <Copy className="w-4 h-4" />}
                                                         </button>
+                                                        {doc.type === 'invoice' && calculateInvoiceBalance(doc, invoicePayments) > 0 && (
+                                                            <button
+                                                                onClick={() => setPaymentDoc(doc)}
+                                                                title="入金登録"
+                                                                className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors"
+                                                            >
+                                                                <CreditCard className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                         {doc.type === 'delivery_note' && (() => {
-                                                            const isConverted = issuedDocuments.some(d => d.type === "invoice" && d.sourceDocId === doc.id && !d.isTrashed);
+                                                            const isConverted = issuedDocuments.some(d => d.type === "invoice" && !d.isTrashed && (d.sourceDocId === doc.id || (Array.isArray(d.sourceDocIds) && d.sourceDocIds.includes(doc.id))));
                                                             return (
                                                                 <button onClick={() => handleConvertToInvoice(doc.id)}
                                                                     disabled={convertingId === doc.id}
@@ -642,6 +666,13 @@ function DocumentsPageContent() {
             )}
 
             {/* Modals */}
+            {paymentDoc && (
+                <InvoicePaymentModal
+                    invoice={paymentDoc}
+                    initialAmount={calculateInvoiceBalance(paymentDoc, invoicePayments)}
+                    onClose={() => setPaymentDoc(null)}
+                />
+            )}
             {showNewModal && <NewDocumentModal onClose={() => setShowNewModal(false)} />}
             {isProxyInvoiceModalOpen && <ProxyInvoiceModal onClose={() => setIsProxyInvoiceModalOpen(false)} />}
             {editingDoc && (

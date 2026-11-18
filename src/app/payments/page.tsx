@@ -12,7 +12,7 @@ import {
 type CategoryFilter = "all" | "Manufacturer" | "Producer";
 
 export default function PaymentsPage() {
-    const { isLoaded, suppliers, purchases, products, paymentRecords, upsertPaymentRecord } = useStore();
+    const { isLoaded, suppliers, purchases, products, paymentRecords, upsertPaymentRecord, updatePurchase } = useStore();
 
     // Default to current month
     const now = new Date();
@@ -86,13 +86,30 @@ export default function PaymentsPage() {
 
     const handleToggleStatus = async (row: SupplierRow) => {
         const newStatus = row.status === "unpaid" ? "paid" : "unpaid";
+        const today = new Date().toISOString().split("T")[0];
         const update: { status: "paid" | "unpaid"; paidDate?: string } = { status: newStatus };
         if (newStatus === "paid") {
-            update.paidDate = new Date().toISOString().split("T")[0];
+            update.paidDate = today;
         } else {
             update.paidDate = undefined;
         }
         await upsertPaymentRecord(row.supplierId, selectedMonth, update);
+
+        // Synchronize matching purchase records in selectedMonth for this supplier
+        const targetShipments = monthShipments.filter(p => p.supplierId === row.supplierId);
+        if (newStatus === "paid") {
+            await Promise.all(
+                targetShipments
+                    .filter(p => p.status === "received")
+                    .map(p => updatePurchase(p.id, { status: "paid", paymentDate: today }))
+            );
+        } else {
+            await Promise.all(
+                targetShipments
+                    .filter(p => p.status === "paid")
+                    .map(p => updatePurchase(p.id, { status: "received", paymentDate: "" }))
+            );
+        }
     };
 
     // CSV export
@@ -220,7 +237,15 @@ export default function PaymentsPage() {
                                 <tr key={row.supplierId} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors group">
                                     <td className="px-5 py-4">
                                         <div className="font-medium text-slate-900">{row.name}</div>
-                                        <div className="mt-1">{categoryBadge(row.category)}</div>
+                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                            {categoryBadge(row.category)}
+                                            {row.paymentTerms?.closingDay && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                                                    <Clock className="w-2.5 h-2.5" />
+                                                    {row.paymentTerms.closingDay === 31 ? "末日" : `${row.paymentTerms.closingDay}日`}締 / 翌月{row.paymentTerms.paymentDay === 31 ? "末日" : `${row.paymentTerms.paymentDay}日`}払
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-5 py-4 text-xs text-slate-500">
                                         {row.paymentTerms?.closingDay ? (
@@ -311,7 +336,15 @@ export default function PaymentsPage() {
                         <div className="flex items-start justify-between mb-3">
                             <div>
                                 <div className="font-semibold text-slate-900">{row.name}</div>
-                                <div className="mt-1">{categoryBadge(row.category)}</div>
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                    {categoryBadge(row.category)}
+                                    {row.paymentTerms?.closingDay && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                                            <Clock className="w-2.5 h-2.5" />
+                                            {row.paymentTerms.closingDay === 31 ? "末日" : `${row.paymentTerms.closingDay}日`}締 / 翌月{row.paymentTerms.paymentDay === 31 ? "末日" : `${row.paymentTerms.paymentDay}日`}払
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             {row.status === "paid" ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">

@@ -171,4 +171,30 @@ describe("getProductStockBreakdown", () => {
         expect(breakdown.storeStocks[0].storeName).toBe("宇土マリーナ直売所");
         expect(breakdown.storeStocks[0].stock).toBe(15);
     });
+
+    it("ゴミ箱に入った店舗(isTrashed: true)やゴミ箱の店舗在庫レコードは集計から除外される", () => {
+        const dummyProduct: Product = {
+            id: "prod_1",
+            name: "テスト商品",
+            stock: 10,
+            sellingPrice: 1000,
+            costPrice: 500,
+            supplierId: "sup_1",
+            brandId: "brand_1",
+        };
+        const storeStocks = [
+            { storeId: "store_active", productId: "prod_1", stock: 15 },
+            { storeId: "store_trashed", productId: "prod_1", stock: 50 },
+            { storeId: "store_active", productId: "prod_1", stock: 30, isTrashed: true },
+        ];
+        const retailStores = [
+            { id: "store_active", name: "稼働中店舗", isTrashed: false },
+            { id: "store_trashed", name: "閉鎖済み店舗", isTrashed: true },
+        ];
+
+        const breakdown = getProductStockBreakdown(dummyProduct, storeStocks, retailStores);
+        expect(breakdown.storeStockTotal).toBe(15);
+        expect(breakdown.totalStock).toBe(25);
+        expect(breakdown.storeStocks.length).toBe(1);
+    });
 });

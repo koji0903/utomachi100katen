@@ -207,12 +207,20 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
     for (const sm of stockMovements) {
         if (!sm.productId || !sm.date) continue;
         const qty = sm.quantity || 0;
-        if (qty <= 0) continue;
+        if (sm.type === 'adjustment') {
+            if (qty === 0) continue;
+        } else {
+            if (qty <= 0) continue;
+        }
 
         const isAfter = sm.date > endDate;
         const isWithin = sm.date >= startDate && sm.date <= endDate;
 
-        if (sm.type === 'in' || sm.reason === 'purchase') {
+        if (sm.type === 'in' && sm.reason === 'return') {
+            // 売上や納品書の削除・返品による戻し入庫は入庫水増しを防ぎ出庫から控除する
+            if (isAfter) mainPostEndOutbound.set(sm.productId, (mainPostEndOutbound.get(sm.productId) || 0) - qty);
+            if (isWithin) mainPeriodOutbound.set(sm.productId, (mainPeriodOutbound.get(sm.productId) || 0) - qty);
+        } else if (sm.type === 'in' || sm.reason === 'purchase') {
             if (isAfter) mainPostEndInbound.set(sm.productId, (mainPostEndInbound.get(sm.productId) || 0) + qty);
             if (isWithin) mainPeriodInbound.set(sm.productId, (mainPeriodInbound.get(sm.productId) || 0) + qty);
         } else if (sm.type === 'out' || sm.reason === 'sale' || sm.reason === 'return') {
@@ -234,7 +242,8 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
     // ─── 店舗預け在庫の変動集計（includeStoreStock === true の場合） ───
     const storePostEndNet = new Map<string, number>(); // 期間後の純変動
     const storePeriodNet = new Map<string, number>();   // 期間内の純変動
-    const storePeriodSales = new Map<string, number>(); // 委託先での純売上出庫
+    const storePeriodSales = new Map<string, number>(); // 委託先での純売上・減少出庫
+    const storePeriodRestock = new Map<string, number>(); // 期間内の本部→委託店舗への補充入庫
 
     if (includeStoreStock) {
         for (const ssm of storeStockMovements) {
@@ -245,7 +254,7 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
             const isAfter = ssm.date > endDate;
             const isWithin = ssm.date >= startDate && ssm.date <= endDate;
 
-            const isPlus = ssm.type === 'in' || ssm.reason === 'restock' || ssm.reason === 'return';
+            const isPlus = ssm.type === 'in' || ssm.reason === 'restock' || (ssm.reason === 'return' && ssm.type !== 'out');
             const delta = isPlus ? qty : -qty;
 
             if (isAfter) {
@@ -253,7 +262,11 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
             }
             if (isWithin) {
                 storePeriodNet.set(ssm.productId, (storePeriodNet.get(ssm.productId) || 0) + delta);
-                if (ssm.reason === 'sale') {
+                if (ssm.type === 'in' && ssm.reason === 'restock') {
+                    storePeriodRestock.set(ssm.productId, (storePeriodRestock.get(ssm.productId) || 0) + qty);
+                } else if (ssm.type === 'in' && ssm.reason === 'return') {
+                    storePeriodSales.set(ssm.productId, (storePeriodSales.get(ssm.productId) || 0) - qty);
+                } else if (ssm.reason === 'sale' || ssm.reason === 'loss' || (ssm.type === 'out' && ssm.reason === 'audit')) {
                     storePeriodSales.set(ssm.productId, (storePeriodSales.get(ssm.productId) || 0) + qty);
                 }
             }
@@ -318,18 +331,18 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
 
         // 期間中の入出庫
         const mainIn = mainPeriodInbound.get(p.id) || 0;
-        const mainOut = mainPeriodOutbound.get(p.id) || 0;
+        const mainOut = Math.max(0, mainPeriodOutbound.get(p.id) || 0);
 
         let inboundQty = mainIn;
         let outboundQty = mainOut;
 
         // 店舗在庫を含める場合：全社視点での入出庫
-        // 本部から店舗への移動(補充)は全社総在庫としては社内振替のため、
-        // 全社総在庫の純変動 = 本部純変動 + 店舗純変動
+        // 本部から店舗への移動(補充)は全社総在庫としては社内振替のため控除し、
+        // 委託先での売上・ロス等の減少を全社出庫に反映する
         if (includeStoreStock) {
-            const storeSales = storePeriodSales.get(p.id) || 0;
-            // 委託先売上出庫を全社出庫に反映
-            outboundQty += storeSales;
+            const storeRestock = storePeriodRestock.get(p.id) || 0;
+            const storeOutbound = Math.max(0, storePeriodSales.get(p.id) || 0);
+            outboundQty = Math.max(0, mainOut - storeRestock) + storeOutbound;
         }
 
         // 期首在庫 = 期末在庫 - 期間入庫 + 期間出庫

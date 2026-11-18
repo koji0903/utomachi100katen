@@ -107,8 +107,21 @@ export const POST = withAuth(async (_req, { uid }) => {
             db.collection("products").get(),
         ]);
 
-        const activeProductMap = new Map<string, { id: string; name: string; sellingPrice: number; amazonSku?: string }>();
-        const amazonSkuToProductMap = new Map<string, { id: string; name: string; sellingPrice: number }>();
+        const activeProductMap = new Map<string, {
+            id: string;
+            name: string;
+            sellingPrice: number;
+            amazonSku?: string;
+            isComposite?: boolean;
+            components?: { productId: string; quantity: number }[];
+        }>();
+        const amazonSkuToProductMap = new Map<string, {
+            id: string;
+            name: string;
+            sellingPrice: number;
+            isComposite?: boolean;
+            components?: { productId: string; quantity: number }[];
+        }>();
 
         for (const pDoc of allProductsSnap.docs) {
             const pData = pDoc.data();
@@ -118,12 +131,45 @@ export const POST = withAuth(async (_req, { uid }) => {
                 name: String(pData.name || ""),
                 sellingPrice: Number(pData.sellingPrice) || 0,
                 amazonSku: pData.amazonSku ? String(pData.amazonSku).trim() : undefined,
+                isComposite: pData.isComposite === true,
+                components: Array.isArray(pData.components)
+                    ? pData.components
+                        .filter((c: any) => c && typeof c.productId === "string" && Number(c.quantity) > 0)
+                        .map((c: any) => ({ productId: c.productId, quantity: Number(c.quantity) }))
+                    : undefined,
             };
             activeProductMap.set(pDoc.id, entry);
             if (entry.amazonSku) {
                 amazonSkuToProductMap.set(entry.amazonSku, entry);
             }
         }
+
+        const addProductStockDeduction = (
+            productUpdates: Map<string, { productName: string; quantity: number }>,
+            targetProdId: string,
+            deductQty: number
+        ) => {
+            const prod = activeProductMap.get(targetProdId);
+            if (!prod) return;
+            if (prod.isComposite && prod.components && prod.components.length > 0) {
+                for (const comp of prod.components) {
+                    const compProd = activeProductMap.get(comp.productId);
+                    const compName = compProd ? compProd.name : prod.name;
+                    const compDeduct = deductQty * comp.quantity;
+                    const existing = productUpdates.get(comp.productId);
+                    productUpdates.set(comp.productId, {
+                        productName: compName,
+                        quantity: (existing ? existing.quantity : 0) + compDeduct,
+                    });
+                }
+            } else {
+                const existing = productUpdates.get(prod.id);
+                productUpdates.set(prod.id, {
+                    productName: prod.name,
+                    quantity: (existing ? existing.quantity : 0) + deductQty,
+                });
+            }
+        };
 
         const skuMappingMap = new Map<string, { productId: string; quantity: number }[]>();
         for (const mDoc of mappingsSnap.docs) {
@@ -182,11 +228,7 @@ export const POST = withAuth(async (_req, { uid }) => {
                                 if (!prod) return;
 
                                 const deductQty = item.quantity * comp.quantity;
-                                const existing = productUpdates.get(prod.id);
-                                productUpdates.set(prod.id, {
-                                    productName: prod.name,
-                                    quantity: (existing ? existing.quantity : 0) + deductQty,
-                                });
+                                addProductStockDeduction(productUpdates, prod.id, deductQty);
 
                                 const isLast = idx === mappedComponents.length - 1;
                                 const partSubtotal = isLast
@@ -208,17 +250,16 @@ export const POST = withAuth(async (_req, { uid }) => {
                             // フォールバック: 商品マスターの amazonSku で直接紐づけ
                             const prod = amazonSkuToProductMap.get(skuKey);
                             if (prod) {
-                                const existing = productUpdates.get(prod.id);
-                                const nextQty = (existing ? existing.quantity : 0) + item.quantity;
-
-                                productUpdates.set(prod.id, { productName: prod.name, quantity: nextQty });
+                                addProductStockDeduction(productUpdates, prod.id, item.quantity);
+                                const lineTotal = Math.round(Number(item.price) || 0);
+                                const unitPrice = item.quantity > 0 ? Math.round(lineTotal / item.quantity) : 0;
                                 saleItems.push({
                                     productId: prod.id,
                                     quantity: item.quantity,
-                                    priceAtSale: item.price,
-                                    subtotal: item.quantity * item.price,
+                                    priceAtSale: unitPrice,
+                                    subtotal: lineTotal,
                                     commission: 0,
-                                    netProfit: item.quantity * item.price,
+                                    netProfit: lineTotal,
                                 });
                             }
                         }
@@ -238,6 +279,10 @@ export const POST = withAuth(async (_req, { uid }) => {
                             return true;
                         }
 
+                        const itemsSubtotalSum = saleItems.reduce((s, i) => s + i.subtotal, 0);
+                        const effectiveOrderTotal = order.totalAmount > 0 ? order.totalAmount : itemsSubtotalSum;
+                        const effectiveSaleTotal = itemsSubtotalSum > 0 ? itemsSubtotalSum : effectiveOrderTotal;
+
                         const transactionData = {
                             customerName: amazonStore ? amazonStore.name : "Amazon Customer",
                             storeId: amazonStore?.id || null,
@@ -247,11 +292,11 @@ export const POST = withAuth(async (_req, { uid }) => {
                             transactionType: "Amazon注文",
                             orderDate: orderDateStr,
                             transactionStatus: "受注",
-                            subtotal: order.totalAmount,
+                            subtotal: effectiveOrderTotal,
                             tax: 0,
-                            totalAmount: order.totalAmount,
+                            totalAmount: effectiveOrderTotal,
                             paidAmount: 0,
-                            balanceAmount: order.totalAmount,
+                            balanceAmount: effectiveOrderTotal,
                             remarks: `Amazon Order ID: ${order.amazonOrderId}`,
                             amazonOrderId: order.amazonOrderId,
                             createdAt: FieldValue.serverTimestamp(),
@@ -261,13 +306,15 @@ export const POST = withAuth(async (_req, { uid }) => {
                         txn.set(transactionRef, transactionData);
 
                         for (const item of order.items) {
+                            const lineTotal = Math.round(Number(item.price) || 0);
+                            const unitPrice = item.quantity > 0 ? Math.round(lineTotal / item.quantity) : 0;
                             const itemRef = db.collection("transaction_items").doc();
                             txn.set(itemRef, {
                                 transactionId: transactionRef.id,
                                 productName: `Amazon商品 (${item.sku})`,
                                 quantity: item.quantity,
-                                unitPrice: item.price,
-                                amount: item.quantity * item.price,
+                                unitPrice: unitPrice,
+                                amount: lineTotal,
                                 taxRate: 10,
                                 createdAt: FieldValue.serverTimestamp(),
                                 updatedAt: FieldValue.serverTimestamp(),
@@ -304,9 +351,9 @@ export const POST = withAuth(async (_req, { uid }) => {
                                 period: orderDateStr,
                                 items: saleItems,
                                 totalQuantity: saleItems.reduce((sum, item) => sum + item.quantity, 0),
-                                totalAmount: order.totalAmount,
+                                totalAmount: effectiveSaleTotal,
                                 totalCommission: 0,
-                                totalNetProfit: order.totalAmount,
+                                totalNetProfit: effectiveSaleTotal,
                                 inventoryEffects: [...productUpdates.entries()].map(([productId, update]) => ({
                                     scope: 'main',
                                     productId,

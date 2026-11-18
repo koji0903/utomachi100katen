@@ -551,7 +551,7 @@ export default function FiscalInventoryReportPage() {
                             className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
                         >
                             <option value="all">すべてのブランド</option>
-                            {brands.map((b) => (
+                            {brands.filter((b) => !b.isTrashed).map((b) => (
                                 <option key={b.id} value={b.id}>
                                     {b.name}
                                 </option>
@@ -565,7 +565,7 @@ export default function FiscalInventoryReportPage() {
                             className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
                         >
                             <option value="all">すべての仕入先</option>
-                            {suppliers.map((s) => (
+                            {suppliers.filter((s) => !s.isTrashed).map((s) => (
                                 <option key={s.id} value={s.id}>
                                     {s.name}
                                 </option>
@@ -902,7 +902,7 @@ function ProductFilterModal({
                             className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700"
                         >
                             <option value="all">すべてのブランド</option>
-                            {brands.map((b) => (
+                            {brands.filter((b) => !b.isTrashed).map((b) => (
                                 <option key={b.id} value={b.id}>
                                     {b.name}
                                 </option>

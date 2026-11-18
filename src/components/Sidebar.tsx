@@ -18,56 +18,50 @@ export function Sidebar({ isOpen = true, onClose, onSearchClick }: SidebarProps)
 
   const groups = [
     {
-      label: "業務（デイリー）",
+      label: "日常業務（売上・請求）",
       items: [
         { name: "ダッシュボード", href: "/", icon: LayoutDashboard },
-        { name: "売上入力", href: "/sales", icon: BarChart3 },
-        { name: "業務日報", href: "/reports", icon: FileText },
+        { name: "売上・受注入力", href: "/sales", icon: BarChart3 },
+        { name: "請求・納品・帳票", href: "/documents", icon: FileText },
+        { name: "業務日報・店舗補充", href: "/reports", icon: BookOpen },
         { name: "課題・ToDo管理", href: "/todo", icon: AlertCircle },
-        { name: "印刷アーカイブ", href: "/print-archive", icon: Printer },
       ]
     },
     {
-      label: "限界利益・MQ会計",
+      label: "在庫・仕入・支払",
       items: [
-        { name: "製造工数記録", href: "/work-logs", icon: Clock },
-        { name: "月次固定費管理", href: "/fixed-costs", icon: Coins },
-        { name: "注文・販路MQ管理", href: "/orders", icon: ShoppingCart },
-      ]
-    },
-    {
-      label: "在庫・仕入れ",
-      items: [
-        { name: "商品管理", href: "/products", icon: Package },
-        { name: "仕入管理", href: "/purchases", icon: Truck },
-        { name: "在庫管理", href: "/inventory", icon: Archive },
+        { name: "在庫・製造・配置", href: "/inventory", icon: Archive },
+        { name: "仕入・発注管理", href: "/purchases", icon: Truck },
+        { name: "支払管理（買掛）", href: "/payments", icon: CreditCard },
+        { name: "商品マスタ管理", href: "/products", icon: Package },
         { name: "決算在庫レポート", href: "/inventory/fiscal-report", icon: FileSpreadsheet },
-        { name: "支払い管理", href: "/payments", icon: CreditCard },
       ]
     },
     {
-      label: "分析・報告",
+      label: "経営分析・経費・会計",
       items: [
-        { name: "分析・事業報告", href: "/analytics", icon: BarChart2 },
+        { name: "経営分析・事業報告", href: "/analytics", icon: BarChart2 },
         { name: "支出・経費管理", href: "/expenses", icon: Receipt },
-        { name: "取引管理", href: "/transactions", icon: BookOpen },
-        { name: "帳票アーカイブ", href: "/documents", icon: Archive },
+        { name: "月次固定費管理", href: "/fixed-costs", icon: Coins },
+        { name: "注文別MQ・送料調整", href: "/orders", icon: ShoppingCart },
+        { name: "製造工数記録", href: "/work-logs", icon: Clock },
       ]
     },
     {
-      label: "マスタ・設定",
+      label: "取引先・マスタ・保管",
       items: [
+        { name: "販売店舗・事業者", href: "/retail-stores", icon: Store },
+        { name: "仕入先マスタ", href: "/suppliers", icon: Users },
+        { name: "スポット宛先", href: "/spot-recipients", icon: Building2 },
         { name: "ブランド管理", href: "/brands", icon: Tag },
-        { name: "販売店舗・事業者管理", href: "/retail-stores", icon: Store },
-        { name: "スポット宛先管理", href: "/spot-recipients", icon: Building2 },
-        { name: "仕入先管理", href: "/suppliers", icon: Users },
-        { name: "自動レポート設定", href: "/settings/reports", icon: Mail },
-        { name: '管理設定', href: '/settings', icon: Settings },
+        { name: "スキャン書類保管", href: "/print-archive", icon: Printer },
       ]
     },
     {
-      label: "サポート",
+      label: "システム設定・サポート",
       items: [
+        { name: "自動レポート設定", href: "/settings/reports", icon: Mail },
+        { name: "管理設定", href: "/settings", icon: Settings },
         { name: "業務フロー・マニュアル", href: "/guidelines", icon: BookOpen },
         { name: "アップデート・機能一覧", href: "/updates", icon: Sparkles },
       ]

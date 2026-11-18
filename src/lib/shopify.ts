@@ -78,25 +78,27 @@ export async function getShopifyProduct(productId: string): Promise<any> {
  */
 export async function getShopifyOrders(): Promise<ShopifyOrder[]> {
     const data = await shopifyFetch("/orders.json?status=any&limit=10");
-    return data.orders.map((order: any) => ({
-        shopifyOrderId: order.id.toString(),
-        createdAt: order.created_at,
-        financialStatus: order.financial_status,
-        totalPrice: parseFloat(order.total_price),
-        lineItems: order.line_items.map((item: any) => ({
-            variantId: item.variant_id?.toString() || "",
-            sku: item.sku || "",
-            quantity: item.quantity,
-            price: parseFloat(item.price),
-        })),
-        customer: order.customer ? {
-            id: order.customer.id.toString(),
-            email: order.customer.email || "",
-            firstName: order.customer.first_name || "",
-            lastName: order.customer.last_name || "",
-            ordersCount: order.customer.orders_count || 0,
-        } : undefined,
-    }));
+    return (data.orders || [])
+        .filter((order: any) => !order.cancelled_at && order.financial_status !== "voided")
+        .map((order: any) => ({
+            shopifyOrderId: order.id.toString(),
+            createdAt: order.created_at,
+            financialStatus: order.financial_status,
+            totalPrice: parseFloat(order.total_price),
+            lineItems: order.line_items.map((item: any) => ({
+                variantId: item.variant_id?.toString() || "",
+                sku: item.sku || "",
+                quantity: item.quantity,
+                price: parseFloat(item.price),
+            })),
+            customer: order.customer ? {
+                id: order.customer.id.toString(),
+                email: order.customer.email || "",
+                firstName: order.customer.first_name || "",
+                lastName: order.customer.last_name || "",
+                ordersCount: order.customer.orders_count || 0,
+            } : undefined,
+        }));
 }
 
 /**

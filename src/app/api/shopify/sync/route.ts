@@ -35,6 +35,7 @@ export const POST = withAuth(async (_req, { uid }) => {
 
         for (const productDoc of querySnapshot.docs) {
             const product = productDoc.data();
+            if (product.isTrashed === true) continue;
             const variantIds = product.shopifyVariantIds || (product.shopifyVariantId ? [product.shopifyVariantId] : []);
 
             if (variantIds.length > 0) {

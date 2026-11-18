@@ -115,7 +115,7 @@ export function ProxyInvoiceModal({ onClose, editingDoc }: ProxyInvoiceModalProp
                                 <select value={supplierId} onChange={e => setSupplierId(e.target.value)}
                                     className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium text-slate-900">
                                     <option value="">仕入先を選択してください</option>
-                                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    {suppliers.filter(s => !s.isTrashed).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
                             </div>
                         </div>

@@ -13,15 +13,26 @@ export interface ProductStockBreakdown {
  */
 export function getProductStockBreakdown(
     product: Product,
-    storeStocks: { storeId: string; productId: string; stock: number }[] = [],
-    retailStores?: { id: string; name: string }[]
+    storeStocks: { storeId: string; productId: string; stock: number; isTrashed?: boolean }[] = [],
+    retailStores?: { id: string; name: string; isTrashed?: boolean }[]
 ): ProductStockBreakdown {
     const mainStock = product?.stock ?? 0;
     const storeMap = new Map<string, string>();
+    const trashedStoreIds = new Set<string>();
     if (retailStores) {
-        retailStores.forEach(s => storeMap.set(s.id, s.name));
+        retailStores.forEach(s => {
+            if (s.isTrashed) {
+                trashedStoreIds.add(s.id);
+            } else {
+                storeMap.set(s.id, s.name);
+            }
+        });
     }
-    const relevant = storeStocks.filter(ss => ss.productId === product.id);
+    const relevant = storeStocks.filter(ss =>
+        ss.productId === product.id &&
+        !ss.isTrashed &&
+        !trashedStoreIds.has(ss.storeId)
+    );
     const storeStockTotal = relevant.reduce((sum, ss) => sum + (ss.stock || 0), 0);
     const stores = relevant.map(ss => ({
         storeId: ss.storeId,

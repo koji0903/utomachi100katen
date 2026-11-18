@@ -1,6 +1,6 @@
 // src/lib/square-processor.ts
 
-import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, setDoc, deleteDoc, increment } from "firebase/firestore";
+import { collection, getDocs, getDoc, query, where, doc, updateDoc, serverTimestamp, setDoc, deleteDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { SquareOrder } from "./square";
 
@@ -103,7 +103,20 @@ export async function processSquareOrder(order: SquareOrder, options?: { skipInv
         }
 
         // 2. この注文の確定的IDの売上データのみ削除（同日他注文の売上を巻き込まない）
-        await deleteDoc(doc(db, "sales", `square_${order.id}`));
+        const deterministicSaleRef = doc(db, "sales", `square_${order.id}`);
+        if (previousInventoryEffects.length === 0) {
+            const detSaleSnap = await getDoc(deterministicSaleRef);
+            if (detSaleSnap.exists()) {
+                isUpdate = true;
+                const saleData = detSaleSnap.data();
+                previousInventoryEffects = Array.isArray(saleData.inventoryEffects)
+                    ? saleData.inventoryEffects.filter((effect: any) => effect.scope === 'main')
+                    : (saleData.items || [])
+                        .filter((item: any) => item.productId && item.productId !== 'SQUARE_UNLINKED')
+                        .map((item: any) => ({ scope: 'main' as const, productId: item.productId, quantity: -item.quantity }));
+            }
+        }
+        await deleteDoc(deterministicSaleRef);
     };
 
     await cleanupExistingRecords();

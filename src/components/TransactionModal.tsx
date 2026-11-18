@@ -236,11 +236,9 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                                     <input
                                                         required
                                                         type="text"
-                                                        value={selectedCustomerId}
+                                                        value={formData.customerName}
                                                         onChange={(e) => {
-                                                            const spot = selectableSpotRecipients.find(item => item.id === e.target.value);
-                                                            setSelectedCustomerId(e.target.value);
-                                                            setFormData({ ...formData, customerName: spot?.name || "" });
+                                                            setFormData({ ...formData, customerName: e.target.value });
                                                         }}
                                                         className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white"
                                                         placeholder="新しい宛先名を入力"
@@ -257,8 +255,12 @@ export function TransactionModal({ isOpen, onClose, initialData }: TransactionMo
                                                 <div className="flex gap-2">
                                                     <select
                                                         required
-                                                        value={formData.customerName}
-                                                        onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                                                        value={selectedCustomerId}
+                                                        onChange={(e) => {
+                                                            const spot = selectableSpotRecipients.find(item => item.id === e.target.value);
+                                                            setSelectedCustomerId(e.target.value);
+                                                            setFormData({ ...formData, customerName: spot?.name || "" });
+                                                        }}
                                                         className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white"
                                                     >
                                                         <option value="" disabled>既存のスポット宛先を選択</option>

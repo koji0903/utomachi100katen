@@ -746,8 +746,9 @@ function ProductAssignmentSection({
     const [searchQuery, setSearchQuery] = useState("");
 
     const brandMap = new Map(brands.map(b => [b.id, b.name]));
+    const activeProducts = products.filter(p => !p.isTrashed);
 
-    const filteredProducts = products.filter(p => {
+    const filteredProducts = activeProducts.filter(p => {
         if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
         return p.name.toLowerCase().includes(q) ||
@@ -769,10 +770,10 @@ function ProductAssignmentSection({
     };
 
     const toggleAll = () => {
-        if (activeProductIds.length === products.length) {
+        if (activeProductIds.length === activeProducts.length) {
             onChange([]);
         } else {
-            onChange(products.map(p => p.id));
+            onChange(activeProducts.map(p => p.id));
         }
     };
 
@@ -790,7 +791,7 @@ function ProductAssignmentSection({
                     onClick={toggleAll}
                     className="text-[10px] font-bold text-blue-600 hover:text-blue-700 transition-colors"
                 >
-                    {activeProductIds.length === products.length ? "すべて解除" : "すべて選択"}
+                    {activeProductIds.length === activeProducts.length ? "すべて解除" : "すべて選択"}
                 </button>
             </div>
 

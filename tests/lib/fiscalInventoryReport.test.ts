@@ -169,4 +169,103 @@ describe("fiscalInventoryReport", () => {
         // 会計等式の成立確認
         expect(item.beginningStock + item.inboundQty - item.outboundQty).toBe(item.endingStock);
     });
+
+    it("負の棚卸調整（type: 'adjustment', quantity < 0）がスキップされず期間出庫および期末逆算に反映される", () => {
+        // 期首在庫10、期間中入庫20、期間中出庫5、期間中棚卸減耗-3 → 期末22、期末後棚卸減耗-2 → 現在庫20
+        const mockProducts = [
+            { id: "p1", name: "商品A", stock: 20, costPrice: 500, brandId: "b1", supplierId: "s1" } as any,
+        ];
+        const mockMovements = [
+            { productId: "p1", type: "in", quantity: 10, date: "2025-10-01" } as any,
+            { productId: "p1", type: "in", quantity: 20, date: "2026-05-01" } as any,
+            { productId: "p1", type: "out", quantity: 5, date: "2026-06-01" } as any,
+            { productId: "p1", type: "adjustment", quantity: -3, reason: "audit", date: "2026-10-31" } as any,
+            { productId: "p1", type: "adjustment", quantity: -2, reason: "audit", date: "2026-11-10" } as any,
+        ];
+
+        const report = generateFiscalInventoryReport({
+            products: mockProducts,
+            stockMovements: mockMovements,
+            storeStockMovements: [],
+            storeStocks: [],
+            startDate: "2025-11-01",
+            endDate: "2026-10-31",
+            includeStoreStock: false,
+        });
+
+        const item = report.items[0];
+        expect(item.endingStock).toBe(22); // 現在庫20 + 期末後減耗2 = 22
+        expect(item.inboundQty).toBe(20);
+        expect(item.outboundQty).toBe(8); // 通常出庫5 + 棚卸減耗3 = 8
+        expect(item.beginningStock).toBe(10); // 22 - 20 + 8 = 10
+    });
+
+    it("売上・納品書削除時の取消戻し入庫（type: 'in', reason: 'return'）が入庫を水増しせず出庫から相殺控除される", () => {
+        // 期首10、仕入20、売上出庫8、売上削除による戻し3（純出庫5） → 期末25（現在庫25）
+        const mockProducts = [
+            { id: "p1", name: "商品A", stock: 25, costPrice: 500, brandId: "b1", supplierId: "s1" } as any,
+        ];
+        const mockMovements = [
+            { productId: "p1", type: "in", reason: "purchase", quantity: 10, date: "2025-10-01" } as any,
+            { productId: "p1", type: "in", reason: "purchase", quantity: 20, date: "2026-04-01" } as any,
+            { productId: "p1", type: "out", reason: "sale", quantity: 8, date: "2026-05-01" } as any,
+            { productId: "p1", type: "in", reason: "return", quantity: 3, date: "2026-05-02" } as any,
+        ];
+
+        const report = generateFiscalInventoryReport({
+            products: mockProducts,
+            stockMovements: mockMovements,
+            storeStockMovements: [],
+            storeStocks: [],
+            startDate: "2025-11-01",
+            endDate: "2026-10-31",
+            includeStoreStock: false,
+        });
+
+        const item = report.items[0];
+        expect(item.endingStock).toBe(25);
+        expect(item.inboundQty).toBe(20); // 23に水増しされない
+        expect(item.outboundQty).toBe(5); // 8 - 3 = 5
+        expect(item.beginningStock).toBe(10);
+    });
+
+    it("全社視点（includeStoreStock: true）で本部から委託店舗への補充移動が社内振替として二重出庫計上されない", () => {
+        // 期首0（2026-03初仕入50）、本部→店舗補充20、店舗で12販売（うち2返品取消で純販売10）、本部で直接販売5
+        // 本部期末在庫: 50 - 20 - 5 = 25、店舗期末在庫: 20 - 10 = 10 → 全社期末在庫: 35
+        // 全社純入庫: 50、全社純出庫: 本部直接販売5 + 店舗純販売10 = 15 (補充20は社内振替のため控除)
+        const mockProducts = [
+            { id: "p1", name: "商品A", stock: 25, costPrice: 500, brandId: "b1", supplierId: "s1" } as any,
+        ];
+        const mockStoreStocks = [
+            { id: "s1_p1", storeId: "store-a", productId: "p1", stock: 10 } as any,
+        ];
+        const mockMovements = [
+            { productId: "p1", type: "in", reason: "purchase", quantity: 50, date: "2026-03-01" } as any,
+            { productId: "p1", type: "out", reason: "manual", quantity: 20, date: "2026-04-01" } as any, // 店舗補充
+            { productId: "p1", type: "out", reason: "sale", quantity: 5, date: "2026-05-01" } as any,   // 本部直販
+        ];
+        const mockStoreMovements = [
+            { storeId: "store-a", productId: "p1", type: "in", reason: "restock", quantity: 20, date: "2026-04-01" } as any,
+            { storeId: "store-a", productId: "p1", type: "out", reason: "sale", quantity: 12, date: "2026-05-10" } as any,
+            { storeId: "store-a", productId: "p1", type: "in", reason: "return", quantity: 2, date: "2026-05-11" } as any,
+        ];
+
+        const report = generateFiscalInventoryReport({
+            products: mockProducts,
+            stockMovements: mockMovements,
+            storeStockMovements: mockStoreMovements,
+            storeStocks: mockStoreStocks,
+            startDate: "2025-11-01",
+            endDate: "2026-10-31",
+            includeStoreStock: true,
+        });
+
+        const item = report.items[0];
+        expect(item.mainEndingStock).toBe(25);
+        expect(item.storeEndingStock).toBe(10);
+        expect(item.endingStock).toBe(35);
+        expect(item.outboundQty).toBe(15); // (25 - 20) + (12 - 2) = 15
+        expect(item.inboundQty).toBe(50);  // 水増しされない
+        expect(item.beginningStock).toBe(0);
+    });
 });

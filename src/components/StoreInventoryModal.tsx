@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore, StoreStockMovement } from "@/lib/store";
+import { NumberInput } from "@/components/NumberInput";
 import {
     X,
     Package,
@@ -31,7 +32,7 @@ export function StoreInventoryModal({ isOpen, onClose, store }: StoreInventoryMo
     const activeIds = storeData?.activeProductIds || [];
 
     const displayStock = activeIds.map(pid => {
-        const product = products.find(p => p.id === pid);
+        const product = products.find(p => p.id === pid && !p.isTrashed);
         if (!product) return null;
         if (searchTerm && !product.name.toLowerCase().includes(searchTerm.toLowerCase())) return null;
 
@@ -47,7 +48,7 @@ export function StoreInventoryModal({ isOpen, onClose, store }: StoreInventoryMo
     }).filter(item => item !== null) as any[];
 
     const storeHistory = storeStockMovements
-        .filter(sm => sm.storeId === store.id)
+        .filter(sm => !sm.isTrashed && sm.storeId === store.id)
         .sort((a, b) => new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime());
 
     const getReasonLabel = (reason: string) => {
@@ -164,8 +165,11 @@ export function StoreInventoryModal({ isOpen, onClose, store }: StoreInventoryMo
                                             <td className="px-6 py-4 text-slate-500 font-medium">
                                                 {move.date}
                                             </td>
-                                            <td className="px-6 py-4 font-bold text-slate-900">
-                                                {move.productName}
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-slate-900">{move.productName}</div>
+                                                {move.remarks && (
+                                                    <div className="text-xs text-slate-400 font-medium mt-0.5">{move.remarks}</div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${move.type === 'in' ? 'bg-blue-50 text-blue-600' :
@@ -240,6 +244,7 @@ function AdjustmentForm({ target, storeId, onComplete }: { target: { productId: 
     const [qty, setQty] = useState<number>(0);
     const [inputType, setInputType] = useState<'diff' | 'absolute'>('diff');
     const [reason, setReason] = useState<StoreStockMovement['reason']>('manual');
+    const [remarks, setRemarks] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -248,7 +253,16 @@ function AdjustmentForm({ target, storeId, onComplete }: { target: { productId: 
         setIsSubmitting(true);
         try {
             const finalReason = inputType === 'absolute' ? 'audit' : reason;
-            await updateStoreStock(storeId, target.productId, qty, finalReason, undefined, undefined, inputType === 'absolute');
+            await updateStoreStock(
+                storeId,
+                target.productId,
+                qty,
+                finalReason,
+                undefined,
+                new Date().toISOString().split('T')[0],
+                inputType === 'absolute',
+                remarks.trim() || "店舗管理画面からの在庫調整"
+            );
             onComplete();
         } catch (error) {
             console.error(error);
@@ -294,12 +308,14 @@ function AdjustmentForm({ target, storeId, onComplete }: { target: { productId: 
                     <label className="block text-sm font-black text-slate-700 mb-2">
                         {inputType === 'diff' ? '数量 (ロスはマイナスで入力)' : '現在の正確な在庫数'}
                     </label>
-                    <input
-                        type="number"
+                    <NumberInput
                         value={qty}
-                        onChange={(e) => setQty(Number(e.target.value))}
+                        allowNegative={inputType === 'diff'}
+                        min={inputType === 'absolute' ? 0 : undefined}
+                        fallbackValue={0}
+                        onChange={(val) => setQty(val ?? 0)}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-black outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[#1e3a8a]"
-                        placeholder={inputType === 'diff' ? "例: -1" : "現在の個数を入力"}
+                        placeholder={inputType === 'diff' ? "例: -1 (紛失), 2 (入庫)" : "現在の個数を入力"}
                     />
                 </div>
                 {inputType === 'diff' && (
@@ -313,9 +329,19 @@ function AdjustmentForm({ target, storeId, onComplete }: { target: { productId: 
                             <option value="manual">手動調整</option>
                             <option value="loss">紛失・破損</option>
                             <option value="return">外部在庫から戻り</option>
+                            <option value="restock">補充</option>
                         </select>
                     </div>
                 )}
+                <div>
+                    <label className="block text-sm font-black text-slate-700 mb-2">備考・理由メモ</label>
+                    <textarea
+                        value={remarks}
+                        onChange={(e) => setRemarks(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[#1e3a8a] h-20 resize-none"
+                        placeholder="詳細な理由やメモを入力（未入力時は「店舗管理画面からの在庫調整」として記録）"
+                    />
+                </div>
             </div>
 
             <button

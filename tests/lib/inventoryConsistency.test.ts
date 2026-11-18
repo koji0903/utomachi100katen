@@ -263,4 +263,35 @@ describe("inventoryConsistency", () => {
             { scope: "main", productId: "p2", quantity: -1 },
         ]);
     });
+
+    it("日報補充・販促でセット商品（isComposite）が指定された場合は構成商品（BOM）に展開して在庫効果を生成する", () => {
+        const products = [
+            {
+                id: "set-gift",
+                isComposite: true,
+                components: [
+                    { productId: "comp-1", quantity: 2 },
+                    { productId: "comp-2", quantity: 3 },
+                ],
+            },
+            { id: "comp-1" },
+            { id: "comp-2" },
+        ];
+        const report = {
+            type: "store",
+            storeId: "store-a",
+            restocking: [{ productId: "set-gift", qty: 2 }],
+            promotions: [{ productId: "set-gift", qty: 1 }],
+        };
+
+        // 補充2セット: 本部から comp-1 が -4, comp-2 が -6、店舗に comp-1 が +4, comp-2 が +6
+        // 販促1セット: 本部から comp-1 が -2, comp-2 が -3
+        // 合計: 本部 comp-1: -6, comp-2: -9 / 店舗 comp-1: +4, comp-2: +6
+        expect(getDailyReportInventoryEffects(report, [{ id: "store-a", type: "A" }], products)).toEqual([
+            { scope: "main", productId: "comp-1", quantity: -6 },
+            { scope: "store", storeId: "store-a", productId: "comp-1", quantity: 4 },
+            { scope: "main", productId: "comp-2", quantity: -9 },
+            { scope: "store", storeId: "store-a", productId: "comp-2", quantity: 6 },
+        ]);
+    });
 });

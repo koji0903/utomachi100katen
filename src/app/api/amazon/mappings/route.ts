@@ -133,29 +133,39 @@ export const POST = withAuth(async (req, { uid }) => {
         const colRef = adminDb.collection(COLLECTION_NAME);
         const existingSnap = await colRef.get();
 
-        const batch = adminDb.batch();
         const targetDocIds = new Set<string>();
+        const operations: Array<(batch: FirebaseFirestore.WriteBatch) => void> = [];
 
         for (const [sku, record] of normalizedMap.entries()) {
             const docId = encodeURIComponent(sku);
             targetDocIds.add(docId);
-            batch.set(colRef.doc(docId), {
-                sku: record.sku,
-                asin: record.asin || "",
-                amazonTitle: record.amazonTitle || "",
-                components: record.components,
-                enabled: record.enabled,
-                updatedAt: FieldValue.serverTimestamp(),
-            });
+            operations.push((b) =>
+                b.set(colRef.doc(docId), {
+                    sku: record.sku,
+                    asin: record.asin || "",
+                    amazonTitle: record.amazonTitle || "",
+                    components: record.components,
+                    enabled: record.enabled,
+                    updatedAt: FieldValue.serverTimestamp(),
+                })
+            );
         }
 
         for (const doc of existingSnap.docs) {
             if (!targetDocIds.has(doc.id)) {
-                batch.delete(doc.ref);
+                operations.push((b) => b.delete(doc.ref));
             }
         }
 
-        await batch.commit();
+        const CHUNK_SIZE = 400;
+        for (let i = 0; i < operations.length; i += CHUNK_SIZE) {
+            const chunk = operations.slice(i, i + CHUNK_SIZE);
+            const batch = adminDb.batch();
+            for (const op of chunk) {
+                op(batch);
+            }
+            await batch.commit();
+        }
 
         const updatedSnap = await colRef.get();
         return NextResponse.json({

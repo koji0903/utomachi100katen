@@ -12,7 +12,8 @@ import {
     CloudSun, Cloud, CloudRain, CloudSnow,
     Package, ChevronLeft,
     Sparkles, Edit2, Trash2, RotateCcw,
-    ArrowUpDown, ChevronUp, ChevronDown, Target, RefreshCw, FileText, AlertCircle
+    ArrowUpDown, ChevronUp, ChevronDown, Target, RefreshCw, FileText, AlertCircle,
+    Search, Filter, X, Check
 } from "lucide-react";
 import { useStore, Product, Sale } from "@/lib/store";
 import { getHolidayName } from "@/lib/holidays";
@@ -36,8 +37,8 @@ function WeatherIcon({ main, size = 4 }: { main?: string; size?: number }) {
 }
 
 // ─── Sales Input Tab ──────────────────────────────────────────────────────────
-function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null; onClearEdit: () => void }) {
-    const { isLoaded, products, brands, retailStores, spotRecipients, dailyWeather, dailyReports, addSale, updateSale, deleteSale, fetchAndSaveWeatherIfNeeded, mutateSales, mutateDailyReports, mutateTransactions, mutateTransactionItems } = useStore();
+function SalesInputTab({ editingSale, onClearEdit, onEditExisting }: { editingSale: Sale | null; onClearEdit: () => void; onEditExisting: (sale: Sale) => void }) {
+    const { isLoaded, sales, products, brands, retailStores, spotRecipients, dailyWeather, dailyReports, addSale, updateSale, deleteSale, fetchAndSaveWeatherIfNeeded, mutateSales, mutateDailyReports, mutateTransactions, mutateTransactionItems } = useStore();
 
 
     const [selectedStoreId, setSelectedStoreId] = useState<string>(""); // Format: "type:id" (e.g. "store:xxx" or "spot:yyy")
@@ -48,6 +49,11 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
     const [isSaving, setIsSaving] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const [isSyncingSquare, setIsSyncingSquare] = useState(false);
+
+    // Table quick filter states
+    const [productSearchQuery, setProductSearchQuery] = useState<string>("");
+    const [selectedBrandId, setSelectedBrandId] = useState<string>("");
+    const [showEnteredOnly, setShowEnteredOnly] = useState<boolean>(false);
 
     // MQ states
     const [salesChannel, setSalesChannel] = useState<string>("店頭販売");
@@ -205,6 +211,23 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             filteredProducts = selectableProducts.filter(p => selectedStore.activeProductIds?.includes(p.id) || historicalProductIds.has(p.id));
         }
 
+        // Apply quick search / brand / entered-only filters
+        if (selectedBrandId) {
+            filteredProducts = filteredProducts.filter(p => p.brandId === selectedBrandId);
+        }
+        if (productSearchQuery.trim()) {
+            const q = productSearchQuery.trim().toLowerCase();
+            filteredProducts = filteredProducts.filter(p =>
+                p.name.toLowerCase().includes(q) ||
+                (p.variantName?.toLowerCase().includes(q)) ||
+                (p.janCode?.toLowerCase().includes(q)) ||
+                (p.id.toLowerCase().includes(q))
+            );
+        }
+        if (showEnteredOnly) {
+            filteredProducts = filteredProducts.filter(p => (salesData[p.id] || 0) > 0);
+        }
+
         const base = filteredProducts.sort((a, b) => {
             const brandA = brandMap.get(a.brandId) || "";
             const brandB = brandMap.get(b.brandId) || "";
@@ -253,7 +276,18 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [selectableProducts, brands, sortConfig, salesData, selectedStoreIdRaw, isSpotSelection, selectedStore, editingSale]);
+    }, [selectableProducts, brands, sortConfig, salesData, selectedStoreIdRaw, isSpotSelection, selectedStore, editingSale, selectedBrandId, productSearchQuery, showEnteredOnly]);
+
+    const currentPeriod = inputMode === 'daily' ? targetDate : targetMonth;
+    const duplicateSales = useMemo(() => {
+        if (!selectedStoreIdRaw || editingSale) return [];
+        const expectedRecipientType = isSpotSelection ? 'spot' : 'store';
+        return sales.filter(s => {
+            if (s.isTrashed) return false;
+            const recType = s.recipientType || 'store';
+            return s.storeId === selectedStoreIdRaw && recType === expectedRecipientType && s.period === currentPeriod;
+        });
+    }, [sales, selectedStoreIdRaw, isSpotSelection, currentPeriod, editingSale]);
 
     const requestSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
@@ -659,6 +693,78 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                         納品書・請求書を発行した取引は自動的に売上統合されます。二重計上を防ぐため、帳票発行済みの取引はここでの再入力は不要です（店頭POS・レシート等の日次売上のみ入力してください）。
                                     </span>
                                 </div>
+
+                                {duplicateSales.length > 0 && (
+                                    <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+                                        <div className="flex items-start gap-2.5">
+                                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                            <div className="text-xs text-amber-900">
+                                                <p className="font-bold">
+                                                    この宛先・日付には既に登録済みの売上データ（¥{duplicateSales.reduce((acc, s) => acc + s.totalAmount, 0).toLocaleString()} / {duplicateSales.length}件）があります。二重登録にご注意ください
+                                                </p>
+                                                <p className="text-[11px] text-amber-700 mt-0.5">
+                                                    既存の売上データを修正・追記する場合は、右のボタンから編集モードで読み込めます。
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => onEditExisting(duplicateSales[0])}
+                                            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition-colors"
+                                        >
+                                            <Edit2 className="w-3.5 h-3.5" />
+                                            既存データを編集する
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Quick Filter Bar */}
+                                <div className="mt-3 pt-3 border-t border-slate-200/70 flex flex-wrap items-center gap-2">
+                                    <div className="relative flex-1 min-w-[180px]">
+                                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                        <input
+                                            type="text"
+                                            value={productSearchQuery}
+                                            onChange={e => setProductSearchQuery(e.target.value)}
+                                            placeholder="商品名・バリエーション・JANで絞り込み..."
+                                            className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                        />
+                                        {productSearchQuery && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setProductSearchQuery("")}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <Filter className="w-3.5 h-3.5 text-slate-400" />
+                                        <select
+                                            value={selectedBrandId}
+                                            onChange={e => setSelectedBrandId(e.target.value)}
+                                            className="py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                        >
+                                            <option value="">すべてのブランド</option>
+                                            {brands.filter(b => !b.isTrashed).map(b => (
+                                                <option key={b.id} value={b.id}>{b.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEnteredOnly(prev => !prev)}
+                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                            showEnteredOnly
+                                                ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                        }`}
+                                    >
+                                        <Check className={`w-3.5 h-3.5 ${showEnteredOnly ? "opacity-100" : "opacity-40"}`} />
+                                        入力済みのみ ({Object.values(salesData).filter(q => q > 0).length})
+                                    </button>
+                                </div>
                             </div>
                             <div className="overflow-x-auto flex-1">
                                 <table className="w-full text-left border-collapse">
@@ -726,6 +832,55 @@ function SalesInputTab({ editingSale, onClearEdit }: { editingSale: Sale | null;
                                         })}
                                     </tbody>
                                 </table>
+                            </div>
+                            {/* Sticky Bottom Action Bar */}
+                            <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur-sm border-t border-slate-200 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+                                <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                                    <div>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase block">合計点数</span>
+                                        <span className="text-lg font-black text-slate-800">{totals.totalQty.toLocaleString()}<small className="text-xs font-bold text-slate-500 ml-0.5">個</small></span>
+                                    </div>
+                                    <div className="h-6 w-px bg-slate-200" />
+                                    <div>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase block">売上総額</span>
+                                        <span className="text-lg font-black text-slate-800">¥{totals.totalAmt.toLocaleString()}</span>
+                                    </div>
+                                    <div className="h-6 w-px bg-slate-200 hidden sm:block" />
+                                    <div className="hidden sm:block">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase block">入金見込額</span>
+                                        <span className="text-lg font-black text-blue-600">¥{totals.totalNet.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 ml-auto">
+                                    {totals.totalQty > 0 && !editingSale && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSalesData({})}
+                                            className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+                                        >
+                                            入力をクリア
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={handleSave}
+                                        disabled={!selectedStoreIdRaw || totals.totalQty === 0 || isSaving}
+                                        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all disabled:opacity-40 ${
+                                            editingSale
+                                                ? "bg-amber-600 text-white hover:bg-amber-700"
+                                                : "bg-blue-600 text-white hover:bg-blue-700"
+                                        }`}
+                                    >
+                                        {isSaving ? (
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        ) : editingSale ? (
+                                            <Edit2 className="w-4 h-4" />
+                                        ) : (
+                                            <Save className="w-4 h-4" />
+                                        )}
+                                        {isSaving ? "保存中..." : (editingSale ? "売上データを更新" : "売上を保存")}
+                                    </button>
+                                </div>
                             </div>
                         </>
                     )}
@@ -1051,11 +1206,11 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                         className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 font-medium text-slate-700">
                         <option value="">すべての宛先</option>
                         <optgroup label="登録店舗">
-                            {retailStores.map(s => <option key={`store:${s.id}`} value={`store:${s.id}`}>{s.name}</option>)}
+                            {retailStores.filter(s => !s.isTrashed).map(s => <option key={`store:${s.id}`} value={`store:${s.id}`}>{s.name}</option>)}
                         </optgroup>
-                        {spotRecipients.length > 0 && (
+                        {spotRecipients.filter(s => !s.isTrashed).length > 0 && (
                             <optgroup label="スポット宛先">
-                                {spotRecipients.map(s => <option key={`spot:${s.id}`} value={`spot:${s.id}`}>{s.name}</option>)}
+                                {spotRecipients.filter(s => !s.isTrashed).map(s => <option key={`spot:${s.id}`} value={`spot:${s.id}`}>{s.name}</option>)}
                             </optgroup>
                         )}
                     </select>
@@ -1643,6 +1798,10 @@ function SalesPageContent() {
                     onClearEdit={() => {
                         setEditingSale(null);
                         if (filterDate) setActiveTab('log');
+                    }}
+                    onEditExisting={(sale) => {
+                        setEditingSale(sale);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                 />
             )}

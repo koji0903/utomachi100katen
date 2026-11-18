@@ -1,20 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowRight, History, Box, Plus, Save, ChevronLeft, AlertCircle, Layers } from "lucide-react";
+import { useState, useMemo } from "react";
+import { ArrowRight, History, Box, Plus, Save, ChevronLeft, AlertCircle, Layers, Clock, User, Sparkles, Store, RotateCcw } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
 import { NumberInput } from "@/components/NumberInput";
 import Link from "next/link";
 
 export default function StockConversionPage() {
-    const { products, addStockConversion, stockConversions, isLoaded } = useStore();
+    const { products, addStockConversion, deleteStockConversion, stockConversions, addWorkLog, isLoaded } = useStore();
     const [inputProductId, setInputProductId] = useState("");
     const [outputProductId, setOutputProductId] = useState("");
     const [inputQty, setInputQty] = useState(0);
     const [outputQty, setOutputQty] = useState(0);
     const [notes, setNotes] = useState("");
+    const [recordWorkLog, setRecordWorkLog] = useState(true);
+    const [workMinutes, setWorkMinutes] = useState<number>(0);
+    const [workerName, setWorkerName] = useState("製造担当 A");
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const activeConversions = useMemo(() => {
+        return stockConversions.filter((record: any) => !record.isTrashed).sort((a, b) => {
+            const timeA = (a.createdAt as any)?.seconds ? (a.createdAt as any).seconds * 1000 : (a.createdAt ? new Date(a.createdAt as string).getTime() : 0) || 0;
+            const timeB = (b.createdAt as any)?.seconds ? (b.createdAt as any).seconds * 1000 : (b.createdAt ? new Date(b.createdAt as string).getTime() : 0) || 0;
+            return timeB - timeA;
+        });
+    }, [stockConversions]);
 
     if (!isLoaded) return <div className="p-8 text-slate-500">読み込み中...</div>;
 
@@ -38,8 +49,9 @@ export default function StockConversionPage() {
 
         setIsSubmitting(true);
         try {
+            const today = new Date().toISOString().split("T")[0];
             await addStockConversion({
-                date: new Date().toISOString().split("T")[0],
+                date: today,
                 inputProductId,
                 inputQty,
                 outputProductId,
@@ -47,11 +59,39 @@ export default function StockConversionPage() {
                 notes
             });
 
-            showNotification("在庫変換を記録しました。在庫が更新されました。");
+            let workLogMsg = "";
+            if (recordWorkLog && workMinutes >= 1) {
+                const outputProduct = products.find(p => p.id === outputProductId);
+                const HOURLY_LABOR_WAGE = 1200;
+                const MINUTE_LABOR_WAGE = 20;
+                const s = outputProduct?.standardSellingPrice || outputProduct?.sellingPrice || 0;
+                const v = outputProduct?.standardVariableCost || outputProduct?.costPrice || 0;
+                const totalMq = (s - v) * outputQty;
+                const estLaborCost = workMinutes * MINUTE_LABOR_WAGE;
+                const sessionMqPerHour = Math.round(totalMq / (workMinutes / 60));
+                const isProfitable = sessionMqPerHour >= HOURLY_LABOR_WAGE;
+
+                await addWorkLog({
+                    workDate: today,
+                    workerName: workerName.trim() || "製造担当",
+                    workType: "包装",
+                    workMinutes,
+                    relatedProductId: outputProductId,
+                    relatedProductName: outputProduct?.name || "不明な商品",
+                    producedQuantity: outputQty,
+                    workMemo: notes || `在庫変換（${inputProduct.name} ${inputQty} → ${outputProduct?.name || ""} ${outputQty}）と同時記録`,
+                    laborCost: estLaborCost,
+                    efficiencyRating: isProfitable ? "excellent" : "caution"
+                });
+                workLogMsg = `（製造工数 ${workMinutes}分も同時に記録しました）`;
+            }
+
+            showNotification(`在庫変換を記録しました。在庫が更新されました。${workLogMsg}`);
             setInputProductId("");
             setOutputProductId("");
             setInputQty(0);
             setOutputQty(0);
+            setWorkMinutes(0);
             setNotes("");
         } catch (error) {
             console.error("Conversion error:", error);
@@ -62,17 +102,51 @@ export default function StockConversionPage() {
     };
 
     return (
-        <div className="p-4 sm:p-8 max-w-4xl mx-auto">
-            <div className="mb-8 flex items-center gap-4">
+        <div className="p-4 sm:p-8 max-w-4xl mx-auto space-y-6">
+            {/* 業務導線クイックハブ */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide border-b border-slate-200/80">
+                <Link
+                    href="/inventory"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Store className="w-3.5 h-3.5 text-slate-500" /> 在庫管理
+                </Link>
+                <Link
+                    href="/products/composite-production"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Sparkles className="w-3.5 h-3.5 text-slate-500" /> セット商品制作
+                </Link>
+                <Link
+                    href="/products/conversion"
+                    className="px-4 py-2 bg-[#1e3a8a] text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Layers className="w-3.5 h-3.5" /> 小分け・在庫変換
+                </Link>
+                <Link
+                    href="/work-logs"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Clock className="w-3.5 h-3.5 text-slate-500" /> 製造工数記録
+                </Link>
                 <Link
                     href="/products"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Box className="w-3.5 h-3.5 text-slate-500" /> 商品マスタ
+                </Link>
+            </div>
+
+            <div className="mb-8 flex items-center gap-4">
+                <Link
+                    href="/inventory"
                     className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
                 >
                     <ChevronLeft className="w-5 h-5" />
                 </Link>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">在庫変換・加工記録</h1>
-                    <p className="text-slate-500 text-sm mt-1">原料から製品への変換や、小分け作業を記録します。</p>
+                    <p className="text-slate-500 text-sm mt-1">原料から製品への変換や、小分け作業と製造工数を一括で記録します。</p>
                 </div>
             </div>
 
@@ -189,6 +263,56 @@ export default function StockConversionPage() {
                                 />
                             </div>
 
+                            {/* 製造工数（作業時間）の同時記録セクション */}
+                            <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-3">
+                                <label className="flex items-center justify-between cursor-pointer">
+                                    <span className="flex items-center gap-2 text-xs font-black text-indigo-900">
+                                        <Clock className="w-4 h-4 text-indigo-600" />
+                                        作業時間・担当者（製造工数として同時記録）
+                                    </span>
+                                    <input
+                                        type="checkbox"
+                                        checked={recordWorkLog}
+                                        onChange={(e) => setRecordWorkLog(e.target.checked)}
+                                        className="w-4 h-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                </label>
+                                {recordWorkLog && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-indigo-100/80 animate-in fade-in duration-200">
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                                <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                                                作業時間（分） <span className="text-[10px] font-normal text-slate-400">※1分以上で記録</span>
+                                            </label>
+                                            <div className="relative">
+                                                <NumberInput
+                                                    value={workMinutes}
+                                                    onChange={(val) => setWorkMinutes(val ?? 0)}
+                                                    fallbackValue={0}
+                                                    min={0}
+                                                    className="w-full pl-3.5 pr-9 py-2 bg-white border border-indigo-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                    placeholder="例: 20"
+                                                />
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">分</span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                                <User className="w-3.5 h-3.5 text-indigo-500" />
+                                                担当者名
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={workerName}
+                                                onChange={(e) => setWorkerName(e.target.value)}
+                                                className="w-full px-3.5 py-2 bg-white border border-indigo-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                placeholder="例: 製造担当 A"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
@@ -219,18 +343,33 @@ export default function StockConversionPage() {
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {[...stockConversions].sort((a, b) => {
-                                const timeA = (a.createdAt as any)?.seconds ? (a.createdAt as any).seconds * 1000 : (a.createdAt ? new Date(a.createdAt as string).getTime() : 0) || 0;
-                                const timeB = (b.createdAt as any)?.seconds ? (b.createdAt as any).seconds * 1000 : (b.createdAt ? new Date(b.createdAt as string).getTime() : 0) || 0;
-                                return timeB - timeA;
-                            }).map((conv) => {
+                            {activeConversions.map((conv) => {
                                 const inputP = products.find(p => p.id === conv.inputProductId);
                                 const outputP = products.find(p => p.id === conv.outputProductId);
                                 return (
                                     <div key={conv.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2">
-                                        <div className="flex justify-between items-start text-[10px] text-slate-400 font-medium">
+                                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
                                             <span>{conv.date}</span>
-                                            <span className="bg-white px-1.5 py-0.5 rounded border border-slate-100 shadow-sm">加工</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="bg-white px-1.5 py-0.5 rounded border border-slate-100 shadow-sm">加工</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        if (!window.confirm(`「${inputP?.name || "変換元"} (-${conv.inputQty}) → ${outputP?.name || "変換先"} (+${conv.outputQty})」の変換記録を取り消し、在庫を元に戻しますか？`)) return;
+                                                        try {
+                                                            await deleteStockConversion(conv.id);
+                                                            showNotification("在庫変換記録を取り消し、在庫をロールバックしました。");
+                                                        } catch (err) {
+                                                            console.error(err);
+                                                            showNotification("取消処理に失敗しました。", "error");
+                                                        }
+                                                    }}
+                                                    title="この変換記録を取り消して在庫を元に戻す"
+                                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                                                >
+                                                    <RotateCcw className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="text-xs font-semibold text-slate-700 leading-tight">
                                             <div className="flex items-center gap-2">
@@ -250,7 +389,7 @@ export default function StockConversionPage() {
                                     </div>
                                 );
                             })}
-                            {stockConversions.length === 0 && (
+                            {activeConversions.length === 0 && (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-12">
                                     <p>記録はありません</p>
                                 </div>

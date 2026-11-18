@@ -199,10 +199,12 @@ export function aggregateStoreDailySales(
     daysCount: CockpitPeriodDays,
     products: Product[],
     baseDate: Date = new Date(),
-    storeStocks: { storeId: string; productId: string; stock: number }[] = []
+    storeStocks: { storeId: string; productId: string; stock: number; isTrashed?: boolean }[] = [],
+    retailStores?: RetailStore[]
 ) {
     const days = getPastDaysList(daysCount, baseDate);
     const validSales = sales.filter(s => !s.isTrashed && s.period);
+    const trashedStoreIds = new Set(retailStores ? retailStores.filter(s => s.isTrashed).map(s => s.id) : []);
 
     const targetSales = validSales.filter(s => {
         if (!days.includes(s.period)) return false;
@@ -229,7 +231,7 @@ export function aggregateStoreDailySales(
         .map(([pId, data]) => {
             const p = prodMap.get(pId);
             const mainStock = p?.stock ?? 0;
-            const relevantSS = storeStocks.filter(ss => ss.productId === pId);
+            const relevantSS = storeStocks.filter(ss => ss.productId === pId && !ss.isTrashed && !trashedStoreIds.has(ss.storeId));
             const storeStockTotal = relevantSS.reduce((sum, ss) => sum + (ss.stock || 0), 0);
             const thisStoreStock = storeId !== "ALL"
                 ? (relevantSS.find(ss => ss.storeId === storeId)?.stock ?? 0)
@@ -581,12 +583,13 @@ export function aggregateBrandCockpitData(
     selectedBrandId: string, // "ALL" または特定の brandId
     daysCount: CockpitPeriodDays,
     baseDate: Date = new Date(),
-    storeStocks: { storeId: string; productId: string; stock: number }[] = []
+    storeStocks: { storeId: string; productId: string; stock: number; isTrashed?: boolean }[] = []
 ): BrandCockpitData {
     const days = getPastDaysList(daysCount, baseDate);
     const validSales = sales.filter(s => !s.isTrashed && s.period && days.includes(s.period));
     const activeProducts = products.filter(p => !p.isTrashed);
     const activeBrands = brands.filter(b => !b.isTrashed);
+    const trashedStoreIds = new Set(retailStores.filter(s => s.isTrashed).map(s => s.id));
 
     const brandMap = new Map<string, Brand>();
     activeBrands.forEach(b => brandMap.set(b.id, b));
@@ -601,7 +604,7 @@ export function aggregateBrandCockpitData(
     // 各商品の全社総在庫・本社・店頭在庫
     const prodStockMap = new Map<string, { totalStock: number; mainStock: number; storeStockTotal: number }>();
     activeProducts.forEach(p => {
-        const relevantSS = storeStocks.filter(ss => ss.productId === p.id);
+        const relevantSS = storeStocks.filter(ss => ss.productId === p.id && !ss.isTrashed && !trashedStoreIds.has(ss.storeId));
         const storeStockTotal = relevantSS.reduce((sum, ss) => sum + (ss.stock || 0), 0);
         const mainStock = p.stock || 0;
         prodStockMap.set(p.id, {
@@ -965,11 +968,16 @@ export function calculatePurchasingIntelligence(
     purchases: Purchase[],
     suppliers: Supplier[],
     baseDate: Date = new Date(),
-    storeStocks: { storeId: string; productId: string; stock: number }[] = []
+    storeStocks: { storeId: string; productId: string; stock: number; isTrashed?: boolean }[] = [],
+    retailStores?: RetailStore[]
 ): PurchasingIntelligence {
     const validProducts = products.filter(p => !p.isTrashed);
     const validSales = sales.filter(s => !s.isTrashed);
     const validPurchases = purchases.filter(p => !p.isTrashed);
+    const trashedStoreIds = new Set(retailStores ? retailStores.filter(s => s.isTrashed).map(s => s.id) : []);
+
+    const prodMap = new Map<string, Product>();
+    products.forEach(p => prodMap.set(p.id, p));
 
     const supplierMap = new Map<string, Supplier>();
     suppliers.filter(s => !s.isTrashed).forEach(s => supplierMap.set(s.id, s));
@@ -1016,6 +1024,22 @@ export function calculatePurchasingIntelligence(
                 const cur7 = soldQty7Map.get(i.productId) || 0;
                 soldQty7Map.set(i.productId, cur7 + qty);
             }
+
+            // セット商品(isComposite)が売れた場合、構成商品の消費数も加算する
+            const soldProd = prodMap.get(i.productId);
+            if (soldProd?.isComposite && soldProd.components?.length) {
+                soldProd.components.forEach(comp => {
+                    const compQty = (comp.quantity || 0) * qty;
+                    if (compQty > 0) {
+                        if (is30) {
+                            soldQty30Map.set(comp.productId, (soldQty30Map.get(comp.productId) || 0) + compQty);
+                        }
+                        if (is7) {
+                            soldQty7Map.set(comp.productId, (soldQty7Map.get(comp.productId) || 0) + compQty);
+                        }
+                    }
+                });
+            }
         });
     });
 
@@ -1046,7 +1070,7 @@ export function calculatePurchasingIntelligence(
         }
 
         const mainStock = product.stock ?? 0;
-        const relevantSS = storeStocks.filter(ss => ss.productId === product.id);
+        const relevantSS = storeStocks.filter(ss => ss.productId === product.id && !ss.isTrashed && !trashedStoreIds.has(ss.storeId));
         const storeStockTotal = relevantSS.reduce((sum, ss) => sum + (ss.stock || 0), 0);
         const totalStock = mainStock + storeStockTotal;
 
@@ -1329,10 +1353,11 @@ export function calculateConsultantStrategy(
     spotRecipients: SpotRecipient[],
     periodDays: 7 | 30 | 90 = 30,
     baseDate: Date = new Date(),
-    storeStocks: { storeId: string; productId: string; stock: number }[] = []
+    storeStocks: { storeId: string; productId: string; stock: number; isTrashed?: boolean }[] = []
 ): ConsultantStrategyIntelligence {
     const days = getPastDaysList(periodDays, baseDate);
     const validSales = sales.filter(s => !s.isTrashed && s.period && days.includes(s.period));
+    const trashedStoreIds = new Set(retailStores.filter(s => s.isTrashed).map(s => s.id));
 
     // 商品マップ
     const prodMap = new Map<string, Product>();
@@ -1543,7 +1568,7 @@ export function calculateConsultantStrategy(
         // 全社総在庫の集計（本社倉庫＋店頭配架）
         const mainStock = p?.stock ?? 0;
         const storeStockTotal = storeStocks
-            .filter(ss => ss.productId === productId)
+            .filter(ss => ss.productId === productId && !ss.isTrashed && !trashedStoreIds.has(ss.storeId))
             .reduce((sum, ss) => sum + (ss.stock || 0), 0);
         const currentStock = Math.max(0, mainStock + storeStockTotal);
         const stockValue = currentStock * unitCost;
@@ -1879,18 +1904,20 @@ export function calculateSkuProductivityAnalysis(
     brands: Brand[] = [],
     monthsCount: number = 6,
     baseDate: Date = new Date(),
-    storeStocks: { storeId: string; productId: string; stock: number }[] = []
+    storeStocks: { storeId: string; productId: string; stock: number; isTrashed?: boolean }[] = [],
+    retailStores?: RetailStore[]
 ): SkuProductivityAnalysis {
     const activeProducts = products.filter(p => !p.isTrashed);
     const validSales = sales.filter(s => !s.isTrashed && s.period);
     const pastMonths = getPastMonthsList(monthsCount, baseDate);
     const brandMap = new Map<string, string>();
     brands.forEach(b => brandMap.set(b.id, b.name));
+    const trashedStoreIds = new Set(retailStores ? retailStores.filter(s => s.isTrashed).map(s => s.id) : []);
 
     // 各商品の現在庫数と在庫資産額
     const stockMap = new Map<string, { totalStock: number; stockValue: number }>();
     activeProducts.forEach(p => {
-        const relevantSS = storeStocks.filter(ss => ss.productId === p.id);
+        const relevantSS = storeStocks.filter(ss => ss.productId === p.id && !ss.isTrashed && !trashedStoreIds.has(ss.storeId));
         const storeStockTotal = relevantSS.reduce((sum, ss) => sum + (ss.stock || 0), 0);
         const mainStock = p.stock || 0;
         const totalStock = mainStock + storeStockTotal;

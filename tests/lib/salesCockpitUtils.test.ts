@@ -394,6 +394,56 @@ describe("salesCockpitUtils", () => {
         expect(surgingRec?.recommendedOrderQty).toBeGreaterThan(0);
     });
 
+    it("calculatePurchasingIntelligence: セット商品の売上があった場合、構成商品の消費数もsoldQty7 / soldQty30に加算されること", () => {
+        const compProd: Product = {
+            id: "comp-1",
+            name: "構成品A",
+            supplierId: "sup-1",
+            sellingPrice: 500,
+            costPrice: 250,
+            stock: 3,
+            alertThreshold: 5,
+            isTrashed: false,
+        } as Product;
+
+        const setProd: Product = {
+            id: "set-1",
+            name: "ギフトセット",
+            supplierId: "sup-1",
+            sellingPrice: 1500,
+            costPrice: 750,
+            stock: 10,
+            isComposite: true,
+            components: [{ productId: "comp-1", quantity: 2 }],
+            isTrashed: false,
+        } as Product;
+
+        const salesOfSet: Sale[] = [
+            {
+                id: "sale-set",
+                storeId: "store-1",
+                type: "daily",
+                period: "2026-11-04",
+                totalAmount: 4500,
+                items: [{ productId: "set-1", quantity: 3, priceAtSale: 1500, subtotal: 4500, commission: 0, netProfit: 4500 }],
+                isTrashed: false,
+            } as Sale,
+        ];
+
+        const intel = calculatePurchasingIntelligence(
+            [compProd, setProd],
+            salesOfSet,
+            [],
+            mockSuppliers,
+            baseDate
+        );
+
+        const compRec = intel.recommendations.find(r => r.productId === "comp-1");
+        expect(compRec).toBeDefined();
+        expect(compRec?.soldQty7).toBe(6); // 3セット × 2個 = 6個
+        expect(compRec?.soldQty30).toBe(6);
+    });
+
     it("calculateConsultantStrategy: 委託手数料控除後の実質手残り粗利（MQ）および交差比率（GMROI）が正しく算出されること", () => {
         // 委託手数料を含む売上テストデータ
         const consignmentSale: Sale = {

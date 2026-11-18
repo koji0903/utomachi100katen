@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.32.0";
+export const CURRENT_VERSION = "v1.33.0";
 export const RELEASE_DATE = "2026.11.18";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "全社業務フロー統合・在庫/売上/会計ロジック厳密化＆事務員向け入力UI革新",
+        description: "在庫・売上・請求・仕入・EC同期の全コアロジックを網羅的に監査・是正（月次請求書の二重計上防止、決算棚卸レポートの社内補充二重出庫控除・負の棚卸調整反映、日報補充のセット商品BOM展開・店舗別卸単価適用、Amazon/Square/Shopify同期の金額・BOM・マイナス在庫クランプ、消費税の浮動小数点誤差解消、全画面のゴミ箱データ除外徹底）。さらにサイドバーを日常業務フローに沿って5グループへ再編し、売上入力の高速検索・重複登録検知アラート・固定保存バー、製造/変換と製造工数の同時ワンストップ記録・取消ロールバック、仕入と支払ステータスの双方向連動を実装。",
+        status: "completed"
+    },
     {
         name: "Amazon SKU マッピング（セット販売・複数SKU紐づけ）機能",
         description: "Amazon SP-API から出品中の全商品（SKU・ASIN・商品名）を自動取得し、各SKUに対してシステム内の「どの商品を何個」販売・在庫減算するかを柔軟に紐づけできる設定画面を新設。複数個入りのセット商品、複数商品の詰め合わせ、同一商品の複数SKU、およびAmazon実売価の自動按分取り込みに対応。",

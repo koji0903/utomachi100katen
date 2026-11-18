@@ -99,24 +99,30 @@ export async function syncWithSquare(storeId: string, options?: { skipInventory?
         const productsWithId = productsToSync.filter(p => p.squareVariantId);
         const inventoryUpdates = productsWithId.map(p => ({
             catalogObjectId: p.squareVariantId,
-            quantity: latestStockMap.get(p.id) ?? (p.stock || 0)
+            quantity: Math.max(0, Math.floor(latestStockMap.get(p.id) ?? (p.stock || 0)))
         }));
 
         if (inventoryUpdates.length > 0) {
-            const invRes = await apiFetch("/api/square/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: "update-inventory",
-                    locationId: squareLocationId,
-                    inventoryUpdates
-                })
-            });
-            if (!invRes.ok) {
-                const invData = await invRes.json();
-                console.error("[Square Sync Client] Inventory update failed:", invData);
-                // 在庫反映のみの失敗は警告として扱う
-            } else {
+            const CHUNK_SIZE = 100;
+            let allChunksOk = true;
+            for (let i = 0; i < inventoryUpdates.length; i += CHUNK_SIZE) {
+                const chunk = inventoryUpdates.slice(i, i + CHUNK_SIZE);
+                const invRes = await apiFetch("/api/square/sync", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: "update-inventory",
+                        locationId: squareLocationId,
+                        inventoryUpdates: chunk
+                    })
+                });
+                if (!invRes.ok) {
+                    allChunksOk = false;
+                    const invData = await invRes.json();
+                    console.error("[Square Sync Client] Inventory update failed:", invData);
+                }
+            }
+            if (allChunksOk) {
                 // 同期時刻の更新
                 for (const p of productsWithId) {
                     await updateDoc(doc(db, "products", p.id), {

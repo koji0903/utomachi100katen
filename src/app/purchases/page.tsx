@@ -17,6 +17,7 @@ function PurchasesPageContent() {
     const searchParams = useSearchParams();
     const highlightId = searchParams.get("id");
     const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState<"all" | "ordered" | "received" | "paid">("all");
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
@@ -135,7 +136,16 @@ function PurchasesPageContent() {
             // Date filter
             const matchesDate = !filterDate || purchase.orderDate === filterDate || purchase.arrivalDate === filterDate;
 
-            return matchesSearch && matchesDate;
+            // Status filter
+            const matchesStatus = statusFilter === "all"
+                ? true
+                : statusFilter === "ordered"
+                    ? ["ordered_pending", "ordered", "waiting", "partially_received"].includes(purchase.status)
+                    : statusFilter === "received"
+                        ? purchase.status === "received"
+                        : purchase.status === "paid";
+
+            return matchesSearch && matchesDate && matchesStatus;
         }).sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 
     const handleEdit = (purchase: Purchase) => {
@@ -181,10 +191,14 @@ function PurchasesPageContent() {
         } else if (nextStatus === 'paid') {
             update.paymentDate = new Date().toISOString().split('T')[0];
         } else if (nextStatus === 'ordered_pending') {
-            // Reset dates when looping back
+            // Reset dates and received quantities when looping back
             update.receivedDate = "";
             update.arrivalDate = "";
             update.paymentDate = "";
+            update.items = (purchase.items || []).map(item => ({
+                ...item,
+                receivedQuantity: 0
+            }));
         }
 
         updatePurchase(purchase.id, update);
@@ -346,16 +360,37 @@ function PurchasesPageContent() {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-5 border-b border-slate-200 bg-slate-50/50">
-                    <div className="relative max-w-md">
+                <div className="p-5 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                         <input
                             type="text"
                             placeholder="商品名や仕入先で検索..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm"
+                            className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm bg-white"
                         />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl">
+                        {([
+                            { id: "all", label: "すべて" },
+                            { id: "ordered", label: "発注予定・発注済" },
+                            { id: "received", label: "入荷済（未払）" },
+                            { id: "paid", label: "支払済" },
+                        ] as const).map(tab => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setStatusFilter(tab.id)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    statusFilter === tab.id
+                                        ? "bg-white text-emerald-700 shadow-xs"
+                                        : "text-slate-600 hover:text-slate-900"
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
 

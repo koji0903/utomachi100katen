@@ -14,6 +14,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useRef } from "react";
 import type { InventoryAudit, InventoryAuditItem } from "@/lib/store";
 import { showNotification } from "@/lib/notifications";
+import { NumberInput } from "@/components/NumberInput";
 
 export default function InventoryAuditDetailPage() {
     const { id } = useParams();
@@ -74,9 +75,9 @@ export default function InventoryAuditDetailPage() {
         }
     }, [id, inventoryAudits, products, isLoaded]);
 
-    const handleStockChange = (productId: string, actualValue: string) => {
+    const handleStockChange = (productId: string, actualValue: number | undefined) => {
         if (!audit) return;
-        const actual = parseInt(actualValue) || 0;
+        const actual = actualValue ?? 0;
 
         setAudit(prev => {
             if (!prev) return null;
@@ -259,12 +260,12 @@ export default function InventoryAuditDetailPage() {
                                     <ArrowRight className="w-4 h-4 text-slate-300 mx-auto" />
                                 </td>
                                 <td className="px-6 py-4">
-                                    <input
-                                        type="number"
-                                        min="0"
+                                    <NumberInput
+                                        min={0}
+                                        fallbackValue={0}
                                         disabled={isCompleted}
                                         value={item.actualStock}
-                                        onChange={(e) => handleStockChange(item.productId, e.target.value)}
+                                        onChange={(val) => handleStockChange(item.productId, val)}
                                         className="w-full text-center py-2 bg-white border border-slate-200 rounded-xl font-black text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none disabled:bg-slate-50 disabled:text-slate-400"
                                     />
                                 </td>

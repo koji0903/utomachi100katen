@@ -130,7 +130,7 @@ export default function ProductsPage() {
   };
 
   const handleExport = () => {
-    const exportData = products.map(p => ({
+    const exportData = products.filter(p => !p.isTrashed).map(p => ({
       ID: p.id,
       商品名: p.name,
       バリエーション: p.variantName || "",
@@ -448,7 +448,7 @@ export default function ProductsPage() {
                 className="bg-transparent text-sm font-bold text-slate-700 pr-8 py-2 focus:outline-none cursor-pointer appearance-none"
               >
                 <option value="all">すべてのブランド</option>
-                {brands.map((brand) => (
+                {brands.filter(b => !b.isTrashed).map((brand) => (
                   <option key={brand.id} value={brand.id}>
                     {brand.name}
                   </option>

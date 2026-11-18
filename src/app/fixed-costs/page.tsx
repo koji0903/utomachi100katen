@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import { 
     Coins, Save, Calendar, Landmark, Users, 
     Zap, Wifi, Truck, Monitor, BarChart3, 
-    Activity, ChevronRight, HelpCircle, Sparkles, RotateCcw, Loader2
+    Activity, ChevronRight, HelpCircle, Sparkles, RotateCcw, Loader2, Settings
 } from "lucide-react";
 import { useStore, FixedCost } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
@@ -269,15 +270,24 @@ export default function FixedCostsPage() {
                         家賃、正社員給与、光熱費、ソフトウェア代など、生産量に依存せず毎月定常的に発生する固定費 (F) を登録します。
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Calendar className="w-5 h-5 text-slate-400 shrink-0" />
-                    <input
-                        type="month"
-                        required
-                        value={targetMonth}
-                        onChange={(e) => setTargetMonth(e.target.value)}
-                        className="py-2.5 px-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-bold text-slate-800 bg-white cursor-pointer"
-                    />
+                <div className="flex flex-wrap items-center gap-3">
+                    <Link
+                        href="/settings#fixed-costs"
+                        className="px-4 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-xs"
+                    >
+                        <Settings className="w-3.5 h-3.5 text-slate-500" />
+                        初期テンプレート設定（基本設定）
+                    </Link>
+                    <div className="flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-slate-400 shrink-0" />
+                        <input
+                            type="month"
+                            required
+                            value={targetMonth}
+                            onChange={(e) => setTargetMonth(e.target.value)}
+                            className="py-2.5 px-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-bold text-slate-800 bg-white cursor-pointer"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -373,11 +383,12 @@ export default function FixedCostsPage() {
                                         <td className="py-3 pr-2 text-right">
                                             <div className="relative inline-block w-full">
                                                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">¥</span>
-                                                <input 
-                                                    type="number"
+                                                <NumberInput
+                                                    min={0}
+                                                    fallbackValue={0}
                                                     disabled={!item.enabled}
-                                                    value={item.amount || ""}
-                                                    onChange={(e) => handleItemFieldChange(item.id, "amount", Number(e.target.value))}
+                                                    value={item.amount || 0}
+                                                    onChange={(val) => handleItemFieldChange(item.id, "amount", val ?? 0)}
                                                     className="w-full bg-slate-900 border-none rounded-lg pl-5 pr-2 py-1.5 text-right text-xs font-mono font-black text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                                                 />
                                             </div>
@@ -530,11 +541,11 @@ export default function FixedCostsPage() {
                             <Activity className="w-4 h-4 text-indigo-600" />
                             過去の固定費一覧
                         </h3>
-                        {fixedCosts.length === 0 ? (
+                        {fixedCosts.filter(c => !c.isTrashed).length === 0 ? (
                             <p className="text-xs text-slate-400 text-center py-4">過去の固定費データはありません。</p>
                         ) : (
                             <div className="divide-y divide-slate-100">
-                                {fixedCosts.map((c) => (
+                                {fixedCosts.filter(c => !c.isTrashed).map((c) => (
                                     <button
                                         key={c.id}
                                         type="button"

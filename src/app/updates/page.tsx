@@ -110,11 +110,34 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.32.0 */}
+                    {/* v1.33.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">全システム網羅監査：在庫・売上・EC同期・会計ロジックの厳密化と事務員向け業務UIの統合革新</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "売上統合（unifiedSales）・請求帳票の二重計上解消と精度向上：月次請求書が月次・日次の2レコードに分裂して集計が2倍になる不具合や、請求書化済み納品書・同月日次売上との重複計上を解消。また帳票PDFプレビューにおける最終調整額（finalAdjustment）の反映漏れおよび内税計算の浮動小数点誤差（税込110円→税10円）を修正",
+                                    "決算在庫管理レポート＆在庫連動ロジックの厳密化：全社総在庫集計時に「本部→委託店舗への補充（社内振替）」が期間出庫に二重加算される不具合を修正し、負の棚卸調整（棚卸減耗）や返品・取消時の相殺計算を適正化。さらに業務日報の店舗補充・販促でもセット商品（BOM）の構成部材引き落としと卸店舗別の卸単価自動適用に対応",
+                                    "EC同期（Amazon / Square / Shopify）の堅牢化：Amazon注文同期での複数個注文時の金額計算（ItemPrice明細合計からの単価算出）とセット商品BOM展開、SKUのURLエンコード、マッピング保存のバッチ分割に対応。Square在庫同期のマイナス在庫0クランプ＆100件チャンク送信、再同期時の在庫二重減算防止、Shopifyのキャンセル注文・ゴミ箱商品の除外を徹底",
+                                    "サイドバー再編と在庫・製造・工数のワンストップ統合：メニューを事務員の業務導線（①日常業務 ②在庫・仕入・支払 ③経営分析・経費・会計 ④取引先・マスタ・保管 ⑤システム設定・サポート）に整理。在庫管理からセット制作・小分け変換へ1クリックで遷移でき、制作・変換時に「製造工数（作業時間・担当者）」の同時記録および誤入力時の「取消（在庫ロールバック）」に対応",
+                                    "事務員の入力スピードとミス防止を劇的に高めるUI改善：売上入力画面に「商品名・JAN検索 / ブランド絞込 / 入力済みのみ表示トグル」「同一宛先・同一期間の二重登録警告＆既存データ読込ボタン」「下部Sticky保存バー」を新設。帳票一覧からのワンクリック入金登録、仕入管理のステータスピル絞込、支払管理での支払済切替時の仕入伝票一括連動、全12画面のゴミ箱データ（!isTrashed）除外およびNumberInput統一を実施"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.32.0 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.32.0 - 2026.11.18</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">商品管理：Amazon SKU マッピング（セット販売・複数SKU紐づけ）機能を追加</h3>
                             <ul className="space-y-2">
                                 {[

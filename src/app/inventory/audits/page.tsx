@@ -17,7 +17,7 @@ export default function InventoryAuditsPage() {
     const router = useRouter();
 
     // Sort audits by date descending
-    const sortedAudits = [...inventoryAudits].sort((a, b) => b.date.localeCompare(a.date));
+    const sortedAudits = inventoryAudits.filter(a => !a.isTrashed).sort((a, b) => b.date.localeCompare(a.date));
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 pb-20">

@@ -574,7 +574,16 @@ function ReportForm({
                     .filter(r => r.productId)
                     .map(r => {
                         const p = products.find(prod => prod.id === r.productId);
-                        const price = p?.sellingPrice || 0;
+                        const wsPrice = p?.storeWholesalePrices?.find(sp => sp.storeId === storeId)?.price;
+                        const stPrice = p?.storePrices?.find(sp => sp.storeId === storeId)?.price;
+                        const ratePrice = (selectedStore.wholesaleRate && p?.sellingPrice)
+                            ? Math.round(p.sellingPrice * (selectedStore.wholesaleRate / 100))
+                            : undefined;
+                        const price = (wsPrice && wsPrice > 0)
+                            ? wsPrice
+                            : (stPrice && stPrice > 0)
+                                ? stPrice
+                                : (ratePrice !== undefined ? ratePrice : (p?.sellingPrice || 0));
                         const subtotal = price * r.qty;
                         return {
                             productId: r.productId,
@@ -743,6 +752,7 @@ function ReportForm({
 
                                 <div className="flex flex-wrap gap-2 pt-1 max-h-48 overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300">
                                     {products
+                                        .filter(p => !p.isTrashed)
                                         .filter(p => {
                                             if (!productSearchQuery) return true;
                                             const query = productSearchQuery.toLowerCase();
@@ -798,7 +808,7 @@ function ReportForm({
                                         className={`${inputCls} appearance-none pr-10`}
                                     >
                                         <option value="">店舗を選択してください</option>
-                                        {retailStores.map(s => (
+                                        {retailStores.filter(s => !s.isTrashed).map(s => (
                                             <option key={s.id} value={s.id}>
                                                 {s.name}{s.address ? ` — ${s.address.slice(0, 15)}…` : ""}
                                             </option>
@@ -855,6 +865,19 @@ function ReportForm({
                                         <Plus className="w-3.5 h-3.5" /> 追加
                                     </button>
                                 </div>
+                                {selectedStore && (
+                                    <div className={`px-3 py-2 rounded-xl text-[11px] font-bold flex items-center gap-1.5 border ${
+                                        selectedStore.type === 'B'
+                                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                                    }`}>
+                                        <span>
+                                            {selectedStore.type === 'B'
+                                                ? "※ 卸販売店舗への補充は保存時に店舗別卸単価で売上・本部出庫に自動計上されます"
+                                                : "※ 委託店舗への補充は保存時に『本部在庫→店舗在庫』へ自動移動します"}
+                                        </span>
+                                    </div>
+                                )}
                                 {restocking.length === 0 ? (
                                     <button type="button" onClick={addRestockingItem}
                                         className="w-full border-2 border-dashed border-slate-200 rounded-xl py-4 text-sm text-slate-400 hover:border-slate-300 transition-colors flex items-center justify-center gap-2">
@@ -863,9 +886,10 @@ function ReportForm({
                                 ) : (
                                     <div className="space-y-2">
                                         {restocking.map((item, i) => {
+                                            const activeProducts = products.filter(p => !p.isTrashed);
                                             const filteredProducts = (selectedStore?.activeProductIds && selectedStore.activeProductIds.length > 0)
-                                                ? products.filter(p => selectedStore.activeProductIds?.includes(p.id))
-                                                : products;
+                                                ? activeProducts.filter(p => selectedStore.activeProductIds?.includes(p.id))
+                                                : activeProducts;
                                             return (
                                                 <RestockingRow
                                                     key={i}
@@ -988,7 +1012,7 @@ function ReportForm({
                                         <PromotionRow
                                             key={i}
                                             item={item}
-                                            products={products}
+                                            products={products.filter(p => !p.isTrashed)}
                                             onChange={v => setPromotions(prev => prev.map((x, j) => j === i ? v : x))}
                                             onRemove={() => setPromotions(prev => prev.filter((_, j) => j !== i))}
                                         />

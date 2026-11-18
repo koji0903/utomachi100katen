@@ -25,9 +25,14 @@ import {
     Store,
     ArrowRight,
     Building2,
-    FileSpreadsheet
+    FileSpreadsheet,
+    Layers,
+    Sparkles,
+    Clock,
+    Box
 } from "lucide-react";
 import Link from "next/link";
+import { NumberInput } from "@/components/NumberInput";
 
 export default function InventoryPage() {
     const { products, stockMovements, suppliers, storeStocks, retailStores, loadingProducts, updateStoreStock, mutateSales, mutateProducts, mutateStockMovements, sales } = useStore();
@@ -47,6 +52,7 @@ export default function InventoryPage() {
 
     // Get recent stock movements
     const recentMovements = [...stockMovements]
+        .filter(m => !m.isTrashed)
         .sort((a, b) => {
             const getVal = (m: any) => {
                 if (m.createdAt?.seconds) return m.createdAt.seconds * 1000;
@@ -192,19 +198,73 @@ export default function InventoryPage() {
 
 
     return (
-        <div className="max-w-7xl mx-auto space-y-8 pb-20">
+        <div className="max-w-7xl mx-auto space-y-6 pb-20">
+            {/* 業務導線クイックハブ（在庫を増減させる全オペレーションへの直接タブ） */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide border-b border-slate-200/80">
+                <Link
+                    href="/inventory"
+                    className="px-4 py-2 bg-[#1e3a8a] text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Package className="w-3.5 h-3.5" /> 在庫・配置管理
+                </Link>
+                <Link
+                    href="/products/composite-production"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Sparkles className="w-3.5 h-3.5 text-orange-500" /> セット商品制作
+                </Link>
+                <Link
+                    href="/products/conversion"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Layers className="w-3.5 h-3.5 text-blue-600" /> 小分け・在庫変換
+                </Link>
+                <Link
+                    href="/work-logs"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Clock className="w-3.5 h-3.5 text-indigo-600" /> 製造工数記録
+                </Link>
+                <Link
+                    href="/products"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Box className="w-3.5 h-3.5 text-slate-500" /> 商品マスタ
+                </Link>
+                <Link
+                    href="/inventory/fiscal-report"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-amber-600" /> 決算在庫レポート
+                </Link>
+            </div>
+
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                         <Package className="w-8 h-8 text-[#1e3a8a]" />
-                        在庫管理
+                        在庫・製造・配置
                     </h1>
                     <p className="text-slate-500 font-medium mt-1">
-                        在庫状況の確認、履歴の追跡、および棚卸しを行います。
+                        在庫状況の確認、セット制作・小分け変換、履歴の追跡、および棚卸しを行います。
                     </p>
                 </div>
-                <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3 w-full md:w-auto">
+                <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2.5 w-full md:w-auto">
+                    <Link
+                        href="/products/composite-production"
+                        className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 transition-all shadow-md shadow-orange-900/10 whitespace-nowrap active:scale-95"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                        セット商品制作
+                    </Link>
+                    <Link
+                        href="/products/conversion"
+                        className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2.5 bg-white border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-50 transition-all shadow-sm whitespace-nowrap active:scale-95"
+                    >
+                        <Layers className="w-4 h-4" />
+                        小分け・在庫変換
+                    </Link>
                     <Link
                         href="/inventory/audits"
                         className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 sm:px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm whitespace-nowrap"
@@ -463,7 +523,7 @@ export default function InventoryPage() {
                                             const stats = weeklySalesData;
 
                                             return activeIds.map(pid => {
-                                                const product = products.find(p => p.id === pid);
+                                                const product = products.find(p => p.id === pid && !p.isTrashed);
                                                 if (!product) return null;
                                                 const ss = storeStocks.find(s => s.storeId === selectedStoreId && s.productId === pid);
                                                 const currentStock = ss?.stock || 0;
@@ -587,7 +647,7 @@ export default function InventoryPage() {
 
                                             // Show all products in activeProductIds, even if no stock entry exists
                                             return activeIds.map(pid => {
-                                                const product = products.find(p => p.id === pid);
+                                                const product = products.find(p => p.id === pid && !p.isTrashed);
                                                 if (!product) return null;
                                                 const ss = storeStocks.find(s => s.storeId === selectedStoreId && s.productId === pid);
                                                 const currentStock = ss?.stock || 0;
@@ -785,10 +845,12 @@ function StoreStockAdjustmentModal({ target, onClose }: { target: { storeId: str
                             <label className="block text-sm font-black text-slate-700 mb-2">
                                 {inputType === 'diff' ? '増分/減分 (例: -1)' : '現在の正確な在庫数'}
                             </label>
-                            <input
-                                type="number"
+                            <NumberInput
                                 value={qty}
-                                onChange={(e) => setQty(Number(e.target.value))}
+                                allowNegative={inputType === 'diff'}
+                                min={inputType === 'absolute' ? 0 : undefined}
+                                fallbackValue={0}
+                                onChange={(val) => setQty(val ?? 0)}
                                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-black focus:ring-4 focus:ring-blue-500/10 focus:border-[#1e3a8a] outline-none transition-all"
                                 placeholder={inputType === 'diff' ? "例: -1 (紛失), 2 (入庫)" : "現在の個数を入力"}
                             />
@@ -843,7 +905,7 @@ function ProductHistoryModal({ productId, onClose }: { productId: string; onClos
 
         // 1. Stock Movements
         stockMovements
-            .filter(m => m.productId === productId)
+            .filter(m => !m.isTrashed && m.productId === productId)
             .forEach(m => {
                 items.push({
                     id: m.id,
@@ -860,7 +922,7 @@ function ProductHistoryModal({ productId, onClose }: { productId: string; onClos
 
         // 2. Stock Conversions
         stockConversions
-            .filter(c => c.inputProductId === productId || c.outputProductId === productId)
+            .filter(c => !(c as any).isTrashed && (c.inputProductId === productId || c.outputProductId === productId))
             .forEach(c => {
                 const isInput = c.inputProductId === productId;
                 items.push({
@@ -881,7 +943,7 @@ function ProductHistoryModal({ productId, onClose }: { productId: string; onClos
 
         // 3. Composite Productions
         compositeProductions
-            .filter(p => p.productId === productId || p.components.some(c => c.productId === productId))
+            .filter(p => !p.isTrashed && (p.productId === productId || p.components.some(c => c.productId === productId)))
             .forEach(p => {
                 const isMain = p.productId === productId;
                 const component = p.components.find(c => c.productId === productId);

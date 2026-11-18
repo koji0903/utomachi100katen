@@ -25,9 +25,10 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
 
     // Filtering products for search
     const filteredProducts = useMemo(() => {
+        const activeProducts = products.filter(p => !p.isTrashed);
         const q = searchQuery.toLowerCase();
-        if (!q) return products;
-        return products.filter(p =>
+        if (!q) return activeProducts;
+        return activeProducts.filter(p =>
             p.name.toLowerCase().includes(q) ||
             p.variantName?.toLowerCase().includes(q)
         );
@@ -42,9 +43,10 @@ export function InvoiceEditor({ items, adjustments, taxRate, taxType = 'inclusiv
         currentFinalAdj: number
     ) => {
         const sub = currentItems.reduce((sum, item) => sum + item.subtotal, 0);
-        const tax = currentTaxType === 'inclusive' 
-            ? Math.floor(sub - (sub / (1 + currentTaxRate / 100))) 
-            : Math.floor(sub * (currentTaxRate / 100));
+        const rawTax = currentTaxType === 'inclusive'
+            ? sub - (sub / (1 + currentTaxRate / 100))
+            : sub * (currentTaxRate / 100);
+        const tax = Math.floor(Math.round(rawTax * 1e6) / 1e6);
         const adjTotal = currentAdjustments.reduce((sum, adj) => sum + adj.amount, 0);
         const grand = currentTaxType === 'inclusive' 
             ? sub + adjTotal 

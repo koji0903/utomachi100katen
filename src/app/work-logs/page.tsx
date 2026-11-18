@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { 
     Clock, Plus, Trash2, Calendar, User, 
     Box, Award, AlertTriangle, CheckCircle2, 
     Play, Activity, Sparkles, TrendingUp,
-    ArrowLeft, Search
+    ArrowLeft, Search, Layers, Store
 } from "lucide-react";
 import { useStore, WorkLog } from "@/lib/store";
 import { NumberInput } from "@/components/NumberInput";
@@ -44,15 +45,17 @@ export default function WorkLogsPage() {
     const HOURLY_LABOR_WAGE = 1200;
     const MINUTE_LABOR_WAGE = 20;
 
+    const activeWorkLogs = useMemo(() => workLogs.filter(log => !log.isTrashed), [workLogs]);
+
     // Filter work logs list
     const filteredLogs = useMemo(() => {
-        return workLogs.filter(w => {
+        return activeWorkLogs.filter(w => {
             const matchesSearch = (w.workerName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (w.workType || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (w.relatedProductName && w.relatedProductName.toLowerCase().includes(searchQuery.toLowerCase()));
             return matchesSearch;
         }).sort((a, b) => (b.workDate || "").localeCompare(a.workDate || ""));
-    }, [workLogs, searchQuery]);
+    }, [activeWorkLogs, searchQuery]);
 
     // Live calculations for the work log entry
     const logCalculation = useMemo(() => {
@@ -136,7 +139,41 @@ export default function WorkLogsPage() {
     };
 
     return (
-        <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-300">
+        <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
+            {/* 業務導線クイックハブ */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide border-b border-slate-200/80">
+                <Link
+                    href="/inventory"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Store className="w-3.5 h-3.5 text-slate-500" /> 在庫管理
+                </Link>
+                <Link
+                    href="/products/composite-production"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Sparkles className="w-3.5 h-3.5 text-slate-500" /> セット商品制作
+                </Link>
+                <Link
+                    href="/products/conversion"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Layers className="w-3.5 h-3.5 text-slate-500" /> 小分け・在庫変換
+                </Link>
+                <Link
+                    href="/work-logs"
+                    className="px-4 py-2 bg-[#1e3a8a] text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Clock className="w-3.5 h-3.5" /> 製造工数記録
+                </Link>
+                <Link
+                    href="/products"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Box className="w-3.5 h-3.5 text-slate-500" /> 商品マスタ
+                </Link>
+            </div>
+
             {/* Header section with premium design */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <div>
@@ -181,7 +218,7 @@ export default function WorkLogsPage() {
                             <div>
                                 <span className="text-[10px] text-slate-400 font-bold block uppercase">総製造工数</span>
                                 <span className="text-lg font-black text-slate-800">
-                                    {Math.round(workLogs.reduce((acc, curr) => acc + (curr.workMinutes || 0), 0) / 60)} 時間
+                                    {Math.round(activeWorkLogs.reduce((acc, curr) => acc + (curr.workMinutes || 0), 0) / 60)} 時間
                                 </span>
                             </div>
                         </div>
@@ -193,7 +230,7 @@ export default function WorkLogsPage() {
                             <div>
                                 <span className="text-[10px] text-slate-400 font-bold block uppercase">人件費相当額</span>
                                 <span className="text-lg font-black text-amber-600">
-                                    ¥{workLogs.reduce((acc, curr) => acc + (curr.laborCost || 0), 0).toLocaleString()}
+                                    ¥{activeWorkLogs.reduce((acc, curr) => acc + (curr.laborCost || 0), 0).toLocaleString()}
                                 </span>
                             </div>
                         </div>
@@ -206,9 +243,9 @@ export default function WorkLogsPage() {
                                 <span className="text-[10px] text-slate-400 font-bold block uppercase">工数回収成功率</span>
                                 <span className="text-lg font-black text-emerald-600">
                                     {(() => {
-                                        if (workLogs.length === 0) return "0.0";
-                                        const successCount = workLogs.filter(w => w.efficiencyRating === "excellent").length;
-                                        return ((successCount / workLogs.length) * 100).toFixed(1);
+                                        if (activeWorkLogs.length === 0) return "0.0";
+                                        const successCount = activeWorkLogs.filter(w => w.efficiencyRating === "excellent").length;
+                                        return ((successCount / activeWorkLogs.length) * 100).toFixed(1);
                                     })()}%
                                 </span>
                             </div>
@@ -221,7 +258,7 @@ export default function WorkLogsPage() {
                             <div>
                                 <span className="text-[10px] text-slate-400 font-bold block uppercase">回収成功回数 / 総数</span>
                                 <span className="text-lg font-black text-indigo-600">
-                                    {workLogs.filter(w => w.efficiencyRating === "excellent").length} / {workLogs.length} 回
+                                    {activeWorkLogs.filter(w => w.efficiencyRating === "excellent").length} / {activeWorkLogs.length} 回
                                 </span>
                             </div>
                         </div>

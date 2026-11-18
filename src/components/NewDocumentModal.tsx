@@ -155,6 +155,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
             }
 
             const filtered = (sales || []).filter(s => {
+                if (s.isTrashed) return false;
                 const matchStore = recipientType === "store" ? s.storeId === storeId : true;
                 const matchPeriod = period ? s.period.startsWith(period) : true;
                 return matchStore && matchPeriod;
@@ -329,7 +330,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                             <select value={storeId} onChange={e => setStoreId(e.target.value)}
                                 className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 font-medium text-slate-900">
                                 <option value="">店舗を選択してください</option>
-                                {retailStores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                {retailStores.filter(s => !s.isTrashed).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                         )}
                         {recipientType === "store" && storeId && retailStores.find(s => s.id === storeId)?.linkedConsignmentStoreId && (
@@ -370,7 +371,7 @@ export function NewDocumentModal({ onClose, editingDoc, initialTransactionId }: 
                             <select value={supplierId} onChange={e => setSupplierId(e.target.value)}
                                 className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 font-medium text-slate-900">
                                 <option value="">仕入先を選択してください</option>
-                                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                {suppliers.filter(s => !s.isTrashed).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                         )}
                         {recipientType === "spot" && (

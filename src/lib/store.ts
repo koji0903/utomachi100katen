@@ -585,7 +585,7 @@ export interface BusinessManual extends BaseEntity {
     createdAt?: string | any;
 }
 
-export interface StockConversion {
+export interface StockConversion extends BaseEntity {
     id: string;
     date: string; // YYYY-MM-DD
     inputProductId: string;
@@ -1501,6 +1501,29 @@ export function useStore() {
         mutateStockConversions();
     };
 
+    const deleteStockConversion = async (id: string) => {
+        if (checkDemoMode()) return;
+        const conv = stockConversions.find(c => c.id === id);
+        if (!conv || conv.isTrashed) return;
+        const nextConv = { ...conv, isTrashed: true };
+        const effects: InventoryEffect[] = [
+            { scope: 'main', productId: conv.inputProductId, quantity: conv.inputQty },
+            { scope: 'main', productId: conv.outputProductId, quantity: -conv.outputQty },
+        ];
+        const batch = writeBatch(db);
+        batch.update(doc(db, "stock_conversions", id), { isTrashed: true });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: new Date().toISOString().split('T')[0],
+            source: 'conversion',
+            remarks: `在庫変換取消: ${conv.notes || '備考なし'}`,
+        });
+        await batch.commit();
+        mutateStockConversions(stockConversions.map(item => item.id === id ? nextConv : item), false);
+        refreshInventoryCaches(effects);
+        mutateStockConversions();
+    };
+
     const addCompositeProduction = async (data: Omit<CompositeProduction, "id" | "createdAt">) => {
         if (checkDemoMode()) return;
         const newRef = doc(collection(db, "composite_productions"));
@@ -1537,6 +1560,33 @@ export function useStore() {
             detail: `制作数量: ${data.quantity}`
         });
 
+        mutateCompositeProductions();
+    };
+
+    const deleteCompositeProduction = async (id: string) => {
+        if (checkDemoMode()) return;
+        const prod = compositeProductions.find(p => p.id === id);
+        if (!prod || prod.isTrashed) return;
+        const nextProd = { ...prod, isTrashed: true };
+        const effects: InventoryEffect[] = [
+            { scope: 'main', productId: prod.productId, quantity: -prod.quantity },
+            ...(prod.components || []).map(component => ({
+                scope: 'main' as const,
+                productId: component.productId,
+                quantity: component.quantity,
+            })),
+        ];
+        const batch = writeBatch(db);
+        batch.update(doc(db, "composite_productions", id), { isTrashed: true });
+        appendInventoryEffectsToBatch(batch, effects, {
+            referenceId: id,
+            date: new Date().toISOString().split('T')[0],
+            source: 'production',
+            remarks: `商品制作取消: ${prod.productName}`,
+        });
+        await batch.commit();
+        mutateCompositeProductions(compositeProductions.map(item => item.id === id ? nextProd : item), false);
+        refreshInventoryCaches(effects);
         mutateCompositeProductions();
     };
 
@@ -1687,7 +1737,7 @@ export function useStore() {
         if (checkDemoMode()) return;
         const newRef = doc(collection(db, "daily_reports"));
         const newReport: DailyReport = { id: newRef.id, ...reportData, createdAt: new Date().toISOString() };
-        const effects = getDailyReportInventoryEffects(newReport, retailStores);
+        const effects = getDailyReportInventoryEffects(newReport, retailStores, products);
         const promotionExpense = getPromotionExpenseData(newReport);
         const batch = writeBatch(db);
         batch.set(newRef, { ...cleanObject(reportData), createdAt: serverTimestamp() });
@@ -1733,8 +1783,8 @@ export function useStore() {
         if (!report || report.isTrashed) return;
         const nextReport = { ...report, isTrashed: true };
         const effects = diffInventoryEffects(
-            getDailyReportInventoryEffects(report, retailStores),
-            getDailyReportInventoryEffects(nextReport, retailStores),
+            getDailyReportInventoryEffects(report, retailStores, products),
+            getDailyReportInventoryEffects(nextReport, retailStores, products),
         );
         const batch = writeBatch(db);
         batch.update(doc(db, "daily_reports", id), { isTrashed: true });
@@ -1759,8 +1809,8 @@ export function useStore() {
         if (!report || !report.isTrashed) return;
         const nextReport = { ...report, isTrashed: false };
         const effects = diffInventoryEffects(
-            getDailyReportInventoryEffects(report, retailStores),
-            getDailyReportInventoryEffects(nextReport, retailStores),
+            getDailyReportInventoryEffects(report, retailStores, products),
+            getDailyReportInventoryEffects(nextReport, retailStores, products),
         );
         const batch = writeBatch(db);
         batch.update(doc(db, "daily_reports", id), { isTrashed: false });
@@ -1793,8 +1843,8 @@ export function useStore() {
         if (!currentReport) return;
         const newReport = { ...currentReport, ...data } as DailyReport;
         const effects = diffInventoryEffects(
-            getDailyReportInventoryEffects(currentReport, retailStores),
-            getDailyReportInventoryEffects(newReport, retailStores),
+            getDailyReportInventoryEffects(currentReport, retailStores, products),
+            getDailyReportInventoryEffects(newReport, retailStores, products),
         );
         const promotionExpense = getPromotionExpenseData(newReport);
         const relatedExpense = expenses.find(e => e.referenceId === id);
@@ -2103,15 +2153,19 @@ export function useStore() {
     const restoreIssuedDocument = async (id: string) => {
         const docToRestore = issuedDocuments.find(d => d.id === id);
         if (!docToRestore || !docToRestore.isTrashed) return;
-        const persistedEffects = docToRestore.inventoryEffects !== undefined
-            ? docToRestore.inventoryEffects
-            : (stockMovements.some(movement => movement.referenceId === docToRestore.id)
-                ? getDeliveryNoteInventoryEffects({ ...docToRestore, isTrashed: false }, products, retailStores)
-                : []);
+        const hasHistory = stockMovements.some(movement => movement.referenceId === docToRestore.id);
+        const restoredWithoutEmptySnapshot = {
+            ...docToRestore,
+            isTrashed: false,
+            inventoryEffects: docToRestore.inventoryEffects?.length ? docToRestore.inventoryEffects : undefined,
+        };
+        const persistedEffects = (docToRestore.inventoryEffects !== undefined || hasHistory)
+            ? getDeliveryNoteInventoryEffects(restoredWithoutEmptySnapshot, products, retailStores)
+            : [];
         const nextDoc = { ...docToRestore, isTrashed: false, inventoryEffects: persistedEffects };
         const effects = diffInventoryEffects(
             getDeliveryNoteInventoryEffects(docToRestore, products, retailStores),
-            getDeliveryNoteInventoryEffects(nextDoc, products, retailStores),
+            getDeliveryNoteInventoryEffects(restoredWithoutEmptySnapshot, products, retailStores),
         );
         const batch = writeBatch(db);
         batch.update(doc(db, 'issued_documents', id), { isTrashed: false, inventoryEffects: persistedEffects });
@@ -3033,33 +3087,42 @@ export function useStore() {
                         type: isDaily ? 'daily' as const : 'monthly' as const,
                         period: primaryPeriod,
                     });
-
-                    // If it's a monthly invoice but has a specific issuedDate, 
-                    // also create a daily entry so it appears on the calendar
-                    if (!isDaily && d.issuedDate && d.issuedDate !== primaryPeriod) {
-                        results.push({
-                            ...baseSale,
-                            type: 'daily' as const,
-                            period: d.issuedDate,
-                        });
-                    }
                 }
 
                 return results;
             });
 
+        // 月次請求書（納品書からの合算でない売上精算型）が存在する「店舗×月」を特定し、
+        // すでに日次 rawSales（manualSales）が存在する場合は月次請求書側の重複計上を防ぐ
+        const manualStoreMonths = new Set(
+            manualSales
+                .filter(s => s.storeId && s.period)
+                .map(s => `${s.storeId}:${s.period.slice(0, 7)}`)
+        );
+
         // Deduplication and Merging
         const result = [...manualSales];
+        const manualCount = manualSales.length;
         
         documentSales.forEach(docSale => {
-            // Heuristic Deduplication: 
+            // 月次請求書（type === 'monthly'）で、同店舗・同月の日次 manualSales が既に存在する場合は二重計上を防止
+            if (docSale.type === 'monthly' && docSale.storeId && docSale.period) {
+                const monthKey = `${docSale.storeId}:${docSale.period.slice(0, 7)}`;
+                if (manualStoreMonths.has(monthKey)) {
+                    return;
+                }
+            }
+
+            // Heuristic Deduplication against existing manualSales ONLY (docSale同士が上書き消滅しないようにする):
             // 1. Same transactionId if exists
             // 2. Same store, period, and amount (within 1 yen)
-            const duplicateIndex = result.findIndex(s => 
-                (docSale.transactionId && (s as any).transactionId === docSale.transactionId) ||
-                (s.storeId === docSale.storeId && 
-                 s.period === docSale.period && 
-                 Math.abs(s.totalAmount - docSale.totalAmount) < 2)
+            const duplicateIndex = result.findIndex((s, idx) => 
+                idx < manualCount && (
+                    (docSale.transactionId && (s as any).transactionId === docSale.transactionId) ||
+                    (s.storeId === docSale.storeId && 
+                     s.period === docSale.period && 
+                     Math.abs(s.totalAmount - docSale.totalAmount) < 2)
+                )
             );
             
             if (duplicateIndex !== -1) {
@@ -3157,6 +3220,7 @@ export function useStore() {
         // Stock Conversions
         stockConversions,
         addStockConversion,
+        deleteStockConversion,
         // Daily Weather
         dailyWeather,
         saveDailyWeather,
@@ -3290,6 +3354,7 @@ export function useStore() {
         // Composite Production
         compositeProductions,
         addCompositeProduction,
+        deleteCompositeProduction,
         mutateCompositeProductions,
         // Promotion Tasks
         promotionTasks,
