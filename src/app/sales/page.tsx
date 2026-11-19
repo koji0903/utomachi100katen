@@ -280,10 +280,11 @@ function SalesInputTab({ editingSale, onClearEdit, onEditExisting }: { editingSa
 
     const currentPeriod = inputMode === 'daily' ? targetDate : targetMonth;
     const duplicateSales = useMemo(() => {
-        if (!selectedStoreIdRaw || editingSale) return [];
+        if (!selectedStoreIdRaw) return [];
         const expectedRecipientType = isSpotSelection ? 'spot' : 'store';
         return sales.filter(s => {
             if (s.isTrashed) return false;
+            if (editingSale && s.id === editingSale.id) return false;
             const recType = s.recipientType || 'store';
             return s.storeId === selectedStoreIdRaw && recType === expectedRecipientType && s.period === currentPeriod;
         });
@@ -311,11 +312,21 @@ function SalesInputTab({ editingSale, onClearEdit, onEditExisting }: { editingSa
     };
 
     const calculateRowDetails = (product: Product, quantity: number) => {
+        const isSameRecipientAsEditing = !!editingSale &&
+            editingSale.storeId === selectedStoreIdRaw &&
+            (editingSale.recipientType || 'store') === (isSpotSelection ? 'spot' : 'store');
+        const historicalItem = isSameRecipientAsEditing
+            ? editingSale?.items.find(item => item.productId === product.id)
+            : undefined;
+
         const storePriceObj = product.storePrices?.find(sp => sp.storeId === selectedStoreIdRaw);
         const wholesalePriceObj = product.storeWholesalePrices?.find(sp => sp.storeId === selectedStoreIdRaw);
-        const price = !isSpotSelection && selectedStore?.type === 'B' && wholesalePriceObj && wholesalePriceObj.price > 0
+        const currentMasterPrice = !isSpotSelection && selectedStore?.type === 'B' && wholesalePriceObj && wholesalePriceObj.price > 0
             ? wholesalePriceObj.price
             : ((storePriceObj && storePriceObj.price > 0 && !isSpotSelection) ? storePriceObj.price : product.sellingPrice);
+        const price = historicalItem && typeof historicalItem.priceAtSale === 'number'
+            ? historicalItem.priceAtSale
+            : currentMasterPrice;
         const subtotal = price * quantity;
         
         let commissionRate = 0;
@@ -339,7 +350,7 @@ function SalesInputTab({ editingSale, onClearEdit, onEditExisting }: { editingSa
             }
         });
         return { totalQty, totalAmt, totalComm, totalNet };
-    }, [selectableProducts, salesData, selectedStoreIdRaw, isSpotSelection, selectedStore]);
+    }, [selectableProducts, salesData, selectedStoreIdRaw, isSpotSelection, selectedStore, editingSale]);
 
     const handleSave = async () => {
         if (!selectedStoreIdRaw) return;
@@ -1010,8 +1021,10 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
 
     // Filter sales to selected logType + selected filters
     const filteredSales = useMemo(() => {
-        return unifiedSales
-            .filter(s => !!s.isTrashed === showTrash)
+        const sourceSales = showTrash
+            ? sales.filter(s => !!s.isTrashed)
+            : unifiedSales.filter(s => !s.isTrashed);
+        return sourceSales
             .filter(s => s.type === logType || (!s.type && logType === 'daily'))
             .filter(s => {
                 if (!filterStoreId) return true;
@@ -1034,7 +1047,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                     return p.startsWith(filterYear);
                 }
             });
-    }, [unifiedSales, logType, filterStoreId, filterMonth, filterYear, filterDate, showTrash]);
+    }, [sales, unifiedSales, logType, filterStoreId, filterMonth, filterYear, filterDate, showTrash]);
 
     useEffect(() => {
         if (highlightId && filteredSales.length > 0) {
@@ -1471,6 +1484,7 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                     {storeMap[sale.storeId] ?? sale.storeId}
                                                     {sale.recipientType === 'spot' && <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">スポット</span>}
                                                     {(sale as any).isInvoice && <span className="ml-1 text-[9px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded font-black">請求書</span>}
+                                                    {(sale as any).isDeliveryNote && <span className="ml-1 text-[9px] bg-rose-100 text-rose-700 px-1 py-0.5 rounded font-black">納品書</span>}
                                                 </td>
                                                 {logType === 'daily' && (
                                                     <td className="px-4 py-3">
@@ -1515,9 +1529,36 @@ function DailyLogTab({ onEdit, filterDate }: { onEdit: (sale: Sale) => void, fil
                                                 </td>
                                                 <td className="px-4 py-3 text-center">
                                                     {showTrash ? (
-                                                        <button onClick={() => restoreSale(sale.id)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"><RotateCcw className="w-4 h-4" /></button>
-                                                    ) : (sale as any).isInvoice ? (
-                                                        <Link href={`/documents?id=${sale.id}`} className="p-1.5 text-blue-400 hover:bg-slate-50 rounded-lg inline-block" title="請求書詳細を表示">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => restoreSale(sale.id)}
+                                                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"
+                                                                title="売上を復元"
+                                                                aria-label={`${sale.period}の売上を復元`}
+                                                            >
+                                                                <RotateCcw className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (window.confirm("この売上データを完全に削除しますか？この操作は取り消せません。")) {
+                                                                        permanentlyDeleteSale(sale.id);
+                                                                    }
+                                                                }}
+                                                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                                                                title="完全に削除"
+                                                                aria-label={`${sale.period}の売上を完全削除`}
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    ) : ((sale as any).isInvoice || (sale as any).isDeliveryNote) ? (
+                                                        <Link
+                                                            href={`/documents?id=${sale.id}`}
+                                                            className="p-1.5 text-blue-400 hover:bg-slate-50 rounded-lg inline-block"
+                                                            title={(sale as any).isDeliveryNote ? "納品書詳細を表示" : "請求書詳細を表示"}
+                                                        >
                                                             <FileText className="w-4 h-4" />
                                                         </Link>
                                                     ) : (

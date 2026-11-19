@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
-import { withCronSecret, logError } from "@/lib/apiAuth";
+import { withCronSecret, internalError, logError } from "@/lib/apiAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,12 +10,14 @@ export const dynamic = "force-dynamic";
  */
 export const GET = withCronSecret(async () => {
     if (!adminDb) {
-        return NextResponse.json({ error: "Firebase Admin is not initialized" }, { status: 500 });
+        logError("cron/fetch-weather", new Error("Firebase Admin is not initialized"));
+        return internalError();
     }
 
     const apiKey = process.env.OPENWEATHER_API_KEY;
     if (!apiKey) {
-        return NextResponse.json({ error: "OPENWEATHER_API_KEY not configured" }, { status: 500 });
+        logError("cron/fetch-weather", new Error("OPENWEATHER_API_KEY not configured"));
+        return internalError();
     }
 
     try {
@@ -39,14 +41,21 @@ export const GET = withCronSecret(async () => {
         for (const store of stores) {
             const { lat, lng, name } = store as any;
 
-            if (!lat || !lng) {
+            const latNum = Number(lat);
+            const lngNum = Number(lng);
+            if (
+                lat === undefined || lat === null || lat === "" ||
+                lng === undefined || lng === null || lng === "" ||
+                !Number.isFinite(latNum) || !Number.isFinite(lngNum) ||
+                latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180
+            ) {
                 results.skipped++;
                 continue;
             }
 
             try {
                 // Fetch from OpenWeatherMap (Forecast API provides min/max)
-                const weatherUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${apiKey}&units=metric&lang=ja`;
+                const weatherUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${latNum}&lon=${lngNum}&appid=${apiKey}&units=metric&lang=ja`;
                 const weatherRes = await fetch(weatherUrl);
                 
                 if (!weatherRes.ok) throw new Error(`Weather API Error: ${weatherRes.status}`);

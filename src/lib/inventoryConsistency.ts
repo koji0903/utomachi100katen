@@ -121,9 +121,9 @@ export function getPurchaseInventoryEffects(purchase?: PurchaseLike | null): Inv
 
     return mergeInventoryEffects((purchase.items || []).map(item => {
         const isFullyReceived = purchase.status === 'received' || purchase.status === 'paid';
-        // received/paid時は全数入荷完了のため、0や未設定時は発注数(quantity)を全数反映
+        // received/paid時は未設定(undefined)の場合のみ発注数(quantity)を全数反映し、明示的な0(欠品)は尊重する
         const receivedQuantity = isFullyReceived
-            ? (item.receivedQuantity || item.quantity)
+            ? (item.receivedQuantity ?? item.quantity)
             : (item.receivedQuantity ?? 0);
         return { scope: 'main' as const, productId: item.productId, quantity: receivedQuantity };
     }));

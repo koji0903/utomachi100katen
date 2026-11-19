@@ -1,6 +1,22 @@
 // src/lib/csvUtils.ts
 
 /**
+ * CSV インジェクション（数式インジェクション）対策として、
+ * 先頭が =, +, -, @, \t, \r で始まる文字列セルにシングルクォートを付与する。
+ */
+export function sanitizeCsvCell(val: unknown): string {
+    if (val === null || val === undefined) return "";
+    if (typeof val === "number" && Number.isFinite(val)) {
+        return String(val);
+    }
+    const str = String(val);
+    if (/^[=+\-@\t\r]/.test(str)) {
+        return `'${str}`;
+    }
+    return str;
+}
+
+/**
  * Converts an array of objects to a CSV string.
  */
 export function convertToCSV<T extends object>(data: T[]): string {
@@ -16,7 +32,7 @@ export function convertToCSV<T extends object>(data: T[]): string {
     for (const row of data) {
         const values = headers.map(header => {
             const val = row[header];
-            const escaped = String(val ?? "").replace(/"/g, '""');
+            const escaped = sanitizeCsvCell(val).replace(/"/g, '""');
             return `"${escaped}"`;
         });
         csvRows.push(values.join(","));

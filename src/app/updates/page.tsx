@@ -110,11 +110,33 @@ export default function UpdatesPage() {
                 </div>
 
                 <div className="space-y-8 pl-5 relative border-l-2 border-slate-100 ml-5">
-                    {/* v1.33.1 */}
+                    {/* v1.34.0 */}
                     <div className="relative">
                         <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-blue-600 border-4 border-white shadow-sm ring-4 ring-blue-50" />
                         <div>
                             <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wider">{CURRENT_VERSION} - {RELEASE_DATE}</div>
+                            <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">セキュリティ全面強化＆コア業務ロジック・EC同期の網羅的バグ修正</h3>
+                            <ul className="space-y-2">
+                                {[
+                                    "認証・認可およびファイルアップロードのセキュリティ強化：未認証で呼び出し可能だったAmazon商品同期Server Actionを廃止してwithAuth保護API（/api/amazon/sync-product）へ移行。Storage Rulesおよび/api/uploadでSVG/HTMLアップロードを遮断しマジックバイト検証を導入。Firestore Security Rulesに監査ログ改ざん禁止・サーバー専用コレクション保護・サイズ検証を適用",
+                                    "インジェクション対策・セキュリティヘッダー・API堅牢化：HTMLメールテンプレートの変数エスケープ、全CSV出力（商品・売上・支払・決算在庫）のCSVインジェクション無害化、next.config.tsへのセキュリティヘッダー（X-Frame-Options / nosniff / Referrer-Policy等）追加、各種APIのZod上限検証と本番環境ホワイトリスト保護を実施",
+                                    "支払い管理・帳票・売上管理のクリティカル不具合修正：支払い管理で「未払いに戻す」がFirestoreエラーで失敗する問題と連打・日付フォールバックを修正。売上管理の「ゴミ箱を表示」が常に0件になる不具合と未請求納品書行の誤編集、編集時の過去単価上書きを解消。帳票入金完済時のステータス自動同期と下書き請求書の誤操作防止を追加",
+                                    "決算在庫レポート・統合売上・EC同期の厳密化：決算在庫レポートでの日報補充取消の符号逆転・当期返品超過時の誤差を修正。unifiedSalesの月次合算請求書消失・別帳票上書き消滅および旧納品書復元時の在庫減算バグを解消。削除/復元アクションの二重実行防止、Square同期のトランザクション化＆BOM展開、Shopify同期のBOM展開、Amazon同期の排他ロックを導入"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 leading-relaxed">
+                                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* v1.33.1 */}
+                    <div className="relative opacity-60">
+                        <div className="absolute -left-[2.15rem] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-4 border-white" />
+                        <div>
+                            <div className="text-xs font-black text-slate-400 mb-1 uppercase tracking-wider">v1.33.1 - 2026.11.19</div>
                             <h3 className="font-bold text-slate-800 mb-2 underline decoration-blue-200 underline-offset-4 decoration-2">基盤アップデート：Next.js セキュリティアップグレード（v16.4.3 → v16.4.6）</h3>
                             <ul className="space-y-2">
                                 {[

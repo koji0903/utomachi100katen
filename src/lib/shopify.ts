@@ -68,7 +68,10 @@ async function shopifyFetch(path: string, options: RequestInit = {}) {
  * Shopify から商品情報を取得します
  */
 export async function getShopifyProduct(productId: string): Promise<any> {
-    const cleanId = productId.replace("gid://shopify/Product/", "");
+    const cleanId = productId.replace("gid://shopify/Product/", "").trim();
+    if (!/^\d+$/.test(cleanId)) {
+        throw new Error(`Invalid Shopify productId: ${productId}`);
+    }
     const data = await shopifyFetch(`/products/${cleanId}.json`);
     return data.product;
 }
@@ -107,7 +110,10 @@ export async function getShopifyOrders(): Promise<ShopifyOrder[]> {
  * @param quantity 在庫数
  */
 export async function updateShopifyInventory(variantId: string, quantity: number) {
-    const cleanVariantId = variantId.replace("gid://shopify/ProductVariant/", "");
+    const cleanVariantId = variantId.replace("gid://shopify/ProductVariant/", "").trim();
+    if (!/^\d+$/.test(cleanVariantId)) {
+        throw new Error(`Invalid Shopify variantId: ${variantId}`);
+    }
     
     // 1. バリアント情報を取得して inventory_item_id を特定
     const variantData = await shopifyFetch(`/variants/${cleanVariantId}.json`);

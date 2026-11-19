@@ -6,6 +6,15 @@ import { isRecipientAllowed } from "@/lib/emailWhitelist";
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024;
 
+function escapeHtml(str: string): string {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 const bodySchema = z.object({
     period: z.string().min(1).max(64),
     recipient: z.string().email().max(254),
@@ -40,21 +49,23 @@ export const POST = withAuth(async (req, ctx) => {
         });
 
         const base64 = pdfBase64.includes("base64,") ? pdfBase64.split("base64,")[1] : pdfBase64;
+        const safePeriod = period.replace(/[^0-9A-Za-z._-]/g, "_").slice(0, 64) || "report";
+        const safeSubjectPeriod = period.replace(/[\r\n]/g, " ");
 
         const info = await transporter.sendMail({
             from: `"ウトマチプラットフォーム" <${process.env.GMAIL_USER}>`,
             to: recipient,
-            subject: `支出・経費レポート (${period})`,
+            subject: `支出・経費レポート (${safeSubjectPeriod})`,
             html: `
                 <div style="font-family: sans-serif; color: #334155;">
                     <h2>支出・経費レポートのお知らせ</h2>
-                    <p>期間: ${period} の経費レポートを添付いたします。</p>
+                    <p>期間: ${escapeHtml(period)} の経費レポートを添付いたします。</p>
                     <p style="font-size: 12px; color: #64748b;">Utomachi Platformより自動送信</p>
                 </div>
             `,
             attachments: [
                 {
-                    filename: `expense_report_${period}.pdf`,
+                    filename: `expense_report_${safePeriod}.pdf`,
                     content: base64,
                     encoding: "base64",
                 },

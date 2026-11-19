@@ -268,4 +268,96 @@ describe("fiscalInventoryReport", () => {
         expect(item.inboundQty).toBe(50);  // 水増しされない
         expect(item.beginningStock).toBe(0);
     });
+
+    it("日報の店舗補充取消（type: 'out', reason: 'restock'）が正しくマイナス処理され、期末逆算および社内振替控除が崩れない", () => {
+        // 期首10（前期仕入10）、期間内に補充10→補充取消4（純補充6）、期末後に補充取消2（現在庫: 本部6、店舗4）
+        // 本部期末在庫: 現在庫6 - 期末後入庫2 = 4（期首10 - 純補充6 = 4）
+        // 店舗期末在庫: 現在庫4 - 期末後純変動(-2) = 6（期首0 + 純補充6 = 6）
+        // 全社期末在庫: 4 + 6 = 10、全社入庫0、全社出庫0、期首在庫10
+        const mockProducts = [
+            { id: "p1", name: "商品A", stock: 6, costPrice: 500, brandId: "b1", supplierId: "s1" } as any,
+        ];
+        const mockStoreStocks = [
+            { id: "s1_p1", storeId: "store-a", productId: "p1", stock: 4 } as any,
+        ];
+        const mockMovements = [
+            { productId: "p1", type: "in", reason: "purchase", quantity: 10, date: "2025-10-01" } as any,
+            { productId: "p1", type: "out", reason: "manual", quantity: 10, date: "2026-04-01" } as any, // 補充出庫
+            { productId: "p1", type: "in", reason: "return", quantity: 4, date: "2026-04-02" } as any,  // 補充取消戻し
+            { productId: "p1", type: "in", reason: "return", quantity: 2, date: "2026-11-05" } as any,  // 期末後の補充取消戻し
+        ];
+        const mockStoreMovements = [
+            { storeId: "store-a", productId: "p1", type: "in", reason: "restock", quantity: 10, date: "2026-04-01" } as any,
+            { storeId: "store-a", productId: "p1", type: "out", reason: "restock", quantity: 4, date: "2026-04-02" } as any,
+            { storeId: "store-a", productId: "p1", type: "out", reason: "restock", quantity: 2, date: "2026-11-05" } as any,
+        ];
+
+        const report = generateFiscalInventoryReport({
+            products: mockProducts,
+            stockMovements: mockMovements,
+            storeStockMovements: mockStoreMovements,
+            storeStocks: mockStoreStocks,
+            startDate: "2025-11-01",
+            endDate: "2026-10-31",
+            includeStoreStock: true,
+        });
+
+        const item = report.items[0];
+        expect(item.mainEndingStock).toBe(4);
+        expect(item.storeEndingStock).toBe(6);
+        expect(item.endingStock).toBe(10);
+        expect(item.inboundQty).toBe(0);
+        expect(item.outboundQty).toBe(0);
+        expect(item.beginningStock).toBe(10);
+        expect(item.beginningStock + item.inboundQty - item.outboundQty).toBe(item.endingStock);
+    });
+
+    it("当期返品が当期出庫を上回る場合（mainPeriodOutbound < 0）も期首在庫と会計等式が正確に一致する", () => {
+        // 前期仕入10、当期出庫2、当期返品戻し5 → 純増+3、期末在庫13、期首在庫10
+        const mockProducts = [
+            { id: "p1", name: "商品A", stock: 13, costPrice: 500, brandId: "b1", supplierId: "s1" } as any,
+        ];
+        const mockMovements = [
+            { productId: "p1", type: "in", reason: "purchase", quantity: 10, date: "2025-10-01" } as any,
+            { productId: "p1", type: "out", reason: "sale", quantity: 2, date: "2026-04-01" } as any,
+            { productId: "p1", type: "in", reason: "return", quantity: 5, date: "2026-04-10" } as any,
+        ];
+
+        const report = generateFiscalInventoryReport({
+            products: mockProducts,
+            stockMovements: mockMovements,
+            storeStockMovements: [],
+            storeStocks: [],
+            startDate: "2025-11-01",
+            endDate: "2026-10-31",
+            includeStoreStock: false,
+        });
+
+        const item = report.items[0];
+        expect(item.endingStock).toBe(13);
+        expect(item.inboundQty).toBe(3);
+        expect(item.outboundQty).toBe(0);
+        expect(item.beginningStock).toBe(10);
+        expect(item.beginningStock + item.inboundQty - item.outboundQty).toBe(item.endingStock);
+    });
+
+    it("CSV出力時に数式インジェクション文字で始まるセルが先頭シングルクォートで無害化される", () => {
+        const mockProducts = [
+            { id: "p1", name: "=CMD|' /C calc'!A0", variantName: "+100", amazonSku: "@SKU", stock: 1, costPrice: 100, brandId: "b1", supplierId: "s1" } as any,
+        ];
+        const report = generateFiscalInventoryReport({
+            products: mockProducts,
+            stockMovements: [],
+            storeStockMovements: [],
+            storeStocks: [],
+            startDate: "2025-11-01",
+            endDate: "2026-10-31",
+        });
+
+        const csv = exportFiscalReportToCsv(report, "-悪意ある社名");
+        expect(csv).toContain(`"'-悪意ある社名"`);
+        expect(csv).toContain(`"'=CMD|' /C calc'!A0"`);
+        expect(csv).toContain(`"'+100"`);
+        expect(csv).toContain(`"'@SKU"`);
+    });
 });

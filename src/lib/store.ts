@@ -3,12 +3,11 @@
 
 import { useMemo } from "react";
 import useSWR from "swr";
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, getDoc, writeBatch, increment, runTransaction } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, deleteField, serverTimestamp, getDoc, writeBatch, increment, runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { apiFetch, DemoModeError, checkIsDemoMode } from "@/lib/apiClient";
 import { useAuth } from "@/lib/authContext";
 import { getMockData } from "@/lib/mockData";
-import { syncProductToAmazon } from "@/app/actions/amazon";
 import {
     diffInventoryEffects,
     getDeliveryNoteInventoryEffects,
@@ -20,6 +19,9 @@ import {
     normalizeSaleTotals,
     type InventoryEffect,
 } from "@/lib/inventoryConsistency";
+
+// 削除・復元アクションの連打による二重実行を防止するインフライトガード
+const inFlightTrashOps = new Set<string>();
 
 // Helper to remove undefined properties before sending to Firestore
 const cleanObject = (obj: any) => {
@@ -274,6 +276,7 @@ export interface DailyReport extends BaseEntity {
     displayAfterImageUrls?: string[];
     imageUrl?: string;       // メイン写真 URL
     aiAnalysis?: string;     // AI による分析・アドバイス
+    linkedSaleId?: string;   // 紐付くタイプB（卸）売上ID
     createdAt?: string | any;
     updatedAt?: string | any;
 }
@@ -321,6 +324,7 @@ export interface Sale extends BaseEntity {
     isRepeatCustomer?: boolean;
     shopifyOrdersCount?: number | null;
     transactionId?: string;
+    dailyReportId?: string; // 紐付く業務日報ID
     inventoryEffects?: InventoryEffect[]; // 登録時の在庫影響を保存し、後日の商品構成変更でも正確に差し戻す
     shippingCost?: number;
     platformFee?: number;
@@ -1064,7 +1068,11 @@ export function useStore() {
         const product = products.find(p => p.id === id);
         const shouldSyncAmazon = productUpdate.amazonSyncEnabled ?? product?.amazonSyncEnabled;
         if (shouldSyncAmazon) {
-            syncProductToAmazon(id).catch(err => console.error("Amazon sync failed on update:", err));
+            apiFetch("/api/amazon/sync-product", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productId: id }),
+            }).catch(err => console.error("Amazon sync failed on update:", err));
         }
     };
     const adjustProductStock = async (productId: string, delta: number) => {
@@ -1343,7 +1351,7 @@ export function useStore() {
             remarks: '仕入登録による在庫反映',
         });
         await batch.commit();
-        mutatePurchases([...purchases, newPurchase], false);
+        mutatePurchases(prev => [...(prev || []), newPurchase], false);
         refreshInventoryCaches(effects);
         mutatePurchases();
         return newRef.id;
@@ -1376,55 +1384,75 @@ export function useStore() {
             remarks: '仕入更新による在庫差分反映',
         });
         await batch.commit();
-        mutatePurchases(purchases.map((p) => p.id === id ? nextPurchase : p), false);
+        mutatePurchases(prev => (prev || []).map((p) => p.id === id ? nextPurchase : p), false);
         refreshInventoryCaches(effects);
         mutatePurchases();
     };
 
     const deletePurchase = async (id: string) => {
         if (checkDemoMode()) return;
-        const purchase = purchases.find(p => p.id === id);
-        if (!purchase || purchase.isTrashed) return;
-        const nextPurchase = { ...purchase, isTrashed: true };
-        const effects = diffInventoryEffects(
-            getPurchaseInventoryEffects(purchase),
-            getPurchaseInventoryEffects(nextPurchase),
-        );
-        const batch = writeBatch(db);
-        batch.update(doc(db, "inbound_shipments", id), { isTrashed: true });
-        appendInventoryEffectsToBatch(batch, effects, {
-            referenceId: id,
-            date: new Date().toISOString().split('T')[0],
-            source: 'purchase',
-            remarks: '仕入削除による在庫差し戻し',
-        });
-        await batch.commit();
-        mutatePurchases(purchases.map(item => item.id === id ? nextPurchase : item), false);
-        refreshInventoryCaches(effects);
-        mutatePurchases();
+        const opKey = `inbound_shipments:${id}`;
+        if (inFlightTrashOps.has(opKey)) return;
+        inFlightTrashOps.add(opKey);
+        try {
+            const purchase = purchases.find(p => p.id === id);
+            if (!purchase || purchase.isTrashed) return;
+            const docRef = doc(db, "inbound_shipments", id);
+            const serverSnap = await getDoc(docRef);
+            if (!serverSnap.exists() || serverSnap.data()?.isTrashed === true) return;
+            const nextPurchase = { ...purchase, isTrashed: true };
+            const effects = diffInventoryEffects(
+                getPurchaseInventoryEffects(purchase),
+                getPurchaseInventoryEffects(nextPurchase),
+            );
+            const batch = writeBatch(db);
+            batch.update(docRef, { isTrashed: true });
+            appendInventoryEffectsToBatch(batch, effects, {
+                referenceId: id,
+                date: new Date().toISOString().split('T')[0],
+                source: 'purchase',
+                remarks: '仕入削除による在庫差し戻し',
+            });
+            await batch.commit();
+            mutatePurchases(prev => (prev || []).map(item => item.id === id ? nextPurchase : item), false);
+            refreshInventoryCaches(effects);
+            mutatePurchases();
+        } finally {
+            inFlightTrashOps.delete(opKey);
+        }
     };
 
     const restorePurchase = async (id: string) => {
         if (checkDemoMode()) return;
-        const purchase = purchases.find(p => p.id === id);
-        if (!purchase || !purchase.isTrashed) return;
-        const nextPurchase = { ...purchase, isTrashed: false };
-        const effects = diffInventoryEffects(
-            getPurchaseInventoryEffects(purchase),
-            getPurchaseInventoryEffects(nextPurchase),
-        );
-        const batch = writeBatch(db);
-        batch.update(doc(db, "inbound_shipments", id), { isTrashed: false });
-        appendInventoryEffectsToBatch(batch, effects, {
-            referenceId: id,
-            date: purchase.arrivalDate || purchase.receivedDate || purchase.orderDate,
-            source: 'purchase',
-            remarks: '仕入復元による在庫反映',
-        });
-        await batch.commit();
-        mutatePurchases(purchases.map(item => item.id === id ? nextPurchase : item), false);
-        refreshInventoryCaches(effects);
-        mutatePurchases();
+        const opKey = `inbound_shipments:${id}`;
+        if (inFlightTrashOps.has(opKey)) return;
+        inFlightTrashOps.add(opKey);
+        try {
+            const purchase = purchases.find(p => p.id === id);
+            if (!purchase || !purchase.isTrashed) return;
+            const docRef = doc(db, "inbound_shipments", id);
+            const serverSnap = await getDoc(docRef);
+            if (!serverSnap.exists() || serverSnap.data()?.isTrashed !== true) return;
+            const nextPurchase = { ...purchase, isTrashed: false };
+            const effects = diffInventoryEffects(
+                getPurchaseInventoryEffects(purchase),
+                getPurchaseInventoryEffects(nextPurchase),
+            );
+            const batch = writeBatch(db);
+            batch.update(docRef, { isTrashed: false });
+            appendInventoryEffectsToBatch(batch, effects, {
+                referenceId: id,
+                date: purchase.arrivalDate || purchase.receivedDate || purchase.orderDate,
+                source: 'purchase',
+                remarks: '仕入復元による在庫反映',
+            });
+            await batch.commit();
+            mutatePurchases(prev => (prev || []).map(item => item.id === id ? nextPurchase : item), false);
+            refreshInventoryCaches(effects);
+            mutatePurchases();
+        } finally {
+            inFlightTrashOps.delete(opKey);
+        }
     };
 
     const permanentlyDeletePurchase = async (id: string) => {
@@ -1503,25 +1531,35 @@ export function useStore() {
 
     const deleteStockConversion = async (id: string) => {
         if (checkDemoMode()) return;
-        const conv = stockConversions.find(c => c.id === id);
-        if (!conv || conv.isTrashed) return;
-        const nextConv = { ...conv, isTrashed: true };
-        const effects: InventoryEffect[] = [
-            { scope: 'main', productId: conv.inputProductId, quantity: conv.inputQty },
-            { scope: 'main', productId: conv.outputProductId, quantity: -conv.outputQty },
-        ];
-        const batch = writeBatch(db);
-        batch.update(doc(db, "stock_conversions", id), { isTrashed: true });
-        appendInventoryEffectsToBatch(batch, effects, {
-            referenceId: id,
-            date: new Date().toISOString().split('T')[0],
-            source: 'conversion',
-            remarks: `在庫変換取消: ${conv.notes || '備考なし'}`,
-        });
-        await batch.commit();
-        mutateStockConversions(stockConversions.map(item => item.id === id ? nextConv : item), false);
-        refreshInventoryCaches(effects);
-        mutateStockConversions();
+        const opKey = `stock_conversions:${id}`;
+        if (inFlightTrashOps.has(opKey)) return;
+        inFlightTrashOps.add(opKey);
+        try {
+            const conv = stockConversions.find(c => c.id === id);
+            if (!conv || conv.isTrashed) return;
+            const docRef = doc(db, "stock_conversions", id);
+            const serverSnap = await getDoc(docRef);
+            if (!serverSnap.exists() || serverSnap.data()?.isTrashed === true) return;
+            const nextConv = { ...conv, isTrashed: true };
+            const effects: InventoryEffect[] = [
+                { scope: 'main', productId: conv.inputProductId, quantity: conv.inputQty },
+                { scope: 'main', productId: conv.outputProductId, quantity: -conv.outputQty },
+            ];
+            const batch = writeBatch(db);
+            batch.update(docRef, { isTrashed: true });
+            appendInventoryEffectsToBatch(batch, effects, {
+                referenceId: id,
+                date: new Date().toISOString().split('T')[0],
+                source: 'conversion',
+                remarks: `在庫変換取消: ${conv.notes || '備考なし'}`,
+            });
+            await batch.commit();
+            mutateStockConversions(prev => (prev || []).map(item => item.id === id ? nextConv : item), false);
+            refreshInventoryCaches(effects);
+            mutateStockConversions();
+        } finally {
+            inFlightTrashOps.delete(opKey);
+        }
     };
 
     const addCompositeProduction = async (data: Omit<CompositeProduction, "id" | "createdAt">) => {
@@ -1565,29 +1603,39 @@ export function useStore() {
 
     const deleteCompositeProduction = async (id: string) => {
         if (checkDemoMode()) return;
-        const prod = compositeProductions.find(p => p.id === id);
-        if (!prod || prod.isTrashed) return;
-        const nextProd = { ...prod, isTrashed: true };
-        const effects: InventoryEffect[] = [
-            { scope: 'main', productId: prod.productId, quantity: -prod.quantity },
-            ...(prod.components || []).map(component => ({
-                scope: 'main' as const,
-                productId: component.productId,
-                quantity: component.quantity,
-            })),
-        ];
-        const batch = writeBatch(db);
-        batch.update(doc(db, "composite_productions", id), { isTrashed: true });
-        appendInventoryEffectsToBatch(batch, effects, {
-            referenceId: id,
-            date: new Date().toISOString().split('T')[0],
-            source: 'production',
-            remarks: `商品制作取消: ${prod.productName}`,
-        });
-        await batch.commit();
-        mutateCompositeProductions(compositeProductions.map(item => item.id === id ? nextProd : item), false);
-        refreshInventoryCaches(effects);
-        mutateCompositeProductions();
+        const opKey = `composite_productions:${id}`;
+        if (inFlightTrashOps.has(opKey)) return;
+        inFlightTrashOps.add(opKey);
+        try {
+            const prod = compositeProductions.find(p => p.id === id);
+            if (!prod || prod.isTrashed) return;
+            const docRef = doc(db, "composite_productions", id);
+            const serverSnap = await getDoc(docRef);
+            if (!serverSnap.exists() || serverSnap.data()?.isTrashed === true) return;
+            const nextProd = { ...prod, isTrashed: true };
+            const effects: InventoryEffect[] = [
+                { scope: 'main', productId: prod.productId, quantity: -prod.quantity },
+                ...(prod.components || []).map(component => ({
+                    scope: 'main' as const,
+                    productId: component.productId,
+                    quantity: component.quantity,
+                })),
+            ];
+            const batch = writeBatch(db);
+            batch.update(docRef, { isTrashed: true });
+            appendInventoryEffectsToBatch(batch, effects, {
+                referenceId: id,
+                date: new Date().toISOString().split('T')[0],
+                source: 'production',
+                remarks: `商品制作取消: ${prod.productName}`,
+            });
+            await batch.commit();
+            mutateCompositeProductions(prev => (prev || []).map(item => item.id === id ? nextProd : item), false);
+            refreshInventoryCaches(effects);
+            mutateCompositeProductions();
+        } finally {
+            inFlightTrashOps.delete(opKey);
+        }
     };
 
     const updateSale = async (id: string, saleData: Partial<Sale>) => {
@@ -1628,48 +1676,68 @@ export function useStore() {
 
     const deleteSale = async (id: string) => {
         if (checkDemoMode()) return;
-        const sale = sales.find(s => s.id === id);
-        if (!sale || sale.isTrashed) return;
-        const nextSale = { ...sale, isTrashed: true };
-        const effects = diffInventoryEffects(
-            getSaleInventoryEffects(sale, products, retailStores),
-            getSaleInventoryEffects(nextSale, products, retailStores),
-        );
-        const batch = writeBatch(db);
-        batch.update(doc(db, "sales", id), { isTrashed: true });
-        appendInventoryEffectsToBatch(batch, effects, {
-            referenceId: id,
-            date: new Date().toISOString().split('T')[0],
-            source: 'sale',
-            remarks: '売上削除による在庫差し戻し',
-        });
-        await batch.commit();
-        mutateSales(sales.map(item => item.id === id ? nextSale : item), false);
-        refreshInventoryCaches(effects);
-        mutateSales();
+        const opKey = `sales:${id}`;
+        if (inFlightTrashOps.has(opKey)) return;
+        inFlightTrashOps.add(opKey);
+        try {
+            const sale = sales.find(s => s.id === id);
+            if (!sale || sale.isTrashed) return;
+            const docRef = doc(db, "sales", id);
+            const serverSnap = await getDoc(docRef);
+            if (!serverSnap.exists() || serverSnap.data()?.isTrashed === true) return;
+            const nextSale = { ...sale, isTrashed: true };
+            const effects = diffInventoryEffects(
+                getSaleInventoryEffects(sale, products, retailStores),
+                getSaleInventoryEffects(nextSale, products, retailStores),
+            );
+            const batch = writeBatch(db);
+            batch.update(docRef, { isTrashed: true });
+            appendInventoryEffectsToBatch(batch, effects, {
+                referenceId: id,
+                date: new Date().toISOString().split('T')[0],
+                source: 'sale',
+                remarks: '売上削除による在庫差し戻し',
+            });
+            await batch.commit();
+            mutateSales(prev => (prev || []).map(item => item.id === id ? nextSale : item), false);
+            refreshInventoryCaches(effects);
+            mutateSales();
+        } finally {
+            inFlightTrashOps.delete(opKey);
+        }
     };
 
     const restoreSale = async (id: string) => {
         if (checkDemoMode()) return;
-        const sale = sales.find(s => s.id === id);
-        if (!sale || !sale.isTrashed) return;
-        const nextSale = { ...sale, isTrashed: false };
-        const effects = diffInventoryEffects(
-            getSaleInventoryEffects(sale, products, retailStores),
-            getSaleInventoryEffects(nextSale, products, retailStores),
-        );
-        const batch = writeBatch(db);
-        batch.update(doc(db, "sales", id), { isTrashed: false });
-        appendInventoryEffectsToBatch(batch, effects, {
-            referenceId: id,
-            date: sale.period.split('T')[0],
-            source: 'sale',
-            remarks: '売上復元による在庫反映',
-        });
-        await batch.commit();
-        mutateSales(sales.map(item => item.id === id ? nextSale : item), false);
-        refreshInventoryCaches(effects);
-        mutateSales();
+        const opKey = `sales:${id}`;
+        if (inFlightTrashOps.has(opKey)) return;
+        inFlightTrashOps.add(opKey);
+        try {
+            const sale = sales.find(s => s.id === id);
+            if (!sale || !sale.isTrashed) return;
+            const docRef = doc(db, "sales", id);
+            const serverSnap = await getDoc(docRef);
+            if (!serverSnap.exists() || serverSnap.data()?.isTrashed !== true) return;
+            const nextSale = { ...sale, isTrashed: false };
+            const effects = diffInventoryEffects(
+                getSaleInventoryEffects(sale, products, retailStores),
+                getSaleInventoryEffects(nextSale, products, retailStores),
+            );
+            const batch = writeBatch(db);
+            batch.update(docRef, { isTrashed: false });
+            appendInventoryEffectsToBatch(batch, effects, {
+                referenceId: id,
+                date: sale.period.split('T')[0],
+                source: 'sale',
+                remarks: '売上復元による在庫反映',
+            });
+            await batch.commit();
+            mutateSales(prev => (prev || []).map(item => item.id === id ? nextSale : item), false);
+            refreshInventoryCaches(effects);
+            mutateSales();
+        } finally {
+            inFlightTrashOps.delete(opKey);
+        }
     };
 
     const permanentlyDeleteSale = async (id: string) => {
@@ -1686,11 +1754,16 @@ export function useStore() {
     const upsertPaymentRecord = async (supplierId: string, month: string, update: Partial<Omit<PaymentRecord, 'id' | 'createdAt'>>) => {
         // Look for existing record
         const existing = paymentRecords.find(pr => pr.supplierId === supplierId && pr.month === month);
+        const cleanedUpdate = cleanObject(update);
         if (existing) {
-            // Update
-            mutatePaymentRecords(paymentRecords.map(pr => pr.id === existing.id ? { ...pr, ...update } : pr), false);
+            // Update (paidDate が明示的に undefined で渡された場合は deleteField() で削除)
+            const firestoreUpdate: Record<string, any> = { ...cleanedUpdate };
+            if ('paidDate' in update && update.paidDate === undefined) {
+                firestoreUpdate.paidDate = deleteField();
+            }
+            mutatePaymentRecords(prev => (prev || []).map(pr => pr.id === existing.id ? { ...pr, ...update } : pr), false);
             const docRef = doc(db, "payment_records", existing.id);
-            await updateDoc(docRef, update);
+            await updateDoc(docRef, firestoreUpdate);
         } else {
             // Create
             const newRef = doc(collection(db, "payment_records"));
@@ -1703,8 +1776,8 @@ export function useStore() {
                 createdAt: new Date().toISOString(),
                 ...update,
             };
-            mutatePaymentRecords([...paymentRecords, newRecord], false);
-            await setDoc(newRef, { supplierId, month, totalAmount: 0, status: 'unpaid', createdAt: serverTimestamp(), ...update });
+            mutatePaymentRecords(prev => [...(prev || []), newRecord], false);
+            await setDoc(newRef, { supplierId, month, totalAmount: 0, status: 'unpaid', createdAt: serverTimestamp(), ...cleanedUpdate });
         }
         mutatePaymentRecords();
     };
@@ -1779,54 +1852,136 @@ export function useStore() {
 
     const deleteDailyReport = async (id: string) => {
         if (checkDemoMode()) return;
-        const report = dailyReports.find(r => r.id === id);
-        if (!report || report.isTrashed) return;
-        const nextReport = { ...report, isTrashed: true };
-        const effects = diffInventoryEffects(
-            getDailyReportInventoryEffects(report, retailStores, products),
-            getDailyReportInventoryEffects(nextReport, retailStores, products),
-        );
-        const batch = writeBatch(db);
-        batch.update(doc(db, "daily_reports", id), { isTrashed: true });
-        const relatedExpense = expenses.find(e => e.referenceId === id);
-        if (relatedExpense) batch.update(doc(db, "expenses", relatedExpense.id), { isTrashed: true, updatedAt: serverTimestamp() });
-        appendInventoryEffectsToBatch(batch, effects, {
-            referenceId: id,
-            date: report.date,
-            source: 'report',
-            remarks: '日報削除による在庫差し戻し',
-        });
-        await batch.commit();
-        mutateDailyReports(dailyReports.map(item => item.id === id ? nextReport : item), false);
-        refreshInventoryCaches(effects);
-        mutateExpenses();
-        mutateDailyReports();
+        const opKey = `daily_reports:${id}`;
+        if (inFlightTrashOps.has(opKey)) return;
+        inFlightTrashOps.add(opKey);
+        try {
+            const report = dailyReports.find(r => r.id === id);
+            if (!report || report.isTrashed) return;
+            const docRef = doc(db, "daily_reports", id);
+            const serverSnap = await getDoc(docRef);
+            if (!serverSnap.exists() || serverSnap.data()?.isTrashed === true) return;
+            const nextReport = { ...report, isTrashed: true };
+            const effects = diffInventoryEffects(
+                getDailyReportInventoryEffects(report, retailStores, products),
+                getDailyReportInventoryEffects(nextReport, retailStores, products),
+            );
+            const batch = writeBatch(db);
+            batch.update(docRef, { isTrashed: true });
+            const relatedExpense = expenses.find(e => e.referenceId === id);
+            if (relatedExpense) batch.update(doc(db, "expenses", relatedExpense.id), { isTrashed: true, updatedAt: serverTimestamp() });
+            appendInventoryEffectsToBatch(batch, effects, {
+                referenceId: id,
+                date: report.date,
+                source: 'report',
+                remarks: '日報削除による在庫差し戻し',
+            });
+
+            // 紐付くタイプB（卸）売上がある場合は同一バッチで連動削除
+            let linkedSaleNext: Sale | null = null;
+            let linkedSaleEffects: InventoryEffect[] = [];
+            if (report.linkedSaleId) {
+                const linkedSale = sales.find(s => s.id === report.linkedSaleId);
+                if (linkedSale && !linkedSale.isTrashed) {
+                    const saleRef = doc(db, "sales", linkedSale.id);
+                    const serverSaleSnap = await getDoc(saleRef);
+                    if (serverSaleSnap.exists() && serverSaleSnap.data()?.isTrashed !== true) {
+                        linkedSaleNext = { ...linkedSale, isTrashed: true };
+                        linkedSaleEffects = diffInventoryEffects(
+                            getSaleInventoryEffects(linkedSale, products, retailStores),
+                            getSaleInventoryEffects(linkedSaleNext, products, retailStores),
+                        );
+                        batch.update(saleRef, { isTrashed: true });
+                        appendInventoryEffectsToBatch(batch, linkedSaleEffects, {
+                            referenceId: linkedSale.id,
+                            date: new Date().toISOString().split('T')[0],
+                            source: 'sale',
+                            remarks: '日報削除に伴う連動売上の在庫差し戻し',
+                        });
+                    }
+                }
+            }
+
+            await batch.commit();
+            mutateDailyReports(prev => (prev || []).map(item => item.id === id ? nextReport : item), false);
+            if (linkedSaleNext) {
+                const updatedSale = linkedSaleNext;
+                mutateSales(prev => (prev || []).map(item => item.id === updatedSale.id ? updatedSale : item), false);
+            }
+            refreshInventoryCaches([...effects, ...linkedSaleEffects]);
+            mutateExpenses();
+            mutateDailyReports();
+            if (linkedSaleNext) mutateSales();
+        } finally {
+            inFlightTrashOps.delete(opKey);
+        }
     };
 
     const restoreDailyReport = async (id: string) => {
         if (checkDemoMode()) return;
-        const report = dailyReports.find(r => r.id === id);
-        if (!report || !report.isTrashed) return;
-        const nextReport = { ...report, isTrashed: false };
-        const effects = diffInventoryEffects(
-            getDailyReportInventoryEffects(report, retailStores, products),
-            getDailyReportInventoryEffects(nextReport, retailStores, products),
-        );
-        const batch = writeBatch(db);
-        batch.update(doc(db, "daily_reports", id), { isTrashed: false });
-        const relatedExpense = expenses.find(e => e.referenceId === id);
-        if (relatedExpense) batch.update(doc(db, "expenses", relatedExpense.id), { isTrashed: false, updatedAt: serverTimestamp() });
-        appendInventoryEffectsToBatch(batch, effects, {
-            referenceId: id,
-            date: report.date,
-            source: 'report',
-            remarks: '日報復元による在庫反映',
-        });
-        await batch.commit();
-        mutateDailyReports(dailyReports.map(item => item.id === id ? nextReport : item), false);
-        refreshInventoryCaches(effects);
-        mutateExpenses();
-        mutateDailyReports();
+        const opKey = `daily_reports:${id}`;
+        if (inFlightTrashOps.has(opKey)) return;
+        inFlightTrashOps.add(opKey);
+        try {
+            const report = dailyReports.find(r => r.id === id);
+            if (!report || !report.isTrashed) return;
+            const docRef = doc(db, "daily_reports", id);
+            const serverSnap = await getDoc(docRef);
+            if (!serverSnap.exists() || serverSnap.data()?.isTrashed !== true) return;
+            const nextReport = { ...report, isTrashed: false };
+            const effects = diffInventoryEffects(
+                getDailyReportInventoryEffects(report, retailStores, products),
+                getDailyReportInventoryEffects(nextReport, retailStores, products),
+            );
+            const batch = writeBatch(db);
+            batch.update(docRef, { isTrashed: false });
+            const relatedExpense = expenses.find(e => e.referenceId === id);
+            if (relatedExpense) batch.update(doc(db, "expenses", relatedExpense.id), { isTrashed: false, updatedAt: serverTimestamp() });
+            appendInventoryEffectsToBatch(batch, effects, {
+                referenceId: id,
+                date: report.date,
+                source: 'report',
+                remarks: '日報復元による在庫反映',
+            });
+
+            // 紐付くタイプB（卸）売上がある場合は同一バッチで連動復元
+            let linkedSaleNext: Sale | null = null;
+            let linkedSaleEffects: InventoryEffect[] = [];
+            if (report.linkedSaleId) {
+                const linkedSale = sales.find(s => s.id === report.linkedSaleId);
+                if (linkedSale && linkedSale.isTrashed) {
+                    const saleRef = doc(db, "sales", linkedSale.id);
+                    const serverSaleSnap = await getDoc(saleRef);
+                    if (serverSaleSnap.exists() && serverSaleSnap.data()?.isTrashed === true) {
+                        linkedSaleNext = { ...linkedSale, isTrashed: false };
+                        linkedSaleEffects = diffInventoryEffects(
+                            getSaleInventoryEffects(linkedSale, products, retailStores),
+                            getSaleInventoryEffects(linkedSaleNext, products, retailStores),
+                        );
+                        batch.update(saleRef, { isTrashed: false });
+                        appendInventoryEffectsToBatch(batch, linkedSaleEffects, {
+                            referenceId: linkedSale.id,
+                            date: linkedSale.period.split('T')[0],
+                            source: 'sale',
+                            remarks: '日報復元に伴う連動売上の在庫反映',
+                        });
+                    }
+                }
+            }
+
+            await batch.commit();
+            mutateDailyReports(prev => (prev || []).map(item => item.id === id ? nextReport : item), false);
+            if (linkedSaleNext) {
+                const updatedSale = linkedSaleNext;
+                mutateSales(prev => (prev || []).map(item => item.id === updatedSale.id ? updatedSale : item), false);
+            }
+            refreshInventoryCaches([...effects, ...linkedSaleEffects]);
+            mutateExpenses();
+            mutateDailyReports();
+            if (linkedSaleNext) mutateSales();
+        } finally {
+            inFlightTrashOps.delete(opKey);
+        }
     };
 
     const permanentlyDeleteDailyReport = async (id: string) => {
@@ -2108,95 +2263,114 @@ export function useStore() {
     };
     
     const deleteIssuedDocument = async (id: string) => {
-        const oldDoc = issuedDocuments.find(d => d.id === id);
-        if (!oldDoc) return;
-        if (oldDoc.isTrashed) return;
-        const nextDoc = { ...oldDoc, isTrashed: true };
-        const oldEffects = getPersistedDeliveryNoteEffects(oldDoc);
-        const effects = diffInventoryEffects(
-            oldEffects,
-            getDeliveryNoteInventoryEffects(nextDoc, products, retailStores),
-        );
-        const batch = writeBatch(db);
-        batch.update(doc(db, 'issued_documents', id), { isTrashed: true, inventoryEffects: oldEffects });
-        const linkedPayments = oldDoc.type === 'invoice'
-            ? invoicePayments.filter(payment => payment.invoiceId === id && !payment.isTrashed)
-            : [];
-        if ((effects.length * 2) + linkedPayments.length + 1 > 450) {
-            throw new Error('関連する入金記録が多すぎるため、一度に削除できません。');
-        }
-        for (const payment of linkedPayments) {
-            batch.update(doc(db, 'invoice_payments', payment.id), {
-                isTrashed: true,
-                trashedWithInvoice: true,
+        if (checkDemoMode()) return;
+        const opKey = `issued_documents:${id}`;
+        if (inFlightTrashOps.has(opKey)) return;
+        inFlightTrashOps.add(opKey);
+        try {
+            const oldDoc = issuedDocuments.find(d => d.id === id);
+            if (!oldDoc) return;
+            if (oldDoc.isTrashed) return;
+            const docRef = doc(db, 'issued_documents', id);
+            const serverSnap = await getDoc(docRef);
+            if (!serverSnap.exists() || serverSnap.data()?.isTrashed === true) return;
+            const nextDoc = { ...oldDoc, isTrashed: true };
+            const oldEffects = getPersistedDeliveryNoteEffects(oldDoc);
+            const effects = diffInventoryEffects(
+                oldEffects,
+                getDeliveryNoteInventoryEffects(nextDoc, products, retailStores),
+            );
+            const batch = writeBatch(db);
+            batch.update(docRef, { isTrashed: true, inventoryEffects: oldEffects });
+            const linkedPayments = oldDoc.type === 'invoice'
+                ? invoicePayments.filter(payment => payment.invoiceId === id && !payment.isTrashed)
+                : [];
+            if ((effects.length * 2) + linkedPayments.length + 1 > 450) {
+                throw new Error('関連する入金記録が多すぎるため、一度に削除できません。');
+            }
+            for (const payment of linkedPayments) {
+                batch.update(doc(db, 'invoice_payments', payment.id), {
+                    isTrashed: true,
+                    trashedWithInvoice: true,
+                });
+            }
+            appendInventoryEffectsToBatch(batch, effects, {
+                referenceId: id,
+                date: new Date().toISOString().split('T')[0],
+                source: 'document',
+                remarks: `納品書削除 (${oldDoc.docNumber}) による在庫差し戻し`,
             });
+            await batch.commit();
+            mutateIssuedDocuments(prev => (prev || []).map(item => item.id === id ? nextDoc : item), false);
+            if (linkedPayments.length) {
+                mutateInvoicePayments(prev => (prev || []).map(payment => linkedPayments.some(linked => linked.id === payment.id)
+                    ? { ...payment, isTrashed: true, trashedWithInvoice: true }
+                    : payment), false);
+            }
+            refreshInventoryCaches(effects);
+            mutateIssuedDocuments();
+            if (linkedPayments.length) mutateInvoicePayments();
+        } finally {
+            inFlightTrashOps.delete(opKey);
         }
-        appendInventoryEffectsToBatch(batch, effects, {
-            referenceId: id,
-            date: new Date().toISOString().split('T')[0],
-            source: 'document',
-            remarks: `納品書削除 (${oldDoc.docNumber}) による在庫差し戻し`,
-        });
-        await batch.commit();
-        mutateIssuedDocuments(issuedDocuments.map(item => item.id === id ? nextDoc : item), false);
-        if (linkedPayments.length) {
-            mutateInvoicePayments(invoicePayments.map(payment => linkedPayments.some(linked => linked.id === payment.id)
-                ? { ...payment, isTrashed: true, trashedWithInvoice: true }
-                : payment), false);
-        }
-        refreshInventoryCaches(effects);
-        mutateIssuedDocuments();
-        if (linkedPayments.length) mutateInvoicePayments();
     };
 
 
     const restoreIssuedDocument = async (id: string) => {
-        const docToRestore = issuedDocuments.find(d => d.id === id);
-        if (!docToRestore || !docToRestore.isTrashed) return;
-        const hasHistory = stockMovements.some(movement => movement.referenceId === docToRestore.id);
-        const restoredWithoutEmptySnapshot = {
-            ...docToRestore,
-            isTrashed: false,
-            inventoryEffects: docToRestore.inventoryEffects?.length ? docToRestore.inventoryEffects : undefined,
-        };
-        const persistedEffects = (docToRestore.inventoryEffects !== undefined || hasHistory)
-            ? getDeliveryNoteInventoryEffects(restoredWithoutEmptySnapshot, products, retailStores)
-            : [];
-        const nextDoc = { ...docToRestore, isTrashed: false, inventoryEffects: persistedEffects };
-        const effects = diffInventoryEffects(
-            getDeliveryNoteInventoryEffects(docToRestore, products, retailStores),
-            getDeliveryNoteInventoryEffects(restoredWithoutEmptySnapshot, products, retailStores),
-        );
-        const batch = writeBatch(db);
-        batch.update(doc(db, 'issued_documents', id), { isTrashed: false, inventoryEffects: persistedEffects });
-        const linkedPayments = docToRestore.type === 'invoice'
-            ? invoicePayments.filter(payment => payment.invoiceId === id && payment.isTrashed && payment.trashedWithInvoice)
-            : [];
-        if ((effects.length * 2) + linkedPayments.length + 1 > 450) {
-            throw new Error('関連する入金記録が多すぎるため、一度に復元できません。');
-        }
-        for (const payment of linkedPayments) {
-            batch.update(doc(db, 'invoice_payments', payment.id), {
-                isTrashed: false,
-                trashedWithInvoice: false,
+        if (checkDemoMode()) return;
+        const opKey = `issued_documents:${id}`;
+        if (inFlightTrashOps.has(opKey)) return;
+        inFlightTrashOps.add(opKey);
+        try {
+            const docToRestore = issuedDocuments.find(d => d.id === id);
+            if (!docToRestore || !docToRestore.isTrashed) return;
+            const docRef = doc(db, 'issued_documents', id);
+            const serverSnap = await getDoc(docRef);
+            if (!serverSnap.exists() || serverSnap.data()?.isTrashed !== true) return;
+            const hasHistory = stockMovements.some(movement => movement.referenceId === docToRestore.id);
+            const persistedEffects = docToRestore.inventoryEffects !== undefined
+                ? mergeInventoryEffects(docToRestore.inventoryEffects)
+                : (hasHistory
+                    ? getDeliveryNoteInventoryEffects({ ...docToRestore, isTrashed: false }, products, retailStores)
+                    : []);
+            const nextDoc = { ...docToRestore, isTrashed: false, inventoryEffects: persistedEffects };
+            const effects = diffInventoryEffects(
+                getDeliveryNoteInventoryEffects(docToRestore, products, retailStores),
+                persistedEffects,
+            );
+            const batch = writeBatch(db);
+            batch.update(docRef, { isTrashed: false, inventoryEffects: persistedEffects });
+            const linkedPayments = docToRestore.type === 'invoice'
+                ? invoicePayments.filter(payment => payment.invoiceId === id && payment.isTrashed && payment.trashedWithInvoice)
+                : [];
+            if ((effects.length * 2) + linkedPayments.length + 1 > 450) {
+                throw new Error('関連する入金記録が多すぎるため、一度に復元できません。');
+            }
+            for (const payment of linkedPayments) {
+                batch.update(doc(db, 'invoice_payments', payment.id), {
+                    isTrashed: false,
+                    trashedWithInvoice: false,
+                });
+            }
+            appendInventoryEffectsToBatch(batch, effects, {
+                referenceId: id,
+                date: nextDoc.issuedDate,
+                source: 'document',
+                remarks: `納品書復元 (${nextDoc.docNumber}) による在庫再反映`,
             });
+            await batch.commit();
+            mutateIssuedDocuments(prev => (prev || []).map(item => item.id === id ? nextDoc : item), false);
+            if (linkedPayments.length) {
+                mutateInvoicePayments(prev => (prev || []).map(payment => linkedPayments.some(linked => linked.id === payment.id)
+                    ? { ...payment, isTrashed: false, trashedWithInvoice: false }
+                    : payment), false);
+            }
+            refreshInventoryCaches(effects);
+            mutateIssuedDocuments();
+            if (linkedPayments.length) mutateInvoicePayments();
+        } finally {
+            inFlightTrashOps.delete(opKey);
         }
-        appendInventoryEffectsToBatch(batch, effects, {
-            referenceId: id,
-            date: nextDoc.issuedDate,
-            source: 'document',
-            remarks: `納品書復元 (${nextDoc.docNumber}) による在庫再反映`,
-        });
-        await batch.commit();
-        mutateIssuedDocuments(issuedDocuments.map(item => item.id === id ? nextDoc : item), false);
-        if (linkedPayments.length) {
-            mutateInvoicePayments(invoicePayments.map(payment => linkedPayments.some(linked => linked.id === payment.id)
-                ? { ...payment, isTrashed: false, trashedWithInvoice: false }
-                : payment), false);
-        }
-        refreshInventoryCaches(effects);
-        mutateIssuedDocuments();
-        if (linkedPayments.length) mutateInvoicePayments();
     };
 
 
@@ -2211,23 +2385,39 @@ export function useStore() {
 
     // --- Invoice Payment Actions ---
     const addInvoicePayment = async (data: Omit<InvoicePayment, 'id' | 'createdAt'>): Promise<InvoicePayment> => {
+        if (checkIsDemoMode()) throw new DemoModeError();
         const invoice = issuedDocuments.find(item => item.id === data.invoiceId && !item.isTrashed && item.type === 'invoice');
         if (!invoice) throw new Error('入金対象の請求書が見つかりません。');
+        const existingForInvoice = invoicePayments.filter(item => item.invoiceId === data.invoiceId && !item.isTrashed);
         const paymentError = getInvoicePaymentError(
             invoice.totalAmount,
-            invoicePayments.filter(item => item.invoiceId === data.invoiceId),
+            existingForInvoice,
             data.amount,
         );
         if (paymentError) throw new Error(paymentError);
         const newRef = doc(collection(db, 'invoice_payments'));
         const newPayment: InvoicePayment = { id: newRef.id, ...data, createdAt: new Date().toISOString() };
-        mutateInvoicePayments([newPayment, ...invoicePayments], false);
-        await setDoc(newRef, { ...cleanObject(data), createdAt: serverTimestamp() });
+        const cumulativePaid = existingForInvoice.reduce((sum, item) => sum + (item.amount || 0), 0) + data.amount;
+        const shouldMarkPaid = cumulativePaid >= invoice.totalAmount && invoice.fulfillmentStatus !== 'paid';
+
+        const batch = writeBatch(db);
+        batch.set(newRef, { ...cleanObject(data), createdAt: serverTimestamp() });
+        if (shouldMarkPaid) {
+            batch.update(doc(db, 'issued_documents', invoice.id), { fulfillmentStatus: 'paid' });
+        }
+        await batch.commit();
+
+        mutateInvoicePayments(prev => [newPayment, ...(prev || [])], false);
+        if (shouldMarkPaid) {
+            mutateIssuedDocuments(prev => (prev || []).map(d => d.id === invoice.id ? { ...d, fulfillmentStatus: 'paid' } : d), false);
+        }
         mutateInvoicePayments();
+        if (shouldMarkPaid) mutateIssuedDocuments();
         return newPayment;
     };
 
     const updateInvoicePayment = async (id: string, data: Partial<Omit<InvoicePayment, 'id' | 'createdAt'>>) => {
+        if (checkIsDemoMode()) throw new DemoModeError();
         const current = invoicePayments.find(item => item.id === id);
         if (!current) throw new Error('更新対象の入金記録が見つかりません。');
         const next = { ...current, ...data };
@@ -2235,12 +2425,12 @@ export function useStore() {
         if (!invoice) throw new Error('入金対象の請求書が見つかりません。');
         const paymentError = getInvoicePaymentError(
             invoice.totalAmount,
-            invoicePayments.filter(item => item.invoiceId === next.invoiceId),
+            invoicePayments.filter(item => item.invoiceId === next.invoiceId && !item.isTrashed),
             next.amount,
             id,
         );
         if (paymentError) throw new Error(paymentError);
-        mutateInvoicePayments(invoicePayments.map(p => p.id === id ? { ...p, ...data } : p), false);
+        mutateInvoicePayments(prev => (prev || []).map(p => p.id === id ? { ...p, ...data } : p), false);
         await updateDoc(doc(db, 'invoice_payments', id), cleanObject(data));
         mutateInvoicePayments();
     };
@@ -3039,9 +3229,9 @@ export function useStore() {
         
         // Convert Invoices and non-invoiced Delivery Notes to Sale-compatible format
         const documentSales = issuedDocuments
-            .filter(d => !d.isTrashed && (
-                (d.type === 'invoice' && (d.status === 'issued' || d.fulfillmentStatus === 'paid' || d.fulfillmentStatus === 'sent' || !d.status)) ||
-                (d.type === 'delivery_note' && d.status === 'issued' && !invoicedDocIds.has(d.id))
+            .filter(d => !d.isTrashed && d.recipientType !== 'supplier' && d.status === 'issued' && (
+                d.type === 'invoice' ||
+                (d.type === 'delivery_note' && !invoicedDocIds.has(d.id))
             ))
             .flatMap(d => {
                 const saleItems = d.details?.map(item => ({
@@ -3057,6 +3247,7 @@ export function useStore() {
                 const docLinkedStoreId = d.linkedConsignmentStoreId || (d.storeId && retailStores.find(s => s.id === d.storeId)?.linkedConsignmentStoreId);
                 const linkedStore = docLinkedStoreId ? retailStores.find(s => s.id === docLinkedStoreId) : null;
                 const shouldAttributeToLinked = d.attributeSalesToLinkedStore !== undefined ? d.attributeSalesToLinkedStore : !!docLinkedStoreId;
+                const hasSourceDocs = Boolean(d.sourceDocId || (d.sourceDocIds && d.sourceDocIds.length > 0));
 
                 const baseSale = {
                     id: d.id,
@@ -3070,6 +3261,7 @@ export function useStore() {
                     totalNetProfit: d.totalAmount,
                     isInvoice: d.type === 'invoice',
                     isDeliveryNote: d.type === 'delivery_note',
+                    hasSourceDocs,
                     docNumber: d.docNumber,
                     transactionId: d.transactionId,
                     updatedAt: d.createdAt || d.issuedDate,
@@ -3092,32 +3284,34 @@ export function useStore() {
                 return results;
             });
 
-        // 月次請求書（納品書からの合算でない売上精算型）が存在する「店舗×月」を特定し、
+        // 月次請求書（納品書からの合算でない売上精算型）が存在する「区分×店舗×月」を特定し、
         // すでに日次 rawSales（manualSales）が存在する場合は月次請求書側の重複計上を防ぐ
         const manualStoreMonths = new Set(
             manualSales
                 .filter(s => s.storeId && s.period)
-                .map(s => `${s.storeId}:${s.period.slice(0, 7)}`)
+                .map(s => `${s.recipientType === 'spot' ? 'spot' : 'store'}:${s.storeId}:${s.period.slice(0, 7)}`)
         );
 
         // Deduplication and Merging
         const result = [...manualSales];
         const manualCount = manualSales.length;
+        const replacedManualIndices = new Set<number>();
         
         documentSales.forEach(docSale => {
-            // 月次請求書（type === 'monthly'）で、同店舗・同月の日次 manualSales が既に存在する場合は二重計上を防止
-            if (docSale.type === 'monthly' && docSale.storeId && docSale.period) {
-                const monthKey = `${docSale.storeId}:${docSale.period.slice(0, 7)}`;
+            // 月次精算型請求書（納品書合算でない && type === 'monthly'）で、同区分・同店舗・同月の manualSales が既に存在する場合は二重計上を防止
+            if (docSale.type === 'monthly' && !docSale.hasSourceDocs && docSale.storeId && docSale.period) {
+                const monthKey = `${docSale.recipientType === 'spot' ? 'spot' : 'store'}:${docSale.storeId}:${docSale.period.slice(0, 7)}`;
                 if (manualStoreMonths.has(monthKey)) {
                     return;
                 }
             }
 
-            // Heuristic Deduplication against existing manualSales ONLY (docSale同士が上書き消滅しないようにする):
+            // Heuristic Deduplication against existing manualSales ONLY (置換済みインデックスは除外し docSale 同士の上書き消滅を防止):
             // 1. Same transactionId if exists
             // 2. Same store, period, and amount (within 1 yen)
             const duplicateIndex = result.findIndex((s, idx) => 
-                idx < manualCount && (
+                idx < manualCount &&
+                !replacedManualIndices.has(idx) && (
                     (docSale.transactionId && (s as any).transactionId === docSale.transactionId) ||
                     (s.storeId === docSale.storeId && 
                      s.period === docSale.period && 
@@ -3127,6 +3321,7 @@ export function useStore() {
             
             if (duplicateIndex !== -1) {
                 // Prioritize Document (Invoice/DN) over manual entry
+                replacedManualIndices.add(duplicateIndex);
                 result[duplicateIndex] = docSale;
             } else {
                 result.push(docSale);

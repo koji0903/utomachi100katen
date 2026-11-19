@@ -10,8 +10,8 @@ export async function isRecipientAllowed(recipient: string): Promise<boolean> {
     const target = recipient.trim().toLowerCase();
     if (!target) return false;
 
-    // 開発環境やエミュレータ起動時はテストを容易にするため制限をスキップ
-    if (process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_USE_EMULATOR === "true") {
+    // 非本番環境かつエミュレータ起動時のみテストを容易にするため制限をスキップ（本番では絶対禁止）
+    if (process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_USE_EMULATOR === "true") {
         return true;
     }
 

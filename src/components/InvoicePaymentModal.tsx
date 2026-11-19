@@ -56,6 +56,7 @@ export function InvoicePaymentModal({ invoice, initialAmount, onClose }: Invoice
                     recipientType: invoice.recipientType,
                     storeId: invoice.storeId,
                     supplierId: invoice.supplierId,
+                    spotRecipientId: invoice.spotRecipientId,
                     recipientName: invoice.recipientName,
                     totalAmount: amount,
                     taxRate: invoice.taxRate,

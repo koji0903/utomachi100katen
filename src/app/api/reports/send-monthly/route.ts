@@ -7,7 +7,7 @@ import { isRecipientAllowed } from "@/lib/emailWhitelist";
 const MAX_PDF_BYTES = 15 * 1024 * 1024;
 
 const storeTotalSchema = z.object({
-    storeName: z.string(),
+    storeName: z.string().max(200),
     storeTotalQuantity: z.number(),
     storeTotalAmount: z.number(),
 }).passthrough();
@@ -15,7 +15,7 @@ const storeTotalSchema = z.object({
 const summaryDataSchema = z.object({
     grandTotalAmount: z.number(),
     grandTotalQuantity: z.number(),
-    totals: z.array(storeTotalSchema),
+    totals: z.array(storeTotalSchema).max(500),
     totalExpenses: z.number().optional(),
     netProfit: z.number().optional(),
 }).passthrough();
@@ -56,7 +56,8 @@ export const POST = withAuth(async (req, ctx) => {
 
         await transporter.verify();
 
-        const reportMonth = month.replace(/-/g, "/");
+        const reportMonth = month.replace(/[\r\n]/g, " ").replace(/-/g, "/");
+        const safeMonth = month.replace(/[^0-9A-Za-z._-]/g, "_").slice(0, 32) || "report";
         const subject = `【月次損益レポート】${reportMonth}月分 月次損益（P&L）報告書`;
 
         const storeBreakdown = summaryData.totals
@@ -97,7 +98,7 @@ Automated Reporting System
             text: textBody,
             attachments: [
                 {
-                    filename: `monthly_report_${month}.pdf`,
+                    filename: `monthly_report_${safeMonth}.pdf`,
                     content: cleanPdfBase64,
                     encoding: "base64",
                 },

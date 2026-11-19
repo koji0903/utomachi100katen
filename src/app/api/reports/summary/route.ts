@@ -27,9 +27,9 @@ const bodySchema = z.object({
     reports: z.array(reportSchema).max(200),
 });
 
-export const GET = () => {
+export const GET = withAuth(() => {
     return NextResponse.json({ message: "AI summary endpoint is active. Use POST to analyze reports." });
-};
+});
 
 export const POST = withAuth(async (req, ctx) => {
     const { uid } = ctx;

@@ -249,13 +249,17 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
         for (const ssm of storeStockMovements) {
             if (!ssm.productId || !ssm.date) continue;
             const qty = ssm.quantity || 0;
-            if (qty <= 0) continue;
+            if (ssm.type === 'adjustment') {
+                if (qty === 0) continue;
+            } else {
+                if (qty <= 0) continue;
+            }
 
             const isAfter = ssm.date > endDate;
             const isWithin = ssm.date >= startDate && ssm.date <= endDate;
 
-            const isPlus = ssm.type === 'in' || ssm.reason === 'restock' || (ssm.reason === 'return' && ssm.type !== 'out');
-            const delta = isPlus ? qty : -qty;
+            const isPlus = ssm.type === 'in' || (ssm.type !== 'out' && (ssm.reason === 'restock' || ssm.reason === 'return'));
+            const delta = ssm.type === 'adjustment' ? qty : (isPlus ? qty : -qty);
 
             if (isAfter) {
                 storePostEndNet.set(ssm.productId, (storePostEndNet.get(ssm.productId) || 0) + delta);
@@ -264,10 +268,14 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
                 storePeriodNet.set(ssm.productId, (storePeriodNet.get(ssm.productId) || 0) + delta);
                 if (ssm.type === 'in' && ssm.reason === 'restock') {
                     storePeriodRestock.set(ssm.productId, (storePeriodRestock.get(ssm.productId) || 0) + qty);
+                } else if (ssm.type === 'out' && ssm.reason === 'restock') {
+                    storePeriodRestock.set(ssm.productId, (storePeriodRestock.get(ssm.productId) || 0) - qty);
                 } else if (ssm.type === 'in' && ssm.reason === 'return') {
                     storePeriodSales.set(ssm.productId, (storePeriodSales.get(ssm.productId) || 0) - qty);
                 } else if (ssm.reason === 'sale' || ssm.reason === 'loss' || (ssm.type === 'out' && ssm.reason === 'audit')) {
                     storePeriodSales.set(ssm.productId, (storePeriodSales.get(ssm.productId) || 0) + qty);
+                } else if (ssm.type === 'adjustment' && qty < 0) {
+                    storePeriodSales.set(ssm.productId, (storePeriodSales.get(ssm.productId) || 0) + Math.abs(qty));
                 }
             }
         }
@@ -330,8 +338,10 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
         const endingStock = mainEnding + storeEnding;
 
         // 期間中の入出庫
-        const mainIn = mainPeriodInbound.get(p.id) || 0;
-        const mainOut = Math.max(0, mainPeriodOutbound.get(p.id) || 0);
+        const rawMainIn = mainPeriodInbound.get(p.id) || 0;
+        const rawMainOut = mainPeriodOutbound.get(p.id) || 0;
+        const mainIn = rawMainOut < 0 ? rawMainIn + Math.abs(rawMainOut) : rawMainIn;
+        const mainOut = rawMainOut < 0 ? 0 : rawMainOut;
 
         let inboundQty = mainIn;
         let outboundQty = mainOut;
@@ -428,6 +438,12 @@ export function generateFiscalInventoryReport(params: GenerateFiscalReportParams
     };
 }
 
+function sanitizeCsvCell(value: unknown): string {
+    const str = String(value ?? "");
+    const sanitized = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+    return `"${sanitized.replace(/"/g, '""')}"`;
+}
+
 /**
  * 決算在庫レポートのCSVエクスポート文字列を生成する
  */
@@ -437,7 +453,7 @@ export function exportFiscalReportToCsv(report: FiscalReportResult, companyName 
 
     // ヘッダー情報
     lines.push(`"決算在庫管理レポート（棚卸資産明細書）"`);
-    lines.push(`"会社名","${companyName}"`);
+    lines.push(`"会社名",${sanitizeCsvCell(companyName)}`);
     lines.push(`"対象期間","${summary.startDate} 〜 ${summary.endDate}"`);
     lines.push(`"出力日時","${new Date().toLocaleString("ja-JP")}"`);
     lines.push(`"対象商品数","${summary.activeSkuCount} SKU (除外: ${summary.excludedSkuCount} SKU)"`);
@@ -479,7 +495,7 @@ export function exportFiscalReportToCsv(report: FiscalReportResult, companyName 
             item.storeEndingStock,
             item.endingAmount,
         ];
-        lines.push(row.map(val => typeof val === "number" ? val : `"${String(val).replace(/"/g, '""')}"`).join(","));
+        lines.push(row.map(val => typeof val === "number" ? val : sanitizeCsvCell(val)).join(","));
     }
 
     // 合計行
@@ -499,7 +515,7 @@ export function exportFiscalReportToCsv(report: FiscalReportResult, companyName 
         "",
         summary.totalEndingAmount,
     ];
-    lines.push(totalRow.map(val => typeof val === "number" ? val : `"${val}"`).join(","));
+    lines.push(totalRow.map(val => typeof val === "number" ? val : sanitizeCsvCell(val)).join(","));
 
     return "\uFEFF" + lines.join("\r\n"); // UTF-8 BOM付き
 }

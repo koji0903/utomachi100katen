@@ -100,6 +100,7 @@ function TypeBadge({ doc, allDocs }: { doc: IssuedDocument, allDocs: IssuedDocum
 function FulfillmentBadge({ doc, onUpdate }: { doc: IssuedDocument, onUpdate: (status: IssuedDocument['fulfillmentStatus']) => void }) {
     if (doc.type !== 'invoice') return null;
     const status = doc.fulfillmentStatus || 'pending';
+    const isDraft = doc.status === 'draft';
 
     const cycle: Record<string, IssuedDocument['fulfillmentStatus']> = {
         'pending': 'sent',
@@ -117,9 +118,16 @@ function FulfillmentBadge({ doc, onUpdate }: { doc: IssuedDocument, onUpdate: (s
 
     return (
         <button
-            onClick={() => onUpdate(cycle[status])}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${c.color} transition-all active:scale-95`}
-            title="クリックで状態を切り替え"
+            type="button"
+            disabled={isDraft}
+            onClick={() => {
+                if (isDraft) return;
+                onUpdate(cycle[status]);
+            }}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${c.color} transition-all ${
+                isDraft ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'
+            }`}
+            title={isDraft ? "下書きのため状態を変更できません（先に発行済にしてください）" : "クリックで状態を切り替え"}
         >
             <c.icon className="w-2.5 h-2.5" />{c.label}
         </button>

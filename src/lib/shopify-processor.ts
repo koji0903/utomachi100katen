@@ -26,6 +26,11 @@ export async function processShopifyOrder(order: ShopifyOrder) {
         shopifyStore = { id: activeStoreDoc.id, name: activeStoreDoc.data().name };
     }
 
+    if (!shopifyStore) {
+        console.warn(`[Shopify Processor] Retail store 'Shopify' not found. Skipping order ${order.shopifyOrderId} without inventory deduction.`);
+        return { success: false, reason: "store_not_found" };
+    }
+
     // 2. 重複チェック（過去のランダムID分も含めて事前確認）
     const deterministicTxRef = db.collection("transactions").doc(`shopify_${order.shopifyOrderId}`);
     const existingDocs = await db.collection("transactions")
@@ -115,16 +120,45 @@ export async function processShopifyOrder(order: ShopifyOrder) {
 
         if (productDoc) {
             const pData = productDoc.data();
-            const existing = productUpdatesMap.get(productDoc.id);
-            if (existing) {
-                existing.quantity += item.quantity;
+            const isComposite = pData.isComposite === true && Array.isArray(pData.components) && pData.components.length > 0;
+
+            if (isComposite) {
+                for (const comp of pData.components) {
+                    const compProductId = typeof comp?.productId === "string" ? comp.productId : "";
+                    const compQty = Number(comp?.quantity) || 0;
+                    if (!compProductId || compQty <= 0) continue;
+
+                    const compSnap = await db.collection("products").doc(compProductId).get();
+                    if (!compSnap.exists || compSnap.data()?.isTrashed === true) {
+                        console.warn(`[Shopify Processor] Component product ${compProductId} for composite ${productDoc.id} not found or trashed. Skipping.`);
+                        continue;
+                    }
+                    const compData = compSnap.data() || {};
+                    const deductQty = compQty * item.quantity;
+                    const existing = productUpdatesMap.get(compProductId);
+                    if (existing) {
+                        existing.quantity += deductQty;
+                    } else {
+                        productUpdatesMap.set(compProductId, {
+                            docRef: compSnap.ref,
+                            productId: compProductId,
+                            productName: String(compData.name || pData.name || "不明な商品"),
+                            quantity: deductQty
+                        });
+                    }
+                }
             } else {
-                productUpdatesMap.set(productDoc.id, {
-                    docRef: productDoc.ref,
-                    productId: productDoc.id,
-                    productName: pData.name,
-                    quantity: item.quantity
-                });
+                const existing = productUpdatesMap.get(productDoc.id);
+                if (existing) {
+                    existing.quantity += item.quantity;
+                } else {
+                    productUpdatesMap.set(productDoc.id, {
+                        docRef: productDoc.ref,
+                        productId: productDoc.id,
+                        productName: pData.name,
+                        quantity: item.quantity
+                    });
+                }
             }
 
             saleItems.push({
@@ -175,7 +209,7 @@ export async function processShopifyOrder(order: ShopifyOrder) {
                 productName: update.productName,
                 type: 'out',
                 quantity: update.quantity,
-                reason: 'manual',
+                reason: 'sale',
                 remarks: 'Shopify注文による自動減算',
                 referenceId: newTransactionRef.id,
                 date: orderDate,

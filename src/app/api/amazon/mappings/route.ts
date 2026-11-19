@@ -1,9 +1,27 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { adminDb, FieldValue } from "@/lib/firebase-admin";
 import { listAmazonListings } from "@/lib/amazon";
-import { withAuth, internalError, logError } from "@/lib/apiAuth";
+import { withAuth, parseJson, internalError, logError } from "@/lib/apiAuth";
 
 export const dynamic = "force-dynamic";
+
+const mappingComponentSchema = z.object({
+    productId: z.string().max(128).optional(),
+    quantity: z.union([z.number(), z.string()]).optional(),
+}).passthrough();
+
+const mappingItemSchema = z.object({
+    sku: z.string().max(128).optional(),
+    asin: z.string().max(64).optional(),
+    amazonTitle: z.string().max(500).optional(),
+    components: z.array(mappingComponentSchema).max(50).optional(),
+    enabled: z.boolean().optional(),
+}).passthrough();
+
+const postMappingsSchema = z.object({
+    mappings: z.array(mappingItemSchema).max(500),
+});
 
 export interface AmazonSkuMappingComponent {
     productId: string;
@@ -72,7 +90,7 @@ export const GET = withAuth(async (req, { uid }) => {
                 listings = await listAmazonListings();
             } catch (err: unknown) {
                 logError("Amazon Mappings GET:listings", err, { uid });
-                listingsError = err instanceof Error ? err.message : "Amazon出品一覧の取得に失敗しました";
+                listingsError = "Amazon出品一覧の取得に失敗しました";
             }
         }
 
@@ -95,24 +113,22 @@ export const POST = withAuth(async (req, { uid }) => {
             return internalError();
         }
 
-        const body = await req.json().catch(() => null);
-        if (!body || !Array.isArray(body.mappings)) {
-            return NextResponse.json({ error: "mappings 配列が必要です。" }, { status: 400 });
-        }
+        const parsed = await parseJson(req, postMappingsSchema);
+        if (parsed instanceof NextResponse) return parsed;
 
         const normalizedMap = new Map<string, Omit<AmazonSkuMappingRecord, "id" | "updatedAt">>();
 
-        for (const raw of body.mappings) {
+        for (const raw of parsed.mappings) {
             if (!raw || typeof raw.sku !== "string") continue;
             const sku = raw.sku.trim();
             if (!sku) continue;
 
             const components: AmazonSkuMappingComponent[] = Array.isArray(raw.components)
                 ? raw.components
-                    .filter((c: unknown): c is { productId: string; quantity?: unknown } =>
-                        Boolean(c && typeof c === "object" && "productId" in c && typeof (c as { productId?: unknown }).productId === "string" && (c as { productId: string }).productId.trim() !== "")
+                    .filter((c): c is { productId: string; quantity?: number | string } =>
+                        Boolean(c && typeof c.productId === "string" && c.productId.trim() !== "")
                     )
-                    .map((c: { productId: string; quantity?: unknown }) => ({
+                    .map((c) => ({
                         productId: c.productId.trim(),
                         quantity: Math.max(1, Math.floor(Number(c.quantity) || 1)),
                     }))

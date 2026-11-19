@@ -113,13 +113,11 @@ describe("inventoryConsistency", () => {
         ]);
     });
 
-    it("仕入済み(received/paid)でreceivedQuantityが0や未指定でも発注数量を全数在庫へ反映する", () => {
+    it("仕入済み(received/paid)でreceivedQuantityが未指定なら発注数量を全数反映し、明示的な0(欠品)は在庫へ反映しない", () => {
         expect(getPurchaseInventoryEffects({
             status: "received",
             items: [{ productId: "p1", quantity: 8, receivedQuantity: 0 }],
-        })).toEqual([
-            { scope: "main", productId: "p1", quantity: 8 },
-        ]);
+        })).toEqual([]);
 
         expect(getPurchaseInventoryEffects({
             status: "paid",

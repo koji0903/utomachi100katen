@@ -11,10 +11,15 @@ export interface VersionInfo {
     features: FeatureStatus[];
 }
 
-export const CURRENT_VERSION = "v1.33.1";
-export const RELEASE_DATE = "2026.11.19";
+export const CURRENT_VERSION = "v1.34.0";
+export const RELEASE_DATE = "2026.11.20";
 
 export const FEATURE_STATUS_LIST: FeatureStatus[] = [
+    {
+        name: "セキュリティ全面強化（API認証・ルール厳格化・インジェクション対策）＆業務ロジック最終監査改修",
+        description: "未認証Server Action（Amazon商品同期）のwithAuth保護API移行、Firestore/Storage Security Rulesの厳格化（監査ログ改ざん防止・SVG/HTMLアップロード遮断・マジックバイト検証）、HTMLメール＆CSVインジェクション対策、HTTPセキュリティヘッダー導入を実施。あわせて支払い管理の未払い戻しエラー修正、決算在庫レポートの補充取消符号修正、月次合算請求書消失防止、売上ゴミ箱復元・編集時過去単価保持、Square/Shopify/Amazon同期のアトミック化・BOM展開・排他ロックを完了。",
+        status: "completed"
+    },
     {
         name: "全社業務フロー統合・在庫/売上/会計ロジック厳密化＆事務員向け入力UI革新",
         description: "在庫・売上・請求・仕入・EC同期の全コアロジックを網羅的に監査・是正（月次請求書の二重計上防止、決算棚卸レポートの社内補充二重出庫控除・負の棚卸調整反映、日報補充のセット商品BOM展開・店舗別卸単価適用、Amazon/Square/Shopify同期の金額・BOM・マイナス在庫クランプ、消費税の浮動小数点誤差解消、全画面のゴミ箱データ除外徹底）。さらにサイドバーを日常業務フローに沿って5グループへ再編し、売上入力の高速検索・重複登録検知アラート・固定保存バー、製造/変換と製造工数の同時ワンストップ記録・取消ロールバック、仕入と支払ステータスの双方向連動を実装。",

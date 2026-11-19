@@ -1,59 +1,434 @@
 rules_version = '2';
 
+// ===============================================================
+// Assumed Data Model & Access Control Architecture
+// ===============================================================
+//
+// 本アプリは Firebase Authentication でログインする社内スタッフ・事務員向けの
+// 統合業務管理ツールです（現時点では Firebase Custom Claims 未導入のため、
+// 認証済みスタッフ `request.auth != null` を基本アクセス境界とします）。
+//
+// 1. サーバー専用コレクション（Admin SDK のみ書き込み、クライアント書き込み禁止）:
+//    - sync_locks/{docId}          : 同期処理の排他ロック
+//    - amazon_sku_mappings/{docId} : Amazon SKU マッピング（/api/amazon/mappings 経由）
+//
+// 2. 監査証跡・追記専用コレクション（クライアントからの改ざん・削除を禁止）:
+//    - sync_logs/{docId}           : 外部連携同期ログ（Amazon/Shopify は Admin SDK、Square はクライアントから追記）
+//    - activities/{docId}          : 社内操作ログ（追記のみ）
+//
+// 3. 気象データキャッシュ（削除禁止、厳格なスキーマ検証付き）:
+//    - daily_weather/{docId}       : 店舗別日次気象データ（Cron Admin SDK + 日報/売上入力画面からの自動キャッシュ保存）
+//
+// 4. 設定コレクション（削除禁止）:
+//    - settings/{docId}            : 自動レポート設定等（auto_report）
+//    - company_settings/{docId}    : 自社情報・口座・通知先設定（main）
+//
+// 5. 通常業務コレクション（認証済みスタッフの読み書き＋フィールド数・型・サイズ検証による DoS 対策）:
+//    - brands, suppliers, products, retailStores, inbound_shipments, sales,
+//      payment_records, daily_reports, issued_documents, invoice_payments,
+//      transactions, transaction_items, spot_recipients, business_challenges,
+//      stock_conversions, trash, stock_movements, inventory_audits,
+//      store_stocks, store_stock_movements, print_archives, expenses,
+//      business_manuals, seasonal_tasks, promotion_events,
+//      composite_productions, workLogs, fixedCosts, mqSummaries
+//
+// 6. デフォルト拒否:
+//    - 上記以外の未定義コレクション・サブコレクションはすべて読み書き拒否。
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- ヘルパー関数 ---
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
 
     // ユーザーが認証済みであることを確認
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    // ドキュメントのフィールド数が安全な上限以内であることを確認（DoS 防止）
+    function hasReasonableFieldCount(data, maxFields) {
+      return data.keys().size() > 0 && data.keys().size() <= maxFields;
+    }
 
+    // 必須文字列フィールドの検証
+    function isRequiredString(data, field, minLen, maxLen) {
+      return (field in data) &&
+             data[field] is string &&
+             data[field].size() >= minLen &&
+             data[field].size() <= maxLen;
+    }
 
-    // --- コレクション固有のルール ---
+    // 必須数値フィールドの検証
+    function isRequiredNumber(data, field) {
+      return (field in data) && data[field] is number;
+    }
 
-    // 基本的にすべてのビジネス管理データ（商品、在庫、売上など）は認証済みユーザーのみに許可
-    // 緊急対応：validateSize チェック一時的に削除（データ可視化確認用）
-    match /brands/{docId} { allow read, write: if isAuthenticated(); }
-    match /suppliers/{docId} { allow read, write: if isAuthenticated(); }
-    match /products/{docId} { allow read, write: if isAuthenticated(); }
-    match /retailStores/{docId} { allow read, write: if isAuthenticated(); }
-    match /inbound_shipments/{docId} { allow read, write: if isAuthenticated(); }
-    match /sales/{docId} { allow read, write: if isAuthenticated(); }
-    match /payment_records/{docId} { allow read, write: if isAuthenticated(); }
-    match /daily_reports/{docId} { allow read, write: if isAuthenticated(); }
-    match /issued_documents/{docId} { allow read, write: if isAuthenticated(); }
-    match /daily_weather/{docId} { allow read, write: if isAuthenticated(); }
-    match /invoice_payments/{docId} { allow read, write: if isAuthenticated(); }
-    match /transactions/{docId} { allow read, write: if isAuthenticated(); }
-    match /transaction_items/{docId} { allow read, write: if isAuthenticated(); }
-    match /spot_recipients/{docId} { allow read, write: if isAuthenticated(); }
-    match /business_challenges/{docId} { allow read, write: if isAuthenticated(); }
-    match /stock_conversions/{docId} { allow read, write: if isAuthenticated(); }
-    match /activities/{docId} { allow read, write: if isAuthenticated(); }
-    match /trash/{docId} { allow read, write: if isAuthenticated(); }
-    match /stock_movements/{docId} { allow read, write: if isAuthenticated(); }
-    match /inventory_audits/{docId} { allow read, write: if isAuthenticated(); }
-    match /store_stocks/{docId} { allow read, write: if isAuthenticated(); }
-    match /store_stock_movements/{docId} { allow read, write: if isAuthenticated(); }
-    match /print_archives/{docId} { allow read, write: if isAuthenticated(); }
-    match /expenses/{docId} { allow read, write: if isAuthenticated(); }
-    match /business_manuals/{docId} { allow read, write: if isAuthenticated(); }
-    match /sync_logs/{docId} { allow read, write: if isAuthenticated(); }
-    match /seasonal_tasks/{docId} { allow read, write: if isAuthenticated(); }
-    match /promotion_events/{docId} { allow read, write: if isAuthenticated(); }
-    match /composite_productions/{docId} { allow read, write: if isAuthenticated(); }
-    match /workLogs/{docId} { allow read, write: if isAuthenticated(); }
-    match /fixedCosts/{docId} { allow read, write: if isAuthenticated(); }
-    match /mqSummaries/{docId} { allow read, write: if isAuthenticated(); }
+    // オプショナル文字列フィールドの検証（未設定または null を許容）
+    function isOptionalString(data, field, maxLen) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is string && data[field].size() <= maxLen);
+    }
 
-    // 設定ドキュメント
-    match /settings/{docId} { allow read, write: if isAuthenticated(); }
-    match /company_settings/{docId} { allow read, write: if isAuthenticated(); }
+    // オプショナル数値フィールドの検証（未設定または null を許容）
+    function isOptionalNumber(data, field) {
+      return !(field in data) ||
+             data[field] == null ||
+             data[field] is number;
+    }
 
-    // デフォルト否定（念のためのフェイルセーフ）
+    // オプショナル真偽値フィールドの検証（未設定または null を許容）
+    function isOptionalBool(data, field) {
+      return !(field in data) ||
+             data[field] == null ||
+             data[field] is bool;
+    }
+
+    // オプショナル配列フィールドのサイズ検証（未設定または null を許容）
+    function isOptionalList(data, field, maxSize) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is list && data[field].size() <= maxSize);
+    }
+
+    // ===============================================================
+    // Domain Validators (Create / Update 共通で呼び出し Update Bypass を防止)
+    // ===============================================================
+
+    // 通常業務ドキュメント共通バリデータ（既存データの部分更新・マイグレーション互換性を維持しつつ DoS 防止）
+    function isValidBusinessDoc(data, maxFields) {
+      return hasReasonableFieldCount(data, maxFields) &&
+             isOptionalBool(data, 'isTrashed') &&
+             isOptionalString(data, 'id', 200) &&
+             isOptionalString(data, 'name', 500) &&
+             isOptionalString(data, 'title', 500) &&
+             isOptionalString(data, 'memo', 20000) &&
+             isOptionalString(data, 'notes', 20000) &&
+             isOptionalString(data, 'remarks', 20000) &&
+             isOptionalString(data, 'description', 50000) &&
+             isOptionalString(data, 'content', 200000) &&
+             isOptionalList(data, 'items', 500) &&
+             isOptionalList(data, 'details', 500);
+    }
+
+    // 商品マスターバリデータ（最大約60フィールドのため上限100を確保）
+    function isValidProduct(data) {
+      return isValidBusinessDoc(data, 100) &&
+             isOptionalNumber(data, 'costPrice') &&
+             isOptionalNumber(data, 'sellingPrice') &&
+             isOptionalNumber(data, 'stock') &&
+             isOptionalList(data, 'storePrices', 200) &&
+             isOptionalList(data, 'storeWholesalePrices', 200) &&
+             isOptionalList(data, 'components', 100) &&
+             isOptionalString(data, 'story', 50000) &&
+             isOptionalString(data, 'producerStory', 50000) &&
+             isOptionalString(data, 'regionBackground', 50000);
+    }
+
+    // 同期ログバリデータ（Square クライアント同期の追記用）
+    function isValidSyncLog(data) {
+      return hasReasonableFieldCount(data, 20) &&
+             isRequiredString(data, 'type', 1, 50) &&
+             isRequiredString(data, 'status', 1, 50) &&
+             isOptionalString(data, 'storeId', 200) &&
+             isOptionalString(data, 'locationId', 200) &&
+             isOptionalNumber(data, 'productCount') &&
+             isOptionalNumber(data, 'orderCount');
+    }
+
+    // 操作履歴バリデータ（追記専用）
+    function isValidActivity(data) {
+      return hasReasonableFieldCount(data, 15) &&
+             isRequiredString(data, 'type', 1, 50) &&
+             isRequiredString(data, 'category', 1, 50) &&
+             isRequiredString(data, 'title', 1, 500) &&
+             isOptionalString(data, 'detail', 5000) &&
+             isOptionalString(data, 'userId', 200) &&
+             isOptionalString(data, 'userName', 200);
+    }
+
+    // 日次気象データバリデータ
+    function isValidDailyWeather(data) {
+      return hasReasonableFieldCount(data, 20) &&
+             isRequiredString(data, 'storeId', 1, 200) &&
+             isRequiredString(data, 'date', 8, 20) &&
+             isRequiredString(data, 'weather', 1, 100) &&
+             isRequiredString(data, 'weatherMain', 1, 100) &&
+             isRequiredNumber(data, 'temp') &&
+             isOptionalNumber(data, 'tempMin') &&
+             isOptionalNumber(data, 'tempMax') &&
+             isOptionalNumber(data, 'humidity') &&
+             isOptionalNumber(data, 'windSpeed');
+    }
+
+    // ゴミ箱ドキュメントバリデータ
+    function isValidTrashItem(data) {
+      return hasReasonableFieldCount(data, 15) &&
+             isRequiredString(data, 'originalId', 1, 200) &&
+             isRequiredString(data, 'collectionName', 1, 100) &&
+             isRequiredString(data, 'label', 1, 500);
+    }
+
+    // 自社設定バリデータ
+    function isValidCompanySettings(data) {
+      return isValidBusinessDoc(data, 60) &&
+             isOptionalString(data, 'companyName', 300) &&
+             isOptionalString(data, 'invoiceNumber', 50) &&
+             isOptionalList(data, 'fixedCostTemplates', 100) &&
+             isOptionalList(data, 'notificationEmails', 50);
+    }
+
+    // システム設定バリデータ（auto_report 等）
+    function isValidSettings(data) {
+      return isValidBusinessDoc(data, 30) &&
+             isOptionalBool(data, 'isEnabled') &&
+             isOptionalString(data, 'emailRecipient', 320) &&
+             isOptionalString(data, 'frequency', 20) &&
+             isOptionalNumber(data, 'sendDay') &&
+             isOptionalString(data, 'sendTime', 20);
+    }
+
+    // ===============================================================
+    // 1. サーバー専用コレクション（Admin SDK のみ書き込み可能）
+    // ===============================================================
+
+    match /sync_locks/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    match /amazon_sku_mappings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // ===============================================================
+    // 2. 監査証跡・ログコレクション（改ざん・削除禁止）
+    // ===============================================================
+
+    // sync_logs: Amazon/Shopify は Admin SDK 経由。Square 同期クライアントが追記するため create のみ厳格検証付きで許可。
+    match /sync_logs/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidSyncLog(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // activities: 操作履歴は追記専用（改ざん・削除不可）
+    match /activities/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidActivity(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // daily_weather: Cron (Admin SDK) および日報・売上入力画面の自動取得キャッシュから保存。削除禁止。
+    match /daily_weather/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidDailyWeather(request.resource.data);
+      allow delete: if false;
+    }
+
+    // ===============================================================
+    // 3. マスター・通常業務コレクション（認証済みスタッフ＋DoS 対策）
+    // ===============================================================
+
+    match /products/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidProduct(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /brands/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /suppliers/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /retailStores/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /inbound_shipments/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /sales/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /payment_records/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /daily_reports/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /issued_documents/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /invoice_payments/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /transactions/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /transaction_items/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /spot_recipients/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /business_challenges/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /stock_conversions/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /trash/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidTrashItem(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /stock_movements/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /inventory_audits/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /store_stocks/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /store_stock_movements/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /print_archives/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /expenses/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /business_manuals/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /seasonal_tasks/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /promotion_events/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /composite_productions/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    // MQ 会計関連コレクション（実装コードのキャメルケース名に準拠）
+    match /workLogs/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /fixedCosts/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    match /mqSummaries/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidBusinessDoc(request.resource.data, 100);
+      allow delete: if isAuthenticated();
+    }
+
+    // ===============================================================
+    // 4. 設定ドキュメント（削除禁止）
+    // ===============================================================
+
+    match /settings/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidSettings(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /company_settings/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidCompanySettings(request.resource.data);
+      allow delete: if false;
+    }
+
+    // ===============================================================
+    // 5. デフォルト拒否（フェイルセーフ）
+    // ===============================================================
+
     match /{document=**} {
       allow read, write: if false;
     }

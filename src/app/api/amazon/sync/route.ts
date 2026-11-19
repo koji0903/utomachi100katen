@@ -15,36 +15,40 @@ export const POST = withAuth(async (_req, { uid }) => {
         }
         const db = adminDb;
 
-        // 0. スロットリングの確認（前回の実行から10分間はスキップ）
-        const logsRef = db.collection("sync_logs");
-        const lastLogSnap = await logsRef
-            .where("type", "==", "Amazon")
-            .orderBy("timestamp", "desc")
-            .limit(1)
-            .get();
-
-        if (!lastLogSnap.empty) {
-            const lastLog = lastLogSnap.docs[0].data();
-            let lastTimestamp = new Date(0);
-            if (lastLog.timestamp) {
-                if (typeof lastLog.timestamp.toDate === "function") {
-                    lastTimestamp = lastLog.timestamp.toDate();
-                } else if (lastLog.timestamp instanceof Date) {
-                    lastTimestamp = lastLog.timestamp;
-                } else {
-                    lastTimestamp = new Date(lastLog.timestamp);
+        // 0. スロットリング＆排他ロックの確認（10分間TTL・runTransaction で TOCTOU 競合を防止）
+        const lockRef = db.collection("sync_locks").doc("amazon");
+        const LOCK_TTL_MS = 10 * 60 * 1000;
+        const lockAcquired = await db.runTransaction(async (txn: any) => {
+            const lockSnap = await txn.get(lockRef);
+            const nowMs = Date.now();
+            if (lockSnap.exists) {
+                const lockData = lockSnap.data() || {};
+                let lockedAtMs = 0;
+                if (typeof lockData.lockedAtMs === "number") {
+                    lockedAtMs = lockData.lockedAtMs;
+                } else if (lockData.lockedAt && typeof lockData.lockedAt.toDate === "function") {
+                    lockedAtMs = lockData.lockedAt.toDate().getTime();
+                } else if (lockData.lockedAt) {
+                    lockedAtMs = new Date(lockData.lockedAt).getTime() || 0;
+                }
+                if (nowMs - lockedAtMs < LOCK_TTL_MS) {
+                    return false;
                 }
             }
-            const now = new Date();
-            const diffMinutes = (now.getTime() - lastTimestamp.getTime()) / (1000 * 60);
+            txn.set(lockRef, {
+                lockedAt: FieldValue.serverTimestamp(),
+                lockedAtMs: nowMs,
+                lockedBy: uid,
+            });
+            return true;
+        });
 
-            if (diffMinutes < 10) {
-                return NextResponse.json({
-                    success: true,
-                    skipped: true,
-                    message: "前回の同期から間もないため、スキップしました（10分間隔制限）"
-                });
-            }
+        if (!lockAcquired) {
+            return NextResponse.json({
+                success: true,
+                skipped: true,
+                message: "前回の同期から間もないため、スキップしました（10分間隔制限）"
+            });
         }
 
         // 1. 同期が有効な商品を取得
@@ -153,12 +157,15 @@ export const POST = withAuth(async (_req, { uid }) => {
             if (!prod) return;
             if (prod.isComposite && prod.components && prod.components.length > 0) {
                 for (const comp of prod.components) {
-                    const compProd = activeProductMap.get(comp.productId);
-                    const compName = compProd ? compProd.name : prod.name;
+                    if (!activeProductMap.has(comp.productId)) {
+                        console.warn(`[Amazon Sync] Component product ${comp.productId} for composite ${prod.id} not found or trashed. Skipping.`);
+                        continue;
+                    }
+                    const compProd = activeProductMap.get(comp.productId)!;
                     const compDeduct = deductQty * comp.quantity;
                     const existing = productUpdates.get(comp.productId);
                     productUpdates.set(comp.productId, {
-                        productName: compName,
+                        productName: compProd.name,
                         quantity: (existing ? existing.quantity : 0) + compDeduct,
                     });
                 }
@@ -191,9 +198,13 @@ export const POST = withAuth(async (_req, { uid }) => {
         }
 
         // 2. 注文情報（最新）の取得
-        const orders = await getAmazonOrders();
         let newOrdersCount = 0;
-        const processedOrders = [];
+        const processedOrders: string[] = [];
+
+        if (!amazonStore) {
+            console.warn("[Amazon Sync] Retail store 'Amazon' not found. Skipping order import and inventory deduction.");
+        } else {
+        const orders = await getAmazonOrders();
 
         for (const order of orders) {
             try {
@@ -377,6 +388,7 @@ export const POST = withAuth(async (_req, { uid }) => {
             } catch (err) {
                 logError("Amazon Sync:order", err, { amazonOrderId: order.amazonOrderId });
             }
+        }
         }
 
         await db.collection("sync_logs").add({

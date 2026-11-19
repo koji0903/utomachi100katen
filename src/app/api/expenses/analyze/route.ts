@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { z } from "zod";
 import { withAuth, internalError, logError } from "@/lib/apiAuth";
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -13,6 +14,61 @@ const ALLOWED_MIME = new Set([
     "image/heic",
     "application/pdf",
 ]);
+
+const ALLOWED_CATEGORIES = [
+    "備品",
+    "消耗品",
+    "飲食費",
+    "交通費",
+    "通信費",
+    "光熱費",
+    "広告宣伝費",
+    "支払手数料",
+    "その他",
+] as const;
+
+const ALLOWED_PAYMENT_METHODS = ["クレジット", "小口現金"] as const;
+
+const analysisResponseSchema = z.object({
+    date: z
+        .unknown()
+        .transform((v) => {
+            if (typeof v !== "string") return "";
+            const trimmed = v.trim();
+            return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : "";
+        }),
+    vendor: z
+        .unknown()
+        .transform((v) => (typeof v === "string" ? v.trim().slice(0, 200) : "")),
+    amount: z.preprocess(
+        (v) => {
+            if (typeof v === "number") return v;
+            if (typeof v === "string") {
+                const n = Number(v.replace(/[,¥円\s]/g, ""));
+                return Number.isFinite(n) ? n : 0;
+            }
+            return 0;
+        },
+        z.number().finite().min(0).max(1_000_000_000),
+    ),
+    item: z
+        .unknown()
+        .transform((v) => (typeof v === "string" ? v.trim().slice(0, 500) : "")),
+    category: z
+        .unknown()
+        .transform((v) =>
+            typeof v === "string" && (ALLOWED_CATEGORIES as readonly string[]).includes(v.trim())
+                ? v.trim()
+                : "その他",
+        ),
+    paymentMethod: z
+        .unknown()
+        .transform((v) =>
+            typeof v === "string" && (ALLOWED_PAYMENT_METHODS as readonly string[]).includes(v.trim())
+                ? v.trim()
+                : "小口現金",
+        ),
+});
 
 export const POST = withAuth(async (req, ctx) => {
     if (!genAI) {
@@ -102,8 +158,13 @@ export const POST = withAuth(async (req, ctx) => {
             return NextResponse.json({ error: "AI解析に失敗しました" }, { status: 502 });
         }
 
-        const analysis = JSON.parse(jsonMatch[0]);
-        return NextResponse.json(analysis);
+        const rawAnalysis: unknown = JSON.parse(jsonMatch[0]);
+        const validated = analysisResponseSchema.safeParse(rawAnalysis);
+        if (!validated.success) {
+            logError("expenses/analyze", new Error("invalid ai json schema"), { uid: ctx.uid });
+            return NextResponse.json({ error: "AI解析に失敗しました" }, { status: 502 });
+        }
+        return NextResponse.json(validated.data);
     } catch (err) {
         logError("expenses/analyze", err, { uid: ctx.uid });
         return NextResponse.json({ error: "AI解析に失敗しました" }, { status: 500 });

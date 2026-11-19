@@ -5,6 +5,15 @@ import { ReportData } from "@/lib/reportUtils";
 import { withAuth, parseJson, internalError, logError } from "@/lib/apiAuth";
 import { isRecipientAllowed } from "@/lib/emailWhitelist";
 
+function escapeHtml(str: string): string {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 function generateHtmlEmail(data: ReportData) {
     const { weeklySales, storeRanking, productRanking, forecast, restockingRecommendations, period } = data;
 
@@ -13,7 +22,7 @@ function generateHtmlEmail(data: ReportData) {
         <div style="text-align: center; margin-bottom: 30px;">
             <div style="display: inline-block; padding: 4px 12px; border-radius: 20px; background: #f1f5f9; color: #64748b; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Weekly Performance Report</div>
             <h1 style="color: #0f172a; margin: 10px 0;">今週の販売概況レポート</h1>
-            <p style="font-size: 12px; color: #94a3b8;">期間: ${period.start} 〜 ${period.end}</p>
+            <p style="font-size: 12px; color: #94a3b8;">期間: ${escapeHtml(period.start)} 〜 ${escapeHtml(period.end)}</p>
         </div>
 
         <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 15px; margin-bottom: 30px;">
@@ -37,7 +46,7 @@ function generateHtmlEmail(data: ReportData) {
                 ${storeRanking.map((s, i) => `
                     <tr>
                         <td style="padding: 4px 0; color: #94a3b8; width: 30px;">${i + 1}</td>
-                        <td style="padding: 4px 0; font-weight: bold;">${s.name}</td>
+                        <td style="padding: 4px 0; font-weight: bold;">${escapeHtml(s.name)}</td>
                         <td style="padding: 4px 0; text-align: right; font-weight: 900;">¥${s.amount.toLocaleString()}</td>
                     </tr>
                 `).join('')}
@@ -50,7 +59,7 @@ function generateHtmlEmail(data: ReportData) {
                 ${productRanking.map((p, i) => `
                     <tr>
                         <td style="padding: 4px 0; color: #94a3b8; width: 30px;">${i + 1}</td>
-                        <td style="padding: 4px 0; font-weight: bold;">${p.name}</td>
+                        <td style="padding: 4px 0; font-weight: bold;">${escapeHtml(p.name)}</td>
                         <td style="padding: 4px 0; text-align: right; font-weight: 900;">${p.quantity} 個</td>
                     </tr>
                 `).join('')}
@@ -68,7 +77,7 @@ function generateHtmlEmail(data: ReportData) {
                 </tr>
                 ${restockingRecommendations.map(r => `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 8px 6px;">${r.productName}</td>
+                        <td style="padding: 8px 6px;">${escapeHtml(r.productName)}</td>
                         <td style="padding: 8px 6px; text-align: right; color: #64748b;">${r.currentStock}</td>
                         <td style="padding: 8px 6px; text-align: right; color: #f43f5e; font-weight: bold;">${r.estimatedDaysLeft < 0 ? '欠品中' : r.estimatedDaysLeft + '日'}</td>
                     </tr>
@@ -86,8 +95,8 @@ function generateHtmlEmail(data: ReportData) {
 
 const reportDataSchema = z.object({
     period: z.object({
-        start: z.string(),
-        end: z.string(),
+        start: z.string().max(64),
+        end: z.string().max(64),
     }),
     weeklySales: z.object({
         currentAmount: z.number().min(0),

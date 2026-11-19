@@ -129,7 +129,7 @@ function ReportForm({
     onSaved: () => void;
     editData?: DailyReport;
 }) {
-    const { retailStores, products, addDailyReport, updateDailyReport, addSale, fetchAndSaveWeatherIfNeeded } = useStore();
+    const { retailStores, products, sales, addDailyReport, updateDailyReport, addSale, updateSale, deleteSale, fetchAndSaveWeatherIfNeeded } = useStore();
     const isEdit = !!editData;
 
     const [type, setType] = useState<"office" | "store" | "activity">(editData?.type ?? "store");
@@ -567,17 +567,15 @@ function ReportForm({
                 aiAnalysis,
             };
 
-            // NEW: Automatic sale for Wholesale (B) stores
-            // Only for new reports of type 'store' with restocking items
-            if (!isEdit && type === "store" && selectedStore?.type === 'B' && restocking.length > 0) {
-                const saleItems = restocking
+            const buildWholesaleSaleItems = (targetStore: NonNullable<typeof selectedStore>, items: RestockingItem[]) => {
+                return items
                     .filter(r => r.productId)
                     .map(r => {
                         const p = products.find(prod => prod.id === r.productId);
-                        const wsPrice = p?.storeWholesalePrices?.find(sp => sp.storeId === storeId)?.price;
-                        const stPrice = p?.storePrices?.find(sp => sp.storeId === storeId)?.price;
-                        const ratePrice = (selectedStore.wholesaleRate && p?.sellingPrice)
-                            ? Math.round(p.sellingPrice * (selectedStore.wholesaleRate / 100))
+                        const wsPrice = p?.storeWholesalePrices?.find(sp => sp.storeId === targetStore.id)?.price;
+                        const stPrice = p?.storePrices?.find(sp => sp.storeId === targetStore.id)?.price;
+                        const ratePrice = (targetStore.wholesaleRate && p?.sellingPrice)
+                            ? Math.round(p.sellingPrice * (targetStore.wholesaleRate / 100))
                             : undefined;
                         const price = (wsPrice && wsPrice > 0)
                             ? wsPrice
@@ -594,6 +592,14 @@ function ReportForm({
                             netProfit: subtotal
                         };
                     });
+            };
+
+            const validRestocking = restocking.filter(r => r.productId);
+
+            // NEW: Automatic sale for Wholesale (B) stores
+            // Only for new reports of type 'store' with restocking items
+            if (!isEdit && type === "store" && selectedStore?.type === 'B' && validRestocking.length > 0) {
+                const saleItems = buildWholesaleSaleItems(selectedStore, validRestocking);
 
                 if (saleItems.length > 0) {
                     const totalAmount = saleItems.reduce((acc, item) => acc + item.subtotal, 0);
@@ -614,6 +620,52 @@ function ReportForm({
 
             if (isEdit && editData) {
                 await updateDailyReport(editData.id, payload);
+
+                // Sync or notify for Wholesale (B) store restocking changes on edit
+                const originalStore = retailStores.find(s => s.id === editData.storeId);
+                const originalRestocking = (editData.restocking ?? []).filter(r => r.productId);
+                const isWholesaleRelevant =
+                    (editData.type === "store" && originalStore?.type === 'B' && originalRestocking.length > 0) ||
+                    (type === "store" && selectedStore?.type === 'B' && validRestocking.length > 0);
+
+                const restockingChanged =
+                    editData.type !== type ||
+                    editData.storeId !== storeId ||
+                    editData.date !== date ||
+                    originalRestocking.length !== validRestocking.length ||
+                    originalRestocking.some((orig, idx) => {
+                        const curr = validRestocking[idx];
+                        return !curr || orig.productId !== curr.productId || orig.qty !== curr.qty;
+                    });
+
+                if (isWholesaleRelevant && restockingChanged) {
+                    const linkedSaleId = (editData as DailyReport & { linkedSaleId?: string }).linkedSaleId;
+                    const linkedSale = linkedSaleId
+                        ? sales.find(s => s.id === linkedSaleId && !s.isTrashed)
+                        : undefined;
+
+                    if (linkedSale) {
+                        if (type === "store" && selectedStore?.type === 'B' && validRestocking.length > 0) {
+                            const saleItems = buildWholesaleSaleItems(selectedStore, validRestocking);
+                            const totalAmount = saleItems.reduce((acc, item) => acc + item.subtotal, 0);
+                            const totalQuantity = saleItems.reduce((acc, item) => acc + item.quantity, 0);
+                            await updateSale(linkedSale.id, {
+                                storeId: selectedStore.id,
+                                storeName: selectedStore.name,
+                                period: date,
+                                items: saleItems,
+                                totalQuantity,
+                                totalAmount,
+                                totalCommission: 0,
+                                totalNetProfit: totalAmount
+                            });
+                        } else {
+                            await deleteSale(linkedSale.id);
+                        }
+                    } else {
+                        showNotification("日報を更新しました。※卸売上の修正が必要な場合は売上管理画面からもご確認ください。", "info");
+                    }
+                }
             } else {
                 await addDailyReport(payload);
             }
@@ -1435,7 +1487,7 @@ function ReportCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 function ReportsPageContent() {
     const searchParams = useSearchParams();
-    const { products, retailStores, sales, dailyReports, spotRecipients, deleteDailyReport, restoreDailyReport, permanentlyDeleteDailyReport, isLoaded } = useStore();
+    const { products, retailStores, sales, dailyReports, spotRecipients, deleteDailyReport, restoreDailyReport, permanentlyDeleteDailyReport, deleteSale, isLoaded } = useStore();
     const [showForm, setShowForm] = useState(false);
     const [editTarget, setEditTarget] = useState<DailyReport | null>(null);
     const [toast, setToast] = useState<"saved" | "updated" | null>(null);
@@ -1451,6 +1503,26 @@ function ReportsPageContent() {
 
     const handleNewSaved = () => { setShowForm(false); showToast("saved"); };
     const handleEditSaved = () => { setEditTarget(null); showToast("updated"); };
+
+    const handleDeleteReport = async (report: DailyReport) => {
+        await deleteDailyReport(report.id);
+        const reportStore = retailStores.find(s => s.id === report.storeId);
+        const hasWholesaleRestocking =
+            report.type === "store" &&
+            reportStore?.type === 'B' &&
+            (report.restocking ?? []).some(r => r.productId);
+        if (hasWholesaleRestocking) {
+            const linkedSaleId = (report as DailyReport & { linkedSaleId?: string }).linkedSaleId;
+            const linkedSale = linkedSaleId
+                ? sales.find(s => s.id === linkedSaleId && !s.isTrashed)
+                : undefined;
+            if (linkedSale) {
+                await deleteSale(linkedSale.id);
+            } else {
+                showNotification("日報をゴミ箱へ移動しました。※卸売上の修正・削除が必要な場合は売上管理画面からもご確認ください。", "info");
+            }
+        }
+    };
 
 
     const sorted = [...dailyReports]
@@ -1564,7 +1636,7 @@ function ReportsPageContent() {
                         <ReportCard
                             key={report.id}
                             report={report}
-                            onDelete={() => deleteDailyReport(report.id)}
+                            onDelete={() => handleDeleteReport(report)}
                             onEdit={() => setEditTarget(report)}
                             onRestore={() => restoreDailyReport(report.id)}
                             onPermanentDelete={() => permanentlyDeleteDailyReport(report.id)}

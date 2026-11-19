@@ -183,7 +183,7 @@ export async function getAmazonOrders(): Promise<AmazonOrder[]> {
             if (!amazonOrderId) continue;
 
             // 各注文のアイテム詳細を取得
-            const itemsUrl = `${SP_API_REGION_ENDPOINT}/orders/v0/orders/${amazonOrderId}/orderItems`;
+            const itemsUrl = `${SP_API_REGION_ENDPOINT}/orders/v0/orders/${encodeURIComponent(amazonOrderId)}/orderItems`;
             const itemsRes = await fetch(itemsUrl, {
                 headers: { "x-amz-access-token": accessToken }
             });
@@ -330,8 +330,11 @@ export async function listAmazonListings(): Promise<AmazonListingSummary[]> {
 
     const allItems: AmazonListingSummary[] = [];
     let pageToken: string | null = null;
+    const MAX_PAGES = 50;
+    let pageCount = 0;
 
     do {
+        pageCount++;
         const params = new URLSearchParams({
             marketplaceIds: marketplaceId,
             includedData: "summaries",
@@ -368,6 +371,10 @@ export async function listAmazonListings(): Promise<AmazonListingSummary[]> {
         }
 
         pageToken = data.pagination?.nextToken || null;
+        if (pageToken && pageCount >= MAX_PAGES) {
+            console.warn(`[Amazon] listAmazonListings reached max page limit (${MAX_PAGES}). Stopping pagination.`);
+            break;
+        }
     } while (pageToken);
 
     return allItems;

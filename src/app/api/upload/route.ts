@@ -18,8 +18,13 @@ const ALLOWED_FOLDERS = new Set<string>([
     "reports/maintenance/after",
 ]);
 
-const ALLOWED_MIME_PREFIXES = ["image/"];
-const ALLOWED_MIME_EXACT = new Set<string>([
+const ALLOWED_MIME_TYPES = new Set<string>([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/heic",
+    "image/heif",
     "application/pdf",
     "video/mp4",
 ]);
@@ -32,8 +37,49 @@ function sanitizeFileName(name: string): string {
 }
 
 function isAllowedMime(mime: string): boolean {
-    if (ALLOWED_MIME_EXACT.has(mime)) return true;
-    return ALLOWED_MIME_PREFIXES.some((p) => mime.startsWith(p));
+    return ALLOWED_MIME_TYPES.has(mime.toLowerCase());
+}
+
+/**
+ * ファイルバッファの先頭マジックバイトを検証し、SVG/HTML 等の偽装アップロードを防止する
+ */
+function hasValidMagicBytes(buffer: Buffer, mime: string): boolean {
+    const normalized = mime.toLowerCase();
+    switch (normalized) {
+        case "image/jpeg":
+            return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+        case "image/png":
+            return (
+                buffer.length >= 8 &&
+                buffer[0] === 0x89 &&
+                buffer[1] === 0x50 &&
+                buffer[2] === 0x4e &&
+                buffer[3] === 0x47 &&
+                buffer[4] === 0x0d &&
+                buffer[5] === 0x0a &&
+                buffer[6] === 0x1a &&
+                buffer[7] === 0x0a
+            );
+        case "image/gif": {
+            if (buffer.length < 6) return false;
+            const header = buffer.subarray(0, 6).toString("ascii");
+            return header === "GIF87a" || header === "GIF89a";
+        }
+        case "image/webp":
+            return (
+                buffer.length >= 12 &&
+                buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+                buffer.subarray(8, 12).toString("ascii") === "WEBP"
+            );
+        case "application/pdf":
+            return buffer.length >= 4 && buffer.subarray(0, 4).toString("ascii") === "%PDF";
+        case "video/mp4":
+        case "image/heic":
+        case "image/heif":
+            return buffer.length >= 12 && buffer.subarray(4, 8).toString("ascii") === "ftyp";
+        default:
+            return false;
+    }
 }
 
 export const POST = withAuth(async (req: NextRequest, { uid }) => {
@@ -82,6 +128,13 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
+        if (!hasValidMagicBytes(buffer, file.type)) {
+            return NextResponse.json(
+                { error: "ファイル内容が不正、またはサポートされていない形式です。" },
+                { status: 400 },
+            );
+        }
+
         const object = bucket.file(fullStoragePath);
         const downloadToken = crypto.randomUUID();
         
@@ -99,13 +152,8 @@ export const POST = withAuth(async (req: NextRequest, { uid }) => {
         const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(fullStoragePath)}?alt=media&token=${downloadToken}`;
 
         return NextResponse.json({ url, storagePath: fullStoragePath });
-    } catch (error: any) {
+    } catch (error: unknown) {
         logError("API-Upload", error, { uid, folderPath });
-        // Return detailed error for debugging if possible
-        const errorMessage = error instanceof Error ? error.message : "不明なエラー";
-        return NextResponse.json({ 
-            error: "ファイルのアップロード・保存に失敗しました。", 
-            detail: errorMessage 
-        }, { status: 500 });
+        return internalError();
     }
 });

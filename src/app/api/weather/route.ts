@@ -20,7 +20,8 @@ export const GET = withAuth(async (req, ctx) => {
 
     const apiKey = process.env.OPENWEATHER_API_KEY;
     if (!apiKey) {
-        return NextResponse.json({ error: "OPENWEATHER_API_KEY not configured" }, { status: 503 });
+        logError("weather", new Error("OPENWEATHER_API_KEY not configured"), { uid: ctx.uid });
+        return NextResponse.json({ error: "Weather service unavailable" }, { status: 503 });
     }
 
     try {

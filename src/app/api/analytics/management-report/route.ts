@@ -38,6 +38,12 @@ const recentReportSchema = z.object({
     summary: z.string().max(1000),
 }).passthrough();
 
+const expensePieItemSchema = z.object({
+    name: z.string().max(200),
+    value: z.number(),
+    color: z.string().max(50).optional(),
+});
+
 const bodySchema = z.object({
     period: z.string().max(64),
     viewMode: z.enum(["daily", "monthly"]).optional(),
@@ -47,7 +53,7 @@ const bodySchema = z.object({
     storeDistribution: z.unknown().optional(),
     weatherSummary: z.string().max(4000).optional(),
     targetStoreTrends: targetStoreSchema.optional(),
-    expensePieData: z.array(z.any()).optional(),
+    expensePieData: z.array(expensePieItemSchema).max(100).optional(),
     workLogsSummary: z.object({
         totalMinutes: z.number(),
         totalLaborCost: z.number(),

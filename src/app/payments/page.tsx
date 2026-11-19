@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store";
+import { showNotification } from "@/lib/notifications";
 import { PaymentDetailModal } from "@/components/PaymentDetailModal";
 import { DocumentPreviewModal } from "@/components/DocumentPreviewModal";
 import {
@@ -20,6 +21,7 @@ export default function PaymentsPage() {
     const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
     const [detailModal, setDetailModal] = useState<{ supplierId: string; supplierName: string } | null>(null);
     const [pdfModal, setPdfModal] = useState<{ supplierId: string } | null>(null);
+    const [updatingSupplierId, setUpdatingSupplierId] = useState<string | null>(null);
 
     if (!isLoaded) return <div className="p-8 text-slate-500">読み込み中...</div>;
 
@@ -36,7 +38,7 @@ export default function PaymentsPage() {
     const monthShipments = purchases.filter(p => {
         if (p.isTrashed) return false;
         if (!(p.status === "received" || p.status === "paid")) return false;
-        const dateStr = p.arrivalDate || p.orderDate;
+        const dateStr = p.arrivalDate || p.receivedDate || p.orderDate;
         return dateStr?.startsWith(selectedMonth);
     });
 
@@ -85,35 +87,49 @@ export default function PaymentsPage() {
     const unpaidTotal = rows.filter(r => r.status === "unpaid").reduce((s, r) => s + r.total, 0);
 
     const handleToggleStatus = async (row: SupplierRow) => {
-        const newStatus = row.status === "unpaid" ? "paid" : "unpaid";
-        const today = new Date().toISOString().split("T")[0];
-        const update: { status: "paid" | "unpaid"; paidDate?: string } = { status: newStatus };
-        if (newStatus === "paid") {
-            update.paidDate = today;
-        } else {
-            update.paidDate = undefined;
-        }
-        await upsertPaymentRecord(row.supplierId, selectedMonth, update);
+        if (updatingSupplierId === row.supplierId) return;
+        setUpdatingSupplierId(row.supplierId);
+        try {
+            const newStatus = row.status === "unpaid" ? "paid" : "unpaid";
+            const today = new Date().toISOString().split("T")[0];
+            const update: { status: "paid" | "unpaid"; paidDate?: string } = { status: newStatus };
+            if (newStatus === "paid") {
+                update.paidDate = today;
+            } else {
+                update.paidDate = "";
+            }
+            await upsertPaymentRecord(row.supplierId, selectedMonth, update);
 
-        // Synchronize matching purchase records in selectedMonth for this supplier
-        const targetShipments = monthShipments.filter(p => p.supplierId === row.supplierId);
-        if (newStatus === "paid") {
-            await Promise.all(
-                targetShipments
-                    .filter(p => p.status === "received")
-                    .map(p => updatePurchase(p.id, { status: "paid", paymentDate: today }))
-            );
-        } else {
-            await Promise.all(
-                targetShipments
-                    .filter(p => p.status === "paid")
-                    .map(p => updatePurchase(p.id, { status: "received", paymentDate: "" }))
-            );
+            // Synchronize matching purchase records in selectedMonth for this supplier
+            const targetShipments = monthShipments.filter(p => p.supplierId === row.supplierId);
+            if (newStatus === "paid") {
+                await Promise.all(
+                    targetShipments
+                        .filter(p => p.status === "received")
+                        .map(p => updatePurchase(p.id, { status: "paid", paymentDate: today }))
+                );
+            } else {
+                await Promise.all(
+                    targetShipments
+                        .filter(p => p.status === "paid")
+                        .map(p => updatePurchase(p.id, { status: "received", paymentDate: "" }))
+                );
+            }
+        } catch (error) {
+            console.error("Failed to toggle payment status:", error);
+            showNotification("支払ステータスの更新に失敗しました。", "error");
+        } finally {
+            setUpdatingSupplierId(null);
         }
     };
 
     // CSV export
     const handleExportCSV = () => {
+        const sanitizeCsvCell = (value: string) => {
+            const str = String(value ?? "");
+            const formulaSafe = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+            return `"${formulaSafe.replace(/"/g, '""')}"`;
+        };
         const header = ["仕入先名", "カテゴリー", "銀行名", "支店名", "口座種別", "口座番号", "口座名義", "支払金額", "ステータス", "支払日"];
         const csvRows = rows.map(r => [
             r.name,
@@ -127,7 +143,7 @@ export default function PaymentsPage() {
             r.status === "paid" ? "支払済" : "未払い",
             r.paidDate || "",
         ]);
-        const csv = [header, ...csvRows].map(row => row.map(v => `"${v}"`).join(",")).join("\n");
+        const csv = [header, ...csvRows].map(row => row.map(sanitizeCsvCell).join(",")).join("\n");
         const bom = "\uFEFF";
         const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
@@ -282,7 +298,8 @@ export default function PaymentsPage() {
                                             </button>
                                             <button
                                                 onClick={() => handleToggleStatus(row)}
-                                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${row.status === "unpaid"
+                                                disabled={updatingSupplierId === row.supplierId}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${row.status === "unpaid"
                                                     ? "bg-emerald-600 text-white hover:bg-emerald-700"
                                                     : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                                                     }`}
@@ -377,7 +394,8 @@ export default function PaymentsPage() {
                                 </button>
                                 <button
                                     onClick={() => handleToggleStatus(row)}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${row.status === "unpaid" ? "bg-emerald-600 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
+                                    disabled={updatingSupplierId === row.supplierId}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${row.status === "unpaid" ? "bg-emerald-600 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
                                 >
                                     {row.status === "unpaid" ? <><CheckCircle className="w-3.5 h-3.5" /> 支払済にする</> : <><Clock className="w-3.5 h-3.5" /> 戻す</>}
                                 </button>

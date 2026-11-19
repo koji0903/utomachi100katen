@@ -8,63 +8,78 @@ service firebase.storage {
     }
 
     // Helper: validate file size (15 MB max)
-    // 注意: write (create/update) 時のみ有効。read 時は request.resource が null のため使用不可。
+    // 注意: create/update 時のみ有効。read 時は request.resource が null のため使用不可。
     function isValidFileSize() {
-      return request.resource == null || request.resource.size <= 15 * 1024 * 1024;
+      return request.resource != null && request.resource.size <= 15 * 1024 * 1024;
+    }
+
+    // Helper: validate allowed Content-Type (SVG/HTML 等の任意形式を遮断)
+    function isValidContentType() {
+      return request.resource != null &&
+        request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif|heic|heif)|application/pdf|video/mp4');
     }
 
     // 共通のルール定義
-    // read と write を分離し、read 時にはファイルサイズチェックを行わないようにします。
-    // これにより、アップロード直後の getMetadata や getDownloadURL での権限エラーを回避します。
+    // read / create, update / delete を分離し、アップロード時にサイズと Content-Type を厳格に検証します。
     
     match /products/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidFileSize();
+      allow create, update: if isAuthenticated() && isValidFileSize() && isValidContentType();
+      allow delete: if isAuthenticated();
     }
 
     match /print-archives/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidFileSize();
+      allow create, update: if isAuthenticated() && isValidFileSize() && isValidContentType();
+      allow delete: if isAuthenticated();
     }
 
     match /settings/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidFileSize();
+      allow create, update: if isAuthenticated() && isValidFileSize() && isValidContentType();
+      allow delete: if isAuthenticated();
     }
 
     match /stores/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidFileSize();
+      allow create, update: if isAuthenticated() && isValidFileSize() && isValidContentType();
+      allow delete: if isAuthenticated();
     }
 
     match /invoices/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidFileSize();
+      allow create, update: if isAuthenticated() && isValidFileSize() && isValidContentType();
+      allow delete: if isAuthenticated();
     }
 
     match /estimates/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidFileSize();
+      allow create, update: if isAuthenticated() && isValidFileSize() && isValidContentType();
+      allow delete: if isAuthenticated();
     }
 
     match /delivery_notes/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidFileSize();
+      allow create, update: if isAuthenticated() && isValidFileSize() && isValidContentType();
+      allow delete: if isAuthenticated();
     }
 
     match /receipts/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidFileSize();
+      allow create, update: if isAuthenticated() && isValidFileSize() && isValidContentType();
+      allow delete: if isAuthenticated();
     }
 
     match /summaries/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidFileSize();
+      allow create, update: if isAuthenticated() && isValidFileSize() && isValidContentType();
+      allow delete: if isAuthenticated();
     }
 
     match /reports/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidFileSize();
+      allow create, update: if isAuthenticated() && isValidFileSize() && isValidContentType();
+      allow delete: if isAuthenticated();
     }
 
     // Default deny all (最後に配置)
